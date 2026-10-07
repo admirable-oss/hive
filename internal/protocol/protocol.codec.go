@@ -6,8 +6,10 @@ import (
 )
 
 type Codec interface {
-	Decode(io.Reader, *Request) error
-	Encode(io.Writer, Response) error
+	EncodeRequest(io.Writer, Request) error
+	DecodeRequest(io.Reader, *Request) error
+	EncodeResponse(io.Writer, Response) error
+	DecodeResponse(io.Reader, *Response) error
 }
 
 type JSONCodec struct {
@@ -20,16 +22,24 @@ func NewJSONCodec(maxMessageSize int64) Codec {
 	}
 }
 
-func (c *JSONCodec) Decode(reader io.Reader, request *Request) error {
+func (c *JSONCodec) EncodeRequest(writer io.Writer, request Request) error {
+	encoder := json.NewEncoder(writer)
+	return encoder.Encode(request)
+}
+
+func (c *JSONCodec) DecodeRequest(reader io.Reader, request *Request) error {
 	limited := io.LimitReader(reader, c.maxMessageSize)
-
 	decoder := json.NewDecoder(limited)
-
 	return decoder.Decode(request)
 }
 
-func (c *JSONCodec) Encode(writer io.Writer, response Response) error {
+func (c *JSONCodec) EncodeResponse(writer io.Writer, response Response) error {
 	encoder := json.NewEncoder(writer)
-
 	return encoder.Encode(response)
+}
+
+func (c *JSONCodec) DecodeResponse(reader io.Reader, response *Response) error {
+	limited := io.LimitReader(reader, c.maxMessageSize)
+	decoder := json.NewDecoder(limited)
+	return decoder.Decode(response)
 }

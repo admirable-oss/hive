@@ -21,7 +21,7 @@ func TestJSONCodec_Encode_Response(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := codec.Encode(&buf, resp)
+	err := codec.EncodeResponse(&buf, resp)
 	if err != nil {
 		t.Fatalf("unexpected encode error: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestJSONCodec_Decode_Request(t *testing.T) {
 	reader := strings.NewReader(raw)
 
 	var req protocol.Request
-	err := codec.Decode(reader, &req)
+	err := codec.DecodeRequest(reader, &req)
 	if err != nil {
 		t.Fatalf("unexpected decode error: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestJSONCodec_Decode_MalformedJSON(t *testing.T) {
 	reader := strings.NewReader("not json at all\n")
 
 	var req protocol.Request
-	err := codec.Decode(reader, &req)
+	err := codec.DecodeRequest(reader, &req)
 	if err == nil {
 		t.Fatal("expected decode error for malformed JSON, got nil")
 	}
@@ -83,7 +83,7 @@ func TestJSONCodec_Decode_OversizedRequest(t *testing.T) {
 	reader := strings.NewReader(big)
 
 	var req protocol.Request
-	err := codec.Decode(reader, &req)
+	err := codec.DecodeRequest(reader, &req)
 	if err == nil {
 		t.Fatal("expected error for oversized request, got nil")
 	}

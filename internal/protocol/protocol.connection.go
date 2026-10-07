@@ -34,7 +34,7 @@ func (c *connection) Serve(
 
 	for {
 		var request Request
-		if err := c.codec.Decode(conn, &request); err != nil {
+		if err := c.codec.DecodeRequest(conn, &request); err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
@@ -43,7 +43,7 @@ func (c *connection) Serve(
 
 		response := c.protocol.Handle(ctx, request)
 
-		if err := c.codec.Encode(conn, response); err != nil {
+		if err := c.codec.EncodeResponse(conn, response); err != nil {
 			return err
 		}
 	}

@@ -17,6 +17,10 @@ func NewModule(config Config) *Module {
 		"runtime.ping",
 		NewPingHandler(),
 	)
+	_ = protocolService.Register(
+		"runtime.status",
+		NewStatusHandler(service),
+	)
 
 	service.protocol = protocolService
 	service.codec = codec
