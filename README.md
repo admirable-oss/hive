@@ -9,7 +9,7 @@
   <p align="center" fill="grey">Run them <strong style="color: #F5B942">anywhere</strong>. Leave them running.</p>
 </p>
 
-https://github.com/user-attachments/assets/c6d62730-383e-4707-87b2-85e3756b0d08
+https://github.com/user-attachments/assets/bd7b9d6e-d0f5-43d7-9889-34c1a3fb0c9e
 
 ## Leave them running
 
