@@ -21,6 +21,10 @@ func NewModule(config Config) *Module {
 		"runtime.status",
 		NewStatusHandler(service),
 	)
+	_ = protocolService.Register(
+		"runtime.shutdown",
+		NewShutdownHandler(service),
+	)
 
 	service.protocol = protocolService
 	service.codec = codec

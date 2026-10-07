@@ -17,3 +17,10 @@ type RuntimeModel struct {
 	Socket    string
 	StartedAt time.Time
 }
+
+type StatusResult struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	Socket    string    `json:"socket"`
+	StartedAt time.Time `json:"started_at"`
+}

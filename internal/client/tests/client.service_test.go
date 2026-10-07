@@ -94,7 +94,32 @@ func TestServiceStatus(t *testing.T) {
 	if status.Socket != path {
 		t.Fatalf("expected socket %q, got %q", path, status.Socket)
 	}
-	if status.StartedAt == "" {
+	if status.StartedAt.IsZero() {
 		t.Fatal("expected StartedAt to be populated")
+	}
+}
+
+func TestServiceShutdown(t *testing.T) {
+	ctx := context.Background()
+	path := sockPath(t)
+
+	mod := runtime.NewModule(runtime.Config{
+		SocketPath: path,
+		Listener:   runtime.NewNetListenerFactory(),
+	})
+	if err := mod.Service.Start(ctx); err != nil {
+		t.Fatalf("start runtime: %v", err)
+	}
+
+	if err := waitForSocket(path, 2*time.Second); err != nil {
+		t.Fatalf("socket did not appear: %v", err)
+	}
+
+	c := client.NewService(client.Config{SocketPath: path})
+
+	ctxShutdown, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := c.Shutdown(ctxShutdown); err != nil {
+		t.Fatalf("shutdown: %v", err)
 	}
 }

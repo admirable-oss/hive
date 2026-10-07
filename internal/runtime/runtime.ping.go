@@ -20,8 +20,8 @@ func (PingHandler) Handle(
 		Version: protocol.Version,
 		Type:    protocol.MessageTypeResponse,
 		ID:      request.ID,
-		Result: map[string]any{
+		Result: protocol.MustEncodeResult(map[string]any{
 			"pong": true,
-		},
+		}),
 	}
 }

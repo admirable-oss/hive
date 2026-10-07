@@ -11,6 +11,10 @@ type Reader interface {
 	Runtime(context.Context) (RuntimeModel, error)
 }
 
+type Controller interface {
+	Stop(context.Context) error
+}
+
 type Protocol interface {
 	Service
 	Reader

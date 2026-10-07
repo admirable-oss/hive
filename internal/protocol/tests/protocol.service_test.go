@@ -2,6 +2,7 @@ package protocol_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -26,7 +27,7 @@ func (h *testHandler) Handle(
 		Version: protocol.Version,
 		Type:    protocol.MessageTypeResponse,
 		ID:      req.ID,
-		Result:  h.result,
+		Result:  protocol.MustEncodeResult(h.result),
 	}
 }
 
@@ -100,9 +101,9 @@ func TestService_Handle_Dispatch(t *testing.T) {
 	if resp.Error != nil {
 		t.Fatalf("unexpected error: %+v", resp.Error)
 	}
-	result, ok := resp.Result.(map[string]any)
-	if !ok {
-		t.Fatalf("expected result to be map[string]any, got %T", resp.Result)
+	var result map[string]any
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
 	}
 	if result["ok"] != true {
 		t.Fatalf("expected ok=true, got %v", result["ok"])

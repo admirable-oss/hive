@@ -100,12 +100,12 @@ func TestRuntime_Protocol_Ping(t *testing.T) {
 	if resp.Error != nil {
 		t.Fatalf("unexpected error: %+v", resp.Error)
 	}
-	result, ok := resp.Result.(map[string]any)
-	if !ok {
-		t.Fatalf("expected result map[string]any, got %T", resp.Result)
+	var result map[string]any
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
 	}
 	pong, ok := result["pong"].(bool)
 	if !ok || !pong {
-		t.Fatalf("expected pong=true, got %+v", resp.Result)
+		t.Fatalf("expected pong=true, got %+v", result)
 	}
 }

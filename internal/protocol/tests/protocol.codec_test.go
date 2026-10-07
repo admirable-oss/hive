@@ -15,9 +15,9 @@ func TestJSONCodec_Encode_Response(t *testing.T) {
 		Version: protocol.Version,
 		Type:    protocol.MessageTypeResponse,
 		ID:      "1",
-		Result: map[string]any{
+		Result: protocol.MustEncodeResult(map[string]any{
 			"pong": true,
-		},
+		}),
 	}
 
 	var buf bytes.Buffer

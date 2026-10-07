@@ -20,9 +20,9 @@ func (echoHandler) Handle(
 		Version: protocol.Version,
 		Type:    protocol.MessageTypeResponse,
 		ID:      req.ID,
-		Result: map[string]any{
+		Result: protocol.MustEncodeResult(map[string]any{
 			"method": req.Method,
-		},
+		}),
 	}
 }
 
@@ -80,9 +80,12 @@ func TestConnection_Serve_RequestResponse(t *testing.T) {
 	if resp.Error != nil {
 		t.Fatalf("unexpected error: %+v", resp.Error)
 	}
-	result, ok := resp.Result.(map[string]any)
-	if !ok || result["method"] != "echo" {
-		t.Fatalf("unexpected result: %+v", resp.Result)
+	var result map[string]any
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if result["method"] != "echo" {
+		t.Fatalf("unexpected result: %+v", result)
 	}
 
 	_ = clientConn.Close()

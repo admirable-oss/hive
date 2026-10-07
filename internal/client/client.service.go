@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 
@@ -58,18 +59,31 @@ func (s *service) Status(ctx context.Context) (Status, error) {
 			response.Error.Message,
 		)
 	}
-	if response.Result == nil {
-		return Status{}, fmt.Errorf("runtime.status: missing result")
-	}
-	raw, err := json.Marshal(response.Result)
-	if err != nil {
-		return Status{}, fmt.Errorf("runtime.status: marshal result: %w", err)
-	}
 	var status Status
-	if err := json.Unmarshal(raw, &status); err != nil {
-		return Status{}, fmt.Errorf("runtime.status: decode result: %w", err)
+	if err := decodeResult(response.Result, &status); err != nil {
+		return Status{}, fmt.Errorf("decode runtime status: %w", err)
 	}
 	return status, nil
+}
+
+func (s *service) Shutdown(ctx context.Context) error {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "shutdown",
+		Method:  "runtime.shutdown",
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf(
+			"runtime.shutdown: %s",
+			response.Error.Message,
+		)
+	}
+	return nil
 }
 
 func (s *service) request(
@@ -97,4 +111,13 @@ func (s *service) request(
 	}
 
 	return response, nil
+}
+
+var errMissingResult = errors.New("missing result")
+
+func decodeResult[T any](raw json.RawMessage, target *T) error {
+	if len(raw) == 0 {
+		return errMissingResult
+	}
+	return json.Unmarshal(raw, target)
 }
