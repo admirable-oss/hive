@@ -14,20 +14,24 @@ import (
 )
 
 type command struct {
-	run  func(context.Context, []string) error
-	desc string
+	run     func(context.Context, []string) error
+	desc    string
+	noLimit bool // skip the 5-second timeout
 }
 
 var commands map[string]command
 
 func init() {
 	commands = map[string]command{
-		"ping":   {run: cmdPing, desc: "Ping the running Hive runtime"},
-		"status": {run: cmdStatus, desc: "Show runtime status"},
+		"daemon":      {run: cmdDaemon, desc: "Start the Hive runtime daemon (foreground)", noLimit: true},
+		"ping":        {run: cmdPing, desc: "Ping the running Hive runtime"},
+		"status":      {run: cmdStatus, desc: "Show runtime status"},
 		"stop":        {run: cmdStop, desc: "Stop the running Hive runtime"},
 		"environment": {run: cmdEnvironment, desc: "Manage environments"},
 		"process":     {run: cmdProcess, desc: "Manage processes"},
-		"terminal":    {run: cmdTerminal, desc: "Manage terminal sessions"},
+		"terminal":    {run: cmdTerminal, desc: "Manage terminal sessions", noLimit: true},
+		"ui":          {run: cmdTUI, desc: "Open interactive TUI dashboard", noLimit: true},
+		"tui":         {run: cmdTUI, desc: "Open interactive TUI dashboard", noLimit: true},
 	}
 }
 
@@ -46,27 +50,57 @@ func main() {
 			os.Exit(2)
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		var ctx context.Context
+		var cancel context.CancelFunc
+		if cmd.noLimit {
+			ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		} else {
+			ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		}
 		defer cancel()
+
 		if err := cmd.run(ctx, os.Args[2:]); err != nil {
 			fatal(err)
 		}
 		return
 	}
 
-	daemon()
+	// No args: open TUI.
+	// If the daemon isn't running, tell the user how to start it.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	c, err := newClient()
+	if err != nil {
+		fatal(err)
+	}
+
+	// Quick connectivity check.
+	pingCtx, pingCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	defer pingCancel()
+	if err := c.Ping(pingCtx); err != nil {
+		fmt.Fprintln(os.Stderr, "hive: runtime is not running.")
+		fmt.Fprintln(os.Stderr, "      start it with: hive daemon")
+		os.Exit(1)
+	}
+
+	if err := cmdTUI(ctx, nil); err != nil {
+		fatal(err)
+	}
 }
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "Usage: hive [command]\n\nCommands:")
-	// Print in a fixed order for now
+	fmt.Fprintln(os.Stderr, "  daemon       Start the Hive runtime daemon (foreground)")
+	fmt.Fprintln(os.Stderr, "  ui           Open the interactive TUI dashboard")
 	fmt.Fprintln(os.Stderr, "  ping         Ping the running Hive runtime")
 	fmt.Fprintln(os.Stderr, "  status       Show runtime status")
 	fmt.Fprintln(os.Stderr, "  stop         Stop the running Hive runtime")
 	fmt.Fprintln(os.Stderr, "  environment  Manage environments")
 	fmt.Fprintln(os.Stderr, "  process      Manage processes")
 	fmt.Fprintln(os.Stderr, "  terminal     Manage terminal sessions")
-	fmt.Fprintln(os.Stderr, "\nWith no command, hive starts as a background daemon on $HOME/.hive/hive.sock.")
+	fmt.Fprintln(os.Stderr, "\nWith no command, hive opens the interactive TUI.")
+	fmt.Fprintln(os.Stderr, "Run the daemon first:  hive daemon")
 }
 
 func socketPath() (string, error) {
@@ -86,6 +120,7 @@ func newClient() (client.Client, error) {
 	return mod.Client, nil
 }
 
+// daemon starts the Hive runtime and blocks until interrupted.
 func daemon() {
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
@@ -108,9 +143,10 @@ func daemon() {
 		fatal(err)
 	}
 
+	fmt.Println("hive daemon running. Press Ctrl+C to stop.")
 	<-ctx.Done()
 
-	_ = module.Service.Stop(ctx)
+	_ = module.Service.Stop(context.Background())
 }
 
 func fatal(err error) {
