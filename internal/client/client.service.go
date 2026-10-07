@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/protocol"
 )
 
@@ -120,4 +121,87 @@ func decodeResult[T any](raw json.RawMessage, target *T) error {
 		return errMissingResult
 	}
 	return json.Unmarshal(raw, target)
+}
+
+func (s *service) EnvironmentList(ctx context.Context) ([]environment.Environment, error) {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "env-list",
+		Method:  "environment.list",
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if response.Error != nil {
+		return nil, fmt.Errorf("environment.list: %s", response.Error.Message)
+	}
+	var envs []environment.Environment
+	if err := decodeResult(response.Result, &envs); err != nil {
+		return nil, fmt.Errorf("decode env list: %w", err)
+	}
+	return envs, nil
+}
+
+func (s *service) EnvironmentCreate(ctx context.Context, id string) (environment.Environment, error) {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "env-create",
+		Method:  "environment.create",
+		Params:  map[string]interface{}{"id": id},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return environment.Environment{}, err
+	}
+	if response.Error != nil {
+		return environment.Environment{}, fmt.Errorf("environment.create: %s", response.Error.Message)
+	}
+	var env environment.Environment
+	if err := decodeResult(response.Result, &env); err != nil {
+		return environment.Environment{}, fmt.Errorf("decode env create: %w", err)
+	}
+	return env, nil
+}
+
+func (s *service) EnvironmentGet(ctx context.Context, id string) (environment.Environment, error) {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "env-get",
+		Method:  "environment.get",
+		Params:  map[string]interface{}{"id": id},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return environment.Environment{}, err
+	}
+	if response.Error != nil {
+		return environment.Environment{}, fmt.Errorf("environment.get: %s", response.Error.Message)
+	}
+	var env environment.Environment
+	if err := decodeResult(response.Result, &env); err != nil {
+		return environment.Environment{}, fmt.Errorf("decode env get: %w", err)
+	}
+	return env, nil
+}
+
+func (s *service) EnvironmentRemove(ctx context.Context, id string) error {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "env-remove",
+		Method:  "environment.remove",
+		Params:  map[string]interface{}{"id": id},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("environment.remove: %s", response.Error.Message)
+	}
+	return nil
 }
