@@ -8,6 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
@@ -216,5 +218,93 @@ func TestTUI_DisconnectedBeeState(t *testing.T) {
 
 	if m.Bee.State != bee.StateDisconnected {
 		t.Errorf("expected bee to be StateDisconnected, got %s", m.Bee.State)
+	}
+}
+
+func TestTUI_EnterKeySafe(t *testing.T) {
+	fc := &fakeClient{
+		envs: []environment.Environment{{ID: "env1"}},
+		procs: map[string][]process.Process{
+			"env1": {
+				{ID: "p1", Command: "claude", Status: process.StatusRunning},
+				{ID: "p2", Command: "codex", Status: process.StatusRunning},
+			},
+		},
+	}
+	m := tui.NewModel(fc)
+	updated, _ := m.Update(tui.RefreshMsg{
+		Connected:    true,
+		Environments: fc.envs,
+		Processes:    fc.procs,
+	})
+	m = updated.(tui.Model)
+
+	if m.SelectedProc != 0 {
+		t.Fatalf("expected initial SelectedProc 0, got %d", m.SelectedProc)
+	}
+
+	// Pressing Enter must safely cycle to next process and NOT attach or crash
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tui.Model)
+	if m.SelectedProc != 1 {
+		t.Errorf("expected SelectedProc 1 after Enter, got %d", m.SelectedProc)
+	}
+	if cmd == nil {
+		t.Errorf("expected fetchLogsCmd after Enter")
+	}
+
+	// Pressing Enter again wraps to 0
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tui.Model)
+	if m.SelectedProc != 0 {
+		t.Errorf("expected SelectedProc 0 after second Enter, got %d", m.SelectedProc)
+	}
+}
+
+func TestTUI_ResponsiveTerminalSizes(t *testing.T) {
+	fc := &fakeClient{
+		envs: []environment.Environment{{ID: "acme-api"}},
+		procs: map[string][]process.Process{
+			"acme-api": {
+				{ID: "p1", Command: "claude", Args: []string{"auth-refactor"}, Status: process.StatusRunning},
+				{ID: "p2", Command: "codex", Args: []string{"flaky-tests"}, Status: process.StatusRunning},
+			},
+		},
+	}
+	m := tui.NewModel(fc)
+	updated, _ := m.Update(tui.RefreshMsg{
+		Connected:    true,
+		Environments: fc.envs,
+		Processes:    fc.procs,
+	})
+	m = updated.(tui.Model)
+
+	// Test various terminal dimensions
+	sizes := []struct {
+		w int
+		h int
+	}{
+		{80, 24},
+		{100, 30},
+		{130, 40},
+		{160, 50},
+	}
+
+	for _, sz := range sizes {
+		m.Width = sz.w
+		m.Height = sz.h
+		view := m.View()
+
+		if view == "" {
+			t.Errorf("expected non-empty view for %dx%d", sz.w, sz.h)
+		}
+
+		lines := strings.Split(view, "\n")
+		for lineIdx, line := range lines {
+			w := ansi.StringWidth(line)
+			if w > sz.w {
+				t.Errorf("size %dx%d line %d exceeds width: got %d, max %d: %q", sz.w, sz.h, lineIdx, w, sz.w, line)
+			}
+		}
 	}
 }

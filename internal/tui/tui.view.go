@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/admirable-oss/hive/internal/process"
 )
@@ -15,13 +15,31 @@ func (m Model) View() string {
 		return ""
 	}
 
-	width := max(84, m.Width)
-	if width > 130 {
-		width = 130
+	// 100% responsive to terminal dimensions (like Claude Code)
+	width := m.Width
+	if width < 80 {
+		width = 80
 	}
 
-	leftW := 30
-	rightW := width - leftW - 3 // accounting for borders
+	height := m.Height
+	if height < 24 {
+		height = 24
+	}
+
+	leftW := 36
+	if width > 130 {
+		leftW = 38
+	}
+	rightW := width - leftW - 3 // accounting for borders: '│' + leftW + '│' + rightW + '│'
+
+	// Dynamic height allocation:
+	// Top row (Bee + Process Table): fixed 10 lines
+	// Bottom row (Telemetry + Log Stream): expands to fill all remaining terminal height!
+	topRowHeight := 10
+	bottomRowHeight := height - topRowHeight - 5 // topBar(1) + topBorder(1) + midBorder(1) + botBorder(1) + footer(1) = 5
+	if bottomRowHeight < 9 {
+		bottomRowHeight = 9
+	}
 
 	var b strings.Builder
 
@@ -35,7 +53,6 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	// 3. Top Row Panels (Bee Mascot on Left | Process Table on Right)
-	topRowHeight := 9
 	topLeftLines := m.renderBeePanel(leftW, topRowHeight)
 	topRightLines := m.renderProcessTablePanel(rightW, topRowHeight)
 
@@ -58,8 +75,7 @@ func (m Model) View() string {
 	b.WriteString(midBorder)
 	b.WriteString("\n")
 
-	// 5. Bottom Row Panels (Telemetry on Left | Live Attached Logs on Right)
-	bottomRowHeight := 9
+	// 5. Bottom Row Panels (Telemetry on Left | Dominant Live Log Stream on Right)
 	bottomLeftLines := m.renderTelemetryPanel(leftW, bottomRowHeight)
 	bottomRightLines := m.renderLogsPanel(rightW, bottomRowHeight)
 
@@ -114,8 +130,18 @@ func (m Model) renderTopBar(width int) string {
 	sep := StyleMuted.Render(" · ")
 	right := statRunning + sep + statAwaiting + sep + statComplete
 
-	gap := max(2, width-lipgloss.Width(left)-lipgloss.Width(right))
-	return " " + left + strings.Repeat(" ", gap) + right + " "
+	leftW := ansi.StringWidth(left)
+	rightW := ansi.StringWidth(right)
+	gap := width - leftW - rightW - 2
+	if gap < 1 {
+		gap = 1
+	}
+
+	bar := " " + left + strings.Repeat(" ", gap) + right + " "
+	if ansi.StringWidth(bar) > width {
+		return ansi.Truncate(bar, width, "")
+	}
+	return bar
 }
 
 func (m Model) renderBeePanel(width, height int) []string {
@@ -128,7 +154,7 @@ func (m Model) renderBeePanel(width, height int) []string {
 	}
 
 	for _, l := range beeLines {
-		beeWidth := lipgloss.Width(l)
+		beeWidth := ansi.StringWidth(l)
 		margin := max(1, (width-beeWidth)/2)
 		res = append(res, strings.Repeat(" ", margin)+l)
 	}
@@ -154,9 +180,9 @@ func (m Model) renderTelemetryPanel(width, height int) []string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf("  %-9s %s", StyleMuted.Render("agent"), StyleSelectedText.Render(truncate(agentName, width-14))))
-	lines = append(lines, fmt.Sprintf("  %-9s %s", StyleMuted.Render("uptime"), StyleUnselectedText.Render(uptimeStr)))
-	lines = append(lines, fmt.Sprintf("  %-9s %s · %s", StyleMuted.Render("laptop"), StyleMuted.Render("asleep"), StyleGoldBold.Render("still running")))
+	lines = append(lines, fmt.Sprintf("  %-7s %s", StyleMuted.Render("agent"), StyleSelectedText.Render(truncate(agentName, width-12))))
+	lines = append(lines, fmt.Sprintf("  %-7s %s", StyleMuted.Render("uptime"), StyleUnselectedText.Render(uptimeStr)))
+	lines = append(lines, fmt.Sprintf("  %-7s %s · %s", StyleMuted.Render("laptop"), StyleMuted.Render("asleep"), StyleGoldBold.Render("still running")))
 	lines = append(lines, "")
 
 	totalCells := max(len(m.AllProcesses), 5)
@@ -165,7 +191,14 @@ func (m Model) renderTelemetryPanel(width, height int) []string {
 	// Render diamond cell grid (up to 3 rows of 5)
 	var diamondRows []string
 	count := 0
-	for r := 0; r < 2; r++ {
+	numRows := 2
+	if height > 13 {
+		numRows = 3
+	}
+	if height > 20 {
+		numRows = 4
+	}
+	for r := 0; r < numRows; r++ {
 		var rowParts []string
 		for c := 0; c < 5; c++ {
 			if count < len(m.AllProcesses) {
@@ -197,9 +230,9 @@ func (m Model) renderProcessTablePanel(width, height int) []string {
 	var lines []string
 
 	// Column widths
-	colCell := 16
-	colBranch := max(16, width-16-12-10-4)
-	colStatus := 12
+	colCell := 18
+	colBranch := max(16, width-colCell-14-10-8)
+	colStatus := 14
 	colElapsed := 8
 
 	hdr := fmt.Sprintf(
@@ -213,9 +246,14 @@ func (m Model) renderProcessTablePanel(width, height int) []string {
 	lines = append(lines, "")
 
 	if len(m.AllProcesses) == 0 {
-		lines = append(lines, StyleMuted.Render("  No agents running. Start an agent with: hive process start <env> <cmd>"))
+		lines = append(lines, StyleMuted.Render("  No agents running. Launch one with: hive demo"))
 	} else {
+		// Only render rows that fit within available height-2
+		maxRows := height - 2
 		for i, p := range m.AllProcesses {
+			if i >= maxRows {
+				break
+			}
 			isSelected := i == m.SelectedProc
 
 			diamond := StyleMuted.Render("◇")
@@ -264,32 +302,57 @@ func (m Model) renderLogsPanel(width, height int) []string {
 
 	cur := m.CurrentProcess()
 	headerTitle := "ATTACHED · ACTIVITY"
+	statusBadge := StyleMuted.Render("○ IDLE")
 	if cur != nil {
-		headerTitle = fmt.Sprintf("ATTACHED · %s", strings.ToUpper(processName(*cur)))
+		name := strings.ToUpper(processName(*cur))
+		headerTitle = fmt.Sprintf("ATTACHED · %s", name)
+		if cur.Status == process.StatusRunning {
+			statusBadge = StyleGold.Render("● STREAMING LIVE (stdout)")
+		} else {
+			statusBadge = StyleMuted.Render("○ EXITED")
+		}
 	}
 
-	lines = append(lines, "  "+StyleHeader.Render(headerTitle))
-	lines = append(lines, "")
+	leftH := "  " + StyleHeader.Render(headerTitle)
+	leftW := ansi.StringWidth(leftH)
+	badgeW := ansi.StringWidth(statusBadge)
+	gap := width - leftW - badgeW - 2
+	if gap < 2 {
+		gap = 2
+	}
+	headerLine := leftH + strings.Repeat(" ", gap) + statusBadge
+	lines = append(lines, headerLine)
+
+	// Subtle horizontal separator under log header for console feel
+	sepW := width - 4
+	if sepW > 0 {
+		lines = append(lines, "  "+StyleBorder.Render(strings.Repeat("─", sepW)))
+	} else {
+		lines = append(lines, "")
+	}
 
 	logContent := m.ActiveLogs
-	if logContent == "" {
+	if strings.TrimSpace(logContent) == "" {
 		if cur != nil && cur.Status == process.StatusRunning {
-			lines = append(lines, StyleMuted.Render("  › awaiting agent output..."))
+			lines = append(lines, StyleMuted.Render("  › listening on agent output stream..."))
+			lines = append(lines, StyleMuted.Render("  › press 'a' to attach interactive terminal session"))
 		} else {
 			lines = append(lines, StyleMuted.Render("  › no activity recorded yet"))
 		}
 	} else {
 		rawLines := strings.Split(logContent, "\n")
-		// Clean and tail the latest lines that fit inside height-2
 		var clean []string
 		for _, l := range rawLines {
-			trimmed := strings.TrimRight(l, "\r ")
-			if trimmed != "" {
-				clean = append(clean, trimmed)
+			sanitized := SanitizeLogLine(l)
+			if sanitized != "" {
+				clean = append(clean, sanitized)
 			}
 		}
 
 		maxDisplay := height - 3
+		if maxDisplay < 1 {
+			maxDisplay = 1
+		}
 		start := 0
 		if len(clean) > maxDisplay {
 			start = len(clean) - maxDisplay
@@ -297,6 +360,11 @@ func (m Model) renderLogsPanel(width, height int) []string {
 		for i := start; i < len(clean); i++ {
 			formatted := formatLogLine(clean[i], width-4)
 			lines = append(lines, "  "+formatted)
+		}
+
+		// If fewer lines than available height, show active waiting indicator
+		if cur != nil && cur.Status == process.StatusRunning && len(clean) < maxDisplay && len(lines) < height-1 {
+			lines = append(lines, "  "+StyleGold.Render("› ")+StyleMuted.Render("waiting for next step…"))
 		}
 	}
 
@@ -307,23 +375,44 @@ func (m Model) renderLogsPanel(width, height int) []string {
 }
 
 func (m Model) renderFooterBar(width int) string {
-	shortcuts := []struct {
+	shortcutsShort := []struct {
 		key  string
 		desc string
 	}{
 		{"↑↓", "select"},
 		{"tab", "switch"},
-		{"↵", "attach"},
+		{"a", "attach"},
+		{"s", "stop"},
+		{"q", "detach"},
+	}
+
+	shortcutsFull := []struct {
+		key  string
+		desc string
+	}{
+		{"↑↓", "select"},
+		{"tab", "switch"},
+		{"↵", "next"},
+		{"a", "attach"},
 		{"s", "stop"},
 		{"r", "refresh"},
 		{"q", "detach — agents keep running"},
+	}
+
+	shortcuts := shortcutsFull
+	if width < 100 {
+		shortcuts = shortcutsShort
 	}
 
 	var parts []string
 	for _, sc := range shortcuts {
 		parts = append(parts, fmt.Sprintf("%s %s", StyleKeyBadge.Render(sc.key), StyleKeyLabel.Render(sc.desc)))
 	}
-	return " " + strings.Join(parts, "  ")
+	res := " " + strings.Join(parts, "  ")
+	if ansi.StringWidth(res) > width {
+		return ansi.Truncate(res, width, "")
+	}
+	return res
 }
 
 func formatStatusPill(s process.Status) string {
@@ -342,15 +431,59 @@ func formatStatusPill(s process.Status) string {
 }
 
 func formatLogLine(line string, maxW int) string {
-	line = truncate(line, maxW)
+	if maxW <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(line) > maxW {
+		line = ansi.Truncate(line, maxW, "…")
+	}
+
+	// Custom step styling for agent prompts (› action file +diff -diff)
 	if strings.HasPrefix(line, "›") || strings.HasPrefix(line, ">") {
 		parts := strings.SplitN(line, " ", 3)
 		if len(parts) >= 3 {
-			return StyleLogPrompt.Render(parts[0]) + " " + StyleLogAction.Render(parts[1]) + " " + StyleLogFile.Render(parts[2])
+			prompt := StyleGold.Render(parts[0])
+			action := StyleSelectedText.Render(parts[1])
+			detail := parts[2]
+			// Color diff markers (+9 -3) if present
+			if strings.Contains(detail, "+") || strings.Contains(detail, "-") {
+				detail = highlightDiffs(detail)
+			} else {
+				detail = StyleLogFile.Render(detail)
+			}
+			return prompt + " " + action + " " + detail
 		}
-		return StyleLogPrompt.Render(line)
+		return StyleGold.Render(line)
 	}
+
+	// Warning highlighting
+	if strings.Contains(line, "WARNING") || strings.Contains(line, "warning") {
+		return StyleGold.Render(line)
+	}
+	// Error highlighting
+	if strings.Contains(line, "ERROR") || strings.Contains(line, "error") || strings.Contains(line, "FAIL") || strings.Contains(line, "failed") {
+		return StyleStatusFailed.Render(line)
+	}
+	// Success highlighting
+	if strings.Contains(line, "PASS") || strings.Contains(line, "passed") || strings.Contains(line, "✔") {
+		return StyleGreen.Render(line)
+	}
+
 	return StyleUnselectedText.Render(line)
+}
+
+func highlightDiffs(s string) string {
+	words := strings.Fields(s)
+	for i, w := range words {
+		if strings.HasPrefix(w, "+") {
+			words[i] = StyleGreen.Render(w)
+		} else if strings.HasPrefix(w, "-") {
+			words[i] = StyleStatusFailed.Render(w)
+		} else {
+			words[i] = StyleLogFile.Render(w)
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 func formatElapsed(d time.Duration) string {
@@ -369,18 +502,28 @@ func formatElapsed(d time.Duration) string {
 }
 
 func truncate(s string, maxLen int) string {
-	if len(s) > maxLen && maxLen > 3 {
-		return s[:maxLen-3] + "..."
+	if maxLen <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(s) > maxLen {
+		return ansi.Truncate(s, maxLen, "…")
 	}
 	return s
 }
 
 func padRight(s string, width int) string {
-	visLen := lipgloss.Width(s)
-	if visLen >= width {
-		return s
+	if width <= 0 {
+		return ""
 	}
-	return s + strings.Repeat(" ", width-visLen)
+	w := ansi.StringWidth(s)
+	if w > width {
+		s = ansi.Truncate(s, width, "")
+		w = ansi.StringWidth(s)
+	}
+	if w < width {
+		s += strings.Repeat(" ", width-w)
+	}
+	return s
 }
 
 func processName(p process.Process) string {

@@ -49,6 +49,9 @@ var (
 			Foreground(ColorYellow).
 			Bold(true)
 
+	StyleGreen = lipgloss.NewStyle().
+			Foreground(ColorGreen)
+
 	StylePurple = lipgloss.NewStyle().
 			Foreground(ColorPurple)
 

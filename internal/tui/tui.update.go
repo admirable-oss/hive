@@ -145,9 +145,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			return m, m.fetchDataCmd()
 
-		case "enter", "a":
+		case "enter":
+			// Safe enter: cycle selection or refresh active process logs without breaking TUI
+			if len(m.AllProcesses) > 0 {
+				m.SelectedProc = (m.SelectedProc + 1) % len(m.AllProcesses)
+				if cur := m.CurrentProcess(); cur != nil {
+					m.ActiveLogs = m.LogCache[cur.ID]
+					return m, m.fetchLogsCmd(cur.ID)
+				}
+			}
+			return m, nil
+
+		case "a":
+			// Explicit 'a' attaches to interactive terminal session
 			if cur := m.CurrentProcess(); cur != nil && cur.Status == process.StatusRunning {
-				cmd := exec.Command(os.Args[0], "terminal", "attach", cur.ID)
+				exe, err := os.Executable()
+				if err != nil {
+					exe = os.Args[0]
+				}
+				cmd := exec.Command(exe, "terminal", "attach", cur.ID)
 				return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 					return AttachFinishedMsg{Err: err}
 				})
