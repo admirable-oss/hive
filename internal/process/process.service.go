@@ -5,9 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,88 +12,83 @@ import (
 	"github.com/admirable-oss/hive/internal/terminal"
 )
 
-type StartRequest struct {
-	EnvironmentID string   `json:"environment_id"`
-	Command       string   `json:"command"`
-	Args          []string `json:"args"`
-	// Terminal, when true, starts the process inside a PTY.
-	Terminal bool   `json:"terminal"`
-	Width    uint16 `json:"width"`
-	Height   uint16 `json:"height"`
+// Environments is the part of the environment service processes depend on.
+type Environments interface {
+	Get(ctx context.Context, id string) (environment.Environment, error)
+}
+
+// Terminals opens PTY sessions for processes started with Terminal: true.
+type Terminals interface {
+	Open(ctx context.Context, processID string, cmd terminal.Command) (terminal.Session, error)
 }
 
 type Service interface {
-	Start(context.Context, StartRequest) (Process, error)
-	Get(context.Context, string) (Process, error)
-	List(context.Context, string) ([]Process, error)
-	Stop(context.Context, string) error
-	Logs(context.Context, string, int) (string, error)
+	Start(ctx context.Context, req StartRequest) (Process, error)
+	Get(ctx context.Context, id string) (Process, error)
+	// List returns one environment's processes, or all when envID is empty.
+	List(ctx context.Context, envID string) ([]Process, error)
+	Stop(ctx context.Context, id string) error
+	Logs(ctx context.Context, id string, tail int) (string, error)
+
+	// StopEnvironment stops every live process in envID and waits for them.
+	StopEnvironment(ctx context.Context, envID string) error
+	// StopAll stops every live process and waits for them (daemon shutdown).
+	StopAll(ctx context.Context) error
+	// Recover closes out records a crashed daemon left "running".
+	Recover(ctx context.Context) error
 }
 
-type serviceImpl struct {
-	store       Store
-	envService  environment.Service
-	runner      Runner
-	termService terminal.Service
-	baseDir     string
+type service struct {
+	store  Store
+	envs   Environments
+	runner Runner
+	terms  Terminals // nil disables Terminal: true
 
-	mu       sync.Mutex
-	handles  map[string]Handle
-	stopping map[string]bool
+	mu   sync.Mutex
+	live map[string]*liveProcess
 }
 
-type sessionHandle struct {
-	sess terminal.Session
+// liveProcess is a process this daemon launched and is still supervising.
+type liveProcess struct {
+	envID    string
+	handle   Handle
+	stopping bool          // set by Stop so the exit is recorded as killed
+	done     chan struct{} // closed once the final state is persisted
 }
 
-func (h *sessionHandle) PID() int    { return h.sess.Pid() }
-func (h *sessionHandle) Wait() error { return h.sess.Wait() }
-func (h *sessionHandle) Kill() error { return h.sess.Close() }
-
-func NewService(store Store, envService environment.Service, runner Runner, baseDir string, termService ...terminal.Service) Service {
-	var ts terminal.Service
-	if len(termService) > 0 {
-		ts = termService[0]
+func NewService(store Store, envs Environments, runner Runner, terms Terminals) Service {
+	return &service{
+		store:  store,
+		envs:   envs,
+		runner: runner,
+		terms:  terms,
+		live:   make(map[string]*liveProcess),
 	}
-	return &serviceImpl{
-		store:       store,
-		envService:  envService,
-		runner:      runner,
-		termService: ts,
-		baseDir:     baseDir,
-		handles:     make(map[string]Handle),
-		stopping:    make(map[string]bool),
-	}
 }
 
-func generateID() string {
+func newID() string {
 	b := make([]byte, 8)
-	_, _ = rand.Read(b)
+	_, _ = rand.Read(b) // crypto/rand.Read never fails
 	return hex.EncodeToString(b)
 }
 
-func (s *serviceImpl) Start(ctx context.Context, req StartRequest) (Process, error) {
+func (s *service) Start(ctx context.Context, req StartRequest) (Process, error) {
 	if req.Command == "" {
-		return Process{}, errors.New("command is required")
+		return Process{}, ErrCommandRequired
 	}
-	if req.EnvironmentID == "" {
-		return Process{}, errors.New("environment id is required")
+	if req.Terminal && s.terms == nil {
+		return Process{}, ErrNoTerminalSupport
 	}
-
-	env, err := s.envService.Get(ctx, req.EnvironmentID)
+	env, err := s.envs.Get(ctx, req.EnvironmentID)
 	if err != nil {
 		return Process{}, err
 	}
-
 	if req.Args == nil {
 		req.Args = []string{}
 	}
 
-	id := generateID()
-	processDir := filepath.Join(s.baseDir, env.ID, "processes", id)
-
 	p := Process{
-		ID:            id,
+		ID:            newID(),
 		EnvironmentID: env.ID,
 		Command:       req.Command,
 		Args:          req.Args,
@@ -105,189 +97,189 @@ func (s *serviceImpl) Start(ctx context.Context, req StartRequest) (Process, err
 		Status:        StatusStarting,
 		StartedAt:     time.Now(),
 	}
-
-	if req.Terminal {
-		if s.termService == nil {
-			return Process{}, errors.New("terminal service not available")
-		}
-
-		if err := s.store.Create(ctx, p); err != nil {
-			return Process{}, err
-		}
-
-		termCmd := terminal.Command{
-			Path:       req.Command,
-			Args:       req.Args,
-			WorkingDir: env.Path,
-			StdoutPath: filepath.Join(processDir, "stdout.log"),
-			StderrPath: filepath.Join(processDir, "stderr.log"),
-			Size:       terminal.Size{Width: req.Width, Height: req.Height},
-		}
-
-		sess, err := s.termService.Open(context.Background(), id, termCmd)
-		if err != nil {
-			p.Status = StatusFailed
-			now := time.Now()
-			p.EndedAt = &now
-			_ = s.store.Update(context.Background(), p)
-			return p, err
-		}
-
-		p.PID = sess.Pid()
-		p.Status = StatusRunning
-		if err := s.store.Update(context.Background(), p); err != nil {
-			_ = sess.Close()
-			return Process{}, err
-		}
-
-		handle := &sessionHandle{sess: sess}
-		s.mu.Lock()
-		s.handles[id] = handle
-		s.mu.Unlock()
-
-		go s.monitor(handle, p)
-
-		return p, nil
-	}
-
 	if err := s.store.Create(ctx, p); err != nil {
 		return Process{}, err
 	}
 
-	cmd := Command{
-		Path:       req.Command,
-		Args:       req.Args,
-		WorkingDir: env.Path,
-		StdoutPath: filepath.Join(processDir, "stdout.log"),
-		StderrPath: filepath.Join(processDir, "stderr.log"),
-	}
-
-	handle, err := s.runner.Start(context.Background(), cmd)
+	handle, err := s.launch(p, req)
 	if err != nil {
-		p.Status = StatusFailed
 		now := time.Now()
-		p.EndedAt = &now
-		_ = s.store.Update(context.Background(), p)
+		p.Status, p.EndedAt = StatusFailed, &now
+		_ = s.store.Update(ctx, p)
 		return p, err
 	}
 
-	p.PID = handle.PID()
-	p.Status = StatusRunning
-	if err := s.store.Update(context.Background(), p); err != nil {
+	p.PID, p.Status = handle.PID(), StatusRunning
+	if err := s.store.Update(ctx, p); err != nil {
 		_ = handle.Kill()
 		return Process{}, err
 	}
 
+	lp := &liveProcess{envID: p.EnvironmentID, handle: handle, done: make(chan struct{})}
 	s.mu.Lock()
-	s.handles[id] = handle
+	s.live[p.ID] = lp
 	s.mu.Unlock()
-
-	go s.monitor(handle, p)
+	go s.monitor(p, lp)
 
 	return p, nil
 }
 
-func (s *serviceImpl) monitor(handle Handle, p Process) {
-	err := handle.Wait()
+// launch starts p either in a PTY or as a plain process; both become a Handle
+// so the rest of the lifecycle doesn't care which.
+func (s *service) launch(p Process, req StartRequest) (Handle, error) {
+	stdout, stderr := s.store.LogPaths(p)
+	if !p.Terminal {
+		return s.runner.Start(context.Background(), Command{
+			Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir,
+			StdoutPath: stdout, StderrPath: stderr,
+		})
+	}
+	sess, err := s.terms.Open(context.Background(), p.ID, terminal.Command{
+		Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir,
+		LogPath: stdout,
+		Size:    terminal.Size{Width: req.Width, Height: req.Height},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sessionHandle{sess}, nil
+}
+
+// sessionHandle lets a terminal session act as a Handle. Embedding supplies
+// Wait; only the two differently named methods are adapted.
+type sessionHandle struct{ terminal.Session }
+
+func (h sessionHandle) PID() int    { return h.Pid() }
+func (h sessionHandle) Kill() error { return h.Close() }
+
+// monitor waits for the process to exit and records how it ended.
+func (s *service) monitor(p Process, lp *liveProcess) {
+	defer close(lp.done)
+	err := lp.handle.Wait()
 
 	s.mu.Lock()
-	delete(s.handles, p.ID)
-	stopped := s.stopping[p.ID]
-	delete(s.stopping, p.ID)
+	delete(s.live, p.ID)
+	stopping := lp.stopping
 	s.mu.Unlock()
 
-	now := time.Now()
-	p.EndedAt = &now
-
-	type exitCoder interface {
+	code, status := 0, StatusExited
+	if ec, ok := errors.AsType[interface {
+		error
 		ExitCode() int
-	}
-
-	if stopped {
-		p.Status = StatusKilled
-		code := -1
-		if ec, ok := err.(exitCoder); ok {
-			code = ec.ExitCode()
+	}](err); ok {
+		code = ec.ExitCode() // -1 means it was killed by a signal
+		if code == -1 {
+			status = StatusKilled
 		}
-		p.ExitCode = &code
 	} else if err != nil {
-		if ec, ok := err.(exitCoder); ok {
-			code := ec.ExitCode()
-			p.ExitCode = &code
-			if code == -1 {
-				p.Status = StatusKilled
-			} else {
-				p.Status = StatusExited
-			}
-		} else {
-			code := -1
-			p.ExitCode = &code
-			p.Status = StatusFailed
-		}
-	} else {
-		code := 0
-		p.ExitCode = &code
-		p.Status = StatusExited
+		code, status = -1, StatusFailed
+	}
+	if stopping {
+		status = StatusKilled
 	}
 
+	now := time.Now()
+	p.Status, p.ExitCode, p.EndedAt = status, &code, &now
 	_ = s.store.Update(context.Background(), p)
 }
 
-func (s *serviceImpl) Get(ctx context.Context, id string) (Process, error) {
+func (s *service) Get(ctx context.Context, id string) (Process, error) {
 	return s.store.Get(ctx, id)
 }
 
-func (s *serviceImpl) List(ctx context.Context, envID string) ([]Process, error) {
+func (s *service) List(ctx context.Context, envID string) ([]Process, error) {
 	return s.store.List(ctx, envID)
 }
 
-func (s *serviceImpl) Stop(ctx context.Context, id string) error {
+func (s *service) Stop(ctx context.Context, id string) error {
 	p, err := s.store.Get(ctx, id)
 	if err != nil {
 		return err
 	}
-	if p.Status != StatusRunning && p.Status != StatusStarting {
+	if !p.Active() {
 		return nil
 	}
 
 	s.mu.Lock()
-	s.stopping[id] = true
-	handle, ok := s.handles[id]
+	lp, ok := s.live[id]
+	if ok {
+		lp.stopping = true
+	}
 	s.mu.Unlock()
 
 	if !ok {
-		p.Status = StatusKilled
-		now := time.Now()
-		p.EndedAt = &now
-		return s.store.Update(ctx, p)
+		// The record says running but no live handle exists (it predates
+		// this daemon), so there is nothing to signal; just close it out.
+		return s.closeOut(ctx, p, StatusKilled)
 	}
-
-	return handle.Kill()
+	return lp.handle.Kill()
 }
 
-func (s *serviceImpl) Logs(ctx context.Context, id string, tail int) (string, error) {
+func (s *service) Logs(ctx context.Context, id string, tail int) (string, error) {
 	p, err := s.store.Get(ctx, id)
 	if err != nil {
 		return "", err
 	}
-	logPath := filepath.Join(s.baseDir, p.EnvironmentID, "processes", p.ID, "stdout.log")
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
+	return s.store.Tail(ctx, p, tail)
+}
+
+func (s *service) StopEnvironment(ctx context.Context, envID string) error {
+	return s.stopLive(ctx, func(lp *liveProcess) bool { return lp.envID == envID })
+}
+
+func (s *service) StopAll(ctx context.Context) error {
+	return s.stopLive(ctx, func(*liveProcess) bool { return true })
+}
+
+// stopLive kills every matching live process, then waits until each one's
+// final state is on disk (or ctx expires).
+func (s *service) stopLive(ctx context.Context, match func(*liveProcess) bool) error {
+	s.mu.Lock()
+	var targets []*liveProcess
+	for _, lp := range s.live {
+		if match(lp) {
+			lp.stopping = true
+			targets = append(targets, lp)
 		}
-		return "", err
 	}
-	content := string(data)
-	if tail <= 0 {
-		return content, nil
+	s.mu.Unlock()
+
+	var errs []error
+	for _, lp := range targets {
+		errs = append(errs, lp.handle.Kill())
 	}
-	lines := strings.Split(content, "\n")
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
+	for _, lp := range targets {
+		select {
+		case <-lp.done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
-	if len(lines) > tail {
-		lines = lines[len(lines)-tail:]
+	return errors.Join(errs...)
+}
+
+// Recover runs at daemon start-up. Records still marked active belong to a
+// daemon that died without stopping its agents; this one has no handle on
+// them and cannot know how they ended, so they are marked failed.
+func (s *service) Recover(ctx context.Context) error {
+	procs, err := s.store.List(ctx, "")
+	if err != nil {
+		return err
 	}
-	return strings.Join(lines, "\n"), nil
+	var errs []error
+	for _, p := range procs {
+		s.mu.Lock()
+		_, live := s.live[p.ID]
+		s.mu.Unlock()
+		if p.Active() && !live {
+			errs = append(errs, s.closeOut(ctx, p, StatusFailed))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (s *service) closeOut(ctx context.Context, p Process, status Status) error {
+	now, code := time.Now(), -1
+	p.Status, p.ExitCode, p.EndedAt = status, &code, &now
+	return s.store.Update(ctx, p)
 }

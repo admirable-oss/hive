@@ -2,6 +2,7 @@ package environment_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/admirable-oss/hive/internal/environment"
@@ -10,7 +11,7 @@ import (
 func TestService(t *testing.T) {
 	tempDir := t.TempDir()
 	store := environment.NewFilesystemStore(tempDir)
-	svc := environment.NewService(store, tempDir)
+	svc := environment.NewService(store)
 	ctx := context.Background()
 
 	// Create
@@ -50,5 +51,26 @@ func TestService(t *testing.T) {
 	_, err = svc.Get(ctx, "test1")
 	if err != environment.ErrNotFound {
 		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestService_RejectsUnsafeIDs(t *testing.T) {
+	tempDir := t.TempDir()
+	svc := environment.NewService(environment.NewFilesystemStore(tempDir))
+	ctx := context.Background()
+
+	for _, id := range []string{"", ".", "..", "../x", "a/b", `a\b`, ".hidden"} {
+		if _, err := svc.Create(ctx, id); err != environment.ErrInvalidID {
+			t.Errorf("Create(%q): expected ErrInvalidID, got %v", id, err)
+		}
+		if _, err := svc.Get(ctx, id); err != environment.ErrInvalidID {
+			t.Errorf("Get(%q): expected ErrInvalidID, got %v", id, err)
+		}
+		if err := svc.Delete(ctx, id); err != environment.ErrInvalidID {
+			t.Errorf("Delete(%q): expected ErrInvalidID, got %v", id, err)
+		}
+	}
+	if _, err := os.Stat(tempDir); err != nil {
+		t.Fatalf("store root must survive unsafe deletes: %v", err)
 	}
 }

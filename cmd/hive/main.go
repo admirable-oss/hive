@@ -1,156 +1,88 @@
+// Command hive is the CLI. `hive daemon` runs the runtime; every other command
+// is a thin client of it. With no arguments, hive opens the dashboard.
+//
+// Call chain: main → run → newApp (composition root) → command.run → client →
+// socket → daemon (see internal/runtime for the server side).
 package main
 
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
-
-	"github.com/admirable-oss/hive/internal/client"
-	"github.com/admirable-oss/hive/internal/runtime"
 )
 
 type command struct {
-	run     func(context.Context, []string) error
-	desc    string
-	noLimit bool // skip the 5-second timeout
+	name, alias string
+	summary     string
+	timeout     time.Duration // 0 means run until interrupted
+	run         func(ctx context.Context, a *app, args []string) error
 }
 
-var commands map[string]command
-
-func init() {
-	commands = map[string]command{
-		"daemon":      {run: cmdDaemon, desc: "Start the Hive runtime daemon (foreground)", noLimit: true},
-		"ping":        {run: cmdPing, desc: "Ping the running Hive runtime"},
-		"status":      {run: cmdStatus, desc: "Show runtime status"},
-		"stop":        {run: cmdStop, desc: "Stop the running Hive runtime"},
-		"environment": {run: cmdEnvironment, desc: "Manage environments"},
-		"process":     {run: cmdProcess, desc: "Manage processes"},
-		"terminal":    {run: cmdTerminal, desc: "Manage terminal sessions", noLimit: true},
-		"ui":          {run: cmdTUI, desc: "Open interactive TUI dashboard", noLimit: true},
-		"tui":         {run: cmdTUI, desc: "Open interactive TUI dashboard", noLimit: true},
-		"demo":        {run: cmdDemo, desc: "Run parallel Claude and Codex demo agents"},
-	}
+// commands is the whole CLI surface, in the order usage lists it.
+var commands = []command{
+	{name: "ui", alias: "tui", summary: "Open the interactive dashboard (default)", run: cmdTUI},
+	{name: "daemon", summary: "Start the Hive runtime in the foreground", run: cmdDaemon},
+	{name: "status", summary: "Show runtime status", timeout: 5 * time.Second, run: cmdStatus},
+	{name: "ping", summary: "Check that the runtime answers", timeout: 5 * time.Second, run: cmdPing},
+	{name: "stop", summary: "Stop the runtime and every agent it runs", timeout: 15 * time.Second, run: cmdStop},
+	{name: "environment", alias: "env", summary: "Manage environments: list | create | get | rm", timeout: 15 * time.Second, run: cmdEnvironment},
+	{name: "process", alias: "ps", summary: "Manage processes: start | list | get | logs | stop", timeout: 10 * time.Second, run: cmdProcess},
+	{name: "terminal", summary: "Agent terminals: attach | resize | input", run: cmdTerminal},
+	{name: "demo", summary: "Launch four demo agents to explore the dashboard", timeout: 10 * time.Second, run: cmdDemo},
 }
 
 func main() {
-	if len(os.Args) >= 2 {
-		cmdName := os.Args[1]
-		if cmdName == "-h" || cmdName == "--help" || cmdName == "help" {
-			usage()
-			return
-		}
-
-		cmd, ok := commands[cmdName]
-		if !ok {
-			fmt.Fprintf(os.Stderr, "hive: unknown command %q\n\n", cmdName)
-			usage()
-			os.Exit(2)
-		}
-
-		var ctx context.Context
-		var cancel context.CancelFunc
-		if cmd.noLimit {
-			ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		} else {
-			ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-		}
-		defer cancel()
-
-		if err := cmd.run(ctx, os.Args[2:]); err != nil {
-			fatal(err)
-		}
-		return
-	}
-
-	// No args: open TUI.
-	// If the daemon isn't running, tell the user how to start it.
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	c, err := newClient()
-	if err != nil {
-		fatal(err)
-	}
-
-	// Quick connectivity check.
-	pingCtx, pingCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-	defer pingCancel()
-	if err := c.Ping(pingCtx); err != nil {
-		fmt.Fprintln(os.Stderr, "hive: runtime is not running.")
-		fmt.Fprintln(os.Stderr, "      start it with: hive daemon")
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, "hive:", err)
 		os.Exit(1)
 	}
+}
 
-	if err := cmdTUI(ctx, nil); err != nil {
-		fatal(err)
+func run(args []string) error {
+	if len(args) == 0 {
+		args = []string{"ui"}
 	}
-}
+	switch args[0] {
+	case "help", "-h", "--help":
+		usage(os.Stdout)
+		return nil
+	}
+	cmd, ok := lookup(args[0])
+	if !ok {
+		usage(os.Stderr)
+		return fmt.Errorf("unknown command %q", args[0])
+	}
 
-func usage() {
-	fmt.Fprintln(os.Stderr, "Usage: hive [command]\n\nCommands:")
-	fmt.Fprintln(os.Stderr, "  daemon       Start the Hive runtime daemon (foreground)")
-	fmt.Fprintln(os.Stderr, "  ui           Open the interactive TUI dashboard")
-	fmt.Fprintln(os.Stderr, "  ping         Ping the running Hive runtime")
-	fmt.Fprintln(os.Stderr, "  status       Show runtime status")
-	fmt.Fprintln(os.Stderr, "  stop         Stop the running Hive runtime")
-	fmt.Fprintln(os.Stderr, "  environment  Manage environments")
-	fmt.Fprintln(os.Stderr, "  process      Manage processes")
-	fmt.Fprintln(os.Stderr, "  terminal     Manage terminal sessions")
-	fmt.Fprintln(os.Stderr, "\nWith no command, hive opens the interactive TUI.")
-	fmt.Fprintln(os.Stderr, "Run the daemon first:  hive daemon")
-}
-
-func socketPath() (string, error) {
-	home, err := os.UserHomeDir()
+	a, err := newApp()
 	if err != nil {
-		return "", err
+		return err
 	}
-	return filepath.Join(home, ".hive", "hive.sock"), nil
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	if cmd.timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, cmd.timeout)
+		defer cancel()
+	}
+	return cmd.run(ctx, a, args[1:])
 }
 
-func newClient() (client.Client, error) {
-	path, err := socketPath()
-	if err != nil {
-		return nil, err
+func lookup(name string) (command, bool) {
+	for _, c := range commands {
+		if c.name == name || (c.alias != "" && c.alias == name) {
+			return c, true
+		}
 	}
-	mod := client.NewModule(client.Config{SocketPath: path})
-	return mod.Client, nil
+	return command{}, false
 }
 
-// daemon starts the Hive runtime and blocks until interrupted.
-func daemon() {
-	ctx, stop := signal.NotifyContext(
-		context.Background(),
-		os.Interrupt,
-		syscall.SIGTERM,
-	)
-	defer stop()
-
-	path, err := socketPath()
-	if err != nil {
-		fatal(err)
+func usage(w io.Writer) {
+	fmt.Fprintln(w, "Usage: hive [command] [args]\n\nCommands:")
+	for _, c := range commands {
+		fmt.Fprintf(w, "  %-12s %s\n", c.name, c.summary)
 	}
-
-	module := runtime.NewModule(runtime.Config{
-		SocketPath: path,
-		Listener:   runtime.NewNetListenerFactory(),
-	})
-
-	if err := module.Service.Start(ctx); err != nil {
-		fatal(err)
-	}
-
-	fmt.Println("hive daemon running. Press Ctrl+C to stop.")
-	<-ctx.Done()
-
-	_ = module.Service.Stop(context.Background())
-}
-
-func fatal(err error) {
-	fmt.Fprintln(os.Stderr, "hive:", err)
-	os.Exit(1)
+	fmt.Fprintln(w, "\nStart the runtime first with `hive daemon`. Data lives in ~/.hive (override with HIVE_HOME).")
 }

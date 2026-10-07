@@ -2,70 +2,39 @@ package tui
 
 import tea "github.com/charmbracelet/bubbletea"
 
-// keyToBytes converts a BubbleTea key message to raw bytes for a PTY.
+// escapeSeqs are the VT sequences for keys that have no single-byte form.
+var escapeSeqs = map[tea.KeyType]string{
+	tea.KeyUp:       "\x1b[A",
+	tea.KeyDown:     "\x1b[B",
+	tea.KeyRight:    "\x1b[C",
+	tea.KeyLeft:     "\x1b[D",
+	tea.KeyHome:     "\x1b[H",
+	tea.KeyEnd:      "\x1b[F",
+	tea.KeyPgUp:     "\x1b[5~",
+	tea.KeyPgDown:   "\x1b[6~",
+	tea.KeyDelete:   "\x1b[3~",
+	tea.KeyShiftTab: "\x1b[Z",
+}
+
+// keyToBytes converts a key press into the bytes a terminal would send to the
+// program running in it.
 func keyToBytes(msg tea.KeyMsg) []byte {
-	switch msg.Type {
-	case tea.KeyRunes:
-		return []byte(msg.String())
-	case tea.KeyEnter:
-		return []byte("\r")
-	case tea.KeyTab:
-		return []byte("\t")
-	case tea.KeyShiftTab:
-		return []byte("\x1b[Z")
-	case tea.KeyBackspace:
-		return []byte("\x7f") // commonly DEL or \b depending on terminal, \x7f is most standard PTY erase
-	case tea.KeyDelete:
-		return []byte("\x1b[3~")
-	case tea.KeyUp:
-		return []byte("\x1b[A")
-	case tea.KeyDown:
-		return []byte("\x1b[B")
-	case tea.KeyRight:
-		return []byte("\x1b[C")
-	case tea.KeyLeft:
-		return []byte("\x1b[D")
-	case tea.KeyEsc:
-		return []byte("\x1b")
-	case tea.KeySpace:
-		return []byte(" ")
-	case tea.KeyCtrlA:
-		return []byte("\x01")
-	case tea.KeyCtrlB:
-		return []byte("\x02")
-	case tea.KeyCtrlC:
-		return []byte("\x03")
-	case tea.KeyCtrlD:
-		return []byte("\x04")
-	case tea.KeyCtrlE:
-		return []byte("\x05")
-	case tea.KeyCtrlF:
-		return []byte("\x06")
-	case tea.KeyCtrlG:
-		return []byte("\x07")
-	case tea.KeyCtrlK:
-		return []byte("\x0b")
-	case tea.KeyCtrlL:
-		return []byte("\x0c")
-	case tea.KeyCtrlN:
-		return []byte("\x0e")
-	case tea.KeyCtrlP:
-		return []byte("\x10")
-	case tea.KeyCtrlR:
-		return []byte("\x12")
-	case tea.KeyCtrlU:
-		return []byte("\x15")
-	case tea.KeyCtrlW:
-		return []byte("\x17")
-	case tea.KeyCtrlZ:
-		return []byte("\x1a")
+	var b []byte
+	switch t := msg.Type; {
+	case t == tea.KeyRunes:
+		b = []byte(string(msg.Runes))
+	case t == tea.KeySpace:
+		b = []byte{' '}
+	case t >= 0 && t < 32, t == 127:
+		// Bubble Tea numbers control keys by their ASCII code (KeyCtrlA is 1,
+		// KeyEnter is '\r', KeyEsc is 27, KeyBackspace is 127), so the key
+		// type already is the byte to send.
+		b = []byte{byte(t)}
 	default:
-		if len(msg.Runes) > 0 {
-			return []byte(string(msg.Runes))
-		}
-		if s := msg.String(); len(s) > 0 && len(s) <= 4 {
-			return []byte(s)
-		}
+		b = []byte(escapeSeqs[t])
 	}
-	return nil
+	if msg.Alt && len(b) > 0 {
+		b = append([]byte{0x1b}, b...) // Alt/Meta is ESC-prefixed
+	}
+	return b
 }

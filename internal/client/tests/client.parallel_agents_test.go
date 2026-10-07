@@ -48,7 +48,7 @@ func TestClientParallelAgentsIntegration(t *testing.T) {
 
 	// 2. Start Claude agent in parallel
 	claudeScript := `echo "› read  src/auth · 214 files"; sleep 0.1; echo "› plan  rotate session tokens on refresh"; sleep 0.1; echo "› edit  src/auth/middleware.ts  +9 -3"; sleep 2`
-	claudeProc, err := c.ProcessStartRequest(ctx, process.StartRequest{
+	claudeProc, err := c.ProcessStart(ctx, process.StartRequest{
 		EnvironmentID: env.ID,
 		Command:       "sh",
 		Args:          []string{"-c", claudeScript},
@@ -60,7 +60,7 @@ func TestClientParallelAgentsIntegration(t *testing.T) {
 
 	// 3. Start Codex agent in parallel in the same environment
 	codexScript := `echo "› scan  test/auth · 42 suites"; sleep 0.1; echo "› detect flaky test: session_race"; sleep 0.1; echo "› pass  all 42 test suites passed"; sleep 2`
-	codexProc, err := c.ProcessStartRequest(ctx, process.StartRequest{
+	codexProc, err := c.ProcessStart(ctx, process.StartRequest{
 		EnvironmentID: env.ID,
 		Command:       "sh",
 		Args:          []string{"-c", codexScript},

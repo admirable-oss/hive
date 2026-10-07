@@ -2,7 +2,7 @@ package environment
 
 import (
 	"context"
-	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -14,46 +14,47 @@ type Service interface {
 	Delete(ctx context.Context, id string) error
 }
 
-type serviceImpl struct {
-	store   Store
-	baseDir string
+// IDs become directory names, so they must never contain path separators or
+// start with a dot ("." and ".." would escape the environments directory).
+var idPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+
+// ValidID reports whether id is safe to use as an environment ID.
+func ValidID(id string) bool { return idPattern.MatchString(id) }
+
+type service struct {
+	store Store
 }
 
-func NewService(store Store, baseDir string) Service {
-	return &serviceImpl{
-		store:   store,
-		baseDir: baseDir,
-	}
+func NewService(store Store) Service {
+	return &service{store: store}
 }
 
-func (s *serviceImpl) Create(ctx context.Context, id string) (Environment, error) {
-	if id == "" || strings.Contains(id, "/") || strings.Contains(id, "\\") {
+func (s *service) Create(ctx context.Context, id string) (Environment, error) {
+	if !ValidID(id) {
 		return Environment{}, ErrInvalidID
 	}
-	
-	env := Environment{
+	return s.store.Create(ctx, Environment{
 		ID:        id,
-		Name:      strings.ToTitle(id[:1]) + id[1:], // Simple title case for name
-		Path:      filepath.Join(s.baseDir, id, "workspace"),
+		Name:      strings.ToUpper(id[:1]) + id[1:],
 		Status:    StatusReady,
 		CreatedAt: time.Now(),
-	}
-
-	if err := s.store.Create(ctx, env); err != nil {
-		return Environment{}, err
-	}
-
-	return env, nil
+	})
 }
 
-func (s *serviceImpl) Get(ctx context.Context, id string) (Environment, error) {
+func (s *service) Get(ctx context.Context, id string) (Environment, error) {
+	if !ValidID(id) {
+		return Environment{}, ErrInvalidID
+	}
 	return s.store.Get(ctx, id)
 }
 
-func (s *serviceImpl) List(ctx context.Context) ([]Environment, error) {
+func (s *service) List(ctx context.Context) ([]Environment, error) {
 	return s.store.List(ctx)
 }
 
-func (s *serviceImpl) Delete(ctx context.Context, id string) error {
+func (s *service) Delete(ctx context.Context, id string) error {
+	if !ValidID(id) {
+		return ErrInvalidID
+	}
 	return s.store.Delete(ctx, id)
 }

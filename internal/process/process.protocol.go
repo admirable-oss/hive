@@ -2,264 +2,64 @@ package process
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 
+	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/protocol"
 )
 
-func RegisterHandlers(service protocol.Service, processService Service) {
-	_ = service.Register("process.start", NewStartHandler(processService))
-	_ = service.Register("process.get", NewGetHandler(processService))
-	_ = service.Register("process.list", NewListHandler(processService))
-	_ = service.Register("process.stop", NewStopHandler(processService))
-	_ = service.Register("process.logs", NewLogsHandler(processService))
+type idParams struct {
+	ID string `json:"id"`
 }
 
-type StartHandler struct {
-	service Service
+type listParams struct {
+	EnvironmentID string `json:"environment_id"` // empty lists every environment
 }
 
-func NewStartHandler(service Service) *StartHandler {
-	return &StartHandler{service: service}
+type logsParams struct {
+	ID   string `json:"id"`
+	Tail int    `json:"tail"`
 }
 
-func (h *StartHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	var params StartRequest
-	b, _ := json.Marshal(req.Params)
-	if err := json.Unmarshal(b, &params); err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "invalid params"},
+type logsResult struct {
+	Logs string `json:"logs"`
+}
+
+const defaultTail = 50
+
+// Register exposes svc on the wire as process.*.
+func Register(r *protocol.Router, svc Service) {
+	r.MustRegister("process.start", protocol.Method(func(ctx context.Context, req StartRequest) (Process, error) {
+		p, err := svc.Start(ctx, req)
+		return p, wireError(err)
+	}))
+	r.MustRegister("process.get", protocol.Method(func(ctx context.Context, p idParams) (Process, error) {
+		proc, err := svc.Get(ctx, p.ID)
+		return proc, wireError(err)
+	}))
+	r.MustRegister("process.list", protocol.Method(func(ctx context.Context, p listParams) ([]Process, error) {
+		procs, err := svc.List(ctx, p.EnvironmentID)
+		return procs, wireError(err)
+	}))
+	r.MustRegister("process.stop", protocol.Method(func(ctx context.Context, p idParams) (protocol.Empty, error) {
+		return protocol.Empty{}, wireError(svc.Stop(ctx, p.ID))
+	}))
+	r.MustRegister("process.logs", protocol.Method(func(ctx context.Context, p logsParams) (logsResult, error) {
+		if p.Tail <= 0 {
+			p.Tail = defaultTail
 		}
-	}
-	p, err := h.service.Start(ctx, params)
-	if err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
-		}
-	}
-	result, _ := json.Marshal(p)
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  result,
-	}
+		logs, err := svc.Logs(ctx, p.ID, p.Tail)
+		return logsResult{Logs: logs}, wireError(err)
+	}))
 }
 
-type GetHandler struct {
-	service Service
-}
-
-func NewGetHandler(service Service) *GetHandler {
-	return &GetHandler{service: service}
-}
-
-func (h *GetHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	var params struct {
-		ID        string `json:"id"`
-		ProcessID string `json:"process_id"`
+// wireError gives domain errors their protocol codes.
+func wireError(err error) error {
+	switch {
+	case errors.Is(err, ErrNotFound), errors.Is(err, environment.ErrNotFound):
+		return protocol.NewError(protocol.ErrorCodeNotFound, err)
+	case errors.Is(err, ErrCommandRequired), errors.Is(err, environment.ErrInvalidID):
+		return protocol.NewError(protocol.ErrorCodeInvalidParams, err)
 	}
-	b, _ := json.Marshal(req.Params)
-	if err := json.Unmarshal(b, &params); err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "invalid params"},
-		}
-	}
-	id := params.ID
-	if id == "" {
-		id = params.ProcessID
-	}
-	if id == "" {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "process id is required"},
-		}
-	}
-	p, err := h.service.Get(ctx, id)
-	if err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
-		}
-	}
-	result, _ := json.Marshal(p)
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  result,
-	}
-}
-
-type ListHandler struct {
-	service Service
-}
-
-func NewListHandler(service Service) *ListHandler {
-	return &ListHandler{service: service}
-}
-
-func (h *ListHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	var params struct {
-		EnvironmentID string `json:"environment_id"`
-		ID            string `json:"id"`
-	}
-	b, _ := json.Marshal(req.Params)
-	if err := json.Unmarshal(b, &params); err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "invalid params"},
-		}
-	}
-	envID := params.EnvironmentID
-	if envID == "" {
-		envID = params.ID
-	}
-	if envID == "" {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "environment id is required"},
-		}
-	}
-	ps, err := h.service.List(ctx, envID)
-	if err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
-		}
-	}
-	result, _ := json.Marshal(ps)
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  result,
-	}
-}
-
-type StopHandler struct {
-	service Service
-}
-
-func NewStopHandler(service Service) *StopHandler {
-	return &StopHandler{service: service}
-}
-
-func (h *StopHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	var params struct {
-		ID        string `json:"id"`
-		ProcessID string `json:"process_id"`
-	}
-	b, _ := json.Marshal(req.Params)
-	if err := json.Unmarshal(b, &params); err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "invalid params"},
-		}
-	}
-	id := params.ID
-	if id == "" {
-		id = params.ProcessID
-	}
-	if id == "" {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "process id is required"},
-		}
-	}
-	err := h.service.Stop(ctx, id)
-	if err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
-		}
-	}
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  json.RawMessage(`{}`),
-	}
-}
-
-type LogsHandler struct {
-	service Service
-}
-
-func NewLogsHandler(service Service) *LogsHandler {
-	return &LogsHandler{service: service}
-}
-
-func (h *LogsHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	var params struct {
-		ID        string `json:"id"`
-		ProcessID string `json:"process_id"`
-		Tail      int    `json:"tail"`
-	}
-	b, _ := json.Marshal(req.Params)
-	if err := json.Unmarshal(b, &params); err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "invalid params"},
-		}
-	}
-	id := params.ID
-	if id == "" {
-		id = params.ProcessID
-	}
-	if id == "" {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "process id is required"},
-		}
-	}
-	tail := params.Tail
-	if tail <= 0 {
-		tail = 50
-	}
-	logs, err := h.service.Logs(ctx, id, tail)
-	if err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
-		}
-	}
-	result, _ := json.Marshal(map[string]string{"logs": logs})
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  result,
-	}
+	return err
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"slices"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -11,201 +12,129 @@ import (
 	"github.com/admirable-oss/hive/internal/tui/bee"
 )
 
-type AttachFinishedMsg struct {
-	Err error
-}
-
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.Width = msg.Width
-		m.Height = msg.Height
+		m.Width, m.Height = msg.Width, msg.Height
 		return m, nil
 
 	case bee.TickMsg:
 		m.Bee.Tick()
 		return m, bee.Tick(m.Bee)
 
-	case LogPollTickMsg:
-		var cmds []tea.Cmd
-		cmds = append(cmds, m.pollLogsTickCmd())
-		cmds = append(cmds, m.fetchDataCmd())
-		if cur := m.CurrentProcess(); cur != nil {
-			cmds = append(cmds, m.fetchLogsCmd(cur.ID))
-		}
-		return m, tea.Batch(cmds...)
+	case pollTickMsg:
+		return m, tea.Batch(pollTick(), m.refresh, m.fetchLogsCmd(m.selectedID))
 
 	case LogsMsg:
 		if msg.ProcessID != "" {
-			m.LogCache[msg.ProcessID] = msg.Logs
-			if cur := m.CurrentProcess(); cur != nil && cur.ID == msg.ProcessID {
-				m.ActiveLogs = msg.Logs
-			}
+			m.logLines[msg.ProcessID] = sanitizeLog(msg.Logs)
 		}
 		return m, nil
 
 	case RefreshMsg:
-		m.Connected = msg.Connected
-		if msg.Connected {
-			m.Environments = msg.Environments
-			m.Processes = msg.Processes
+		return m.applyRefresh(msg), nil
 
-			// Flatten all processes
-			var all []process.Process
-			hasRunning := false
-			for _, env := range m.Environments {
-				for _, p := range m.Processes[env.ID] {
-					all = append(all, p)
-					if p.Status == process.StatusRunning {
-						hasRunning = true
-					}
-				}
-			}
-			m.AllProcesses = all
-
-			if hasRunning {
-				m.Bee.SetState(bee.StateActive)
-			} else {
-				m.Bee.SetState(bee.StateIdle)
-			}
-		} else {
-			m.Bee.SetState(bee.StateDisconnected)
-		}
-
-		if len(m.AllProcesses) > 0 {
-			if m.SelectedProc >= len(m.AllProcesses) {
-				m.SelectedProc = len(m.AllProcesses) - 1
-			}
-			if m.SelectedProc < 0 {
-				m.SelectedProc = 0
-			}
-			if cur := m.CurrentProcess(); cur != nil {
-				m.ActiveLogs = m.LogCache[cur.ID]
-			}
-		}
-		return m, nil
-
-	case AttachFinishedMsg:
-		return m, m.fetchDataCmd()
+	case attachFinishedMsg:
+		return m, m.refresh
 
 	case tea.KeyMsg:
 		if m.Interactive {
-			if msg.Type == tea.KeyEsc {
-				m.Interactive = false
-				return m, nil
+			return m.updateInteractive(msg)
+		}
+		return m.updateNavigation(msg)
+	}
+	return m, nil
+}
+
+func (m Model) applyRefresh(msg RefreshMsg) Model {
+	m.Connected = msg.Connected
+	if !msg.Connected {
+		m.Bee.SetState(bee.StateDisconnected)
+		return m
+	}
+
+	m.Processes = msg.Processes
+	m.reanchor()
+
+	running := slices.ContainsFunc(m.Processes, func(p process.Process) bool { return p.Status == process.StatusRunning })
+	if running {
+		m.Bee.SetState(bee.StateActive)
+	} else {
+		m.Bee.SetState(bee.StateIdle)
+	}
+	if cur := m.CurrentProcess(); m.Interactive && (cur == nil || cur.Status != process.StatusRunning) {
+		m.Interactive = false // the agent we were typing into is gone
+	}
+	return m
+}
+
+// updateInteractive forwards keys to the selected agent's terminal; Esc
+// hands control back to the dashboard.
+func (m Model) updateInteractive(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.Type == tea.KeyEsc {
+		m.Interactive = false
+		return m, nil
+	}
+	cur := m.CurrentProcess()
+	data := keyToBytes(msg)
+	if cur == nil || cur.Status != process.StatusRunning || len(data) == 0 {
+		return m, nil
+	}
+	c, id := m.Client, cur.ID
+	return m, tea.Batch(
+		func() tea.Msg {
+			_ = c.TerminalInput(context.Background(), id, data)
+			return nil
+		},
+		m.fetchLogsCmd(id),
+	)
+}
+
+func (m Model) updateNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	cur := m.CurrentProcess()
+	running := cur != nil && cur.Status == process.StatusRunning
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		m.Quitting = true
+		return m, tea.Quit
+
+	case "up", "k", "shift+tab":
+		return m, m.selectIndex(m.SelectedProc - 1)
+
+	case "down", "j", "tab":
+		return m, m.selectIndex(m.SelectedProc + 1)
+
+	case "r":
+		return m, m.refresh
+
+	case "enter":
+		if running {
+			m.Interactive = true
+			return m, m.fetchLogsCmd(cur.ID)
+		}
+		return m, m.selectIndex(m.SelectedProc + 1)
+
+	case "a":
+		// Full-screen attach: hand the terminal to `hive terminal attach`.
+		if running {
+			exe, err := os.Executable()
+			if err != nil {
+				exe = os.Args[0]
 			}
-			
-			if cur := m.CurrentProcess(); cur != nil && cur.Status == process.StatusRunning {
-				// Translate key to bytes
-				data := keyToBytes(msg)
-				if len(data) > 0 {
-					procID := cur.ID
-					return m, tea.Batch(
-						func() tea.Msg {
-							_ = m.Client.TerminalInput(context.Background(), procID, data)
-							return nil
-						},
-						m.fetchLogsCmd(procID),
-					)
-				}
-			}
-			// If not running or couldn't translate key, ignore while interactive
-			return m, nil
+			return m, tea.ExecProcess(exec.Command(exe, "terminal", "attach", cur.ID), func(err error) tea.Msg {
+				return attachFinishedMsg{Err: err}
+			})
 		}
 
-		switch msg.String() {
-		case "ctrl+c", "q":
-			m.Quitting = true
-			return m, tea.Quit
-
-		case "up", "k":
-			if len(m.AllProcesses) > 0 {
-				if m.SelectedProc > 0 {
-					m.SelectedProc--
-				} else {
-					m.SelectedProc = len(m.AllProcesses) - 1
-				}
-				if cur := m.CurrentProcess(); cur != nil {
-					m.ActiveLogs = m.LogCache[cur.ID]
-					return m, m.fetchLogsCmd(cur.ID)
-				}
-			}
-			return m, nil
-
-		case "down", "j":
-			if len(m.AllProcesses) > 0 {
-				if m.SelectedProc < len(m.AllProcesses)-1 {
-					m.SelectedProc++
-				} else {
-					m.SelectedProc = 0
-				}
-				if cur := m.CurrentProcess(); cur != nil {
-					m.ActiveLogs = m.LogCache[cur.ID]
-					return m, m.fetchLogsCmd(cur.ID)
-				}
-			}
-			return m, nil
-
-		case "tab":
-			if len(m.AllProcesses) > 0 {
-				m.SelectedProc = (m.SelectedProc + 1) % len(m.AllProcesses)
-				if cur := m.CurrentProcess(); cur != nil {
-					m.ActiveLogs = m.LogCache[cur.ID]
-					return m, m.fetchLogsCmd(cur.ID)
-				}
-			}
-			return m, nil
-
-		case "shift+tab":
-			if len(m.AllProcesses) > 0 {
-				m.SelectedProc = (m.SelectedProc - 1 + len(m.AllProcesses)) % len(m.AllProcesses)
-				if cur := m.CurrentProcess(); cur != nil {
-					m.ActiveLogs = m.LogCache[cur.ID]
-					return m, m.fetchLogsCmd(cur.ID)
-				}
-			}
-			return m, nil
-
-		case "r":
-			return m, m.fetchDataCmd()
-
-		case "enter":
-			if cur := m.CurrentProcess(); cur != nil && cur.Status == process.StatusRunning {
-				m.Interactive = true
-				return m, m.fetchLogsCmd(cur.ID)
-			}
-			if len(m.AllProcesses) > 0 {
-				m.SelectedProc = (m.SelectedProc + 1) % len(m.AllProcesses)
-				if cur := m.CurrentProcess(); cur != nil {
-					m.ActiveLogs = m.LogCache[cur.ID]
-					return m, m.fetchLogsCmd(cur.ID)
-				}
-			}
-			return m, nil
-
-		case "a":
-			// Explicit 'a' attaches to interactive terminal session
-			if cur := m.CurrentProcess(); cur != nil && cur.Status == process.StatusRunning {
-				exe, err := os.Executable()
-				if err != nil {
-					exe = os.Args[0]
-				}
-				cmd := exec.Command(exe, "terminal", "attach", cur.ID)
-				return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-					return AttachFinishedMsg{Err: err}
-				})
-			}
-
-		case "s":
-			if cur := m.CurrentProcess(); cur != nil && cur.Status == process.StatusRunning {
-				procID := cur.ID
-				return m, func() tea.Msg {
-					_ = m.Client.ProcessStop(context.Background(), procID)
-					return RefreshMsg{Connected: true}
-				}
+	case "s":
+		if running {
+			c, id := m.Client, cur.ID
+			return m, func() tea.Msg {
+				_ = c.ProcessStop(context.Background(), id)
+				return m.refresh()
 			}
 		}
 	}
-
 	return m, nil
 }

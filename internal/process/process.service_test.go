@@ -57,7 +57,7 @@ func (r *fakeRunner) Start(ctx context.Context, cmd process.Command) (process.Ha
 func TestProcessService(t *testing.T) {
 	tempDir := t.TempDir()
 	envStore := environment.NewFilesystemStore(tempDir)
-	envSvc := environment.NewService(envStore, tempDir)
+	envSvc := environment.NewService(envStore)
 
 	env, err := envSvc.Create(context.Background(), "testenv")
 	if err != nil {
@@ -66,7 +66,7 @@ func TestProcessService(t *testing.T) {
 
 	store := process.NewFilesystemStore(tempDir)
 	runner := &fakeRunner{}
-	svc := process.NewService(store, envSvc, runner, tempDir)
+	svc := process.NewService(store, envSvc, runner, nil)
 	ctx := context.Background()
 
 	t.Run("start process", func(t *testing.T) {

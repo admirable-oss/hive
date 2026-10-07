@@ -1,3 +1,6 @@
+// Package runtime is the daemon's composition root. It builds every domain
+// module, wires them together through their small interfaces, mounts them on
+// one protocol router, and owns the socket server and agent lifetimes.
 package runtime
 
 import (
@@ -8,53 +11,34 @@ import (
 )
 
 type Module struct {
-	Service     Service
-	Protocol    protocol.Protocol
-	ViewModel   ViewModelService
-	Environment *environment.Module
-	Process     *process.Module
-	Terminal    *terminal.Module
+	Service      *Server
+	Environments environment.Service
+	Processes    process.Service
+	Terminals    terminal.Service
 }
 
-func NewModule(config Config) *Module {
-	service := NewService(config)
-	protocolService := protocol.NewService()
-	codec := protocol.NewJSONCodec(protocol.DefaultMaxMessageSize)
+// NewModule assembles the daemon. Dependencies flow strictly downward:
+// runtime → process → (environment, terminal) → protocol/jsonfile.
+func NewModule(cfg Config) *Module {
+	root := cfg.root()
 
-	baseDir := config.baseDir()
-	envModule := environment.NewModule(environment.Config{
-		BaseDir: baseDir,
-	})
+	envs := environment.NewModule(environment.Config{BaseDir: root}).Service
+	terms := terminal.NewModule().Service
+	procs := process.NewModule(process.Config{BaseDir: root}, envs, terms).Service
+	guardedEnvs := envGuard{Service: envs, procs: procs}
 
-	termModule := terminal.NewModule(terminal.Config{})
+	router := protocol.NewRouter()
+	server := NewServer(cfg, router, procs)
 
-	processModule := process.NewModule(process.Config{
-		BaseDir: baseDir,
-	}, envModule.Service, termModule.Service)
-
-	// Register runtime handlers
-	_ = protocolService.Register("runtime.ping", NewPingHandler())
-	_ = protocolService.Register("runtime.status", NewStatusHandler(service))
-	_ = protocolService.Register("runtime.shutdown", NewShutdownHandler(service))
-
-	// Register environment handlers
-	environment.RegisterHandlers(protocolService, envModule.Service)
-
-	// Register process handlers
-	process.RegisterHandlers(protocolService, processModule.Service)
-
-	// Register terminal handlers
-	terminal.RegisterHandlers(protocolService, termModule.Service)
-
-	service.protocol = protocolService
-	service.codec = codec
+	Register(router, server)
+	environment.Register(router, guardedEnvs)
+	process.Register(router, procs)
+	terminal.Register(router, terms)
 
 	return &Module{
-		Service:     service,
-		Protocol:    protocolService,
-		ViewModel:   NewViewModel(service),
-		Environment: envModule,
-		Process:     processModule,
-		Terminal:    termModule,
+		Service:      server,
+		Environments: guardedEnvs,
+		Processes:    procs,
+		Terminals:    terms,
 	}
 }

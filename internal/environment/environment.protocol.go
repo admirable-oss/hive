@@ -2,160 +2,40 @@ package environment
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 
 	"github.com/admirable-oss/hive/internal/protocol"
 )
 
-func RegisterHandlers(service protocol.Service, envService Service) {
-	service.Register("environment.list", NewListHandler(envService))
-	service.Register("environment.create", NewCreateHandler(envService))
-	service.Register("environment.get", NewGetHandler(envService))
-	service.Register("environment.remove", NewRemoveHandler(envService))
+type idParams struct {
+	ID string `json:"id"`
 }
 
-func getIDParam(req protocol.Request) (string, bool) {
-	if req.Params == nil {
-		return "", false
-	}
-	m, ok := req.Params.(map[string]interface{})
-	if !ok {
-		return "", false
-	}
-	id, ok := m["id"].(string)
-	return id, ok
+// Register exposes svc on the wire as environment.*.
+func Register(r *protocol.Router, svc Service) {
+	r.MustRegister("environment.list", protocol.Method(func(ctx context.Context, _ struct{}) ([]Environment, error) {
+		return svc.List(ctx)
+	}))
+	r.MustRegister("environment.create", protocol.Method(func(ctx context.Context, p idParams) (Environment, error) {
+		env, err := svc.Create(ctx, p.ID)
+		return env, wireError(err)
+	}))
+	r.MustRegister("environment.get", protocol.Method(func(ctx context.Context, p idParams) (Environment, error) {
+		env, err := svc.Get(ctx, p.ID)
+		return env, wireError(err)
+	}))
+	r.MustRegister("environment.remove", protocol.Method(func(ctx context.Context, p idParams) (protocol.Empty, error) {
+		return protocol.Empty{}, wireError(svc.Delete(ctx, p.ID))
+	}))
 }
 
-type ListHandler struct {
-	service Service
-}
-
-func NewListHandler(service Service) *ListHandler {
-	return &ListHandler{service: service}
-}
-
-func (h *ListHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	envs, err := h.service.List(ctx)
-	if err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
-		}
+// wireError gives domain errors their protocol codes.
+func wireError(err error) error {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return protocol.NewError(protocol.ErrorCodeNotFound, err)
+	case errors.Is(err, ErrInvalidID), errors.Is(err, ErrAlreadyExists):
+		return protocol.NewError(protocol.ErrorCodeInvalidParams, err)
 	}
-	result, _ := json.Marshal(envs)
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  result,
-	}
-}
-
-type CreateHandler struct {
-	service Service
-}
-
-func NewCreateHandler(service Service) *CreateHandler {
-	return &CreateHandler{service: service}
-}
-
-func (h *CreateHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	id, ok := getIDParam(req)
-	if !ok {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "invalid params, expected id"},
-		}
-	}
-	env, err := h.service.Create(ctx, id)
-	if err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
-		}
-	}
-	result, _ := json.Marshal(env)
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  result,
-	}
-}
-
-type GetHandler struct {
-	service Service
-}
-
-func NewGetHandler(service Service) *GetHandler {
-	return &GetHandler{service: service}
-}
-
-func (h *GetHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	id, ok := getIDParam(req)
-	if !ok {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "invalid params, expected id"},
-		}
-	}
-	env, err := h.service.Get(ctx, id)
-	if err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
-		}
-	}
-	result, _ := json.Marshal(env)
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  result,
-	}
-}
-
-type RemoveHandler struct {
-	service Service
-}
-
-func NewRemoveHandler(service Service) *RemoveHandler {
-	return &RemoveHandler{service: service}
-}
-
-func (h *RemoveHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	id, ok := getIDParam(req)
-	if !ok {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "invalid_params", Message: "invalid params, expected id"},
-		}
-	}
-	err := h.service.Delete(ctx, id)
-	if err != nil {
-		return protocol.Response{
-			Version: req.Version,
-			Type:    protocol.MessageTypeResponse,
-			ID:      req.ID,
-			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
-		}
-	}
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  json.RawMessage(`{}`),
-	}
+	return err
 }

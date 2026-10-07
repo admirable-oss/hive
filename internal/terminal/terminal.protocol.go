@@ -2,145 +2,90 @@ package terminal
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
+	"errors"
+	"io"
 	"net"
 
 	"github.com/admirable-oss/hive/internal/protocol"
 )
 
-func RegisterHandlers(svc protocol.Service, termService Service) {
-	_ = svc.Register("terminal.start", NewStartHandler(termService))
-	_ = svc.Register("terminal.attach", NewAttachHandler(termService))
-	_ = svc.Register("terminal.input", NewInputHandler(termService))
-	_ = svc.Register("terminal.resize", NewResizeHandler(termService))
+type sessionParams struct {
+	ProcessID string `json:"process_id"`
 }
 
-// ─── terminal.start ────────────────────────────────────────────────────────
-
-type StartHandler struct{ service Service }
-
-func NewStartHandler(service Service) *StartHandler {
-	return &StartHandler{service: service}
+type inputParams struct {
+	ProcessID string `json:"process_id"`
+	Data      []byte `json:"data"` // base64 on the wire, so any byte survives
 }
 
-func (h *StartHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	var params struct {
-		ProcessID  string   `json:"process_id"`
-		ID         string   `json:"id"`
-		Command    string   `json:"command"`
-		Args       []string `json:"args"`
-		WorkingDir string   `json:"working_dir"`
-		Width      uint16   `json:"width"`
-		Height     uint16   `json:"height"`
-	}
-	b, _ := json.Marshal(req.Params)
-	if err := json.Unmarshal(b, &params); err != nil {
-		return errResponse(req, "invalid_params", "invalid params")
-	}
-	procID := params.ProcessID
-	if procID == "" {
-		procID = params.ID
-	}
-	if procID == "" || params.Command == "" {
-		return errResponse(req, "invalid_params", "process_id and command required")
-	}
-
-	size := Size{Width: params.Width, Height: params.Height}
-	if size.Width == 0 || size.Height == 0 {
-		size = DefaultSize
-	}
-
-	cmd := Command{
-		Path:       params.Command,
-		Args:       params.Args,
-		WorkingDir: params.WorkingDir,
-		Size:       size,
-	}
-
-	sess, err := h.service.Open(ctx, procID, cmd)
-	if err != nil {
-		return errResponse(req, "internal_error", err.Error())
-	}
-
-	result, _ := json.Marshal(map[string]any{
-		"process_id": procID,
-		"pid":        sess.Pid(),
-	})
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  result,
-	}
+type resizeParams struct {
+	ProcessID string `json:"process_id"`
+	Width     uint16 `json:"width"`
+	Height    uint16 `json:"height"`
 }
 
-// ─── terminal.attach ───────────────────────────────────────────────────────
-// After sending the ACK, the handler hijacks the net.Conn and pipes
-// PTY output → conn and conn → PTY input until either side closes.
-
-type AttachHandler struct{ service Service }
-
-func NewAttachHandler(service Service) *AttachHandler {
-	return &AttachHandler{service: service}
+// Register exposes svc on the wire as terminal.*. Sessions are created by the
+// process service; the wire only attaches to, types into and resizes them.
+func Register(r *protocol.Router, svc Service) {
+	r.MustRegister("terminal.attach", protocol.HandlerFunc(func(_ context.Context, req protocol.Request) protocol.Response {
+		var p sessionParams
+		if err := protocol.DecodeParams(req, &p); err != nil {
+			return protocol.Fail(req, err)
+		}
+		sess, err := lookup(svc, p.ProcessID)
+		if err != nil {
+			return protocol.Fail(req, err)
+		}
+		resp := protocol.Reply(req, map[string]string{"status": "attached"})
+		resp.Hijack = stream(sess)
+		return resp
+	}))
+	r.MustRegister("terminal.input", protocol.Method(func(_ context.Context, p inputParams) (protocol.Empty, error) {
+		sess, err := lookup(svc, p.ProcessID)
+		if err == nil {
+			_, err = sess.Write(p.Data)
+		}
+		return protocol.Empty{}, err
+	}))
+	r.MustRegister("terminal.resize", protocol.Method(func(_ context.Context, p resizeParams) (protocol.Empty, error) {
+		sess, err := lookup(svc, p.ProcessID)
+		if err == nil {
+			err = sess.Resize(Size{Width: p.Width, Height: p.Height})
+		}
+		return protocol.Empty{}, err
+	}))
 }
 
-func (h *AttachHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	var params struct {
-		ProcessID string `json:"process_id"`
-		ID        string `json:"id"`
+func lookup(svc Service, processID string) (Session, error) {
+	sess, err := svc.Get(processID)
+	if errors.Is(err, ErrSessionNotFound) {
+		return nil, protocol.NewError(protocol.ErrorCodeNotFound, err)
 	}
-	b, _ := json.Marshal(req.Params)
-	if err := json.Unmarshal(b, &params); err != nil {
-		return errResponse(req, "invalid_params", "invalid params")
-	}
-	procID := params.ProcessID
-	if procID == "" {
-		procID = params.ID
-	}
-	if procID == "" {
-		return errResponse(req, "invalid_params", "process_id required")
-	}
+	return sess, err
+}
 
-	sess, err := h.service.Get(procID)
-	if err != nil {
-		return errResponse(req, "not_found", err.Error())
-	}
-
-	protocol.RegisterHijack(req.ID, func(ctx context.Context, conn net.Conn) {
-		subCh, hist, detach := sess.Subscribe()
+// stream turns an attached connection into a raw terminal: history first, then
+// live output to the client and client bytes to the PTY, until either side ends.
+func stream(sess Session) protocol.HijackFunc {
+	return func(ctx context.Context, conn net.Conn) {
+		out, history, detach := sess.Subscribe()
 		defer detach()
 
-		if len(hist) > 0 {
-			_, _ = conn.Write(hist)
+		if _, err := conn.Write(history); err != nil {
+			return
 		}
 
 		done := make(chan struct{}, 2)
-
-		// PTY → client
 		go func() {
-			for chunk := range subCh {
+			for chunk := range out {
 				if _, err := conn.Write(chunk); err != nil {
 					break
 				}
 			}
 			done <- struct{}{}
 		}()
-
-		// client → PTY
 		go func() {
-			buf := make([]byte, 4096)
-			for {
-				n, err := conn.Read(buf)
-				if n > 0 {
-					if _, wErr := sess.Write(buf[:n]); wErr != nil {
-						break
-					}
-				}
-				if err != nil {
-					break
-				}
-			}
+			_, _ = io.Copy(sess, conn)
 			done <- struct{}{}
 		}()
 
@@ -148,118 +93,6 @@ func (h *AttachHandler) Handle(ctx context.Context, req protocol.Request) protoc
 		case <-done:
 		case <-ctx.Done():
 		}
-
-		_ = conn.Close()
-	})
-
-	result, _ := json.Marshal(map[string]string{"status": "attached"})
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  result,
-	}
-}
-
-// ─── terminal.input ────────────────────────────────────────────────────────
-
-type InputHandler struct{ service Service }
-
-func NewInputHandler(service Service) *InputHandler {
-	return &InputHandler{service: service}
-}
-
-func (h *InputHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	var params struct {
-		ProcessID string `json:"process_id"`
-		ID        string `json:"id"`
-		Data      string `json:"data"`
-	}
-	b, _ := json.Marshal(req.Params)
-	if err := json.Unmarshal(b, &params); err != nil {
-		return errResponse(req, "invalid_params", "invalid params")
-	}
-	procID := params.ProcessID
-	if procID == "" {
-		procID = params.ID
-	}
-	if procID == "" {
-		return errResponse(req, "invalid_params", "process_id required")
-	}
-
-	raw, err := base64.StdEncoding.DecodeString(params.Data)
-	if err != nil {
-		raw = []byte(params.Data)
-	}
-
-	sess, err := h.service.Get(procID)
-	if err != nil {
-		return errResponse(req, "not_found", err.Error())
-	}
-
-	if _, err := sess.Write(raw); err != nil {
-		return errResponse(req, "internal_error", err.Error())
-	}
-
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  json.RawMessage(`{}`),
-	}
-}
-
-// ─── terminal.resize ───────────────────────────────────────────────────────
-
-type ResizeHandler struct{ service Service }
-
-func NewResizeHandler(service Service) *ResizeHandler {
-	return &ResizeHandler{service: service}
-}
-
-func (h *ResizeHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
-	var params struct {
-		ProcessID string `json:"process_id"`
-		ID        string `json:"id"`
-		Width     uint16 `json:"width"`
-		Height    uint16 `json:"height"`
-	}
-	b, _ := json.Marshal(req.Params)
-	if err := json.Unmarshal(b, &params); err != nil {
-		return errResponse(req, "invalid_params", "invalid params")
-	}
-	procID := params.ProcessID
-	if procID == "" {
-		procID = params.ID
-	}
-	if procID == "" {
-		return errResponse(req, "invalid_params", "process_id required")
-	}
-
-	sess, err := h.service.Get(procID)
-	if err != nil {
-		return errResponse(req, "not_found", err.Error())
-	}
-
-	if err := sess.Resize(Size{Width: params.Width, Height: params.Height}); err != nil {
-		return errResponse(req, "internal_error", err.Error())
-	}
-
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Result:  json.RawMessage(`{}`),
-	}
-}
-
-// ─── helpers ───────────────────────────────────────────────────────────────
-
-func errResponse(req protocol.Request, code, msg string) protocol.Response {
-	return protocol.Response{
-		Version: req.Version,
-		Type:    protocol.MessageTypeResponse,
-		ID:      req.ID,
-		Error:   &protocol.Error{Code: code, Message: msg},
+		_ = conn.Close() // unblocks whichever copy is still running
 	}
 }

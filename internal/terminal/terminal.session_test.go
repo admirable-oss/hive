@@ -79,9 +79,9 @@ func (s *fakeSession) exitWith(err error) {
 }
 
 type fakeFactory struct {
-	mu      sync.Mutex
-	openFn  func(ctx context.Context, cmd terminal.Command) (terminal.Session, error)
-	opened  []terminal.Command
+	mu     sync.Mutex
+	openFn func(ctx context.Context, cmd terminal.Command) (terminal.Session, error)
+	opened []terminal.Command
 }
 
 func (f *fakeFactory) Open(ctx context.Context, cmd terminal.Command) (terminal.Session, error) {
@@ -161,7 +161,7 @@ func TestTerminalService_WriteRead(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 	buf := make([]byte, 5)
-	n, _ := sess.Read(buf)
+	n, _ := fake.Read(buf)
 	if string(buf[:n]) != "hello" {
 		t.Errorf("expected 'hello', got %q", buf[:n])
 	}

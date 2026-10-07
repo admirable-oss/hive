@@ -5,27 +5,45 @@ import (
 	"strings"
 )
 
+// maxLogLines bounds the sanitised lines kept per process.
+const maxLogLines = 200
+
 var (
-	// regex to strip non-color ANSI escape sequences (cursor movements, screen clears, etc.)
-	// Matches ESC [ ... but NOT ending with 'm' (which are SGR color/style sequences)
+	// Non-SGR CSI sequences (cursor moves, clears, …). SGR colour codes end in
+	// 'm' and are kept so agents' own colours survive.
 	ansiNonColorRe = regexp.MustCompile(`\x1b\[[0-9;]*[A-LN-Za-ln-z]|\x1b\[\?[0-9;]*[a-zA-Z]|\x1b[=>]`)
-	// regex for OSC sequences: ESC ] ... (BEL or ESC \)
+	// OSC sequences: ESC ] … terminated by BEL or ESC \.
 	ansiOscRe = regexp.MustCompile(`\x1b\][^\x07\x1b]*(\x07|\x1b\\)`)
-	// regex to strip all ANSI codes if plain text is needed
-	ansiAllRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)`)
+	spacesRe  = regexp.MustCompile(` {2,}`)
 )
 
-// SanitizeLogLine cleans a raw line from PTY or process stdout:
+// sanitizeLog turns raw PTY/stdout output into displayable lines. It runs once
+// per fetch, not once per frame.
+func sanitizeLog(raw string) []string {
+	var lines []string
+	for line := range strings.SplitSeq(raw, "\n") {
+		if clean := SanitizeLogLine(line); clean != "" {
+			lines = append(lines, clean)
+		}
+	}
+	if len(lines) > maxLogLines {
+		lines = lines[len(lines)-maxLogLines:]
+	}
+	return lines
+}
+
+// SanitizeLogLine flattens one raw output line for the log panel: carriage
+// return overwrites keep only the final text, cursor-movement escapes become
+// spaces (so TUI agents like Claude Code don't glue words together), and
+// other control bytes are dropped. Colour codes are preserved.
 func SanitizeLogLine(raw string) string {
 	if raw == "" {
 		return ""
 	}
-
 	if strings.Contains(raw, "\r") {
 		parts := strings.Split(raw, "\r")
 		for i := len(parts) - 1; i >= 0; i-- {
-			p := strings.TrimSpace(parts[i])
-			if p != "" {
+			if strings.TrimSpace(parts[i]) != "" {
 				raw = parts[i]
 				break
 			}
@@ -33,28 +51,14 @@ func SanitizeLogLine(raw string) string {
 	}
 
 	raw = ansiOscRe.ReplaceAllString(raw, "")
-
-	// Replace cursor movement sequences with a space so words don't concatenate
 	raw = ansiNonColorRe.ReplaceAllString(raw, " ")
-
 	raw = strings.ReplaceAll(raw, "\t", "  ")
 
 	var b strings.Builder
 	for i := 0; i < len(raw); i++ {
-		c := raw[i]
-		if c < 32 && c != '\x1b' && c != '\n' {
-			continue
+		if c := raw[i]; c >= 32 || c == '\x1b' {
+			b.WriteByte(c)
 		}
-		b.WriteByte(c)
 	}
-
-	// collapse multiple spaces into one to avoid weird gaps, but don't do it if we want to preserve layout?
-	// actually, for Claude Code, it emits a lot of escapes, so collapsing spaces is safer for readability.
-	res := b.String()
-	res = regexp.MustCompile(` {2,}`).ReplaceAllString(res, " ")
-	return strings.TrimSpace(res)
-}
-
-func CleanPlainLine(s string) string {
-	return ansiAllRe.ReplaceAllString(s, "")
+	return strings.TrimSpace(spacesRe.ReplaceAllString(b.String(), " "))
 }

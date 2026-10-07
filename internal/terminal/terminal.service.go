@@ -5,8 +5,8 @@ import (
 	"sync"
 )
 
-// Service manages the live terminal sessions for running processes.
-// It is intentionally thin: it owns sessions but does not own processes.
+// Service tracks the live terminal sessions of running processes, keyed by
+// process ID. It owns sessions but not processes.
 type Service interface {
 	// Open starts a terminal session for processID using the given command.
 	Open(ctx context.Context, processID string, cmd Command) (Session, error)
@@ -14,11 +14,9 @@ type Service interface {
 	Get(processID string) (Session, error)
 	// Close terminates the session for processID.
 	Close(processID string) error
-	// List returns all current process IDs with live sessions.
-	List() []string
 }
 
-type serviceImpl struct {
+type service struct {
 	factory Factory
 
 	mu       sync.RWMutex
@@ -26,39 +24,43 @@ type serviceImpl struct {
 }
 
 func NewService(factory Factory) Service {
-	return &serviceImpl{
-		factory:  factory,
-		sessions: make(map[string]Session),
-	}
+	return &service{factory: factory, sessions: make(map[string]Session)}
 }
 
-func (s *serviceImpl) Open(ctx context.Context, processID string, cmd Command) (Session, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, exists := s.sessions[processID]; exists {
+func (s *service) Open(ctx context.Context, processID string, cmd Command) (Session, error) {
+	if _, err := s.Get(processID); err == nil {
 		return nil, ErrSessionExists
 	}
 
+	// Spawn outside the lock so one slow start doesn't block every other call.
 	session, err := s.factory.Open(ctx, cmd)
 	if err != nil {
 		return nil, err
 	}
 
+	s.mu.Lock()
+	if _, exists := s.sessions[processID]; exists {
+		s.mu.Unlock()
+		_ = session.Close() // lost a race with a concurrent Open
+		return nil, ErrSessionExists
+	}
 	s.sessions[processID] = session
+	s.mu.Unlock()
 
-	// Clean up the entry when the process exits naturally.
+	// Forget the session once its process exits on its own.
 	go func() {
 		_ = session.Wait()
 		s.mu.Lock()
-		delete(s.sessions, processID)
+		if s.sessions[processID] == session {
+			delete(s.sessions, processID)
+		}
 		s.mu.Unlock()
 	}()
 
 	return session, nil
 }
 
-func (s *serviceImpl) Get(processID string) (Session, error) {
+func (s *service) Get(processID string) (Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	sess, ok := s.sessions[processID]
@@ -68,23 +70,13 @@ func (s *serviceImpl) Get(processID string) (Session, error) {
 	return sess, nil
 }
 
-func (s *serviceImpl) Close(processID string) error {
+func (s *service) Close(processID string) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	sess, ok := s.sessions[processID]
+	delete(s.sessions, processID)
+	s.mu.Unlock()
 	if !ok {
 		return ErrSessionNotFound
 	}
-	delete(s.sessions, processID)
 	return sess.Close()
-}
-
-func (s *serviceImpl) List() []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	ids := make([]string, 0, len(s.sessions))
-	for id := range s.sessions {
-		ids = append(ids, id)
-	}
-	return ids
 }

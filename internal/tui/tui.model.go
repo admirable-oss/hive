@@ -10,136 +10,142 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/admirable-oss/hive/internal/client"
-	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/tui/bee"
 )
 
+const (
+	pollInterval = 500 * time.Millisecond
+	logTail      = 30 // lines fetched for the log panel
+)
+
+// RefreshMsg carries a fresh process list from the daemon.
 type RefreshMsg struct {
-	Connected    bool
-	Environments []environment.Environment
-	Processes    map[string][]process.Process
-	Err          error
+	Connected bool
+	Processes []process.Process
+	Err       error
 }
 
+// LogsMsg carries the recent output of one process.
 type LogsMsg struct {
 	ProcessID string
 	Logs      string
 }
 
-type LogPollTickMsg struct{}
+type pollTickMsg struct{}
 
+type attachFinishedMsg struct{ Err error }
+
+// Model is the dashboard state. Bubble Tea passes it by value, so every
+// update returns a new copy; the maps are shared, which is fine because only
+// Update writes to them.
 type Model struct {
 	Client        client.Client
 	Bee           bee.Model
 	Width         int
 	Height        int
 	Connected     bool
-	Environments  []environment.Environment
-	Processes     map[string][]process.Process
-	AllProcesses  []process.Process
-	SelectedProc  int
-	SelectedEnv   int
-	ActiveLogs    string
-	LogCache      map[string]string
+	Processes     []process.Process // every agent, oldest first
+	SelectedProc  int               // index into Processes
+	Interactive   bool              // keystrokes go to the selected agent's terminal
+	Quitting      bool
 	WorkspacePath string
 	StartTime     time.Time
-	Quitting      bool
-	Interactive   bool
+
+	selectedID string              // keeps the selection on the same agent across refreshes
+	logLines   map[string][]string // sanitised output per process ID
 }
 
 func NewModel(c client.Client) Model {
-	cwd, err := os.Getwd()
-	displayPath := "~/acme/api"
-	if err == nil {
-		home, _ := os.UserHomeDir()
-		if home != "" && strings.HasPrefix(cwd, home) {
-			displayPath = "~" + strings.TrimPrefix(cwd, home)
-		} else {
-			displayPath = filepath.Base(cwd)
-		}
-	}
-
 	return Model{
 		Client:        c,
 		Bee:           bee.New(),
 		Width:         100,
 		Height:        28,
-		Processes:     make(map[string][]process.Process),
-		LogCache:      make(map[string]string),
-		WorkspacePath: displayPath,
+		WorkspacePath: displayCwd(),
 		StartTime:     time.Now(),
-		SelectedProc:  0,
-		SelectedEnv:   0,
+		logLines:      make(map[string][]string),
 	}
+}
+
+// displayCwd shows the working directory with $HOME collapsed to ~.
+func displayCwd() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "~"
+	}
+	if home, _ := os.UserHomeDir(); home != "" && strings.HasPrefix(cwd, home) {
+		return "~" + strings.TrimPrefix(cwd, home)
+	}
+	return filepath.Base(cwd)
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		bee.Tick(m.Bee),
-		m.fetchDataCmd(),
-		m.pollLogsTickCmd(),
-	)
+	return tea.Batch(bee.Tick(m.Bee), m.refresh, pollTick())
 }
 
-func (m Model) fetchDataCmd() tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		if err := m.Client.Ping(ctx); err != nil {
-			return RefreshMsg{Connected: false, Err: err}
-		}
-
-		envs, err := m.Client.EnvironmentList(ctx)
-		if err != nil {
-			return RefreshMsg{Connected: true, Err: err}
-		}
-
-		procs := make(map[string][]process.Process)
-		for _, env := range envs {
-			list, _ := m.Client.ProcessList(ctx, env.ID)
-			procs[env.ID] = list
-		}
-
-		return RefreshMsg{
-			Connected:    true,
-			Environments: envs,
-			Processes:    procs,
-		}
+// refresh is a tea.Cmd that fetches every process in one call. A failed call
+// means the daemon is unreachable.
+func (m Model) refresh() tea.Msg {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	procs, err := m.Client.ProcessList(ctx, "")
+	if err != nil {
+		return RefreshMsg{Err: err}
 	}
+	return RefreshMsg{Connected: true, Processes: procs}
 }
 
 func (m Model) fetchLogsCmd(procID string) tea.Cmd {
+	if procID == "" {
+		return nil
+	}
+	c := m.Client
 	return func() tea.Msg {
-		if procID == "" {
-			return LogsMsg{}
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-
-		logs, err := m.Client.ProcessLogs(ctx, procID, 30)
-		if err != nil {
-			return LogsMsg{ProcessID: procID, Logs: ""}
-		}
+		logs, _ := c.ProcessLogs(ctx, procID, logTail)
 		return LogsMsg{ProcessID: procID, Logs: logs}
 	}
 }
 
-func (m Model) pollLogsTickCmd() tea.Cmd {
-	return tea.Tick(500*time.Millisecond, func(_ time.Time) tea.Msg {
-		return LogPollTickMsg{}
-	})
+func pollTick() tea.Cmd {
+	return tea.Tick(pollInterval, func(time.Time) tea.Msg { return pollTickMsg{} })
 }
 
-// CurrentProcess returns the currently selected process.
+// CurrentProcess returns the selected process, or nil when there is none.
 func (m Model) CurrentProcess() *process.Process {
-	if len(m.AllProcesses) == 0 {
+	if m.SelectedProc < 0 || m.SelectedProc >= len(m.Processes) {
 		return nil
 	}
-	idx := m.SelectedProc
-	if idx < 0 || idx >= len(m.AllProcesses) {
-		idx = 0
+	return &m.Processes[m.SelectedProc]
+}
+
+// selectIndex moves the selection (wrapping around) and fetches its logs.
+func (m *Model) selectIndex(i int) tea.Cmd {
+	n := len(m.Processes)
+	if n == 0 {
+		return nil
 	}
-	return &m.AllProcesses[idx]
+	m.SelectedProc = (i%n + n) % n
+	m.selectedID = m.Processes[m.SelectedProc].ID
+	return m.fetchLogsCmd(m.selectedID)
+}
+
+// reanchor keeps the selection on the same agent after the list changes;
+// otherwise a new agent would shift rows and steal the selection (and, in
+// interactive mode, the user's keystrokes).
+func (m *Model) reanchor() {
+	for i, p := range m.Processes {
+		if p.ID == m.selectedID {
+			m.SelectedProc = i
+			return
+		}
+	}
+	if len(m.Processes) == 0 {
+		m.SelectedProc, m.selectedID = 0, ""
+		return
+	}
+	m.SelectedProc = min(max(m.SelectedProc, 0), len(m.Processes)-1)
+	m.selectedID = m.Processes[m.SelectedProc].ID
 }

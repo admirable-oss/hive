@@ -8,23 +8,27 @@ import (
 	"github.com/admirable-oss/hive/internal/process"
 )
 
+// Client is every call the daemon answers, one method per wire method.
 type Client interface {
 	Ping(context.Context) error
 	Status(context.Context) (Status, error)
 	Shutdown(context.Context) error
 
 	EnvironmentList(context.Context) ([]environment.Environment, error)
-	EnvironmentCreate(context.Context, string) (environment.Environment, error)
-	EnvironmentGet(context.Context, string) (environment.Environment, error)
-	EnvironmentRemove(context.Context, string) error
+	EnvironmentCreate(ctx context.Context, id string) (environment.Environment, error)
+	EnvironmentGet(ctx context.Context, id string) (environment.Environment, error)
+	EnvironmentRemove(ctx context.Context, id string) error
 
-	ProcessStart(ctx context.Context, envID string, command string, args []string) (process.Process, error)
-	ProcessStartRequest(ctx context.Context, req process.StartRequest) (process.Process, error)
+	ProcessStart(ctx context.Context, req process.StartRequest) (process.Process, error)
 	ProcessGet(ctx context.Context, id string) (process.Process, error)
+	// ProcessList lists one environment's processes, or all when envID is "".
 	ProcessList(ctx context.Context, envID string) ([]process.Process, error)
 	ProcessStop(ctx context.Context, id string) error
 	ProcessLogs(ctx context.Context, id string, tail int) (string, error)
 
+	// TerminalAttach streams the process's terminal: in is sent as keystrokes
+	// and output is written to out. It returns when either stream ends or ctx
+	// is cancelled.
 	TerminalAttach(ctx context.Context, processID string, in io.Reader, out io.Writer) error
 	TerminalResize(ctx context.Context, processID string, width, height uint16) error
 	TerminalInput(ctx context.Context, processID string, data []byte) error

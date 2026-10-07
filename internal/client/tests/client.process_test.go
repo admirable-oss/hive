@@ -44,7 +44,7 @@ func TestClientProcessIntegration(t *testing.T) {
 	}
 
 	// 2. Run real process: echo hello
-	echoProc, err := c.ProcessStart(ctx, env.ID, "echo", []string{"hello"})
+	echoProc, err := c.ProcessStart(ctx, process.StartRequest{EnvironmentID: env.ID, Command: "echo", Args: []string{"hello"}})
 	if err != nil {
 		t.Fatalf("ProcessStart echo: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestClientProcessIntegration(t *testing.T) {
 	}
 
 	// 4. Run real long-running process: sleep 30, then stop it
-	sleepProc, err := c.ProcessStart(ctx, env.ID, "sleep", []string{"30"})
+	sleepProc, err := c.ProcessStart(ctx, process.StartRequest{EnvironmentID: env.ID, Command: "sleep", Args: []string{"30"}})
 	if err != nil {
 		t.Fatalf("ProcessStart sleep: %v", err)
 	}

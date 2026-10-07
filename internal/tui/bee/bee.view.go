@@ -53,8 +53,7 @@ func (m Model) View() string {
 
 	renderWing := func(w string) string {
 		var out strings.Builder
-		runes := []rune(w)
-		for _, r := range runes {
+		for _, r := range w {
 			switch r {
 			case '▀':
 				out.WriteString(styleWingFull.Render("▀"))

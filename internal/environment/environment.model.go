@@ -4,16 +4,12 @@ import "time"
 
 type Status string
 
-const (
-	StatusCreated Status = "created"
-	StatusReady   Status = "ready"
-	StatusStopped Status = "stopped"
-)
+const StatusReady Status = "ready"
 
 type Environment struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
-	Path      string    `json:"path"`
+	Path      string    `json:"path"` // workspace directory agents run in
 	Status    Status    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 }

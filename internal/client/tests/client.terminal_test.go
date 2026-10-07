@@ -47,13 +47,13 @@ func TestClientTerminalIntegration(t *testing.T) {
 	}
 
 	// 2. Start /bin/sh inside a PTY
-	proc, err := c.ProcessStartRequest(ctx, process.StartRequest{
+	proc, err := c.ProcessStart(ctx, process.StartRequest{
 		EnvironmentID: env.ID,
 		Command:       "/bin/sh",
 		Terminal:      true,
 	})
 	if err != nil {
-		t.Fatalf("ProcessStartRequest: %v", err)
+		t.Fatalf("ProcessStart: %v", err)
 	}
 	if proc.ID == "" {
 		t.Fatalf("expected non-empty process ID")
@@ -90,9 +90,6 @@ func TestClientTerminalIntegration(t *testing.T) {
 		}
 		t.Fatalf("timed out waiting for output %q, current output:\n%s", expected, syncWriter.String())
 	}
-
-	// Wait briefly for shell prompt / initialization
-	time.Sleep(50 * time.Millisecond)
 
 	// Test: echo hello -> expect "hello"
 	waitForOutput("echo hello\n", "hello")
