@@ -38,6 +38,16 @@ func TestSanitizeLogLine(t *testing.T) {
 			input:    "\x1b[32m✔ done\x1b[0m",
 			expected: "\x1b[32m✔ done\x1b[0m",
 		},
+		{
+			name:     "claude cursor positioning between words does not concatenate",
+			input:    "Accessing\x1b[12Gworkspace:\x1b[24Gclean",
+			expected: "Accessing workspace: clean",
+		},
+		{
+			name:     "claude safety prompt spacing",
+			input:    "Quick\x1b[6Gsafety\x1b[13Gcheck:\x1b[20GIs this a project?",
+			expected: "Quick safety check: Is this a project?",
+		},
 	}
 
 	for _, tt := range tests {

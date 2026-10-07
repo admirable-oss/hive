@@ -45,6 +45,7 @@ type Model struct {
 	WorkspacePath string
 	StartTime     time.Time
 	Quitting      bool
+	Interactive   bool
 }
 
 func NewModel(c client.Client) Model {

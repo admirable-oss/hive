@@ -89,6 +89,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.fetchDataCmd()
 
 	case tea.KeyMsg:
+		if m.Interactive {
+			if msg.Type == tea.KeyEsc {
+				m.Interactive = false
+				return m, nil
+			}
+			
+			if cur := m.CurrentProcess(); cur != nil && cur.Status == process.StatusRunning {
+				// Translate key to bytes
+				data := keyToBytes(msg)
+				if len(data) > 0 {
+					procID := cur.ID
+					return m, tea.Batch(
+						func() tea.Msg {
+							_ = m.Client.TerminalInput(context.Background(), procID, data)
+							return nil
+						},
+						m.fetchLogsCmd(procID),
+					)
+				}
+			}
+			// If not running or couldn't translate key, ignore while interactive
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "q":
 			m.Quitting = true
@@ -146,7 +170,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.fetchDataCmd()
 
 		case "enter":
-			// Safe enter: cycle selection or refresh active process logs without breaking TUI
+			if cur := m.CurrentProcess(); cur != nil && cur.Status == process.StatusRunning {
+				m.Interactive = true
+				return m, m.fetchLogsCmd(cur.ID)
+			}
 			if len(m.AllProcesses) > 0 {
 				m.SelectedProc = (m.SelectedProc + 1) % len(m.AllProcesses)
 				if cur := m.CurrentProcess(); cur != nil {

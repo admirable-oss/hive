@@ -16,17 +16,11 @@ var (
 )
 
 // SanitizeLogLine cleans a raw line from PTY or process stdout:
-// 1. Handles carriage returns (\r) by keeping the text after the last \r
-// 2. Strips cursor repositioning and terminal control escape sequences
-// 3. Removes non-printable ASCII control characters
-// 4. Normalizes tabs to spaces
 func SanitizeLogLine(raw string) string {
 	if raw == "" {
 		return ""
 	}
 
-	// If line has carriage return \r, in terminal emulation it overwrites the line.
-	// Split by \r and take the last non-empty segment.
 	if strings.Contains(raw, "\r") {
 		parts := strings.Split(raw, "\r")
 		for i := len(parts) - 1; i >= 0; i-- {
@@ -38,16 +32,13 @@ func SanitizeLogLine(raw string) string {
 		}
 	}
 
-	// Strip OSC title/palette sequences
 	raw = ansiOscRe.ReplaceAllString(raw, "")
 
-	// Strip cursor movement sequences (e.g. \x1b[2K, \x1b[1A, \x1b[?25h)
-	raw = ansiNonColorRe.ReplaceAllString(raw, "")
+	// Replace cursor movement sequences with a space so words don't concatenate
+	raw = ansiNonColorRe.ReplaceAllString(raw, " ")
 
-	// Convert tabs to 2 spaces
 	raw = strings.ReplaceAll(raw, "\t", "  ")
 
-	// Strip raw control characters (except newline and ESC)
 	var b strings.Builder
 	for i := 0; i < len(raw); i++ {
 		c := raw[i]
@@ -57,10 +48,13 @@ func SanitizeLogLine(raw string) string {
 		b.WriteByte(c)
 	}
 
-	return strings.TrimRight(b.String(), " ")
+	// collapse multiple spaces into one to avoid weird gaps, but don't do it if we want to preserve layout?
+	// actually, for Claude Code, it emits a lot of escapes, so collapsing spaces is safer for readability.
+	res := b.String()
+	res = regexp.MustCompile(` {2,}`).ReplaceAllString(res, " ")
+	return strings.TrimSpace(res)
 }
 
-// CleanPlainLine returns a line with ALL ANSI codes stripped, safe for length calculations.
 func CleanPlainLine(s string) string {
 	return ansiAllRe.ReplaceAllString(s, "")
 }

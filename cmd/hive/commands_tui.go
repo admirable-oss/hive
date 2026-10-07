@@ -33,6 +33,14 @@ func cmdDemo(ctx context.Context, args []string) error {
 	envID := "acme-api"
 	_, _ = c.EnvironmentCreate(ctx, envID)
 
+	// Clean up any stale running demo processes in this environment
+	existing, _ := c.ProcessList(ctx, envID)
+	for _, p := range existing {
+		if p.Status == process.StatusRunning {
+			_ = c.ProcessStop(ctx, p.ID)
+		}
+	}
+
 	claudeScript := `echo "› read  src/auth · 214 files"
 echo "› plan  rotate session tokens on refresh"
 echo "› edit  src/auth/middleware.ts  +9 -3"

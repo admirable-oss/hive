@@ -243,21 +243,34 @@ func TestTUI_EnterKeySafe(t *testing.T) {
 		t.Fatalf("expected initial SelectedProc 0, got %d", m.SelectedProc)
 	}
 
-	// Pressing Enter must safely cycle to next process and NOT attach or crash
+	// Pressing Enter on running process enters Interactive mode
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = updated.(tui.Model)
-	if m.SelectedProc != 1 {
-		t.Errorf("expected SelectedProc 1 after Enter, got %d", m.SelectedProc)
+	if !m.Interactive {
+		t.Errorf("expected m.Interactive to be true after Enter on running process")
 	}
 	if cmd == nil {
 		t.Errorf("expected fetchLogsCmd after Enter")
 	}
 
-	// Pressing Enter again wraps to 0
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// In interactive mode, view highlights the panel
+	v := m.View()
+	if !strings.Contains(v, "INPUT ACTIVE") && !strings.Contains(v, "INTERACTIVE") {
+		t.Errorf("expected view to indicate interactive control")
+	}
+
+	// Sending a keystroke forwards input
+	updated, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	m = updated.(tui.Model)
-	if m.SelectedProc != 0 {
-		t.Errorf("expected SelectedProc 0 after second Enter, got %d", m.SelectedProc)
+	if cmd == nil {
+		t.Errorf("expected cmd after sending interactive key")
+	}
+
+	// Pressing Esc exits interactive mode
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(tui.Model)
+	if m.Interactive {
+		t.Errorf("expected m.Interactive to be false after Esc")
 	}
 }
 

@@ -71,7 +71,12 @@ func (m Model) View() string {
 	}
 
 	// 4. Middle Divider: ├────────────────────┼────────────────────┤
-	midBorder := StyleBorder.Render("├" + strings.Repeat("─", leftW) + "┼" + strings.Repeat("─", rightW) + "┤")
+	var midBorder string
+	if m.Interactive {
+		midBorder = StyleBorder.Render("├"+strings.Repeat("─", leftW)) + StyleGoldBold.Render("┼"+strings.Repeat("─", rightW)+"┤")
+	} else {
+		midBorder = StyleBorder.Render("├" + strings.Repeat("─", leftW) + "┼" + strings.Repeat("─", rightW) + "┤")
+	}
 	b.WriteString(midBorder)
 	b.WriteString("\n")
 
@@ -88,13 +93,23 @@ func (m Model) View() string {
 		if r < len(bottomRightLines) {
 			ri = bottomRightLines[r]
 		}
-		row := StyleBorder.Render("│") + padRight(l, leftW) + StyleBorder.Render("│") + padRight(ri, rightW) + StyleBorder.Render("│")
+		var row string
+		if m.Interactive {
+			row = StyleBorder.Render("│") + padRight(l, leftW) + StyleGoldBold.Render("│") + padRight(ri, rightW) + StyleGoldBold.Render("│")
+		} else {
+			row = StyleBorder.Render("│") + padRight(l, leftW) + StyleBorder.Render("│") + padRight(ri, rightW) + StyleBorder.Render("│")
+		}
 		b.WriteString(row)
 		b.WriteString("\n")
 	}
 
 	// 6. Box Bottom Border: └────────────────────┴────────────────────┘
-	botBorder := StyleBorder.Render("└" + strings.Repeat("─", leftW) + "┴" + strings.Repeat("─", rightW) + "┘")
+	var botBorder string
+	if m.Interactive {
+		botBorder = StyleBorder.Render("└"+strings.Repeat("─", leftW)) + StyleGoldBold.Render("┴"+strings.Repeat("─", rightW)+"┘")
+	} else {
+		botBorder = StyleBorder.Render("└" + strings.Repeat("─", leftW) + "┴" + strings.Repeat("─", rightW) + "┘")
+	}
 	b.WriteString(botBorder)
 	b.WriteString("\n")
 
@@ -259,11 +274,19 @@ func (m Model) renderProcessTablePanel(width, height int) []string {
 			diamond := StyleMuted.Render("◇")
 			cellStyle := StyleUnselectedText
 			if isSelected {
-				diamond = StyleGold.Render("◈")
-				cellStyle = StyleSelectedText
+				if m.Interactive {
+					diamond = StyleGoldBold.Render("▶")
+					cellStyle = StyleGoldBold
+				} else {
+					diamond = StyleGold.Render("◈")
+					cellStyle = StyleSelectedText
+				}
 			}
 
 			cellName := processName(p)
+			if isSelected && m.Interactive {
+				cellName = cellName + " [TAKEN]"
+			}
 			cellDisplay := fmt.Sprintf("%s %s", diamond, cellStyle.Render(truncate(cellName, colCell-3)))
 
 			branchDisplay := fmt.Sprintf("agent/%s", cellName)
@@ -307,13 +330,23 @@ func (m Model) renderLogsPanel(width, height int) []string {
 		name := strings.ToUpper(processName(*cur))
 		headerTitle = fmt.Sprintf("ATTACHED · %s", name)
 		if cur.Status == process.StatusRunning {
-			statusBadge = StyleGold.Render("● STREAMING LIVE (stdout)")
+			if m.Interactive {
+				headerTitle = fmt.Sprintf("INTERACTIVE · %s", name)
+				statusBadge = StyleGoldBold.Render("● INPUT ACTIVE · [ESC] TO DETACH")
+			} else {
+				statusBadge = StyleGold.Render("● STREAMING LIVE (stdout)")
+			}
 		} else {
 			statusBadge = StyleMuted.Render("○ EXITED")
 		}
 	}
 
-	leftH := "  " + StyleHeader.Render(headerTitle)
+	var leftH string
+	if m.Interactive {
+		leftH = "  " + StyleGoldBold.Render("✦ ") + StyleGoldBold.Render(headerTitle)
+	} else {
+		leftH = "  " + StyleHeader.Render(headerTitle)
+	}
 	leftW := ansi.StringWidth(leftH)
 	badgeW := ansi.StringWidth(statusBadge)
 	gap := width - leftW - badgeW - 2
@@ -323,10 +356,14 @@ func (m Model) renderLogsPanel(width, height int) []string {
 	headerLine := leftH + strings.Repeat(" ", gap) + statusBadge
 	lines = append(lines, headerLine)
 
-	// Subtle horizontal separator under log header for console feel
+	// Horizontal separator under log header for console feel
 	sepW := width - 4
 	if sepW > 0 {
-		lines = append(lines, "  "+StyleBorder.Render(strings.Repeat("─", sepW)))
+		if m.Interactive {
+			lines = append(lines, "  "+StyleGold.Render(strings.Repeat("─", sepW)))
+		} else {
+			lines = append(lines, "  "+StyleBorder.Render(strings.Repeat("─", sepW)))
+		}
 	} else {
 		lines = append(lines, "")
 	}
@@ -334,8 +371,12 @@ func (m Model) renderLogsPanel(width, height int) []string {
 	logContent := m.ActiveLogs
 	if strings.TrimSpace(logContent) == "" {
 		if cur != nil && cur.Status == process.StatusRunning {
-			lines = append(lines, StyleMuted.Render("  › listening on agent output stream..."))
-			lines = append(lines, StyleMuted.Render("  › press 'a' to attach interactive terminal session"))
+			if m.Interactive {
+				lines = append(lines, StyleGoldBold.Render("  › interactive terminal active — type commands or responses"))
+			} else {
+				lines = append(lines, StyleMuted.Render("  › listening on agent output stream..."))
+				lines = append(lines, StyleMuted.Render("  › press enter to take control and interact directly"))
+			}
 		} else {
 			lines = append(lines, StyleMuted.Render("  › no activity recorded yet"))
 		}
@@ -362,9 +403,13 @@ func (m Model) renderLogsPanel(width, height int) []string {
 			lines = append(lines, "  "+formatted)
 		}
 
-		// If fewer lines than available height, show active waiting indicator
+		// If fewer lines than available height, show active indicator
 		if cur != nil && cur.Status == process.StatusRunning && len(clean) < maxDisplay && len(lines) < height-1 {
-			lines = append(lines, "  "+StyleGold.Render("› ")+StyleMuted.Render("waiting for next step…"))
+			if m.Interactive {
+				lines = append(lines, "  "+StyleGoldBold.Render("› ")+StyleSelectedText.Render("live terminal input active — type here (esc to release)"))
+			} else {
+				lines = append(lines, "  "+StyleGold.Render("› ")+StyleMuted.Render("press enter to take control…"))
+			}
 		}
 	}
 
@@ -375,13 +420,25 @@ func (m Model) renderLogsPanel(width, height int) []string {
 }
 
 func (m Model) renderFooterBar(width int) string {
+	if m.Interactive {
+		var parts []string
+		parts = append(parts, fmt.Sprintf("%s %s", StyleKeyBadge.Render("esc"), StyleKeyLabel.Render("release control")))
+		parts = append(parts, fmt.Sprintf("%s %s", StyleKeyBadge.Render("keys"), StyleKeyLabel.Render("typing into agent terminal")))
+		parts = append(parts, fmt.Sprintf("%s %s", StyleKeyBadge.Render("↵"), StyleKeyLabel.Render("submit / enter")))
+		res := " " + strings.Join(parts, "  ")
+		if ansi.StringWidth(res) > width {
+			return ansi.Truncate(res, width, "")
+		}
+		return res
+	}
+
 	shortcutsShort := []struct {
 		key  string
 		desc string
 	}{
 		{"↑↓", "select"},
 		{"tab", "switch"},
-		{"a", "attach"},
+		{"↵", "interact"},
 		{"s", "stop"},
 		{"q", "detach"},
 	}
@@ -392,8 +449,8 @@ func (m Model) renderFooterBar(width int) string {
 	}{
 		{"↑↓", "select"},
 		{"tab", "switch"},
-		{"↵", "next"},
-		{"a", "attach"},
+		{"↵", "interact"},
+		{"a", "full attach"},
 		{"s", "stop"},
 		{"r", "refresh"},
 		{"q", "detach — agents keep running"},
@@ -438,6 +495,24 @@ func formatLogLine(line string, maxW int) string {
 		line = ansi.Truncate(line, maxW, "…")
 	}
 
+	// Preserve native SGR styling from Claude Code or rich terminal tools
+	if strings.Contains(line, "\x1b[") {
+		return line
+	}
+
+	// Interactive agent prompts like ? or ❯
+	if strings.HasPrefix(line, "?") || strings.HasPrefix(line, "❯") {
+		first := line[:1]
+		rest := strings.TrimSpace(line[1:])
+		return StyleGoldBold.Render(first) + " " + StyleSelectedText.Render(rest)
+	}
+
+	// Success checkmarks
+	if strings.HasPrefix(line, "✔") || strings.HasPrefix(line, "✓") {
+		rest := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(line, "✔"), "✓"))
+		return StyleGreen.Render("✔") + " " + StyleSelectedText.Render(rest)
+	}
+
 	// Custom step styling for agent prompts (› action file +diff -diff)
 	if strings.HasPrefix(line, "›") || strings.HasPrefix(line, ">") {
 		parts := strings.SplitN(line, " ", 3)
@@ -465,7 +540,7 @@ func formatLogLine(line string, maxW int) string {
 		return StyleStatusFailed.Render(line)
 	}
 	// Success highlighting
-	if strings.Contains(line, "PASS") || strings.Contains(line, "passed") || strings.Contains(line, "✔") {
+	if strings.Contains(line, "PASS") || strings.Contains(line, "passed") {
 		return StyleGreen.Render(line)
 	}
 
