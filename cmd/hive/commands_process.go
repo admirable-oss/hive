@@ -127,8 +127,20 @@ func cmdProcessList(ctx context.Context, args []string) error {
 	fmt.Fprintln(w, "ID\tPID\tSTATUS\tCOMMAND")
 	for _, p := range procs {
 		cmdStr := p.Command
-		if len(p.Args) > 0 {
+		for _, arg := range p.Args {
+			if !strings.HasPrefix(arg, "-") && !strings.Contains(arg, ";") && !strings.Contains(arg, "\n") && len(arg) < 30 {
+				cmdStr = arg
+				break
+			}
+		}
+		if cmdStr == p.Command && len(p.Args) > 0 {
 			cmdStr += " " + strings.Join(p.Args, " ")
+		}
+		if idx := strings.Index(cmdStr, "\n"); idx != -1 {
+			cmdStr = cmdStr[:idx] + "..."
+		}
+		if len(cmdStr) > 50 {
+			cmdStr = cmdStr[:47] + "..."
 		}
 		fmt.Fprintf(w, "%s\t%d\t%s\t%s\n", p.ID, p.PID, p.Status, cmdStr)
 	}

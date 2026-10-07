@@ -12,6 +12,7 @@ func RegisterHandlers(service protocol.Service, processService Service) {
 	_ = service.Register("process.get", NewGetHandler(processService))
 	_ = service.Register("process.list", NewListHandler(processService))
 	_ = service.Register("process.stop", NewStopHandler(processService))
+	_ = service.Register("process.logs", NewLogsHandler(processService))
 }
 
 type StartHandler struct {
@@ -203,5 +204,62 @@ func (h *StopHandler) Handle(ctx context.Context, req protocol.Request) protocol
 		Type:    protocol.MessageTypeResponse,
 		ID:      req.ID,
 		Result:  json.RawMessage(`{}`),
+	}
+}
+
+type LogsHandler struct {
+	service Service
+}
+
+func NewLogsHandler(service Service) *LogsHandler {
+	return &LogsHandler{service: service}
+}
+
+func (h *LogsHandler) Handle(ctx context.Context, req protocol.Request) protocol.Response {
+	var params struct {
+		ID        string `json:"id"`
+		ProcessID string `json:"process_id"`
+		Tail      int    `json:"tail"`
+	}
+	b, _ := json.Marshal(req.Params)
+	if err := json.Unmarshal(b, &params); err != nil {
+		return protocol.Response{
+			Version: req.Version,
+			Type:    protocol.MessageTypeResponse,
+			ID:      req.ID,
+			Error:   &protocol.Error{Code: "invalid_params", Message: "invalid params"},
+		}
+	}
+	id := params.ID
+	if id == "" {
+		id = params.ProcessID
+	}
+	if id == "" {
+		return protocol.Response{
+			Version: req.Version,
+			Type:    protocol.MessageTypeResponse,
+			ID:      req.ID,
+			Error:   &protocol.Error{Code: "invalid_params", Message: "process id is required"},
+		}
+	}
+	tail := params.Tail
+	if tail <= 0 {
+		tail = 50
+	}
+	logs, err := h.service.Logs(ctx, id, tail)
+	if err != nil {
+		return protocol.Response{
+			Version: req.Version,
+			Type:    protocol.MessageTypeResponse,
+			ID:      req.ID,
+			Error:   &protocol.Error{Code: "internal_error", Message: err.Error()},
+		}
+	}
+	result, _ := json.Marshal(map[string]string{"logs": logs})
+	return protocol.Response{
+		Version: req.Version,
+		Type:    protocol.MessageTypeResponse,
+		ID:      req.ID,
+		Result:  result,
 	}
 }

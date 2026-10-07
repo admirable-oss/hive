@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +30,7 @@ type Service interface {
 	Get(context.Context, string) (Process, error)
 	List(context.Context, string) ([]Process, error)
 	Stop(context.Context, string) error
+	Logs(context.Context, string, int) (string, error)
 }
 
 type serviceImpl struct {
@@ -260,4 +263,31 @@ func (s *serviceImpl) Stop(ctx context.Context, id string) error {
 	}
 
 	return handle.Kill()
+}
+
+func (s *serviceImpl) Logs(ctx context.Context, id string, tail int) (string, error) {
+	p, err := s.store.Get(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	logPath := filepath.Join(s.baseDir, p.EnvironmentID, "processes", p.ID, "stdout.log")
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	content := string(data)
+	if tail <= 0 {
+		return content, nil
+	}
+	lines := strings.Split(content, "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) > tail {
+		lines = lines[len(lines)-tail:]
+	}
+	return strings.Join(lines, "\n"), nil
 }

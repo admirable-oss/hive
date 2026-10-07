@@ -26,25 +26,42 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Bee.Tick()
 		return m, bee.Tick(m.Bee)
 
+	case LogPollTickMsg:
+		var cmds []tea.Cmd
+		cmds = append(cmds, m.pollLogsTickCmd())
+		cmds = append(cmds, m.fetchDataCmd())
+		if cur := m.CurrentProcess(); cur != nil {
+			cmds = append(cmds, m.fetchLogsCmd(cur.ID))
+		}
+		return m, tea.Batch(cmds...)
+
+	case LogsMsg:
+		if msg.ProcessID != "" {
+			m.LogCache[msg.ProcessID] = msg.Logs
+			if cur := m.CurrentProcess(); cur != nil && cur.ID == msg.ProcessID {
+				m.ActiveLogs = msg.Logs
+			}
+		}
+		return m, nil
+
 	case RefreshMsg:
 		m.Connected = msg.Connected
 		if msg.Connected {
 			m.Environments = msg.Environments
 			m.Processes = msg.Processes
 
-			// Check if any process is running across all environments
+			// Flatten all processes
+			var all []process.Process
 			hasRunning := false
-			for _, procs := range m.Processes {
-				for _, p := range procs {
+			for _, env := range m.Environments {
+				for _, p := range m.Processes[env.ID] {
+					all = append(all, p)
 					if p.Status == process.StatusRunning {
 						hasRunning = true
-						break
 					}
 				}
-				if hasRunning {
-					break
-				}
 			}
+			m.AllProcesses = all
 
 			if hasRunning {
 				m.Bee.SetState(bee.StateActive)
@@ -55,133 +72,90 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Bee.SetState(bee.StateDisconnected)
 		}
 
-		// Keep selections within bounds
-		if m.SelectedEnv >= len(m.Environments) {
-			m.SelectedEnv = max(0, len(m.Environments)-1)
-		}
-		currentProcs := m.currentProcesses()
-		if m.SelectedProc >= len(currentProcs) {
-			m.SelectedProc = max(0, len(currentProcs)-1)
+		if len(m.AllProcesses) > 0 {
+			if m.SelectedProc >= len(m.AllProcesses) {
+				m.SelectedProc = len(m.AllProcesses) - 1
+			}
+			if m.SelectedProc < 0 {
+				m.SelectedProc = 0
+			}
+			if cur := m.CurrentProcess(); cur != nil {
+				m.ActiveLogs = m.LogCache[cur.ID]
+			}
 		}
 		return m, nil
 
 	case AttachFinishedMsg:
-		// Re-fetch data when returning from terminal attach
 		return m, m.fetchDataCmd()
 
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
-			if m.Inspecting != nil {
-				m.Inspecting = nil
-				return m, nil
-			}
 			m.Quitting = true
 			return m, tea.Quit
 
-		case "esc":
-			if m.Inspecting != nil {
-				m.Inspecting = nil
-				return m, nil
-			}
-			if m.Focus == FocusProcesses {
-				m.Focus = FocusEnvironments
-				return m, nil
-			}
-
-		case "r":
-			return m, m.fetchDataCmd()
-
-		case "tab":
-			if m.Focus == FocusEnvironments {
-				if len(m.currentProcesses()) > 0 {
-					m.Focus = FocusProcesses
-				}
-			} else {
-				m.Focus = FocusEnvironments
-			}
-			return m, nil
-
 		case "up", "k":
-			if m.Focus == FocusEnvironments {
-				if m.SelectedEnv > 0 {
-					m.SelectedEnv--
-					m.SelectedProc = 0
-				}
-			} else {
+			if len(m.AllProcesses) > 0 {
 				if m.SelectedProc > 0 {
 					m.SelectedProc--
+				} else {
+					m.SelectedProc = len(m.AllProcesses) - 1
+				}
+				if cur := m.CurrentProcess(); cur != nil {
+					m.ActiveLogs = m.LogCache[cur.ID]
+					return m, m.fetchLogsCmd(cur.ID)
 				}
 			}
 			return m, nil
 
 		case "down", "j":
-			if m.Focus == FocusEnvironments {
-				if m.SelectedEnv < len(m.Environments)-1 {
-					m.SelectedEnv++
+			if len(m.AllProcesses) > 0 {
+				if m.SelectedProc < len(m.AllProcesses)-1 {
+					m.SelectedProc++
+				} else {
 					m.SelectedProc = 0
 				}
-			} else {
-				if m.SelectedProc < len(m.currentProcesses())-1 {
-					m.SelectedProc++
+				if cur := m.CurrentProcess(); cur != nil {
+					m.ActiveLogs = m.LogCache[cur.ID]
+					return m, m.fetchLogsCmd(cur.ID)
 				}
 			}
 			return m, nil
 
-		case "left", "h":
-			m.Focus = FocusEnvironments
-			return m, nil
-
-		case "right", "l":
-			if len(m.currentProcesses()) > 0 {
-				m.Focus = FocusProcesses
-			}
-			return m, nil
-
-		case "enter":
-			if m.Focus == FocusEnvironments {
-				if len(m.currentProcesses()) > 0 {
-					m.Focus = FocusProcesses
-				}
-			} else {
-				// Inspect current process
-				procs := m.currentProcesses()
-				if len(procs) > 0 && m.SelectedProc < len(procs) {
-					p := procs[m.SelectedProc]
-					m.Inspecting = &p
+		case "tab":
+			if len(m.AllProcesses) > 0 {
+				m.SelectedProc = (m.SelectedProc + 1) % len(m.AllProcesses)
+				if cur := m.CurrentProcess(); cur != nil {
+					m.ActiveLogs = m.LogCache[cur.ID]
+					return m, m.fetchLogsCmd(cur.ID)
 				}
 			}
 			return m, nil
 
-		case "a":
-			// Attach to process
-			procs := m.currentProcesses()
-			var target *process.Process
-			if m.Inspecting != nil {
-				target = m.Inspecting
-			} else if m.Focus == FocusProcesses && len(procs) > 0 && m.SelectedProc < len(procs) {
-				target = &procs[m.SelectedProc]
+		case "shift+tab":
+			if len(m.AllProcesses) > 0 {
+				m.SelectedProc = (m.SelectedProc - 1 + len(m.AllProcesses)) % len(m.AllProcesses)
+				if cur := m.CurrentProcess(); cur != nil {
+					m.ActiveLogs = m.LogCache[cur.ID]
+					return m, m.fetchLogsCmd(cur.ID)
+				}
 			}
+			return m, nil
 
-			if target != nil && target.Status == process.StatusRunning {
-				cmd := exec.Command(os.Args[0], "terminal", "attach", target.ID)
+		case "r":
+			return m, m.fetchDataCmd()
+
+		case "enter", "a":
+			if cur := m.CurrentProcess(); cur != nil && cur.Status == process.StatusRunning {
+				cmd := exec.Command(os.Args[0], "terminal", "attach", cur.ID)
 				return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 					return AttachFinishedMsg{Err: err}
 				})
 			}
 
 		case "s":
-			// Stop process
-			procs := m.currentProcesses()
-			var target *process.Process
-			if m.Inspecting != nil {
-				target = m.Inspecting
-			} else if m.Focus == FocusProcesses && len(procs) > 0 && m.SelectedProc < len(procs) {
-				target = &procs[m.SelectedProc]
-			}
-
-			if target != nil && target.Status == process.StatusRunning {
-				procID := target.ID
+			if cur := m.CurrentProcess(); cur != nil && cur.Status == process.StatusRunning {
+				procID := cur.ID
 				return m, func() tea.Msg {
 					_ = m.Client.ProcessStop(context.Background(), procID)
 					return RefreshMsg{Connected: true}
@@ -191,19 +165,4 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
-}
-
-func (m Model) currentProcesses() []process.Process {
-	if len(m.Environments) == 0 || m.SelectedEnv >= len(m.Environments) {
-		return nil
-	}
-	env := m.Environments[m.SelectedEnv]
-	return m.Processes[env.ID]
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

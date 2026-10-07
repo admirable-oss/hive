@@ -423,3 +423,27 @@ func (s *service) TerminalInput(ctx context.Context, processID string, data []by
 	}
 	return nil
 }
+
+func (s *service) ProcessLogs(ctx context.Context, id string, tail int) (string, error) {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "proc-logs",
+		Method:  "process.logs",
+		Params:  map[string]any{"id": id, "tail": tail},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return "", err
+	}
+	if response.Error != nil {
+		return "", fmt.Errorf("process.logs: %s", response.Error.Message)
+	}
+	var res struct {
+		Logs string `json:"logs"`
+	}
+	if err := decodeResult(response.Result, &res); err != nil {
+		return "", fmt.Errorf("decode logs: %w", err)
+	}
+	return res.Logs, nil
+}

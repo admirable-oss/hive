@@ -78,6 +78,16 @@ func (f *fakeClient) ProcessStop(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *fakeClient) ProcessLogs(_ context.Context, id string, _ int) (string, error) {
+	if id == "p1" {
+		return "› read  src/auth · 214 files\n› plan  rotate session tokens on refresh\n› edit  src/auth/middleware.ts  +9 -3", nil
+	}
+	if id == "p2" {
+		return "› scan  test/auth · 42 suites\n› pass  all 42 test suites passed", nil
+	}
+	return "", nil
+}
+
 func (f *fakeClient) TerminalAttach(_ context.Context, _ string, _ io.Reader, _ io.Writer) error {
 	return nil
 }
@@ -95,24 +105,26 @@ func TestTUI_EmptyState(t *testing.T) {
 	m := tui.NewModel(fc)
 
 	view := m.View()
-	if !strings.Contains(view, "HIVE 0.0.1") {
-		t.Errorf("expected view to contain HIVE 0.0.1")
+	if !strings.Contains(view, "hive") {
+		t.Errorf("expected view to contain hive")
 	}
-	if !strings.Contains(view, "The hive is empty.") {
-		t.Errorf("expected empty state message")
+	if !strings.Contains(view, "CELL") {
+		t.Errorf("expected CELL header")
+	}
+	if !strings.Contains(view, "still running") {
+		t.Errorf("expected still running badge in telemetry")
 	}
 }
 
-func TestTUI_ColumnsAndNavigation(t *testing.T) {
+func TestTUI_ParallelAgentsSwitching(t *testing.T) {
 	fc := &fakeClient{
 		envs: []environment.Environment{
-			{ID: "flyrank", Path: "/workspace/flyrank"},
-			{ID: "admirable", Path: "/workspace/admirable"},
+			{ID: "acme/api", Path: "/workspace/acme/api"},
 		},
 		procs: map[string][]process.Process{
-			"flyrank": {
-				{ID: "p1", EnvironmentID: "flyrank", Command: "claude", Status: process.StatusRunning},
-				{ID: "p2", EnvironmentID: "flyrank", Command: "tests", Status: process.StatusExited},
+			"acme/api": {
+				{ID: "p1", EnvironmentID: "acme/api", Command: "claude", Args: []string{"auth-refactor"}, Status: process.StatusRunning},
+				{ID: "p2", EnvironmentID: "acme/api", Command: "codex", Args: []string{"flaky-tests"}, Status: process.StatusRunning},
 			},
 		},
 	}
@@ -131,81 +143,65 @@ func TestTUI_ColumnsAndNavigation(t *testing.T) {
 		t.Errorf("expected model to be connected")
 	}
 	if m.Bee.State != bee.StateActive {
-		t.Errorf("expected bee to be StateActive due to running process, got %s", m.Bee.State)
+		t.Errorf("expected bee to be StateActive due to running processes, got %s", m.Bee.State)
 	}
+
+	// Initial selection is process 0 (claude / auth-refactor)
+	if m.SelectedProc != 0 {
+		t.Errorf("expected SelectedProc 0, got %d", m.SelectedProc)
+	}
+
+	// Update logs for p1
+	updated, _ = m.Update(tui.LogsMsg{
+		ProcessID: "p1",
+		Logs:      "› read  src/auth · 214 files\n› edit  src/auth/middleware.ts  +9 -3",
+	})
+	m = updated.(tui.Model)
 
 	view := m.View()
-	if !strings.Contains(view, "ENVIRONMENTS") {
-		t.Errorf("expected ENVIRONMENTS header")
+	if !strings.Contains(view, "auth-refactor") {
+		t.Errorf("expected auth-refactor in view")
 	}
-	if !strings.Contains(view, "PROCESSES") {
-		t.Errorf("expected PROCESSES header")
+	if !strings.Contains(view, "flaky-tests") {
+		t.Errorf("expected flaky-tests in view")
 	}
-	if !strings.Contains(view, "flyrank") {
-		t.Errorf("expected flyrank in view")
+	if !strings.Contains(view, "ATTACHED · AUTH-REFACTOR") {
+		t.Errorf("expected attached header for auth-refactor")
 	}
-	if !strings.Contains(view, "claude") {
-		t.Errorf("expected claude in view")
-	}
-	if !strings.Contains(view, "running") {
-		t.Errorf("expected running status in view")
+	if !strings.Contains(view, "src/auth/middleware.ts") {
+		t.Errorf("expected claude logs in view")
 	}
 
-	// Move down environment
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	m = updated.(tui.Model)
-	if m.SelectedEnv != 1 {
-		t.Errorf("expected SelectedEnv 1, got %d", m.SelectedEnv)
-	}
-
-	// Move back up
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	m = updated.(tui.Model)
-	if m.SelectedEnv != 0 {
-		t.Errorf("expected SelectedEnv 0, got %d", m.SelectedEnv)
-	}
-
-	// Switch focus to processes using Tab
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m = updated.(tui.Model)
-	if m.Focus != tui.FocusProcesses {
-		t.Errorf("expected FocusProcesses after Tab")
-	}
-
-	// Select next process
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	// Tab switch to process 1 (codex / flaky-tests)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyTab})
 	m = updated.(tui.Model)
 	if m.SelectedProc != 1 {
-		t.Errorf("expected SelectedProc 1, got %d", m.SelectedProc)
+		t.Errorf("expected SelectedProc 1 after Tab, got %d", m.SelectedProc)
+	}
+	if cmd == nil {
+		t.Errorf("expected fetchLogsCmd to be scheduled")
 	}
 
-	// Inspect process on Enter
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Deliver logs for p2
+	updated, _ = m.Update(tui.LogsMsg{
+		ProcessID: "p2",
+		Logs:      "› scan  test/auth · 42 suites\n› pass  all 42 test suites passed",
+	})
 	m = updated.(tui.Model)
-	if m.Inspecting == nil {
-		t.Fatalf("expected inspecting process to not be nil")
+
+	view2 := m.View()
+	if !strings.Contains(view2, "ATTACHED · FLAKY-TESTS") {
+		t.Errorf("expected attached header for flaky-tests")
 	}
-	if m.Inspecting.ID != "p2" {
-		t.Errorf("expected inspecting process p2, got %s", m.Inspecting.ID)
+	if !strings.Contains(view2, "test/auth") {
+		t.Errorf("expected codex logs in view")
 	}
 
-	inspectView := m.View()
-	if !strings.Contains(inspectView, "PROCESS DETAIL") {
-		t.Errorf("expected PROCESS DETAIL in view")
-	}
-
-	// Esc exits inspection
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	// Down arrow wraps or moves
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	m = updated.(tui.Model)
-	if m.Inspecting != nil {
-		t.Errorf("expected inspecting to be nil after esc")
-	}
-
-	// Esc returns focus to environments
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
-	m = updated.(tui.Model)
-	if m.Focus != tui.FocusEnvironments {
-		t.Errorf("expected FocusEnvironments after second esc")
+	if m.SelectedProc != 0 { // wraps back to 0
+		t.Errorf("expected SelectedProc to wrap to 0, got %d", m.SelectedProc)
 	}
 }
 
@@ -220,10 +216,5 @@ func TestTUI_DisconnectedBeeState(t *testing.T) {
 
 	if m.Bee.State != bee.StateDisconnected {
 		t.Errorf("expected bee to be StateDisconnected, got %s", m.Bee.State)
-	}
-
-	view := m.View()
-	if !strings.Contains(view, "disconnected") {
-		t.Errorf("expected disconnected message in footer")
 	}
 }

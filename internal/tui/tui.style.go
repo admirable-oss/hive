@@ -5,32 +5,31 @@ import (
 )
 
 var (
-	ColorYellow     = lipgloss.Color("#F5B942")
-	ColorText       = lipgloss.Color("#BDBDBD")
-	ColorTextBright = lipgloss.Color("#EDEDED")
-	ColorMuted      = lipgloss.Color("#77777A")
-	ColorDark       = lipgloss.Color("#333336")
-	ColorBorder     = lipgloss.Color("#26262B")
-	ColorGreen      = lipgloss.Color("#48C774")
-	ColorRed        = lipgloss.Color("#F14668")
+	// Palette from reference design
 	ColorBg         = lipgloss.Color("#0B0B0C")
+	ColorYellow     = lipgloss.Color("#F5B942") // Hive gold
+	ColorPurple     = lipgloss.Color("#8B70FF") // Awaiting
+	ColorMuted      = lipgloss.Color("#606066") // Labels, borders, headers
+	ColorText       = lipgloss.Color("#A0A0A5") // Body text
+	ColorTextBright = lipgloss.Color("#EDEDED") // Highlighted / active text
+	ColorBorder     = lipgloss.Color("#1F1F24") // Thin grid borders
+	ColorGreen      = lipgloss.Color("#27C93F") // Complete / success / dot
+	ColorRed        = lipgloss.Color("#FF5F56") // Failed / dot
+	ColorDotYellow  = lipgloss.Color("#FFBD2E") // Window dot yellow
 
-	// Text styles
+	// Styles
+	StyleDotRed    = lipgloss.NewStyle().Foreground(ColorRed)
+	StyleDotYellow = lipgloss.NewStyle().Foreground(ColorDotYellow)
+	StyleDotGreen  = lipgloss.NewStyle().Foreground(ColorGreen)
+
+	StyleBorder = lipgloss.NewStyle().Foreground(ColorBorder)
+
 	StyleTitle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorTextBright)
+			Foreground(ColorText).
+			Bold(true)
 
-	StyleSubtitle = lipgloss.NewStyle().
-			Foreground(ColorText)
-
-	StyleMuted = lipgloss.NewStyle().
-			Foreground(ColorMuted)
-
-	StyleAccent = lipgloss.NewStyle().
-			Foreground(ColorYellow)
-
-	StyleIndicator = lipgloss.NewStyle().
-			Foreground(ColorYellow).
+	StyleHeader = lipgloss.NewStyle().
+			Foreground(ColorMuted).
 			Bold(true)
 
 	StyleSelectedText = lipgloss.NewStyle().
@@ -40,25 +39,51 @@ var (
 	StyleUnselectedText = lipgloss.NewStyle().
 				Foreground(ColorText)
 
-	StyleHeader = lipgloss.NewStyle().
-			Foreground(ColorMuted).
+	StyleMuted = lipgloss.NewStyle().
+			Foreground(ColorMuted)
+
+	StyleGold = lipgloss.NewStyle().
+			Foreground(ColorYellow)
+
+	StyleGoldBold = lipgloss.NewStyle().
+			Foreground(ColorYellow).
 			Bold(true)
 
-	StyleBorder = lipgloss.NewStyle().
-			Foreground(ColorBorder)
+	StylePurple = lipgloss.NewStyle().
+			Foreground(ColorPurple)
 
+	// Status styles
 	StyleStatusRunning = lipgloss.NewStyle().
 				Foreground(ColorYellow)
 
-	StyleStatusExited = lipgloss.NewStyle().
+	StyleStatusAwaiting = lipgloss.NewStyle().
+				Foreground(ColorPurple)
+
+	StyleStatusComplete = lipgloss.NewStyle().
 				Foreground(ColorMuted)
 
 	StyleStatusFailed = lipgloss.NewStyle().
 				Foreground(ColorRed)
 
-	StyleConnected = lipgloss.NewStyle().
-			Foreground(ColorGreen)
+	// Log lines
+	StyleLogPrompt = lipgloss.NewStyle().
+			Foreground(ColorMuted)
 
-	StyleDisconnected = lipgloss.NewStyle().
-				Foreground(ColorRed)
+	StyleLogAction = lipgloss.NewStyle().
+			Foreground(ColorTextBright)
+
+	StyleLogFile = lipgloss.NewStyle().
+			Foreground(ColorText)
+
+	StyleLogDiff = lipgloss.NewStyle().
+			Foreground(ColorYellow)
+
+	// Keybadge for footer
+	StyleKeyBadge = lipgloss.NewStyle().
+			Foreground(ColorMuted).
+			Background(ColorBorder).
+			Padding(0, 1)
+
+	StyleKeyLabel = lipgloss.NewStyle().
+			Foreground(ColorText)
 )

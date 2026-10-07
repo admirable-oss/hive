@@ -23,6 +23,7 @@ type Client interface {
 	ProcessGet(ctx context.Context, id string) (process.Process, error)
 	ProcessList(ctx context.Context, envID string) ([]process.Process, error)
 	ProcessStop(ctx context.Context, id string) error
+	ProcessLogs(ctx context.Context, id string, tail int) (string, error)
 
 	TerminalAttach(ctx context.Context, processID string, in io.Reader, out io.Writer) error
 	TerminalResize(ctx context.Context, processID string, width, height uint16) error

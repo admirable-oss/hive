@@ -32,6 +32,7 @@ func init() {
 		"terminal":    {run: cmdTerminal, desc: "Manage terminal sessions", noLimit: true},
 		"ui":          {run: cmdTUI, desc: "Open interactive TUI dashboard", noLimit: true},
 		"tui":         {run: cmdTUI, desc: "Open interactive TUI dashboard", noLimit: true},
+		"demo":        {run: cmdDemo, desc: "Run parallel Claude and Codex demo agents"},
 	}
 }
 
