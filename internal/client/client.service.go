@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/admirable-oss/hive/internal/environment"
@@ -294,6 +295,131 @@ func (s *service) ProcessStop(ctx context.Context, id string) error {
 	}
 	if response.Error != nil {
 		return fmt.Errorf("process.stop: %s", response.Error.Message)
+	}
+	return nil
+}
+
+func (s *service) ProcessStartRequest(ctx context.Context, req process.StartRequest) (process.Process, error) {
+	if req.Args == nil {
+		req.Args = []string{}
+	}
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "proc-start",
+		Method:  "process.start",
+		Params:  req,
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return process.Process{}, err
+	}
+	if response.Error != nil {
+		return process.Process{}, fmt.Errorf("process.start: %s", response.Error.Message)
+	}
+	var p process.Process
+	if err := decodeResult(response.Result, &p); err != nil {
+		return process.Process{}, fmt.Errorf("decode process start: %w", err)
+	}
+	return p, nil
+}
+
+func (s *service) TerminalAttach(ctx context.Context, processID string, in io.Reader, out io.Writer) error {
+	if err := s.config.Validate(); err != nil {
+		return err
+	}
+
+	dialer := net.Dialer{}
+	conn, err := dialer.DialContext(ctx, "unix", s.config.SocketPath)
+	if err != nil {
+		return fmt.Errorf("connect to runtime: %w", err)
+	}
+	defer conn.Close()
+
+	req := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "term-attach",
+		Method:  "terminal.attach",
+		Params:  map[string]any{"process_id": processID},
+	}
+
+	if err := s.codec.EncodeRequest(conn, req); err != nil {
+		return fmt.Errorf("encode request: %w", err)
+	}
+
+	var resp protocol.Response
+	if err := s.codec.DecodeResponse(conn, &resp); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+
+	if resp.Error != nil {
+		return fmt.Errorf("terminal.attach: %s", resp.Error.Message)
+	}
+
+	done := make(chan struct{}, 2)
+
+	go func() {
+		if in != nil {
+			_, _ = io.Copy(conn, in)
+		}
+		done <- struct{}{}
+	}()
+
+	go func() {
+		if out != nil {
+			_, _ = io.Copy(out, conn)
+		}
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
+
+	return nil
+}
+
+func (s *service) TerminalResize(ctx context.Context, processID string, width, height uint16) error {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "term-resize",
+		Method:  "terminal.resize",
+		Params: map[string]any{
+			"process_id": processID,
+			"width":      width,
+			"height":     height,
+		},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("terminal.resize: %s", response.Error.Message)
+	}
+	return nil
+}
+
+func (s *service) TerminalInput(ctx context.Context, processID string, data []byte) error {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "term-input",
+		Method:  "terminal.input",
+		Params: map[string]any{
+			"process_id": processID,
+			"data":       string(data),
+		},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("terminal.input: %s", response.Error.Message)
 	}
 	return nil
 }

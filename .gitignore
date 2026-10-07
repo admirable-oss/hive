@@ -43,4 +43,4 @@ logs/
 *.tmp
 *.temp
 
-hive
+/hive

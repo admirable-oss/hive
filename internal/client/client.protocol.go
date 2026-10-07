@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"io"
 
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
@@ -18,7 +19,12 @@ type Client interface {
 	EnvironmentRemove(context.Context, string) error
 
 	ProcessStart(ctx context.Context, envID string, command string, args []string) (process.Process, error)
+	ProcessStartRequest(ctx context.Context, req process.StartRequest) (process.Process, error)
 	ProcessGet(ctx context.Context, id string) (process.Process, error)
 	ProcessList(ctx context.Context, envID string) ([]process.Process, error)
 	ProcessStop(ctx context.Context, id string) error
+
+	TerminalAttach(ctx context.Context, processID string, in io.Reader, out io.Writer) error
+	TerminalResize(ctx context.Context, processID string, width, height uint16) error
+	TerminalInput(ctx context.Context, processID string, data []byte) error
 }

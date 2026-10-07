@@ -10,12 +10,17 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/terminal"
 )
 
 type StartRequest struct {
 	EnvironmentID string   `json:"environment_id"`
 	Command       string   `json:"command"`
 	Args          []string `json:"args"`
+	// Terminal, when true, starts the process inside a PTY.
+	Terminal bool   `json:"terminal"`
+	Width    uint16 `json:"width"`
+	Height   uint16 `json:"height"`
 }
 
 type Service interface {
@@ -26,24 +31,38 @@ type Service interface {
 }
 
 type serviceImpl struct {
-	store      Store
-	envService environment.Service
-	runner     Runner
-	baseDir    string
+	store       Store
+	envService  environment.Service
+	runner      Runner
+	termService terminal.Service
+	baseDir     string
 
 	mu       sync.Mutex
 	handles  map[string]Handle
 	stopping map[string]bool
 }
 
-func NewService(store Store, envService environment.Service, runner Runner, baseDir string) Service {
+type sessionHandle struct {
+	sess terminal.Session
+}
+
+func (h *sessionHandle) PID() int    { return h.sess.Pid() }
+func (h *sessionHandle) Wait() error { return h.sess.Wait() }
+func (h *sessionHandle) Kill() error { return h.sess.Close() }
+
+func NewService(store Store, envService environment.Service, runner Runner, baseDir string, termService ...terminal.Service) Service {
+	var ts terminal.Service
+	if len(termService) > 0 {
+		ts = termService[0]
+	}
 	return &serviceImpl{
-		store:      store,
-		envService: envService,
-		runner:     runner,
-		baseDir:    baseDir,
-		handles:    make(map[string]Handle),
-		stopping:   make(map[string]bool),
+		store:       store,
+		envService:  envService,
+		runner:      runner,
+		termService: ts,
+		baseDir:     baseDir,
+		handles:     make(map[string]Handle),
+		stopping:    make(map[string]bool),
 	}
 }
 
@@ -79,8 +98,53 @@ func (s *serviceImpl) Start(ctx context.Context, req StartRequest) (Process, err
 		Command:       req.Command,
 		Args:          req.Args,
 		WorkingDir:    env.Path,
+		Terminal:      req.Terminal,
 		Status:        StatusStarting,
 		StartedAt:     time.Now(),
+	}
+
+	if req.Terminal {
+		if s.termService == nil {
+			return Process{}, errors.New("terminal service not available")
+		}
+
+		if err := s.store.Create(ctx, p); err != nil {
+			return Process{}, err
+		}
+
+		termCmd := terminal.Command{
+			Path:       req.Command,
+			Args:       req.Args,
+			WorkingDir: env.Path,
+			StdoutPath: filepath.Join(processDir, "stdout.log"),
+			StderrPath: filepath.Join(processDir, "stderr.log"),
+			Size:       terminal.Size{Width: req.Width, Height: req.Height},
+		}
+
+		sess, err := s.termService.Open(context.Background(), id, termCmd)
+		if err != nil {
+			p.Status = StatusFailed
+			now := time.Now()
+			p.EndedAt = &now
+			_ = s.store.Update(context.Background(), p)
+			return p, err
+		}
+
+		p.PID = sess.Pid()
+		p.Status = StatusRunning
+		if err := s.store.Update(context.Background(), p); err != nil {
+			_ = sess.Close()
+			return Process{}, err
+		}
+
+		handle := &sessionHandle{sess: sess}
+		s.mu.Lock()
+		s.handles[id] = handle
+		s.mu.Unlock()
+
+		go s.monitor(handle, p)
+
+		return p, nil
 	}
 
 	if err := s.store.Create(ctx, p); err != nil {

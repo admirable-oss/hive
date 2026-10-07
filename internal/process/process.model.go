@@ -21,6 +21,7 @@ type Process struct {
 	PID           int        `json:"pid"`
 	Status        Status     `json:"status"`
 	ExitCode      *int       `json:"exit_code"`
+	Terminal      bool       `json:"terminal"`
 	StartedAt     time.Time  `json:"started_at"`
 	EndedAt       *time.Time `json:"ended_at"`
 }
