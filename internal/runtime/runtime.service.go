@@ -7,12 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/admirable-oss/hive/internal/protocol"
 )
 
 type ServiceImpl struct {
 	config   Config
 	listener net.Listener
 	model    RuntimeModel
+	protocol protocol.Protocol
+	codec    protocol.Codec
 }
 
 func NewService(config Config) *ServiceImpl {
@@ -88,9 +92,13 @@ func (s *ServiceImpl) handleConnection(
 	ctx context.Context,
 	conn net.Conn,
 ) {
-	defer conn.Close()
+	if s.protocol == nil || s.codec == nil {
+		conn.Close()
+		return
+	}
 
-	_, _ = conn.Write([]byte("hive runtime\n"))
+	connection := protocol.NewConnection(s.protocol, s.codec)
+	_ = connection.Serve(ctx, conn)
 }
 
 func (s *ServiceImpl) prepareSocket() error {
