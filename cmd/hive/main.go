@@ -7,59 +7,62 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"text/tabwriter"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/runtime"
 )
 
+type command struct {
+	run  func(context.Context, []string) error
+	desc string
+}
+
+var commands map[string]command
+
+func init() {
+	commands = map[string]command{
+		"ping":   {run: cmdPing, desc: "Ping the running Hive runtime"},
+		"status": {run: cmdStatus, desc: "Show runtime status"},
+		"stop":   {run: cmdStop, desc: "Stop the running Hive runtime"},
+		"environment": {run: cmdEnvironment, desc: "Manage environments"},
+	}
+}
+
 func main() {
 	if len(os.Args) >= 2 {
-		switch os.Args[1] {
-		case "ping":
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := cmdPing(ctx); err != nil {
-				fatal(err)
-			}
-			return
-		case "status":
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := cmdStatus(ctx); err != nil {
-				fatal(err)
-			}
-			return
-		case "stop":
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := cmdStop(ctx); err != nil {
-				fatal(err)
-			}
-			return
-		case "-h", "--help", "help":
+		cmdName := os.Args[1]
+		if cmdName == "-h" || cmdName == "--help" || cmdName == "help" {
 			usage()
 			return
-		default:
-			fmt.Fprintf(os.Stderr, "hive: unknown command %q\n\n", os.Args[1])
+		}
+
+		cmd, ok := commands[cmdName]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "hive: unknown command %q\n\n", cmdName)
 			usage()
 			os.Exit(2)
 		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := cmd.run(ctx, os.Args[2:]); err != nil {
+			fatal(err)
+		}
+		return
 	}
 
 	daemon()
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `Usage: hive [command]
-
-Commands:
-  ping      Ping the running Hive runtime
-  status    Show runtime status
-  stop      Stop the running Hive runtime
-
-With no command, hive starts as a background daemon on $HOME/.hive/hive.sock.`)
+	fmt.Fprintln(os.Stderr, "Usage: hive [command]\n\nCommands:")
+	// Print in a fixed order for now
+	fmt.Fprintln(os.Stderr, "  ping         Ping the running Hive runtime")
+	fmt.Fprintln(os.Stderr, "  status       Show runtime status")
+	fmt.Fprintln(os.Stderr, "  stop         Stop the running Hive runtime")
+	fmt.Fprintln(os.Stderr, "  environment  Manage environments")
+	fmt.Fprintln(os.Stderr, "\nWith no command, hive starts as a background daemon on $HOME/.hive/hive.sock.")
 }
 
 func socketPath() (string, error) {
@@ -77,49 +80,6 @@ func newClient() (client.Client, error) {
 	}
 	mod := client.NewModule(client.Config{SocketPath: path})
 	return mod.Client, nil
-}
-
-func cmdPing(ctx context.Context) error {
-	c, err := newClient()
-	if err != nil {
-		return err
-	}
-	if err := c.Ping(ctx); err != nil {
-		return err
-	}
-	fmt.Println("pong")
-	return nil
-}
-
-func cmdStatus(ctx context.Context) error {
-	c, err := newClient()
-	if err != nil {
-		return err
-	}
-	status, err := c.Status(ctx)
-	if err != nil {
-		return err
-	}
-	fmt.Println("Hive Runtime")
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
-	fmt.Fprintf(w, "Status\t%s\n", status.Status)
-	fmt.Fprintf(w, "Socket\t%s\n", status.Socket)
-	if !status.StartedAt.IsZero() {
-		fmt.Fprintf(w, "Started\t%s\n", status.StartedAt.Format("2006-01-02 15:04:05"))
-	}
-	return w.Flush()
-}
-
-func cmdStop(ctx context.Context) error {
-	c, err := newClient()
-	if err != nil {
-		return err
-	}
-	if err := c.Shutdown(ctx); err != nil {
-		return err
-	}
-	fmt.Println("stopped")
-	return nil
 }
 
 func daemon() {
