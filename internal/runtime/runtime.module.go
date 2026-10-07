@@ -1,10 +1,8 @@
 package runtime
 
 import (
-	"path/filepath"
-	"os"
-
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 )
 
@@ -13,6 +11,7 @@ type Module struct {
 	Protocol    protocol.Protocol
 	ViewModel   ViewModelService
 	Environment *environment.Module
+	Process     *process.Module
 }
 
 func NewModule(config Config) *Module {
@@ -21,11 +20,15 @@ func NewModule(config Config) *Module {
 	codec := protocol.NewJSONCodec(protocol.DefaultMaxMessageSize)
 
 	// Set up environment module
-	home, _ := os.UserHomeDir()
+	baseDir := config.baseDir()
 	envModule := environment.NewModule(environment.Config{
-		BaseDir: filepath.Join(home, ".hive"),
+		BaseDir: baseDir,
 	})
-	
+
+	processModule := process.NewModule(process.Config{
+		BaseDir: baseDir,
+	}, envModule.Service)
+
 	// Register runtime handlers
 	_ = protocolService.Register(
 		"runtime.ping",
@@ -43,6 +46,9 @@ func NewModule(config Config) *Module {
 	// Register environment handlers
 	environment.RegisterHandlers(protocolService, envModule.Service)
 
+	// Register process handlers
+	process.RegisterHandlers(protocolService, processModule.Service)
+
 	service.protocol = protocolService
 	service.codec = codec
 
@@ -51,5 +57,6 @@ func NewModule(config Config) *Module {
 		Protocol:    protocolService,
 		ViewModel:   NewViewModel(service),
 		Environment: envModule,
+		Process:     processModule,
 	}
 }

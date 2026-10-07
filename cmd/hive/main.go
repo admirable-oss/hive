@@ -24,8 +24,9 @@ func init() {
 	commands = map[string]command{
 		"ping":   {run: cmdPing, desc: "Ping the running Hive runtime"},
 		"status": {run: cmdStatus, desc: "Show runtime status"},
-		"stop":   {run: cmdStop, desc: "Stop the running Hive runtime"},
+		"stop":        {run: cmdStop, desc: "Stop the running Hive runtime"},
 		"environment": {run: cmdEnvironment, desc: "Manage environments"},
+		"process":     {run: cmdProcess, desc: "Manage processes"},
 	}
 }
 
@@ -62,6 +63,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  status       Show runtime status")
 	fmt.Fprintln(os.Stderr, "  stop         Stop the running Hive runtime")
 	fmt.Fprintln(os.Stderr, "  environment  Manage environments")
+	fmt.Fprintln(os.Stderr, "  process      Manage processes")
 	fmt.Fprintln(os.Stderr, "\nWith no command, hive starts as a background daemon on $HOME/.hive/hive.sock.")
 }
 

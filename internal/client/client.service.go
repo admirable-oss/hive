@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 )
 
@@ -202,6 +203,97 @@ func (s *service) EnvironmentRemove(ctx context.Context, id string) error {
 	}
 	if response.Error != nil {
 		return fmt.Errorf("environment.remove: %s", response.Error.Message)
+	}
+	return nil
+}
+
+func (s *service) ProcessStart(ctx context.Context, envID string, command string, args []string) (process.Process, error) {
+	if args == nil {
+		args = []string{}
+	}
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "proc-start",
+		Method:  "process.start",
+		Params: process.StartRequest{
+			EnvironmentID: envID,
+			Command:       command,
+			Args:          args,
+		},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return process.Process{}, err
+	}
+	if response.Error != nil {
+		return process.Process{}, fmt.Errorf("process.start: %s", response.Error.Message)
+	}
+	var p process.Process
+	if err := decodeResult(response.Result, &p); err != nil {
+		return process.Process{}, fmt.Errorf("decode process start: %w", err)
+	}
+	return p, nil
+}
+
+func (s *service) ProcessGet(ctx context.Context, id string) (process.Process, error) {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "proc-get",
+		Method:  "process.get",
+		Params:  map[string]interface{}{"id": id},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return process.Process{}, err
+	}
+	if response.Error != nil {
+		return process.Process{}, fmt.Errorf("process.get: %s", response.Error.Message)
+	}
+	var p process.Process
+	if err := decodeResult(response.Result, &p); err != nil {
+		return process.Process{}, fmt.Errorf("decode process get: %w", err)
+	}
+	return p, nil
+}
+
+func (s *service) ProcessList(ctx context.Context, envID string) ([]process.Process, error) {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "proc-list",
+		Method:  "process.list",
+		Params:  map[string]interface{}{"environment_id": envID},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if response.Error != nil {
+		return nil, fmt.Errorf("process.list: %s", response.Error.Message)
+	}
+	var procs []process.Process
+	if err := decodeResult(response.Result, &procs); err != nil {
+		return nil, fmt.Errorf("decode process list: %w", err)
+	}
+	return procs, nil
+}
+
+func (s *service) ProcessStop(ctx context.Context, id string) error {
+	request := protocol.Request{
+		Version: protocol.Version,
+		Type:    protocol.MessageTypeRequest,
+		ID:      "proc-stop",
+		Method:  "process.stop",
+		Params:  map[string]interface{}{"id": id},
+	}
+	response, err := s.request(ctx, request)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("process.stop: %s", response.Error.Message)
 	}
 	return nil
 }
