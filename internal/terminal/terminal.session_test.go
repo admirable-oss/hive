@@ -50,11 +50,10 @@ func (s *fakeSession) Wait() error {
 	return s.waitErr
 }
 
-func (s *fakeSession) Subscribe() (<-chan []byte, []byte, func()) {
+func (s *fakeSession) Subscribe() *terminal.Subscription {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ch := make(chan []byte)
-	return ch, s.buf.Bytes(), func() {}
+	return terminal.NewSubscription(make(chan []byte), s.buf.Bytes(), nil, nil)
 }
 
 func (s *fakeSession) Close() error {
@@ -70,35 +69,63 @@ func (s *fakeSession) Close() error {
 }
 
 func (s *fakeSession) exitWith(err error) {
-	s.waitErr = err
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	select {
 	case <-s.waitCh:
 	default:
+		s.waitErr = err
 		close(s.waitCh)
 	}
 }
 
 type fakeFactory struct {
-	mu     sync.Mutex
-	openFn func(ctx context.Context, cmd terminal.Command) (terminal.Session, error)
-	opened []terminal.Command
+	mu       sync.Mutex
+	openFn   func(ctx context.Context, cmd terminal.Command) (terminal.Session, error)
+	opened   []terminal.Command
+	sessions []*fakeSession
 }
 
 func (f *fakeFactory) Open(ctx context.Context, cmd terminal.Command) (terminal.Session, error) {
 	f.mu.Lock()
 	f.opened = append(f.opened, cmd)
 	f.mu.Unlock()
+	var (
+		sess terminal.Session
+		err  error
+	)
 	if f.openFn != nil {
-		return f.openFn(ctx, cmd)
+		sess, err = f.openFn(ctx, cmd)
+	} else {
+		sess = newFakeSession(1234)
 	}
-	return newFakeSession(1234), nil
+	if fs, ok := sess.(*fakeSession); ok {
+		f.mu.Lock()
+		f.sessions = append(f.sessions, fs)
+		f.mu.Unlock()
+	}
+	return sess, err
+}
+
+// newTestService returns a service over factory whose sessions all exit
+// when the test ends, so the service's watcher goroutines finish too.
+func newTestService(t *testing.T, factory *fakeFactory) terminal.Service {
+	t.Helper()
+	t.Cleanup(func() {
+		factory.mu.Lock()
+		defer factory.mu.Unlock()
+		for _, s := range factory.sessions {
+			s.exitWith(nil)
+		}
+	})
+	return terminal.NewService(factory)
 }
 
 // ─── tests ────────────────────────────────────────────────────────────────
 
 func TestTerminalService_Open(t *testing.T) {
 	factory := &fakeFactory{}
-	svc := terminal.NewService(factory)
+	svc := newTestService(t, factory)
 
 	sess, err := svc.Open(context.Background(), "proc-1", terminal.Command{
 		Path: "/bin/sh",
@@ -114,7 +141,7 @@ func TestTerminalService_Open(t *testing.T) {
 
 func TestTerminalService_DuplicateOpen(t *testing.T) {
 	factory := &fakeFactory{}
-	svc := terminal.NewService(factory)
+	svc := newTestService(t, factory)
 
 	_, err := svc.Open(context.Background(), "proc-1", terminal.Command{Path: "/bin/sh"})
 	if err != nil {
@@ -128,7 +155,7 @@ func TestTerminalService_DuplicateOpen(t *testing.T) {
 
 func TestTerminalService_Get(t *testing.T) {
 	factory := &fakeFactory{}
-	svc := terminal.NewService(factory)
+	svc := newTestService(t, factory)
 
 	_, err := svc.Get("missing")
 	if !errors.Is(err, terminal.ErrSessionNotFound) {
@@ -152,7 +179,7 @@ func TestTerminalService_WriteRead(t *testing.T) {
 			return fake, nil
 		},
 	}
-	svc := terminal.NewService(factory)
+	svc := newTestService(t, factory)
 
 	_, _ = svc.Open(context.Background(), "proc-3", terminal.Command{Path: "/bin/sh"})
 	sess, _ := svc.Get("proc-3")
@@ -174,7 +201,7 @@ func TestTerminalService_Resize(t *testing.T) {
 			return fake, nil
 		},
 	}
-	svc := terminal.NewService(factory)
+	svc := newTestService(t, factory)
 
 	_, _ = svc.Open(context.Background(), "proc-4", terminal.Command{Path: "/bin/sh"})
 	sess, _ := svc.Get("proc-4")
@@ -191,7 +218,7 @@ func TestTerminalService_CloseRemovesSession(t *testing.T) {
 			return fake, nil
 		},
 	}
-	svc := terminal.NewService(factory)
+	svc := newTestService(t, factory)
 
 	_, _ = svc.Open(context.Background(), "proc-5", terminal.Command{Path: "/bin/sh"})
 	if err := svc.Close("proc-5"); err != nil {
@@ -213,7 +240,7 @@ func TestTerminalService_AutoCleanOnExit(t *testing.T) {
 			return fake, nil
 		},
 	}
-	svc := terminal.NewService(factory)
+	svc := newTestService(t, factory)
 
 	_, _ = svc.Open(context.Background(), "proc-6", terminal.Command{Path: "/bin/sh"})
 
@@ -222,7 +249,7 @@ func TestTerminalService_AutoCleanOnExit(t *testing.T) {
 
 	// Give the goroutine a moment to clean up (service.Open launched a goroutine
 	// that calls session.Wait then deletes from the map).
-	deadline := time.Now().Add(500 * time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		_, err := svc.Get("proc-6")
 		if errors.Is(err, terminal.ErrSessionNotFound) {
@@ -230,6 +257,7 @@ func TestTerminalService_AutoCleanOnExit(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+	t.Fatal("session was not forgotten after its process exited")
 }
 
 func TestTerminalService_FailedOpen(t *testing.T) {
@@ -238,7 +266,7 @@ func TestTerminalService_FailedOpen(t *testing.T) {
 			return nil, errors.New("no pty available")
 		},
 	}
-	svc := terminal.NewService(factory)
+	svc := newTestService(t, factory)
 
 	_, err := svc.Open(context.Background(), "proc-7", terminal.Command{Path: "/bin/sh"})
 	if err == nil {

@@ -5,6 +5,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -98,5 +101,66 @@ func TestRuntime_StartRecoversStaleProcesses(t *testing.T) {
 	}
 	if got.Status != process.StatusFailed {
 		t.Fatalf("expected stale process to be marked failed, got %s", got.Status)
+	}
+}
+
+func TestRuntime_PIDFileAndSocketPermissions(t *testing.T) {
+	path := shortSock(t)
+	mod := start(t, path)
+	root := filepath.Dir(path)
+
+	data, err := os.ReadFile(filepath.Join(root, "hive.pid"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(data)); got != strconv.Itoa(os.Getpid()) {
+		t.Fatalf("pid file holds %q, want this process (%d)", got, os.Getpid())
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Fatalf("socket mode = %v, want 0600", perm)
+	}
+
+	if err := mod.Service.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "hive.pid")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("pid file should be removed on stop, stat err = %v", err)
+	}
+	// The lock is free again: a new daemon can start on the same root.
+	start(t, path)
+}
+
+func TestRuntime_ConcurrentStartsElectExactlyOneDaemon(t *testing.T) {
+	path := shortSock(t)
+	const n = 8
+	mods := make([]*runtime.Module, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := range n {
+		mods[i] = runtime.NewModule(runtime.Config{SocketPath: path})
+		wg.Go(func() { errs[i] = mods[i].Service.Start(context.Background()) })
+	}
+	wg.Wait()
+
+	winners := 0
+	for i, err := range errs {
+		switch {
+		case err == nil:
+			winners++
+			t.Cleanup(func() { _ = mods[i].Service.Stop(context.Background()) })
+		case !errors.Is(err, runtime.ErrAlreadyRunning):
+			t.Fatalf("start %d: %v", i, err)
+		}
+	}
+	if winners != 1 {
+		t.Fatalf("%d daemons started, want exactly one", winners)
+	}
+	// The winner's socket must still be in place and answering.
+	if err := client.NewService(client.Config{SocketPath: path}).Ping(context.Background()); err != nil {
+		t.Fatalf("winning daemon unreachable: %v", err)
 	}
 }

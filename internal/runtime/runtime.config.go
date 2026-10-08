@@ -2,7 +2,11 @@ package runtime
 
 import (
 	"errors"
+	"log/slog"
 	"path/filepath"
+	"time"
+
+	"github.com/admirable-oss/hive/internal/terminal"
 )
 
 var (
@@ -17,6 +21,12 @@ type Config struct {
 	BaseDir string
 	// Listener opens the socket. Nil means the real network stack.
 	Listener ListenerFactory
+	// Logger receives the daemon's structured logs. Nil discards them.
+	Logger *slog.Logger
+	// Terminal tunes agent PTYs (its Logger is ignored; Logger is used).
+	Terminal terminal.Config
+	// StopGrace is the SIGTERM → SIGKILL delay for plain processes.
+	StopGrace time.Duration
 }
 
 func (c Config) Validate() error {

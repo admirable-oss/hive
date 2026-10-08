@@ -262,6 +262,9 @@ var (
 )
 
 func (m Model) renderFooterBar(width int) string {
+	if m.notice != "" {
+		return fitWidth(" "+StyleRed.Render("! "+m.notice), width)
+	}
 	keys := fullKeys
 	switch {
 	case m.Interactive:

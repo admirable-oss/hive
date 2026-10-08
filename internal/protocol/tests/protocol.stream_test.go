@@ -13,7 +13,7 @@ import (
 )
 
 // streamOver returns a Stream whose peer writes raw and then hangs up.
-func streamOver(t *testing.T, raw string, max int64) *protocol.Stream {
+func streamOver(t *testing.T, raw string, limit int64) *protocol.Stream {
 	t.Helper()
 	server, client := net.Pipe()
 	t.Cleanup(func() { server.Close() })
@@ -21,7 +21,7 @@ func streamOver(t *testing.T, raw string, max int64) *protocol.Stream {
 		_, _ = client.Write([]byte(raw))
 		_ = client.Close()
 	}()
-	return protocol.NewStream(server, max)
+	return protocol.NewStream(server, limit)
 }
 
 func TestStream_SendWritesOneLine(t *testing.T) {

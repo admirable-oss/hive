@@ -1,88 +1,90 @@
 // Command hive is the CLI. `hive daemon` runs the runtime; every other command
-// is a thin client of it. With no arguments, hive opens the dashboard.
+// is a thin client of it, and starts it on demand. With no arguments, hive
+// opens the dashboard.
 //
-// Call chain: main → run → newApp (composition root) → command.run → client →
-// socket → daemon (see internal/runtime for the server side).
+// Call chain: main → execute → newApp (composition root) → cobra command →
+// client → socket → daemon (see internal/runtime for the server side).
 package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
+
+	"github.com/admirable-oss/hive/internal/protocol"
 )
 
-type command struct {
-	name, alias string
-	summary     string
-	timeout     time.Duration // 0 means run until interrupted
-	run         func(ctx context.Context, a *app, args []string) error
-}
-
-// commands is the whole CLI surface, in the order usage lists it.
-var commands = []command{
-	{name: "ui", alias: "tui", summary: "Open the interactive dashboard (default)", run: cmdTUI},
-	{name: "daemon", summary: "Start the Hive runtime in the foreground", run: cmdDaemon},
-	{name: "status", summary: "Show runtime status", timeout: 5 * time.Second, run: cmdStatus},
-	{name: "ping", summary: "Check that the runtime answers", timeout: 5 * time.Second, run: cmdPing},
-	{name: "stop", summary: "Stop the runtime and every agent it runs", timeout: 15 * time.Second, run: cmdStop},
-	{name: "environment", alias: "env", summary: "Manage environments: list | create | get | rm", timeout: 15 * time.Second, run: cmdEnvironment},
-	{name: "process", alias: "ps", summary: "Manage processes: start | list | get | logs | stop", timeout: 10 * time.Second, run: cmdProcess},
-	{name: "terminal", summary: "Agent terminals: attach | resize | input", run: cmdTerminal},
-	{name: "demo", summary: "Launch four demo agents to explore the dashboard", timeout: 10 * time.Second, run: cmdDemo},
-}
+// Exit codes. Scripts may rely on them.
+const (
+	exitOK          = 0
+	exitError       = 1
+	exitUsage       = 2 // bad command line
+	exitNotRunning  = 3 // the daemon is not running (status, ping)
+	exitInterrupted = 130
+)
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "hive:", err)
-		os.Exit(1)
-	}
+	os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 }
 
-func run(args []string) error {
-	if len(args) == 0 {
-		args = []string{"ui"}
-	}
-	switch args[0] {
-	case "help", "-h", "--help":
-		usage(os.Stdout)
-		return nil
-	}
-	cmd, ok := lookup(args[0])
-	if !ok {
-		usage(os.Stderr)
-		return fmt.Errorf("unknown command %q", args[0])
-	}
-
-	a, err := newApp()
-	if err != nil {
-		return err
-	}
+// execute runs the CLI and returns the process exit code.
+func execute(args []string, stdout, stderr io.Writer, getenv func(string) string) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	if cmd.timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, cmd.timeout)
-		defer cancel()
-	}
-	return cmd.run(ctx, a, args[1:])
-}
 
-func lookup(name string) (command, bool) {
-	for _, c := range commands {
-		if c.name == name || (c.alias != "" && c.alias == name) {
-			return c, true
+	a, err := newApp(getenv, stdout, stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, "hive:", err)
+		return exitError
+	}
+	root := newRootCmd(a)
+	root.SetArgs(args)
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	err = root.ExecuteContext(ctx)
+	if err == nil {
+		return exitOK
+	}
+	if ctx.Err() != nil && errors.Is(err, context.Canceled) {
+		return exitInterrupted
+	}
+	var ce *codedError
+	if errors.As(err, &ce) {
+		if ce.msg != "" {
+			fmt.Fprintln(stderr, "hive:", ce.msg)
 		}
+		return ce.code
 	}
-	return command{}, false
+	fmt.Fprintln(stderr, "hive:", describe(err))
+	if errors.As(err, new(*usageError)) {
+		return exitUsage
+	}
+	return exitError
 }
 
-func usage(w io.Writer) {
-	fmt.Fprintln(w, "Usage: hive [command] [args]\n\nCommands:")
-	for _, c := range commands {
-		fmt.Fprintf(w, "  %-12s %s\n", c.name, c.summary)
+// codedError ends the program with a specific exit code. An empty message
+// means the command already printed what the user needs to see.
+type codedError struct {
+	code int
+	msg  string
+}
+
+func (e *codedError) Error() string { return e.msg }
+
+// usageError marks a malformed command line (exit code 2).
+type usageError struct{ err error }
+
+func (e *usageError) Error() string { return e.err.Error() }
+func (e *usageError) Unwrap() error { return e.err }
+
+// describe turns wire errors into friendlier text without losing detail.
+func describe(err error) string {
+	if pe, ok := errors.AsType[*protocol.Error](err); ok && pe.Code == protocol.ErrorCodeNotFound {
+		return pe.Message
 	}
-	fmt.Fprintln(w, "\nStart the runtime first with `hive daemon`. Data lives in ~/.hive (override with HIVE_HOME).")
+	return err.Error()
 }

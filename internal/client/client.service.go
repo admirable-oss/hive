@@ -9,6 +9,7 @@ import (
 	"net"
 	"strconv"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
@@ -83,11 +84,27 @@ func (s *service) ProcessStop(ctx context.Context, id string) error {
 	return err
 }
 
-func (s *service) ProcessLogs(ctx context.Context, id string, tail int) (string, error) {
-	res, err := call[struct {
-		Logs string `json:"logs"`
-	}](ctx, s, "process.logs", map[string]any{"id": id, "tail": tail})
-	return res.Logs, err
+func (s *service) ProcessLogs(ctx context.Context, req process.LogsRequest) (Logs, error) {
+	req.Follow = false
+	return call[Logs](ctx, s, "process.logs", req)
+}
+
+func (s *service) ProcessLogsStream(ctx context.Context, req process.LogsRequest, out io.Writer) error {
+	stream, done, err := s.open(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	if err := s.exchange(stream, "process.logs.stream", req, nil); err != nil {
+		return err
+	}
+	// After the ack the daemon sends raw log bytes and closes the connection
+	// when it is finished; cancelling ctx closes it from this side.
+	_, err = io.Copy(out, stream.Conn())
+	if ctx.Err() != nil {
+		return nil // the caller stopped following
+	}
+	return err
 }
 
 func (s *service) TerminalResize(ctx context.Context, processID string, width, height uint16) error {
@@ -146,6 +163,9 @@ func (s *service) open(ctx context.Context) (*protocol.Stream, func(), error) {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "unix", s.config.SocketPath)
 	if err != nil {
+		if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED) {
+			return nil, nil, fmt.Errorf("%w (%s)", ErrUnavailable, s.config.SocketPath)
+		}
 		return nil, nil, fmt.Errorf("connect to runtime: %w", err)
 	}
 	stream := protocol.NewStream(conn, protocol.DefaultMaxMessageSize)
@@ -165,6 +185,9 @@ func (s *service) exchange(stream *protocol.Stream, method string, params, resul
 	var resp protocol.Response
 	if err := stream.Receive(&resp); err != nil {
 		return fmt.Errorf("%s: receive: %w", method, err)
+	}
+	if err := protocol.CheckVersion(resp.Version); err != nil {
+		return fmt.Errorf("%s: %w; restart the daemon with `hive stop` so it matches this CLI", method, err)
 	}
 	if resp.Error != nil {
 		return fmt.Errorf("%s: %w", method, resp.Error)

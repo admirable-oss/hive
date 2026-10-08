@@ -32,11 +32,13 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 | Area | State |
 |------|-------|
 | Runtime daemon, unix-socket protocol, CLI | ✅ working |
+| Daemon autostart, login service (launchd / systemd), single-instance lock | ✅ working |
+| Config file, structured logs with rotation | ✅ working |
 | Environments (persistent workspaces) | ✅ working |
-| Processes: plain or PTY-backed, lifecycle, logs, clean stop of the whole process tree | ✅ working |
+| Processes: plain or PTY-backed, lifecycle, stdout/stderr logs (tail, follow), clean stop of the whole process tree | ✅ working |
 | Terminal attach / detach, live input, resize | ✅ working |
 | Dashboard TUI with live logs and interactive takeover | ✅ working |
-| Crash recovery (stale records closed out on restart) | ✅ working |
+| Crash recovery: stale records closed out, orphaned agents stopped (PID and start time verified) | ✅ working |
 | Agent state detection (*blocked*, *waiting for input*) | 🚧 next |
 | Agent-facing API (agents managing agents) | 🗺 planned |
 | Reconnect from another machine | 🗺 planned |
@@ -48,11 +50,11 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 Requires Go 1.26+ on macOS or Linux.
 
 ```sh
-go build -o hive ./cmd/hive
+make build          # or: go build -o hive ./cmd/hive
 
-./hive daemon &     # start the runtime (keeps agents alive)
-./hive demo         # launch four demo agents
+./hive demo         # starts the daemon on demand, then launches four demo agents
 ./hive              # open the dashboard
+./hive daemon install   # optional: start the daemon at login, restart it if it crashes
 ```
 
 In the dashboard: `↑↓`/`tab` select an agent, `↵` takes control of its terminal (`esc` gives it back), `a` attaches full-screen, `s` stops it, and `q` detaches. Agents keep running.
@@ -62,14 +64,47 @@ In the dashboard: `↑↓`/`tab` select an agent, `↵` takes control of its ter
 | Command | What it does |
 |---------|--------------|
 | `hive` / `hive ui` | Open the dashboard |
-| `hive daemon` | Run the runtime in the foreground |
-| `hive status` · `hive ping` | Inspect the runtime |
-| `hive stop` | Stop the runtime and every agent it runs |
 | `hive env list \| create <id> \| get <id> \| rm <id>` | Manage environments (removing one stops its agents first) |
-| `hive ps start <env> [-t] [--] <cmd> [args…]` | Start a process (`-t` gives it a terminal) |
-| `hive ps list [env] \| get <id> \| logs <id> [n] \| stop <id>` | Inspect and stop processes |
+| `hive ps start [-t] <env> [--] <cmd> [args…]` | Start a process (`-t` gives it a terminal) |
+| `hive ps list [env] \| get <id> \| stop <id>` | Inspect and stop processes |
+| `hive ps logs <id> [-n N] [-f] [--stderr]` | Print a process's output; `-f` follows it until the process exits |
 | `hive terminal attach <id>` | Attach to an agent's terminal; **Ctrl+]** detaches |
 | `hive terminal input <id> <text>` · `resize <id> <w> <h>` | Type into / resize an agent's terminal |
+| `hive status` · `hive ping` · `hive version` | Inspect the runtime (exit code 3 when the daemon is not running) |
+| `hive stop` | Stop the runtime and every agent it runs |
+| `hive daemon` | Run the runtime in the foreground (what service managers run) |
+| `hive daemon start \| stop \| restart \| status \| logs [-f]` | Manage the background daemon |
+| `hive daemon install \| uninstall` | Run the daemon as a launchd agent (macOS) or systemd user service (Linux) |
+| `hive config path \| show \| default \| init \| validate` | Inspect and create the configuration file |
+| `hive completion bash\|zsh\|fish\|powershell` | Shell completion, including environment and process IDs |
+
+Every command that talks to the daemon starts it if it is not running (turn this off with `daemon.autostart = false`). Add `--json` to any command for machine-readable output. Exit codes: `0` success, `1` error, `2` bad command line, `3` daemon not running.
+
+### Configuration
+
+Hive reads `~/.config/hive/config.toml` (or `$XDG_CONFIG_HOME/hive/config.toml`, or `$HIVE_CONFIG`). Every key is optional; `hive config init` writes a commented file with the defaults:
+
+```toml
+[daemon]
+autostart = true            # start the daemon when a command needs it
+shutdown_timeout = "15s"    # how long stopping waits for agents to exit
+
+[log]
+level = "info"              # debug | info | warn | error  (HIVE_LOG overrides)
+format = "text"             # text | json
+max_size_mb = 10            # the daemon log rotates at this size…
+max_backups = 3             # …and keeps this many old files
+
+[process]
+stop_grace = "3s"           # SIGTERM → SIGKILL delay when stopping an agent
+
+[terminal]
+default_width = 220         # size of a new agent terminal
+default_height = 50
+history_kb = 64             # output replayed to a client when it attaches
+```
+
+Unknown keys and invalid values are reported as warnings and fall back to the defaults, so a typo never stops the daemon that keeps your agents alive. A file that is not valid TOML is an error, and the daemon refuses to start with it. `hive config validate` checks a file and exits non-zero on any problem.
 
 Data lives in `~/.hive`. Set `HIVE_HOME` to use another directory, for example to run an isolated daemon for testing.
 
@@ -78,34 +113,37 @@ Data lives in `~/.hive`. Set `HIVE_HOME` to use another directory, for example t
 Hive is a single binary with two roles: a **daemon** that owns environments and agent processes, and **clients** (the CLI and the dashboard) that talk to it over a unix socket. Closing a client never touches an agent; only the daemon does.
 
 ```
-cmd/hive ──────────── CLI composition root: builds one `app` (paths + client) and dispatches commands
+cmd/hive ──────────── CLI composition root: builds one `app` (paths, config, client); cobra commands
  │
  ├── tui ──────────── dashboard; depends only on the client.Client contract
+ ├── daemonctl ────── start the daemon detached (autostart), install launchd / systemd services
+ ├── config ───────── config.toml: defaults, forgiving validation, rendering
  ├── client ───────── one generic call() per request over protocol.Stream
  │        ╎
- │        ╎  unix socket · newline-delimited JSON
+ │        ╎  unix socket (0600) · newline-delimited JSON
  │        ╎
  └── runtime ──────── daemon composition root: wires modules, serves the socket, owns agent lifetimes
-       ├── process ── supervises agents: start, monitor, stop, recover, logs
+       ├── process ── supervises agents: start, monitor, stop, recover (and reap orphans), logs
        │     ├── environment ── persistent workspaces
        │     └── terminal ───── PTY sessions, live output fan-out
        └── protocol ─ framing, router, typed handlers           (leaf)
-           jsonfile · pgroup ─ atomic JSON files, process-group signals (leaves)
+           jsonfile · pgroup · platform · logging · buildinfo   (leaves)
 ```
 
-Dependencies only point **down**. Leaf packages know nothing about Hive's domain, and no package imports one above it.
+Dependencies only point **down**. Leaf packages know nothing about Hive's domain, and no package imports one above it. The rule is enforced by `depguard` in `make lint`.
 
 ### Following a call from `main` to the OS
 
 Every layer is reached through an explicit call, so you can read the code top to bottom:
 
 ```
-hive ps start dev -t claude
-  main.run                          cmd/hive/main.go      → builds app (newApp)
-  procStart                         cmd/hive/cmd_process.go
+hive ps start -t dev -- claude
+  main.execute                      cmd/hive/main.go      → newApp (config, paths, client), cobra root
+  root PersistentPreRunE            cmd/hive/root.go      → app.ensureDaemon: ping, or autostart via daemonctl.Spawn
+  newProcessStartCmd (RunE)         cmd/hive/cmd_process.go
   client.ProcessStart → call()      internal/client       → protocol.Stream.Send
   ─────────────── socket ───────────────
-  runtime.Server.accept             internal/runtime      → protocol.Serve(conn)
+  runtime.Server.accept             internal/runtime      → protocol.Serve(conn) (checks the protocol version)
   protocol.Router.Handle            internal/protocol     → "process.start"
   protocol.Method[StartRequest]     decodes params once, encodes the result
   process.service.Start             internal/process      → Environments.Get (port)
@@ -117,27 +155,30 @@ hive ps start dev -t claude
 
 ```
 ~/.hive/
-  hive.sock                                  daemon socket (0700 directory)
+  hive.sock                                  daemon socket (0600, in a 0700 directory)
+  hive.pid                                   daemon PID; flock-ed while the daemon runs (one daemon per root)
+  logs/daemon.log[.1…]                       structured daemon log, rotated by size
+  logs/daemon.stderr                         the daemon's stderr from its last start (start-up errors)
   environments/<env>/
     environment.json
     workspace/                               where the env's agents run
     processes/<id>/
       process.json                           lifecycle record (written atomically)
-      stdout.log  stderr.log                 output (PTY output goes to stdout.log)
+      stdout.log  stderr.log                 output, private to the user (PTY output goes to stdout.log)
 ```
 
 ### Wire protocol
 
-One JSON object per line. Requests carry `version`, `type`, `id`, `method` and `params`. Each response carries the same `id` with either `result` or `error: {code, message}`. Error codes are `invalid_request`, `unknown_method`, `invalid_params`, `not_found` and `internal_error`.
+One JSON object per line. Requests carry `version`, `type`, `id`, `method` and `params`. Each response carries the same `id` with either `result` or `error: {code, message}`. Error codes are `invalid_request`, `unknown_method`, `invalid_params`, `not_found`, `internal_error` and `unsupported_version`. A request stamped with another protocol version is answered with `unsupported_version` (an unversioned request counts as current, so the socket stays easy to drive by hand).
 
 | Namespace | Methods |
 |-----------|---------|
 | `runtime` | `ping`, `status`, `shutdown` |
 | `environment` | `list`, `create`, `get`, `remove` |
-| `process` | `start`, `list`, `get`, `logs`, `stop` |
+| `process` | `start`, `list`, `get`, `logs`, `logs.stream`, `stop` |
 | `terminal` | `attach`, `input`, `resize` |
 
-`terminal.attach` *upgrades* the connection. After its reply, the socket carries raw terminal bytes in both directions. The server's reader is kept for the whole connection, so no byte that arrives right behind the reply is lost.
+`terminal.attach` and `process.logs.stream` *upgrade* the connection. After the reply, the socket carries raw bytes: terminal I/O in both directions for `attach`, and the log (optionally followed until the process exits) for `logs.stream`. The server's reader is kept for the whole connection, so no byte that arrives right behind the reply is lost. `process.logs` returns a size-capped tail in a single reply (`truncated: true` when cut).
 
 ## Design principles
 
@@ -166,18 +207,19 @@ Hive is designed **contracts first**. Each layer depends on a small interface (a
 
 - **One file per role:** `pkg.model.go` (types), `pkg.service.go` (contract and implementation), `pkg.store.go` (port), `pkg.filesystem_store.go` (adapter), `pkg.protocol.go` (wire handlers), `pkg.module.go` (wiring and package doc), `pkg.error.go`.
 - **Comments explain why, not what.** Each package starts with a short doc comment, and non-obvious decisions are commented where they happen.
-- **Minimal dependencies.** The direct dependencies are Bubble Tea and Lip Gloss (UI), `creack/pty` (terminals) and two small `charmbracelet/x` helpers that Bubble Tea already pulls in. Everything else is the standard library. New dependencies need a strong reason.
+- **Minimal dependencies.** Bubble Tea and Lip Gloss (UI), `creack/pty` (terminals), cobra (CLI), go-toml (config), `x/sys`, and two small `charmbracelet/x` helpers. Everything else is the standard library. A new dependency needs an [ADR](docs/adr/).
 
 ## Contributing
 
 ```sh
-go vet ./...
-go test -race ./...
+make check      # vet, lint (pinned golangci-lint), race tests with goleak, go.mod tidiness
+make fuzz       # run the fuzz targets (protocol framing, config parser)
+make snapshot   # build release archives into ./dist
 ```
 
-Tests sit next to the code or in a package's `tests/` directory. Fakes for `Store`, `Runner`, `Factory` and `client.Client` let most tests run without real processes. Integration tests start a real daemon on a temporary socket.
+Tests sit next to the code or in a package's `tests/` directory. Fakes for `Store`, `Runner`, `Factory` and `client.Client` let most tests run without real processes. Integration tests start a real daemon on a temporary socket, and the CLI's end-to-end tests run the real binary path, autostarting a daemon in a scratch `HIVE_HOME`. Every package checks for leaked goroutines.
 
-Issues and pull requests are welcome. Please keep changes small, follow the file conventions above, and include a test with each bug fix.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards and [docs/adr](docs/adr/) for design decisions. Issues and pull requests are welcome. Please keep changes small, follow the file conventions above, and include a test with each bug fix.
 
 Found a security issue? Please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 

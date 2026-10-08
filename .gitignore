@@ -46,3 +46,5 @@ logs/
 /hive
 # CodeGraph index
 .codegraph/
+
+PLAN.md

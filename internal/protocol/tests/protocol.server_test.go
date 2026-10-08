@@ -110,3 +110,33 @@ func TestServe_HijackGetsTheConnection(t *testing.T) {
 		t.Fatalf("expected nil after hijack, got %v", err)
 	}
 }
+
+func TestServe_RejectsOtherProtocolVersionsButKeepsServing(t *testing.T) {
+	r := protocol.NewRouter()
+	r.MustRegister("echo", echo())
+	s, done := serve(t, r)
+
+	if err := s.Send(protocol.Request{Version: "99", Type: protocol.MessageTypeRequest, ID: "old", Method: "echo"}); err != nil {
+		t.Fatal(err)
+	}
+	var resp protocol.Response
+	if err := s.Receive(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Error == nil || resp.Error.Code != protocol.ErrorCodeUnsupportedVersion || resp.ID != "old" {
+		t.Fatalf("want unsupported_version for id old, got %+v", resp)
+	}
+
+	// Unversioned requests (hand-written ones) are treated as current.
+	if err := s.Send(protocol.Request{ID: "bare", Method: "echo"}); err != nil {
+		t.Fatal(err)
+	}
+	var bare protocol.Response
+	if err := s.Receive(&bare); err != nil || bare.Error != nil {
+		t.Fatalf("unversioned request should succeed: %+v, %v", bare, err)
+	}
+	_ = s.Close()
+	if err := waitServe(t, done); err != nil {
+		t.Fatal(err)
+	}
+}

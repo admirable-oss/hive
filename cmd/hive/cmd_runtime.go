@@ -3,35 +3,113 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/admirable-oss/hive/internal/buildinfo"
+	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/protocol"
 )
 
-func cmdPing(ctx context.Context, a *app, _ []string) error {
-	if err := a.client.Ping(ctx); err != nil {
-		return err
+func newStatusCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show runtime status (exit code 3 when the daemon is not running)",
+		Args:  noArgs,
+		RunE:  withTimeout(5*time.Second, func(ctx context.Context, _ *cobra.Command, _ []string) error { return showStatus(ctx, a) }),
 	}
-	fmt.Fprintln(a.out, "pong")
-	return nil
 }
 
-func cmdStatus(ctx context.Context, a *app, _ []string) error {
-	status, err := a.client.Status(ctx)
-	if err != nil {
-		return err
+func showStatus(ctx context.Context, a *app) error {
+	st, ok := a.daemonRunning(ctx)
+	if !ok {
+		_ = a.emit(map[string]string{"status": "not running", "socket": a.socket}, func() error {
+			fmt.Fprintln(a.out, "hive daemon: not running")
+			return nil
+		})
+		return &codedError{code: exitNotRunning}
 	}
-	fmt.Fprintln(a.out, "Hive Runtime")
-	w := a.table()
-	fmt.Fprintf(w, "Status\t%s\n", status.Status)
-	fmt.Fprintf(w, "Socket\t%s\n", status.Socket)
-	if !status.StartedAt.IsZero() {
-		fmt.Fprintf(w, "Started\t%s\n", status.StartedAt.Format("2006-01-02 15:04:05"))
-	}
-	return w.Flush()
+	return a.emit(st, func() error {
+		w := a.table()
+		fmt.Fprintf(w, "Status\t%s\n", st.Status)
+		if st.PID != 0 {
+			fmt.Fprintf(w, "PID\t%d\n", st.PID)
+		}
+		fmt.Fprintf(w, "Version\t%s\n", daemonVersion(st))
+		fmt.Fprintf(w, "Socket\t%s\n", st.Socket)
+		fmt.Fprintf(w, "Started\t%s (%s ago)\n", formatTime(st.StartedAt), time.Since(st.StartedAt).Round(time.Second))
+		fmt.Fprintf(w, "Logs\t%s\n", a.daemonLog())
+		if cli := buildinfo.Get().Version; st.Version != cli {
+			fmt.Fprintf(w, "Note\tthis CLI is %s; run `hive daemon restart` to match\n", cli)
+		}
+		return w.Flush()
+	})
 }
 
-func cmdStop(ctx context.Context, a *app, _ []string) error {
-	if err := a.client.Shutdown(ctx); err != nil {
-		return err
+func newPingCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "ping",
+		Short: "Check that the daemon answers (exit code 3 when it does not)",
+		Args:  noArgs,
+		RunE: withTimeout(5*time.Second, func(ctx context.Context, _ *cobra.Command, _ []string) error {
+			start := time.Now()
+			if err := a.client.Ping(ctx); err != nil {
+				return &codedError{code: exitNotRunning, msg: err.Error()}
+			}
+			fmt.Fprintf(a.out, "pong (%s)\n", time.Since(start).Round(time.Microsecond))
+			return nil
+		}),
 	}
-	fmt.Fprintln(a.out, "stopped")
-	return nil
+}
+
+func newStopCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the daemon and every agent it runs",
+		Args:  noArgs,
+		RunE:  func(cmd *cobra.Command, _ []string) error { return stopDaemon(cmd.Context(), a) },
+	}
+}
+
+func newVersionCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the CLI and daemon versions",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			info := buildinfo.Get()
+			ctx, cancel := context.WithTimeout(cmd.Context(), 500*time.Millisecond)
+			defer cancel()
+			st, running := a.daemonRunning(ctx)
+			out := struct {
+				buildinfo.Info
+				Protocol string         `json:"protocol_version"`
+				Daemon   *client.Status `json:"daemon,omitempty"`
+			}{Info: info, Protocol: protocol.Version}
+			if running {
+				out.Daemon = &st
+			}
+			return a.emit(out, func() error {
+				fmt.Fprintln(a.out, info.String())
+				if running {
+					fmt.Fprintf(a.out, "daemon %s", daemonVersion(st))
+					if st.PID != 0 {
+						fmt.Fprintf(a.out, " (pid %d)", st.PID)
+					}
+					fmt.Fprintln(a.out)
+				}
+				return nil
+			})
+		},
+	}
+}
+
+// daemonVersion names the daemon's build. Daemons older than v0.2 do not
+// report one.
+func daemonVersion(st client.Status) string {
+	if st.Version == "" {
+		return "unknown (older than v0.2; run `hive daemon restart`)"
+	}
+	return st.Version
 }

@@ -11,6 +11,8 @@ import (
 
 // Run starts the dashboard and blocks until the user quits.
 func Run(c client.Client) error {
-	_, err := tea.NewProgram(NewModel(c), tea.WithAltScreen()).Run()
+	m := NewModel(c)
+	defer m.Close()
+	_, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
 	return err
 }

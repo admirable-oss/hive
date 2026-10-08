@@ -58,3 +58,35 @@ type StartRequest struct {
 	Width    uint16 `json:"width"`
 	Height   uint16 `json:"height"`
 }
+
+// Stream names one of a process's output logs.
+type Stream string
+
+const (
+	StreamStdout Stream = "stdout"
+	StreamStderr Stream = "stderr"
+)
+
+// LogsRequest selects part of a process's output.
+type LogsRequest struct {
+	ID string `json:"id"`
+	// Stream is stdout (the default) or stderr.
+	Stream Stream `json:"stream,omitempty"`
+	// Tail limits the output to the last Tail lines. For process.logs a value
+	// of zero or less means DefaultTail; when streaming it means everything.
+	Tail int `json:"tail,omitempty"`
+	// Follow keeps a stream open, sending new output until the process ends.
+	Follow bool `json:"follow,omitempty"`
+}
+
+// normalize applies the default stream and rejects unknown ones.
+func (r LogsRequest) normalize() (LogsRequest, error) {
+	switch r.Stream {
+	case "":
+		r.Stream = StreamStdout
+	case StreamStdout, StreamStderr:
+	default:
+		return r, ErrInvalidStream
+	}
+	return r, nil
+}

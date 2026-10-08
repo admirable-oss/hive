@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,6 +23,12 @@ type fakeClient struct {
 	envs      []environment.Environment
 	procs     []process.Process
 	stoppedID string
+
+	inputMu    sync.Mutex
+	inputs     map[string][]byte // keystrokes received per process, in arrival order
+	inputCalls int
+	inputErr   error
+	inputDelay func() // runs before each delivery is recorded; simulates latency
 }
 
 func (f *fakeClient) Ping(_ context.Context) error {
@@ -82,14 +89,18 @@ func (f *fakeClient) ProcessStop(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeClient) ProcessLogs(_ context.Context, id string, _ int) (string, error) {
-	if id == "p1" {
-		return "› read  src/auth · 214 files\n› plan  rotate session tokens on refresh\n› edit  src/auth/middleware.ts  +9 -3", nil
+func (f *fakeClient) ProcessLogs(_ context.Context, req process.LogsRequest) (client.Logs, error) {
+	switch req.ID {
+	case "p1":
+		return client.Logs{Logs: "› read  src/auth · 214 files\n› plan  rotate session tokens on refresh\n› edit  src/auth/middleware.ts  +9 -3"}, nil
+	case "p2":
+		return client.Logs{Logs: "› scan  test/auth · 42 suites\n› pass  all 42 test suites passed"}, nil
 	}
-	if id == "p2" {
-		return "› scan  test/auth · 42 suites\n› pass  all 42 test suites passed", nil
-	}
-	return "", nil
+	return client.Logs{}, nil
+}
+
+func (f *fakeClient) ProcessLogsStream(context.Context, process.LogsRequest, io.Writer) error {
+	return nil
 }
 
 func (f *fakeClient) TerminalAttach(_ context.Context, _ string, _ io.Reader, _ io.Writer) error {
@@ -100,8 +111,27 @@ func (f *fakeClient) TerminalResize(_ context.Context, _ string, _, _ uint16) er
 	return nil
 }
 
-func (f *fakeClient) TerminalInput(_ context.Context, _ string, _ []byte) error {
+func (f *fakeClient) TerminalInput(_ context.Context, id string, data []byte) error {
+	if f.inputDelay != nil {
+		f.inputDelay()
+	}
+	f.inputMu.Lock()
+	defer f.inputMu.Unlock()
+	if f.inputErr != nil {
+		return f.inputErr
+	}
+	if f.inputs == nil {
+		f.inputs = map[string][]byte{}
+	}
+	f.inputs[id] = append(f.inputs[id], data...)
+	f.inputCalls++
 	return nil
+}
+
+func (f *fakeClient) input(id string) string {
+	f.inputMu.Lock()
+	defer f.inputMu.Unlock()
+	return string(f.inputs[id])
 }
 
 func TestTUI_EmptyState(t *testing.T) {

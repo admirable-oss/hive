@@ -1,0 +1,147 @@
+# golangci-lint v2. Run with `make lint` (it pins the linter version).
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - depguard
+    - errcheck
+    - errorlint
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nolintlint
+    - noctx
+    - revive
+    - sloglint
+    - staticcheck
+    - unconvert
+    - unused
+
+  settings:
+    errcheck:
+      # Closing read-only files and best-effort cleanup are deliberately unchecked.
+      exclude-functions:
+        - (*os.File).Close
+        - (net.Conn).Close
+        - os.Remove
+        - os.RemoveAll
+
+    gosec:
+      excludes:
+        # Launching user-chosen commands and reading user-chosen paths is
+        # what an agent runtime does; inputs are validated where they enter.
+        - G204 # subprocess launched with variable
+        - G304 # file path provided as taint input
+        - G301 # directory permissions: workspaces are meant to be usable (0755)
+        - G302 # file permissions on non-secret files (0644 service definitions)
+        - G306 # WriteFile permissions on non-secret files
+        - G115 # integer conversions are range-checked at the boundary
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # readability over a few bytes per struct
+        - shadow # `err :=` shadowing in nested scopes is idiomatic here
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: errorf
+        - name: if-return
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: var-declaration
+        - name: var-naming
+
+    sloglint:
+      kv-only: true # slog.Info("msg", "key", value) — no slog.Attr mixing
+      no-global: all # loggers are injected, never slog.Default()
+      key-naming-case: snake
+
+    gocritic:
+      enabled-tags: [diagnostic, performance]
+      disabled-checks:
+        - hugeParam # Bubble Tea models are passed by value by design
+        - rangeValCopy # record lists are small; values read better than indexes
+
+    depguard:
+      # The architecture's dependency rule: dependencies only point down.
+      rules:
+        leaves:
+          files:
+            - "**/internal/jsonfile/*.go"
+            - "**/internal/pgroup/*.go"
+            - "**/internal/platform/*.go"
+            - "**/internal/buildinfo/*.go"
+            - "**/internal/logging/*.go"
+            - "**/internal/protocol/*.go"
+            - "!$test"
+          deny:
+            - pkg: github.com/admirable-oss/hive/internal
+              desc: leaf packages must not import other Hive packages
+        domain:
+          files:
+            - "**/internal/environment/*.go"
+            - "**/internal/process/*.go"
+            - "**/internal/terminal/*.go"
+            - "**/internal/config/*.go"
+            - "**/internal/daemonctl/*.go"
+            - "!$test"
+          deny:
+            - pkg: github.com/admirable-oss/hive/internal/runtime
+              desc: domain packages must not depend on the composition root
+            - pkg: github.com/admirable-oss/hive/internal/client
+              desc: domain packages must not depend on the client
+            - pkg: github.com/admirable-oss/hive/internal/tui
+              desc: domain packages must not depend on the UI
+        clients:
+          files:
+            - "**/internal/client/*.go"
+            - "**/internal/tui/**/*.go"
+            - "!$test"
+          deny:
+            - pkg: github.com/admirable-oss/hive/internal/runtime
+              desc: clients reach the daemon over the wire only
+            - pkg: github.com/admirable-oss/hive/internal/terminal
+              desc: clients reach the daemon over the wire only
+            - pkg: github.com/admirable-oss/hive/internal/pgroup
+              desc: clients never signal agents directly
+
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [gosec, noctx, contextcheck]
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/admirable-oss/hive

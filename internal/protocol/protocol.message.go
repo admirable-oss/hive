@@ -9,11 +9,22 @@ package protocol
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 )
 
 // Version is stamped on every message so incompatible peers can be detected.
+// A message without a version is accepted as the current one, which keeps
+// the socket easy to drive by hand (e.g. with nc).
 const Version = "1"
+
+// CheckVersion reports whether v is a version this side speaks.
+func CheckVersion(v string) error {
+	if v == "" || v == Version {
+		return nil
+	}
+	return fmt.Errorf("%w: peer speaks protocol %q, this build speaks %q", ErrVersionMismatch, v, Version)
+}
 
 // DefaultMaxMessageSize caps a single framed message (1 MiB).
 const DefaultMaxMessageSize int64 = 1 << 20

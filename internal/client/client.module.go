@@ -2,11 +2,3 @@
 // and the TUI depend only on the Client contract, never on the daemon's
 // packages, so either side can change behind the wire protocol.
 package client
-
-type Module struct {
-	Client Client
-}
-
-func NewModule(config Config) *Module {
-	return &Module{Client: NewService(config)}
-}

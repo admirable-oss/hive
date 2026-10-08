@@ -32,7 +32,12 @@ func Serve(ctx context.Context, conn net.Conn, h Handler, maxMessageSize int64) 
 			return err
 		}
 
-		resp := h.Handle(ctx, req)
+		var resp Response
+		if verr := CheckVersion(req.Version); verr != nil {
+			resp = Fail(req, NewError(ErrorCodeUnsupportedVersion, verr))
+		} else {
+			resp = h.Handle(ctx, req)
+		}
 		if err := stream.Send(resp); err != nil {
 			return err
 		}

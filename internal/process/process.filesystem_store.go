@@ -1,7 +1,6 @@
 package process
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -123,13 +122,20 @@ func (s *FilesystemStore) List(_ context.Context, envID string) ([]Process, erro
 	return procs, nil
 }
 
-func (s *FilesystemStore) Tail(_ context.Context, p Process, n int) (string, error) {
-	stdout, _ := s.LogPaths(p)
-	return tailLines(stdout, n)
+func (s *FilesystemStore) logPath(p Process, stream Stream) string {
+	stdout, stderr := s.LogPaths(p)
+	if stream == StreamStderr {
+		return stderr
+	}
+	return stdout
 }
 
-// tailLines returns the last n lines of the file at path. It reads backwards
-// in blocks, so the cost tracks n rather than the size of an ever-growing log.
+func (s *FilesystemStore) Tail(_ context.Context, p Process, stream Stream, n int) (string, error) {
+	return tailLines(s.logPath(p, stream), n)
+}
+
+// tailLines returns the last n lines of the file at path, without the final
+// newline. A missing file is an empty log.
 func tailLines(path string, n int) (string, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -140,34 +146,55 @@ func tailLines(path string, n int) (string, error) {
 	}
 	defer f.Close()
 
-	if n <= 0 {
-		data, err := io.ReadAll(f)
-		return string(data), err
-	}
 	info, err := f.Stat()
 	if err != nil {
 		return "", err
 	}
+	start, err := tailOffset(f, info.Size(), n)
+	if err != nil {
+		return "", err
+	}
+	data := make([]byte, info.Size()-start)
+	if _, err := f.ReadAt(data, start); err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	return strings.TrimSuffix(string(data), "\n"), nil
+}
 
+// tailOffset returns where the last n lines of f (size bytes long) begin, or
+// 0 for the whole file when n <= 0. It reads backwards in blocks, so the cost
+// tracks n rather than the size of an ever-growing log.
+func tailOffset(f io.ReaderAt, size int64, n int) (int64, error) {
+	if n <= 0 || size == 0 {
+		return 0, nil
+	}
 	const block = 8 << 10
-	var buf []byte
-	for end := info.Size(); end > 0; {
+	buf := make([]byte, block)
+	end := size
+	// A newline that ends the file terminates the last line; it does not
+	// start a new one, so it is skipped.
+	newlines := 0
+	skipFinal := true
+	for end > 0 {
 		start := max(0, end-block)
-		chunk := make([]byte, end-start)
+		chunk := buf[:end-start]
 		if _, err := f.ReadAt(chunk, start); err != nil && !errors.Is(err, io.EOF) {
-			return "", err
+			return 0, err
 		}
-		buf = append(chunk, buf...)
+		for i := len(chunk) - 1; i >= 0; i-- {
+			if chunk[i] != '\n' {
+				skipFinal = false
+				continue
+			}
+			if skipFinal {
+				skipFinal = false
+				continue
+			}
+			if newlines++; newlines == n {
+				return start + int64(i) + 1, nil
+			}
+		}
 		end = start
-		// n complete lines need n newlines, ignoring the one ending the file.
-		if bytes.Count(bytes.TrimSuffix(buf, []byte("\n")), []byte("\n")) >= n {
-			break
-		}
 	}
-
-	lines := strings.Split(strings.TrimSuffix(string(buf), "\n"), "\n")
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
-	}
-	return strings.Join(lines, "\n"), nil
+	return 0, nil
 }

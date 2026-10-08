@@ -17,7 +17,7 @@ import (
 func TestClientParallelAgentsIntegration(t *testing.T) {
 	ctx := context.Background()
 	baseDir := t.TempDir()
-	path := filepath.Join("/tmp", fmt.Sprintf("h-p-%d.sock", time.Now().UnixNano()%100000))
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("h-p-%d.sock", time.Now().UnixNano()%100000))
 	defer os.Remove(path)
 
 	mod := runtime.NewModule(runtime.Config{
@@ -83,7 +83,8 @@ func TestClientParallelAgentsIntegration(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	var claudeLogs string
 	for time.Now().Before(deadline) {
-		logs, err := c.ProcessLogs(ctx, claudeProc.ID, 10)
+		res, err := c.ProcessLogs(ctx, process.LogsRequest{ID: claudeProc.ID, Tail: 10})
+		logs := res.Logs
 		if err == nil && strings.Contains(logs, "middleware.ts") {
 			claudeLogs = logs
 			break
@@ -98,7 +99,8 @@ func TestClientParallelAgentsIntegration(t *testing.T) {
 	deadline = time.Now().Add(3 * time.Second)
 	var codexLogs string
 	for time.Now().Before(deadline) {
-		logs, err := c.ProcessLogs(ctx, codexProc.ID, 10)
+		res, err := c.ProcessLogs(ctx, process.LogsRequest{ID: codexProc.ID, Tail: 10})
+		logs := res.Logs
 		if err == nil && strings.Contains(logs, "session_race") {
 			codexLogs = logs
 			break

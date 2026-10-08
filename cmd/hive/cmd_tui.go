@@ -2,17 +2,22 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/admirable-oss/hive/internal/tui"
 )
 
-func cmdTUI(ctx context.Context, a *app, _ []string) error {
-	pingCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-	defer cancel()
-	if err := a.client.Ping(pingCtx); err != nil {
-		return fmt.Errorf("the runtime is not running; start it with: hive daemon")
-	}
+func newUICmd(a *app) *cobra.Command {
+	return needsDaemon(&cobra.Command{
+		Use:     "ui",
+		Aliases: []string{"tui"},
+		Short:   "Open the interactive dashboard (the default command)",
+		Args:    noArgs,
+		RunE:    func(cmd *cobra.Command, _ []string) error { return runTUI(cmd.Context(), a) },
+	})
+}
+
+func runTUI(_ context.Context, a *app) error {
 	return tui.Run(a.client)
 }

@@ -39,14 +39,14 @@ func TestStore_TailReadsOnlyTheEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := store.Tail(context.Background(), p, 3)
+	got, err := store.Tail(context.Background(), p, process.StreamStdout, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := "line 4997\nline 4998\nline 4999"; got != want {
 		t.Fatalf("tail = %q, want %q", got, want)
 	}
-	if got, _ := store.Tail(context.Background(), p, 10_000); strings.Count(got, "\n") != 4999 {
+	if got, _ := store.Tail(context.Background(), p, process.StreamStdout, 10_000); strings.Count(got, "\n") != 4999 {
 		t.Fatalf("asking for more lines than exist should return the whole log")
 	}
 }

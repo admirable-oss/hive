@@ -8,6 +8,7 @@ var (
 	ErrMethodAlreadyExists = errors.New("protocol: method already registered")
 	ErrMessageTooLarge     = errors.New("protocol: message too large")
 	ErrInvalidMessage      = errors.New("protocol: invalid message")
+	ErrVersionMismatch     = errors.New("protocol: version mismatch")
 )
 
 // Error codes sent on the wire. Clients branch on the code, not the message.
@@ -17,6 +18,9 @@ const (
 	ErrorCodeInvalidParams  = "invalid_params"
 	ErrorCodeNotFound       = "not_found"
 	ErrorCodeInternal       = "internal_error"
+	// ErrorCodeUnsupportedVersion answers a request stamped with a protocol
+	// version this daemon does not speak. The connection stays open.
+	ErrorCodeUnsupportedVersion = "unsupported_version"
 )
 
 // Error is the error payload of a Response. It is also a Go error, so domain

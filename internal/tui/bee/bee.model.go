@@ -1,3 +1,5 @@
+// Package bee is the dashboard's animated mascot. Its state mirrors the
+// fleet at a glance: idle, busy, or cut off from the daemon.
 package bee
 
 import "time"

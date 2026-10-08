@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"slices"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -23,6 +24,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, bee.Tick(m.Bee)
 
 	case pollTickMsg:
+		if err := m.input.TakeErr(); err != nil {
+			m.notice, m.noticeAt = "keystrokes not delivered: "+err.Error(), time.Now()
+		} else if m.notice != "" && time.Since(m.noticeAt) > noticeTTL {
+			m.notice = ""
+		}
 		return m, tea.Batch(pollTick(), m.refresh, m.fetchLogsCmd(m.selectedID))
 
 	case LogsMsg:
@@ -80,14 +86,8 @@ func (m Model) updateInteractive(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if cur == nil || cur.Status != process.StatusRunning || len(data) == 0 {
 		return m, nil
 	}
-	c, id := m.Client, cur.ID
-	return m, tea.Batch(
-		func() tea.Msg {
-			_ = c.TerminalInput(context.Background(), id, data)
-			return nil
-		},
-		m.fetchLogsCmd(id),
-	)
+	m.input.Enqueue(cur.ID, data)
+	return m, m.fetchLogsCmd(cur.ID)
 }
 
 func (m Model) updateNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -100,10 +100,12 @@ func (m Model) updateNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "up", "k", "shift+tab":
-		return m, m.selectIndex(m.SelectedProc - 1)
+		cmd := m.selectIndex(m.SelectedProc - 1) // mutates m; must run before m is returned
+		return m, cmd
 
 	case "down", "j", "tab":
-		return m, m.selectIndex(m.SelectedProc + 1)
+		cmd := m.selectIndex(m.SelectedProc + 1)
+		return m, cmd
 
 	case "r":
 		return m, m.refresh
@@ -113,7 +115,8 @@ func (m Model) updateNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.Interactive = true
 			return m, m.fetchLogsCmd(cur.ID)
 		}
-		return m, m.selectIndex(m.SelectedProc + 1)
+		cmd := m.selectIndex(m.SelectedProc + 1)
+		return m, cmd
 
 	case "a":
 		// Full-screen attach: hand the terminal to `hive terminal attach`.
@@ -122,7 +125,9 @@ func (m Model) updateNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				exe = os.Args[0]
 			}
-			return m, tea.ExecProcess(exec.Command(exe, "terminal", "attach", cur.ID), func(err error) tea.Msg {
+			// exe is this binary and the ID came from the daemon (16 hex chars).
+			attach := exec.Command(exe, "terminal", "attach", cur.ID) //nolint:gosec,noctx // see above; the attach ends with the user
+			return m, tea.ExecProcess(attach, func(err error) tea.Msg {
 				return attachFinishedMsg{Err: err}
 			})
 		}

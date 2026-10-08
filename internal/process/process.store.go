@@ -12,6 +12,6 @@ type Store interface {
 	List(ctx context.Context, environmentID string) ([]Process, error)
 	// LogPaths returns where p's stdout and stderr are written.
 	LogPaths(p Process) (stdout, stderr string)
-	// Tail returns the last n lines of p's stdout (all of it when n <= 0).
-	Tail(ctx context.Context, p Process, n int) (string, error)
+	// Tail returns the last n lines of one of p's logs (all of it when n <= 0).
+	Tail(ctx context.Context, p Process, stream Stream, n int) (string, error)
 }

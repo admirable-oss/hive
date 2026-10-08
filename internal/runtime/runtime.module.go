@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/terminal"
@@ -21,10 +22,18 @@ type Module struct {
 // runtime → process → (environment, terminal) → protocol/jsonfile.
 func NewModule(cfg Config) *Module {
 	root := cfg.root()
+	log := logging.OrDiscard(cfg.Logger)
+	cfg.Logger = log
 
+	termCfg := cfg.Terminal
+	termCfg.Logger = log.With("module", "terminal")
 	envs := environment.NewModule(environment.Config{BaseDir: root}).Service
-	terms := terminal.NewModule().Service
-	procs := process.NewModule(process.Config{BaseDir: root}, envs, terms).Service
+	terms := terminal.NewModule(termCfg).Service
+	procs := process.NewModule(process.Config{
+		BaseDir:   root,
+		StopGrace: cfg.StopGrace,
+		Logger:    log.With("module", "process"),
+	}, envs, terms).Service
 	guardedEnvs := envGuard{Service: envs, procs: procs}
 
 	router := protocol.NewRouter()

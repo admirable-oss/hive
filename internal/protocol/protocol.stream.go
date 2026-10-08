@@ -42,7 +42,7 @@ func (s *Stream) Receive(v any) error {
 		return err
 	}
 	if err := json.Unmarshal(frame, v); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidMessage, err)
+		return fmt.Errorf("%w: %w", ErrInvalidMessage, err)
 	}
 	return nil
 }

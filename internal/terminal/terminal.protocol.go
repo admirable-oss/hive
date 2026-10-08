@@ -64,35 +64,48 @@ func lookup(svc Service, processID string) (Session, error) {
 	return sess, err
 }
 
+// lagNotice is written to a client that was cut off for falling behind, so
+// the user knows why the session ended and that the agent is still running.
+const lagNotice = "\r\n[hive] detached: this terminal could not keep up with the agent's output. The agent is still running; attach again to continue.\r\n"
+
 // stream turns an attached connection into a raw terminal: history first, then
 // live output to the client and client bytes to the PTY, until either side ends.
 func stream(sess Session) protocol.HijackFunc {
 	return func(ctx context.Context, conn net.Conn) {
-		out, history, detach := sess.Subscribe()
-		defer detach()
+		sub := sess.Subscribe()
+		defer sub.Close()
 
-		if _, err := conn.Write(history); err != nil {
+		if _, err := conn.Write(sub.History); err != nil {
 			return
 		}
 
 		done := make(chan struct{}, 2)
 		go func() {
-			for chunk := range out {
+			defer func() { done <- struct{}{} }()
+			for chunk := range sub.C {
 				if _, err := conn.Write(chunk); err != nil {
-					break
+					return
 				}
 			}
-			done <- struct{}{}
+			if sub.Lagged() {
+				_, _ = conn.Write([]byte(lagNotice))
+			}
 		}()
 		go func() {
 			_, _ = io.Copy(sess, conn)
 			done <- struct{}{}
 		}()
 
+		pending := 2
 		select {
 		case <-done:
+			pending--
 		case <-ctx.Done():
 		}
-		_ = conn.Close() // unblocks whichever copy is still running
+		_ = conn.Close() // unblocks the input copy
+		sub.Close()      // ends the output loop
+		for ; pending > 0; pending-- {
+			<-done
+		}
 	}
 }

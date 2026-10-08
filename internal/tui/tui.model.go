@@ -54,7 +54,13 @@ type Model struct {
 
 	selectedID string              // keeps the selection on the same agent across refreshes
 	logLines   map[string][]string // sanitised output per process ID
+	input      *inputQueue         // ordered keystroke delivery; shared by every copy of the model
+	notice     string              // transient problem shown in the footer
+	noticeAt   time.Time
 }
+
+// noticeTTL is how long a footer notice stays visible.
+const noticeTTL = 5 * time.Second
 
 func NewModel(c client.Client) Model {
 	return Model{
@@ -65,8 +71,13 @@ func NewModel(c client.Client) Model {
 		WorkspacePath: displayCwd(),
 		StartTime:     time.Now(),
 		logLines:      make(map[string][]string),
+		input:         newInputQueue(c.TerminalInput),
 	}
 }
+
+// Close waits for keystrokes still being delivered. Run calls it after the
+// program exits; tests that drive Update directly call it before asserting.
+func (m Model) Close() { m.input.Close() }
 
 // displayCwd shows the working directory with $HOME collapsed to ~.
 func displayCwd() string {
@@ -104,8 +115,8 @@ func (m Model) fetchLogsCmd(procID string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		logs, _ := c.ProcessLogs(ctx, procID, logTail)
-		return LogsMsg{ProcessID: procID, Logs: logs}
+		res, _ := c.ProcessLogs(ctx, process.LogsRequest{ID: procID, Tail: logTail})
+		return LogsMsg{ProcessID: procID, Logs: res.Logs}
 	}
 }
 

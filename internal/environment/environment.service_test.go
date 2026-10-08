@@ -2,6 +2,7 @@ package environment_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -49,7 +50,7 @@ func TestService(t *testing.T) {
 
 	// Verify Delete
 	_, err = svc.Get(ctx, "test1")
-	if err != environment.ErrNotFound {
+	if !errors.Is(err, environment.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
@@ -60,13 +61,13 @@ func TestService_RejectsUnsafeIDs(t *testing.T) {
 	ctx := context.Background()
 
 	for _, id := range []string{"", ".", "..", "../x", "a/b", `a\b`, ".hidden"} {
-		if _, err := svc.Create(ctx, id); err != environment.ErrInvalidID {
+		if _, err := svc.Create(ctx, id); !errors.Is(err, environment.ErrInvalidID) {
 			t.Errorf("Create(%q): expected ErrInvalidID, got %v", id, err)
 		}
-		if _, err := svc.Get(ctx, id); err != environment.ErrInvalidID {
+		if _, err := svc.Get(ctx, id); !errors.Is(err, environment.ErrInvalidID) {
 			t.Errorf("Get(%q): expected ErrInvalidID, got %v", id, err)
 		}
-		if err := svc.Delete(ctx, id); err != environment.ErrInvalidID {
+		if err := svc.Delete(ctx, id); !errors.Is(err, environment.ErrInvalidID) {
 			t.Errorf("Delete(%q): expected ErrInvalidID, got %v", id, err)
 		}
 	}

@@ -24,6 +24,7 @@ func (h *fakeHandle) Wait() error {
 	}
 	return nil
 }
+
 func (h *fakeHandle) Kill() error {
 	if h.kill != nil {
 		return h.kill()
@@ -254,11 +255,11 @@ func TestProcessService(t *testing.T) {
 
 	t.Run("unknown process", func(t *testing.T) {
 		_, err := svc.Get(ctx, "nonexistent")
-		if err != process.ErrNotFound {
+		if !errors.Is(err, process.ErrNotFound) {
 			t.Errorf("expected ErrNotFound for Get, got %v", err)
 		}
 		err = svc.Stop(ctx, "nonexistent")
-		if err != process.ErrNotFound {
+		if !errors.Is(err, process.ErrNotFound) {
 			t.Errorf("expected ErrNotFound for Stop, got %v", err)
 		}
 	})

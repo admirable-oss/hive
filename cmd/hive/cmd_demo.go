@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/admirable-oss/hive/internal/process"
 )
@@ -41,10 +44,16 @@ while true; do
 done`},
 }
 
-func cmdDemo(ctx context.Context, a *app, _ []string) error {
-	if err := a.client.Ping(ctx); err != nil {
-		return fmt.Errorf("the runtime is not running; start it with: hive daemon")
-	}
+func newDemoCmd(a *app) *cobra.Command {
+	return needsDaemon(&cobra.Command{
+		Use:   "demo",
+		Short: "Launch four demo agents to explore the dashboard",
+		Args:  noArgs,
+		RunE:  withTimeout(15*time.Second, func(ctx context.Context, _ *cobra.Command, _ []string) error { return runDemo(ctx, a) }),
+	})
+}
+
+func runDemo(ctx context.Context, a *app) error {
 	_, _ = a.client.EnvironmentCreate(ctx, demoEnv) // fine if it already exists
 
 	// Replace any demo agents left over from a previous run.
