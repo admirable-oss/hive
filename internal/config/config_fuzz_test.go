@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/admirable-oss/hive/internal/config"
@@ -14,10 +15,11 @@ func FuzzParse(f *testing.F) {
 	f.Add([]byte("[terminal]\ndefault_width = 99999\nscrollback_mb = -1\nhistory_kb = 3\n"))
 	f.Add([]byte("log = 3\n[log.level]\nx = 1\n"))
 	f.Add([]byte("[[daemon]]\n"))
+	f.Add([]byte("[keys]\nprefix_keys = \"ctrl+a\"\n[keys.prefix]\nzoom = []\nsplit_right = [\"|\", 3]\n[theme.custom]\nbase = \"nord\"\n"))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		cfg, _, err := config.Parse(data)
 		if err != nil {
-			if cfg != config.Defaults() {
+			if !reflect.DeepEqual(cfg, config.Defaults()) {
 				t.Fatal("a rejected document must leave the defaults")
 			}
 			return
@@ -30,12 +32,14 @@ func FuzzParse(f *testing.F) {
 			cfg.Log.MaxSizeMB < 1 || cfg.Log.MaxSizeMB > 1024,
 			cfg.Log.MaxBackups < 0 || cfg.Log.MaxBackups > 100,
 			cfg.Daemon.ShutdownTimeout <= 0,
-			cfg.Process.StopGrace < 0:
+			cfg.Process.StopGrace < 0,
+			cfg.UI.SidebarWidth < 16 || cfg.UI.SidebarWidth > 120,
+			len(cfg.Keys.Prefix) == 0:
 			t.Fatalf("out-of-range value accepted: %+v", cfg)
 		}
 		// Whatever was accepted must survive a render/parse round trip.
 		again, warnings, err := config.Parse(config.Render(cfg))
-		if err != nil || len(warnings) != 0 || again != cfg {
+		if err != nil || len(warnings) != 0 || !reflect.DeepEqual(again, cfg) {
 			t.Fatalf("round trip failed: %v %v\n%+v\n%+v", err, warnings, cfg, again)
 		}
 	})

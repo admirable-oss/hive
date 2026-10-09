@@ -20,6 +20,9 @@ const (
 	ProcessStarted     = "process.started"     // process.Process
 	ProcessExited      = "process.exited"      // process.Process (final record)
 	ProcessRecovered   = "process.recovered"   // process.Process, re-attached after a daemon restart
+	// ProcessOutput says an agent's screen changed: {"id": …}, at most once
+	// a second per agent while it keeps printing.
+	ProcessOutput = "process.output"
 	// Lost is sent to a subscriber that missed events; Data is
 	// {"missed": n}. Re-read state after it.
 	Lost = "events_lost"

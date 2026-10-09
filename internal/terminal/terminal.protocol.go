@@ -75,11 +75,12 @@ func Register(r *protocol.Router, svc Service) {
 	// terminal.frames: a pipe carrying the screen as binary frames (see
 	// vt.AppendFrame), and keystrokes back. For clients that draw the screen
 	// themselves; it only takes over the size once the client types.
-	r.MustRegister("terminal.frames", protocol.PipeMethod(func(_ context.Context, p viewParams) (viewResult, protocol.PipeFunc, error) {
+	r.MustRegister("terminal.frames", protocol.PipeMethod(func(ctx context.Context, p viewParams) (viewResult, protocol.PipeFunc, error) {
+		links := protocol.PeerHas(ctx, vt.FrameLinksCapability)
 		return openView(svc, p, false, func(w io.Writer) func(*vt.Frame) error {
 			var buf []byte
 			return func(f *vt.Frame) error {
-				buf = vt.AppendFrame(buf[:0], f)
+				buf = vt.AppendFrameWith(buf[:0], f, links)
 				_, err := w.Write(buf)
 				return err
 			}

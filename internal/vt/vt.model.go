@@ -64,6 +64,26 @@ type Cell struct {
 	Content string
 	Width   uint8
 	Style   Style
+	// Link is the URL of an OSC 8 hyperlink over the cell, if any.
+	Link string
+}
+
+// MaxLinkLen bounds a hyperlink's URL, as terminals do; longer ones are
+// dropped.
+const MaxLinkLen = 2048
+
+// CleanLink returns url if it is safe to pass to another terminal inside
+// an OSC 8 sequence (no control characters, not too long), else "".
+func CleanLink(url string) string {
+	if len(url) > MaxLinkLen {
+		return ""
+	}
+	for i := range len(url) {
+		if c := url[i]; c < 0x20 || c == 0x7f {
+			return ""
+		}
+	}
+	return url
 }
 
 // Blank is an empty, unstyled cell.
@@ -71,7 +91,7 @@ var Blank = Cell{Width: 1}
 
 // IsBlank reports whether c shows nothing: no text and no visible style.
 func (c Cell) IsBlank() bool {
-	return (c.Content == "" || c.Content == " ") && c.Width == 1 && c.Style == Style{}
+	return (c.Content == "" || c.Content == " ") && c.Width == 1 && c.Style == Style{} && c.Link == ""
 }
 
 // CursorShape is the cursor's appearance.

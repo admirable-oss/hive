@@ -1,0 +1,17 @@
+ api │ 1 main  +                                                      C-b ? help
+─ ca╭─ Keys ───────────────────────────────────────────────────────────────╮────
+    │ filter › zoom                                                        │
+    │                                                                      │
+    │ PREFIX MODE (after C-b)                                              │
+    │ z              zoom the pane to fill the tab (toggle)                │
+    │                                                                      │
+    │ NAVIGATE MODE                                                        │
+    │ z              zoom the pane to fill the tab (toggle)                │
+    │                                                                      │
+    │ RESIZE MODE                                                          │
+    │ z              zoom the pane to fill the tab (toggle)                │
+    │                                                                      │
+    │ type to filter  ↑↓ scroll  esc close                                 │
+    ╰──────────────────────────────────────────────────────────────────────╯
+
+cursor: 19,2

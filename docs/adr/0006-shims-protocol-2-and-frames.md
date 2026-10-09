@@ -141,3 +141,33 @@ polling the process list, and polls only while the stream is down.
   `HIVE_CLI_TEST_EXEC`). Race-enabled children need
   `GORACE=atexit_sleep_ms=0`, or they linger a second after exiting, and
   shim tests check the children's stderr for data races.
+
+## Amendment (M3, 2026-10-09): hyperlinks and output activity
+
+**frames/2.** Cells carry OSC 8 hyperlinks (`vt.Cell.Link`), and frames
+can too: a frame with the links flag carries each run's link, and runs
+split where links change. Every peer that speaks it offers `frames/2`
+beside `frames/1` (clients and the daemon in their hello, the daemon and
+shims in their welcome), and a server sends links only to a connection
+whose hello offered it (`protocol.PeerHas`). Older peers keep working:
+
+| Writer → reader | Encoding |
+|---|---|
+| new shim → old daemon | frames/1: the old daemon's hello offers nothing |
+| old shim → new daemon | frames/1, which the new decoder reads |
+| new daemon → old client | frames/1 |
+| new daemon → new client | frames/2 |
+
+Links are dropped when they contain control characters or exceed 2048
+bytes, since clients pass them to the user's terminal inside OSC 8. The
+multiplexer does, so links stay clickable in terminals that support them,
+and ctrl-click opens a cell's link before looking for a URL in its text.
+Scrollback keeps links (in memory only).
+
+**process.output.** The UI marks tabs whose agents print while hidden.
+Rather than stream every hidden pane, the daemon watches each session as
+a slow viewer, taking one frame per second: per the frame contract above,
+that one frame covers everything that changed meanwhile, so a busy agent
+costs one frame computation a second and an idle one nothing. The
+runtime publishes `process.output` `{"id"}` at most once a second per
+agent.

@@ -5,6 +5,8 @@ import (
 	"io"
 	"strconv"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Painter draws frames on a real terminal, with the screen at its top-left
@@ -76,6 +78,7 @@ func (p *Painter) writeLine(y int) {
 	b.WriteString("\x1b[" + strconv.Itoa(y+1) + "H")
 	line := trimBlank(p.screen.Lines[y])
 	var cur Style
+	link := ""
 	for x, c := range line {
 		if c.Width == 0 {
 			continue
@@ -83,6 +86,10 @@ func (p *Painter) writeLine(y int) {
 		if c.Style != cur {
 			b.WriteString(sgr(c.Style))
 			cur = c.Style
+		}
+		if c.Link != link {
+			b.WriteString(ansi.SetHyperlink(c.Link))
+			link = c.Link
 		}
 		if c.Content == "" {
 			b.WriteByte(' ')
@@ -95,6 +102,9 @@ func (p *Painter) writeLine(y int) {
 		if c.Width != 1 || !isASCII(c.Content) {
 			b.WriteString("\x1b[" + strconv.Itoa(x+int(c.Width)+1) + "G")
 		}
+	}
+	if link != "" {
+		b.WriteString(ansi.ResetHyperlink())
 	}
 	b.WriteString("\x1b[0m")
 	// Erase the rest of the line, unless the line is full: after writing the
@@ -125,6 +135,7 @@ func isASCII(s string) bool {
 func LineANSI(cells []Cell) string {
 	var b bytes.Buffer
 	var cur Style
+	link := ""
 	for _, c := range trimBlank(cells) {
 		if c.Width == 0 {
 			continue
@@ -133,11 +144,18 @@ func LineANSI(cells []Cell) string {
 			b.WriteString(sgr(c.Style))
 			cur = c.Style
 		}
+		if c.Link != link {
+			b.WriteString(ansi.SetHyperlink(c.Link))
+			link = c.Link
+		}
 		if c.Content == "" {
 			b.WriteByte(' ')
 		} else {
 			b.WriteString(c.Content)
 		}
+	}
+	if link != "" {
+		b.WriteString(ansi.ResetHyperlink())
 	}
 	if cur != (Style{}) {
 		b.WriteString("\x1b[0m")

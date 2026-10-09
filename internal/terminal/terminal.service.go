@@ -5,6 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"sync"
+	"time"
+
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 // Service tracks the live terminal sessions of running processes, keyed by
@@ -39,6 +42,9 @@ type Service interface {
 type service struct {
 	factory Factory
 
+	activity         func(processID string)
+	activityInterval time.Duration
+
 	mu       sync.RWMutex
 	sessions map[string]*entry
 }
@@ -50,8 +56,35 @@ type entry struct {
 	active string // the view whose size the terminal has
 }
 
-func NewService(factory Factory) Service {
-	return &service{factory: factory, sessions: make(map[string]*entry)}
+// Option configures a Service.
+type Option func(*service)
+
+// DefaultActivityInterval is how often a busy session is reported.
+const DefaultActivityInterval = time.Second
+
+// WithActivity reports sessions whose screen changes: fn is called at most
+// once per interval (0: DefaultActivityInterval) per session while its
+// output keeps coming. Clients use it to mark tabs with news they are not
+// showing.
+//
+// It watches each session as a viewer whose frames are taken slowly: a
+// slow viewer gets one frame for everything that changed meanwhile, so a
+// busy agent costs one frame per interval, and an idle one nothing.
+func WithActivity(fn func(processID string), interval time.Duration) Option {
+	return func(s *service) {
+		if interval <= 0 {
+			interval = DefaultActivityInterval
+		}
+		s.activity, s.activityInterval = fn, interval
+	}
+}
+
+func NewService(factory Factory, opts ...Option) Service {
+	s := &service{factory: factory, sessions: make(map[string]*entry)}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 func (s *service) Open(ctx context.Context, processID string, cmd Command) (Session, error) {
@@ -66,7 +99,7 @@ func (s *service) Open(ctx context.Context, processID string, cmd Command) (Sess
 	if err != nil {
 		return nil, err
 	}
-	if err := s.register(processID, session); err != nil {
+	if err := s.register(processID, session); err != nil { //nolint:contextcheck // the session outlives the request that opened it
 		_ = session.Close() // lost a race with a concurrent Open
 		return nil, err
 	}
@@ -82,7 +115,7 @@ func (s *service) Adopt(ctx context.Context, processID string) (Session, error) 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.register(processID, session); err != nil {
+	if err := s.register(processID, session); err != nil { //nolint:contextcheck // the session outlives the request that opened it
 		return nil, err
 	}
 	return session, nil
@@ -97,8 +130,11 @@ func (s *service) register(processID string, session Session) error {
 	s.sessions[processID] = &entry{sess: session, views: map[string]Size{}}
 	s.mu.Unlock()
 
-	// Forget the session once its process exits on its own.
+	// Forget the session once its process exits on its own (or, for a
+	// shim, once it is closed or detached).
+	ended, end := context.WithCancel(context.Background())
 	go func() {
+		defer end()
 		_ = session.Wait()
 		s.mu.Lock()
 		if e, ok := s.sessions[processID]; ok && e.sess == session {
@@ -106,7 +142,30 @@ func (s *service) register(processID string, session Session) error {
 		}
 		s.mu.Unlock()
 	}()
+	if s.activity != nil {
+		go s.watch(ended, processID, session)
+	}
 	return nil
+}
+
+// watch reports processID's activity until the session ends.
+func (s *service) watch(ctx context.Context, processID string, session Session) {
+	first := true
+	_ = session.Frames(ctx, func(*vt.Frame) error {
+		if first {
+			first = false // the screen as it is, not news
+			return nil
+		}
+		s.activity(processID)
+		t := time.NewTimer(s.activityInterval)
+		defer t.Stop()
+		select {
+		case <-t.C:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
 }
 
 func (s *service) Get(processID string) (Session, error) {

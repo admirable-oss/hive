@@ -527,3 +527,56 @@ func contains(list []string, s string) bool {
 	}
 	return false
 }
+
+func TestTabsReportTheActiveTab(t *testing.T) {
+	w := newWorld(t, t.TempDir())
+	w.env(t, "dev")
+	ctx := context.Background()
+	first, _, err := w.panes.CreateTab(ctx, pane.CreateTabRequest{EnvironmentID: "dev"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := w.panes.CreateTab(ctx, pane.CreateTabRequest{EnvironmentID: "dev"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	active := func() string {
+		t.Helper()
+		tabs, err := w.panes.Tabs(ctx, "dev")
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := ""
+		for _, tab := range tabs {
+			if tab.Active {
+				if id != "" {
+					t.Fatalf("two active tabs: %+v", tabs)
+				}
+				id = tab.ID
+			}
+		}
+		return id
+	}
+	if got := active(); got != second.ID {
+		t.Fatalf("active = %s, want the newest tab %s", got, second.ID)
+	}
+	if _, err := w.panes.FocusTab(ctx, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := active(); got != first.ID {
+		t.Fatalf("active = %s, want %s", got, first.ID)
+	}
+	if tab, _ := w.panes.Tab(ctx, first.ID); !tab.Active {
+		t.Fatal("Tab reports Active too")
+	}
+	// It is derived, never stored.
+	st, err := w.store.Load(ctx, "dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tab := range st.Tabs {
+		if tab.Active {
+			t.Fatalf("Active was stored: %+v", tab)
+		}
+	}
+}

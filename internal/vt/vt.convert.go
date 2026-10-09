@@ -31,7 +31,7 @@ func convertCell(c *uv.Cell, afterWide bool) Cell {
 		}
 		return Blank
 	}
-	out := Cell{Content: c.Content, Width: uint8(min(max(c.Width, 0), 2)), Style: convertStyle(&c.Style)}
+	out := Cell{Content: c.Content, Width: uint8(min(max(c.Width, 0), 2)), Style: convertStyle(&c.Style), Link: CleanLink(c.Link.URL)}
 	switch {
 	case out.Width == 0 && afterWide:
 		out.Content = ""

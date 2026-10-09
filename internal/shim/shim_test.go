@@ -371,3 +371,26 @@ func TestShim_DeepRunDir(t *testing.T) {
 	}
 	release(t, l, r)
 }
+
+func TestShim_HyperlinksCrossTheShim(t *testing.T) {
+	l := newLauncher(t)
+	r := openAgent(t, l, "links", `printf '\033]8;;https://example.com/x\007open me\033]8;;\007'; read _`)
+	waitScreen(t, r, "open me")
+	ctx, cancel := context.WithCancel(context.Background())
+	got := &vt.Screen{}
+	done := make(chan error, 1)
+	go func() {
+		done <- r.Frames(ctx, func(f *vt.Frame) error {
+			got.Apply(f)
+			cancel()
+			return nil
+		})
+	}()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if link := got.Lines[0][0].Link; link != "https://example.com/x" {
+		t.Fatalf("the daemon's view of the agent lost the link: %q", link)
+	}
+	stop(t, l, r)
+}

@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ func TestRenderedDefaultsParseBackWithoutWarnings(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Fatalf("unexpected warnings: %v", warnings)
 	}
-	if cfg != config.Defaults() {
+	if !reflect.DeepEqual(cfg, config.Defaults()) {
 		t.Fatalf("round trip changed the config:\n got %+v\nwant %+v", cfg, config.Defaults())
 	}
 }
@@ -42,7 +43,7 @@ func TestRenderRoundTripsCustomValues(t *testing.T) {
 	if err != nil || len(warnings) != 0 {
 		t.Fatalf("parse: %v, warnings %v", err, warnings)
 	}
-	if cfg != want {
+	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("got %+v, want %+v", cfg, want)
 	}
 }
@@ -61,7 +62,7 @@ scrollback_mb = 64
 	want := config.Defaults()
 	want.Log.Level = "warn"
 	want.Terminal.ScrollbackMB = 64
-	if cfg != want {
+	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("got %+v, want %+v", cfg, want)
 	}
 }
@@ -91,7 +92,7 @@ directory = "relative/dir"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg != config.Defaults() {
+	if !reflect.DeepEqual(cfg, config.Defaults()) {
 		t.Fatalf("invalid values must keep defaults, got %+v", cfg)
 	}
 	wantFragments := []string{
@@ -135,7 +136,7 @@ func TestParseSyntaxErrorReportsPosition(t *testing.T) {
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
 	cfg, warnings, err := config.Load(filepath.Join(dir, "missing.toml"))
-	if err != nil || warnings != nil || cfg != config.Defaults() {
+	if err != nil || warnings != nil || !reflect.DeepEqual(cfg, config.Defaults()) {
 		t.Fatalf("missing file should give defaults: %+v %v %v", cfg, warnings, err)
 	}
 
@@ -203,7 +204,7 @@ func TestLoggingConfig(t *testing.T) {
 
 func TestDeprecatedKeysWarnButLoad(t *testing.T) {
 	cfg, warnings, err := config.Parse([]byte("[terminal]\nhistory_kb = 64\n"))
-	if err != nil || cfg != config.Defaults() {
+	if err != nil || !reflect.DeepEqual(cfg, config.Defaults()) {
 		t.Fatalf("parse: %+v, %v", cfg, err)
 	}
 	if len(warnings) != 1 || !strings.Contains(warnings[0], "terminal.history_kb: is no longer used") {
@@ -226,5 +227,135 @@ func TestWorkspaceSettings(t *testing.T) {
 	cfg.Terminal.Shell = " fish  --login "
 	if got := cfg.ShellArgv(); len(got) != 2 || got[0] != "fish" || got[1] != "--login" {
 		t.Errorf("shell argv = %q", got)
+	}
+}
+
+func TestUIThemeAndKeys(t *testing.T) {
+	cfg, warnings, err := config.Parse([]byte(`
+[ui]
+sidebar = false
+sidebar_width = 40
+mouse = false
+clipboard = "OSC52"
+
+[theme]
+name = "Nord"
+
+[theme.custom]
+base = "gruvbox"
+accent = "#ff79c6"
+
+[keys]
+prefix_keys = ["ctrl+a", "ctrl+b"]
+
+[keys.prefix]
+split_right = "|"
+zoom = []
+
+[keys.terminal]
+focus_left = ["alt+h"]
+`))
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("parse: %v, warnings %v", err, warnings)
+	}
+	want := config.Defaults()
+	want.UI = config.UI{Sidebar: false, SidebarWidth: 40, Mouse: false, Clipboard: "osc52"}
+	want.Theme = config.Theme{Name: "nord", Custom: map[string]string{"base": "gruvbox", "accent": "#ff79c6"}}
+	want.Keys = config.Keys{
+		Prefix: []string{"ctrl+a", "ctrl+b"},
+		Modes: map[string]map[string][]string{
+			"prefix":   {"split_right": {"|"}, "zoom": {}},
+			"terminal": {"focus_left": {"alt+h"}},
+		},
+	}
+	if !reflect.DeepEqual(cfg, want) {
+		t.Fatalf("got %+v\nwant %+v", cfg, want)
+	}
+	// And back: custom values survive a render.
+	again, warnings, err := config.Parse(config.Render(cfg))
+	if err != nil || len(warnings) != 0 || !reflect.DeepEqual(again, cfg) {
+		t.Fatalf("round trip: %v %v\n%+v", err, warnings, again)
+	}
+}
+
+func TestUIThemeAndKeysWarn(t *testing.T) {
+	cfg, warnings, err := config.Parse([]byte(`
+[ui]
+sidebar_width = 3
+clipboard = "carrier-pigeon"
+
+[keys]
+prefix = "ctrl+a"
+prefix_keys = []
+
+[keys.copy]
+copy_yank = 3
+copy_exit = "q"
+
+[keys.chaos]
+x = "y"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(warnings, "\n")
+	for _, want := range []string{
+		"ui.sidebar_width: 3 is outside 16..120",
+		`ui.clipboard: "carrier-pigeon" is not one of auto, osc52, local, off`,
+		"keys.prefix: is the table of prefix-mode bindings; set the prefix key itself with keys.prefix_keys",
+		"keys.prefix_keys: needs at least one key",
+		"keys.copy: copy_yank must be a key or a list of keys, got int64 (ignored)",
+		"unknown key keys.chaos ignored",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing warning %q in:\n%s", want, joined)
+		}
+	}
+	if cfg.UI != config.Defaults().UI || !reflect.DeepEqual(cfg.Keys.Prefix, []string{config.DefaultPrefix}) {
+		t.Errorf("bad values keep the defaults: %+v %+v", cfg.UI, cfg.Keys.Prefix)
+	}
+	if got := cfg.Keys.Modes["copy"]; !reflect.DeepEqual(got, map[string][]string{"copy_exit": {"q"}}) {
+		t.Errorf("the valid binding beside a bad one still applies: %v", got)
+	}
+}
+
+func TestResetKeys(t *testing.T) {
+	doc := `# my config
+[log]
+level = "debug"
+
+[keys] # mine
+prefix_keys = ["ctrl+a"]
+
+[keys.prefix]
+zoom = [
+  "Z",
+]
+
+[ui]
+mouse = false
+
+[ "keys" . "terminal" ]
+focus_left = "alt+h"
+`
+	out, found := config.ResetKeys([]byte(doc))
+	if !found {
+		t.Fatal("the document had key settings")
+	}
+	cfg, warnings, err := config.Parse(out)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("parse: %v %v\n%s", err, warnings, out)
+	}
+	if !reflect.DeepEqual(cfg.Keys, config.Defaults().Keys) {
+		t.Errorf("keys = %+v, want the defaults", cfg.Keys)
+	}
+	if cfg.Log.Level != "debug" || cfg.UI.Mouse {
+		t.Errorf("other settings are kept: %+v %+v", cfg.Log, cfg.UI)
+	}
+	if !strings.HasPrefix(string(out), "# my config\n") || !strings.Contains(string(out), "[keys]\n# The prefix key(s)") {
+		t.Errorf("comments are kept and the documented section added:\n%s", out)
+	}
+	if _, found := config.ResetKeys([]byte("[log]\nlevel = \"info\"\n")); found {
+		t.Error("nothing to reset")
 	}
 }

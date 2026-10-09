@@ -39,6 +39,9 @@ func NewModule(cfg Config) *Module {
 
 	termCfg := cfg.Terminal
 	termCfg.Logger = log.With("module", "terminal")
+	termCfg.Activity = func(processID string) {
+		bus.Publish(event.ProcessOutput, map[string]string{"id": processID})
+	}
 	procCfg := process.Config{
 		BaseDir:   root,
 		StopGrace: cfg.StopGrace,

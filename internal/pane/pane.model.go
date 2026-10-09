@@ -21,6 +21,9 @@ type Tab struct {
 	Width     int       `json:"width"`
 	Height    int       `json:"height"`
 	CreatedAt time.Time `json:"created_at"`
+
+	// Active is set on reads for the environment's active tab; not stored.
+	Active bool `json:"active,omitempty"`
 }
 
 // Popup is a pane floating over a tab, centred, sized in percent of it.

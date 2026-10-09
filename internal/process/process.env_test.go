@@ -13,7 +13,8 @@ import (
 	"github.com/admirable-oss/hive/internal/process"
 )
 
-// captureRunner records the command it was asked to start.
+// captureRunner records the command it was asked to start. Its processes
+// exit at once.
 type captureRunner struct{ cmd process.Command }
 
 func (r *captureRunner) Start(_ context.Context, cmd process.Command) (process.Handle, error) {
@@ -43,6 +44,7 @@ func TestStart_BuildsTheEnvironmentInLayers(t *testing.T) {
 		Vars: map[string]string{"HIVE_SOCKET_PATH": "/s.sock", "HIVE_BIN": "/bin/hive"},
 	}
 	svc := process.NewService(process.NewFilesystemStore(root), envs, runner, nil, process.WithLaunchEnv(launch))
+	settleProcesses(t, svc)
 	p, err := svc.Start(ctx, process.StartRequest{EnvironmentID: "e", Command: "agent", Env: map[string]string{"SHARED": "request", "HIVE_PANE_ID": "p1"}})
 	if err != nil {
 		t.Fatal(err)
@@ -83,6 +85,7 @@ func TestStart_WorkingDirectory(t *testing.T) {
 	other := t.TempDir()
 	runner := &captureRunner{}
 	svc := process.NewService(process.NewFilesystemStore(root), envs, runner, nil)
+	settleProcesses(t, svc)
 
 	for cwd, want := range map[string]string{"": env.Path, "sub": filepath.Join(env.Path, "sub"), other: other} {
 		if _, err := svc.Start(ctx, process.StartRequest{EnvironmentID: "e", Command: "x", Cwd: cwd}); err != nil {

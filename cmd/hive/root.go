@@ -20,7 +20,7 @@ func newRootCmd(a *app) *cobra.Command {
 		Short: "Run coding agents that keep working when you close the terminal",
 		Long: `Hive runs your coding agents (Claude Code, Codex, OpenCode, anything)
 under a background daemon, so they survive closed terminals and dropped SSH
-sessions. Run hive with no arguments to open the dashboard.
+sessions. Run hive with no arguments to open the multiplexer.
 
 Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 ~/.config/hive/config.toml (see ` + "`hive config`" + `).`,

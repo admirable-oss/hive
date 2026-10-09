@@ -505,7 +505,7 @@ type paneSpecFlags struct {
 // register adds the flags; nameFlag is the pane name's flag.
 func (f *paneSpecFlags) register(cmd *cobra.Command, nameFlag string) {
 	cmd.Flags().StringVar(&f.name, nameFlag, "", "a name for the pane")
-	cmd.Flags().StringVar(&f.cwd, "cwd", "", "its directory, relative to the environment's (default: the environment's)")
+	cmd.Flags().StringVar(&f.cwd, "cwd", "", "its directory, relative to the environment's (default: where the pane it is split from, or popped over, is working; for a tab, the environment's)")
 	cmd.Flags().StringArrayVarP(&f.env, "env", "e", nil, "a variable for its process, as KEY=VALUE (repeatable)")
 }
 

@@ -1,36 +1,49 @@
 package bee
 
 import (
-	"strings"
+	"image/color"
 
-	"github.com/charmbracelet/lipgloss"
+	uv "github.com/charmbracelet/ultraviolet"
+
+	"github.com/admirable-oss/hive/internal/tui/compositor"
 )
 
 type Palette struct {
-	Yellow     lipgloss.Color
-	Wing       lipgloss.Color
-	Antennae   lipgloss.Color
-	Dark       lipgloss.Color
-	StripeDark lipgloss.Color
+	Yellow     color.Color
+	Wing       color.Color
+	Antennae   color.Color
+	Dark       color.Color
+	StripeDark color.Color
+}
+
+func rgb(v uint32) color.Color {
+	return color.RGBA{R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v), A: 0xff}
 }
 
 var ActivePalette = Palette{
-	Yellow:     lipgloss.Color("#F5B942"),
-	Wing:       lipgloss.Color("#BDBDBB"),
-	Antennae:   lipgloss.Color("#9B9BA1"),
-	Dark:       lipgloss.Color("#0B0B0C"),
-	StripeDark: lipgloss.Color("#1A1A1D"),
+	Yellow:     rgb(0xF5B942),
+	Wing:       rgb(0xBDBDBB),
+	Antennae:   rgb(0x9B9BA1),
+	Dark:       rgb(0x0B0B0C),
+	StripeDark: rgb(0x1A1A1D),
 }
 
 var DisconnectedPalette = Palette{
-	Yellow:     lipgloss.Color("#6A5B3D"),
-	Wing:       lipgloss.Color("#4A4A4D"),
-	Antennae:   lipgloss.Color("#555558"),
-	Dark:       lipgloss.Color("#0B0B0C"),
-	StripeDark: lipgloss.Color("#111113"),
+	Yellow:     rgb(0x6A5B3D),
+	Wing:       rgb(0x4A4A4D),
+	Antennae:   rgb(0x555558),
+	Dark:       rgb(0x0B0B0C),
+	StripeDark: rgb(0x111113),
 }
 
-func (m Model) View() string {
+// Width and Height are the art's size in cells.
+const (
+	Width  = 16
+	Height = 7
+)
+
+// Lines draws the bee for the compositor: Height lines of Width cells.
+func (m Model) Lines() []compositor.Spans {
 	palette := ActivePalette
 	if m.State == StateDisconnected {
 		palette = DisconnectedPalette
@@ -41,89 +54,67 @@ func (m Model) View() string {
 		frame = FlapFrames[m.FrameIndex%TotalFrames]
 	}
 
-	styleYellow := lipgloss.NewStyle().Foreground(palette.Yellow)
-	styleWing := lipgloss.NewStyle().Foreground(palette.Wing)
-	styleWingFull := lipgloss.NewStyle().Foreground(palette.Wing).Background(palette.Wing)
-	styleAntennae := lipgloss.NewStyle().Foreground(palette.Antennae)
-	styleYellowFull := lipgloss.NewStyle().Foreground(palette.Yellow).Background(palette.Yellow)
-	styleEye := lipgloss.NewStyle().Foreground(palette.Yellow).Background(palette.Dark)
-	styleStripe := lipgloss.NewStyle().Foreground(palette.Dark).Background(palette.Yellow)
-	styleHeadAccent := lipgloss.NewStyle().Foreground(palette.Antennae).Background(palette.Yellow)
-	styleDark := lipgloss.NewStyle().Foreground(palette.Dark)
+	style := func(fg, bg color.Color) func(string) compositor.Span {
+		return func(s string) compositor.Span { return compositor.Span{Text: s, Style: uv.Style{Fg: fg, Bg: bg}} }
+	}
+	plain := func(s string) compositor.Span { return compositor.Span{Text: s} }
+	styleYellow := style(palette.Yellow, nil)
+	styleWing := style(palette.Wing, nil)
+	styleWingFull := style(palette.Wing, palette.Wing)
+	styleAntennae := style(palette.Antennae, nil)
+	styleYellowFull := style(palette.Yellow, palette.Yellow)
+	styleEye := style(palette.Yellow, palette.Dark)
+	styleStripe := style(palette.Dark, palette.Yellow)
+	styleHeadAccent := style(palette.Antennae, palette.Yellow)
+	styleDark := style(palette.Dark, nil)
 
-	renderWing := func(w string) string {
-		var out strings.Builder
+	renderWing := func(w string) compositor.Spans {
+		var out compositor.Spans
 		for _, r := range w {
 			switch r {
 			case '▀':
-				out.WriteString(styleWingFull.Render("▀"))
+				out = append(out, styleWingFull("▀"))
 			case '▄':
-				out.WriteString(styleWing.Render("▄"))
+				out = append(out, styleWing("▄"))
 			default:
-				out.WriteRune(r)
+				out = append(out, plain(string(r)))
 			}
 		}
-		return out.String()
+		return out
+	}
+	line := func(parts ...any) compositor.Spans {
+		var out compositor.Spans
+		for _, p := range parts {
+			switch p := p.(type) {
+			case compositor.Span:
+				out = append(out, p)
+			case compositor.Spans:
+				out = append(out, p...)
+			}
+		}
+		return out
 	}
 
-	// Line 0: [Wing0L] + Antennae + [Wing0R]
-	l0 := renderWing(frame.Row0.Left) +
-		styleYellow.Render("▀") + styleAntennae.Render("▄") +
-		"      " +
-		styleAntennae.Render("▄") + styleYellow.Render("▀") +
-		renderWing(frame.Row0.Right)
-
-	// Line 1: [Wing1L] + Head + [Wing1R]
-	l1 := renderWing(frame.Row1.Left) +
-		" " +
-		styleYellow.Render("▄") + styleHeadAccent.Render("▀") +
-		styleYellow.Render("▄▄▄▄") +
-		styleHeadAccent.Render("▀") + styleYellow.Render("▄") +
-		" " +
-		renderWing(frame.Row1.Right)
-
-	// Line 2: [Wing2L] + Eyes/Head + [Wing2R]
-	l2 := renderWing(frame.Row2.Left) +
-		styleYellowFull.Render("▀▀") +
-		styleEye.Render("▀") +
-		styleYellowFull.Render("▀▀▀▀") +
-		styleEye.Render("▀") +
-		styleYellowFull.Render("▀▀") +
-		renderWing(frame.Row2.Right)
-
-	// Line 3: [Wing3L] + Abdomen stripe 1 + [Wing3R]
-	l3 := renderWing(frame.Row3.Left) +
-		styleYellowFull.Render("▀▀") +
-		styleStripe.Render("▀") +
-		styleYellowFull.Render("▀▀▀▀") +
-		styleStripe.Render("▀") +
-		styleYellowFull.Render("▀▀") +
-		renderWing(frame.Row3.Right)
-
-	// Line 4: Legs + Main stripe
-	l4 := " " +
-		styleYellow.Render("▄▄") +
-		styleYellowFull.Render("▀") +
-		styleStripe.Render("▀▀▀▀▀▀▀▀") +
-		styleYellowFull.Render("▀") +
-		styleYellow.Render("▄▄") +
-		" "
-
-	// Line 5: Abdomen lower tip
-	l5 := "    " +
-		styleYellowFull.Render("▀") +
-		styleDark.Render("▀") +
-		styleStripe.Render("▀") +
-		styleDark.Render("▀▀") +
-		styleStripe.Render("▀") +
-		styleDark.Render("▀") +
-		styleYellowFull.Render("▀") +
-		"    "
-
-	// Line 6: Feet
-	l6 := "    " +
-		styleYellow.Render("▀ ▀  ▀ ▀") +
-		"    "
-
-	return strings.Join([]string{l0, l1, l2, l3, l4, l5, l6}, "\n")
+	return []compositor.Spans{
+		// Wings and antennae.
+		line(renderWing(frame.Row0.Left), styleYellow("▀"), styleAntennae("▄"), plain("      "),
+			styleAntennae("▄"), styleYellow("▀"), renderWing(frame.Row0.Right)),
+		// Head.
+		line(renderWing(frame.Row1.Left), plain(" "), styleYellow("▄"), styleHeadAccent("▀"), styleYellow("▄▄▄▄"),
+			styleHeadAccent("▀"), styleYellow("▄"), plain(" "), renderWing(frame.Row1.Right)),
+		// Eyes.
+		line(renderWing(frame.Row2.Left), styleYellowFull("▀▀"), styleEye("▀"), styleYellowFull("▀▀▀▀"),
+			styleEye("▀"), styleYellowFull("▀▀"), renderWing(frame.Row2.Right)),
+		// First stripe.
+		line(renderWing(frame.Row3.Left), styleYellowFull("▀▀"), styleStripe("▀"), styleYellowFull("▀▀▀▀"),
+			styleStripe("▀"), styleYellowFull("▀▀"), renderWing(frame.Row3.Right)),
+		// Legs and the main stripe.
+		line(plain(" "), styleYellow("▄▄"), styleYellowFull("▀"), styleStripe("▀▀▀▀▀▀▀▀"), styleYellowFull("▀"),
+			styleYellow("▄▄"), plain(" ")),
+		// The abdomen's tip.
+		line(plain("    "), styleYellowFull("▀"), styleDark("▀"), styleStripe("▀"), styleDark("▀▀"),
+			styleStripe("▀"), styleDark("▀"), styleYellowFull("▀"), plain("    ")),
+		// Feet.
+		line(plain("    "), styleYellow("▀ ▀  ▀ ▀"), plain("    ")),
+	}
 }

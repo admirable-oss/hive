@@ -20,7 +20,7 @@ https://github.com/user-attachments/assets/bd7b9d6e-d0f5-43d7-9889-34c1a3fb0c9e
 **Start an agent and walk away.** Hive keeps its environment alive when your terminal closes, your SSH connection drops, or your laptop goes to sleep. Come back later and pick up where you left off.
 
 - **One machine, many agents.** Each agent gets its own workspace, terminal and context, so a hundred of them can work without stepping on each other.
-- **See everything working.** One dashboard shows which agents are running, waiting, done or failed, so you don't have to open a dozen terminals.
+- **See everything working.** A terminal multiplexer built for agents: tabs of split panes with live agent screens, and an Overview of which agents are running, waiting, done or failed, so you don't have to open a dozen terminals.
 - **Bring your own agent.** Claude Code, Codex, OpenCode, Cursor, your own agent, whatever comes next. Hive doesn't replace them; it gives them somewhere to live.
 - **Agents that operate agents.** The same interface you use (creating workspaces, launching tasks, reading output) is available to agents themselves, so the infrastructure becomes part of the agent's toolkit.
 - **Built for the background.** Long builds, large migrations, test suites, research and parallel tasks: work that takes longer than a terminal session.
@@ -40,7 +40,7 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 | Terminal emulation: attach shows the exact screen at once, snapshots, scrollback | ✅ working |
 | Terminal attach / detach, live input, resize ("last to type sets the size") | ✅ working |
 | Event stream (`hive events`): processes and environments as they change | ✅ working |
-| Dashboard TUI: live agent screens, event-driven, interactive takeover | ✅ working |
+| Multiplexer UI: tabs and split panes of live agents, sidebar, Overview, copy mode, mouse, themes, configurable keys | ✅ working |
 | Crash recovery: stale records closed out, orphaned agents stopped (PID and start time verified) | ✅ working |
 | Agent state detection (*blocked*, *waiting for input*) | 🚧 next |
 | Agent-facing API (agents managing agents) | 🗺 planned |
@@ -56,17 +56,31 @@ Requires Go 1.26+ on macOS or Linux.
 make build          # or: go build -o hive ./cmd/hive
 
 ./hive demo         # starts the daemon on demand, then launches four demo agents
-./hive              # open the dashboard
+./hive              # open the multiplexer
 ./hive daemon install   # optional: start the daemon at login, restart it if it crashes
 ```
 
-In the dashboard: `↑↓`/`tab` select an agent, `↵` takes control of its terminal (`esc` gives it back), `a` attaches full-screen, `s` stops it, and `q` detaches. Agents keep running.
+The multiplexer works like tmux: press the prefix, `Ctrl+B`, then a key.
+
+| After `Ctrl+B` | |
+|---|---|
+| `%` · `"` | split the pane right · down |
+| `←↓↑→` or `h j k l` | move between panes (`space` for sticky navigate mode, `r` for resize mode) |
+| `z` · `x` | zoom the pane · close it |
+| `c` · `1`–`9` · `n` `p` | new tab · go to a tab · next, previous |
+| `w` | go to any agent or pane (fuzzy) |
+| `O` | the Overview: every agent, with a live preview |
+| `[` | copy mode: vim keys, `/` search, `v`/`V` select, `y` copy |
+| `?` | every binding, with a filter |
+| `d` | detach; agents keep running |
+
+A split or popup starts in the directory its pane is working in (after a `cd`, too); a new tab starts at the environment's root. The mouse works too: click to focus, drag borders, select to copy, scroll into history. [docs/keybindings.md](docs/keybindings.md) lists every binding and how to change them.
 
 ### CLI
 
 | Command | What it does |
 |---------|--------------|
-| `hive` / `hive ui` | Open the dashboard |
+| `hive` / `hive ui [--env <id>]` | Open the multiplexer |
 | `hive env list \| create <id> \| get <id> \| rm <id>` | Manage environments (removing one stops its agents first) |
 | `hive ps start [-t] <env> [--] <cmd> [args…]` | Start a process (`-t` gives it a terminal) |
 | `hive ps list [env] \| get <id> \| stop <id>` | Inspect and stop processes |
@@ -81,7 +95,7 @@ In the dashboard: `↑↓`/`tab` select an agent, `↵` takes control of its ter
 | `hive daemon restart` | Restart the runtime; agents keep running and are re-attached |
 | `hive daemon start \| stop [--keep-agents] \| status \| logs [-f]` | Manage the background daemon |
 | `hive daemon install \| uninstall` | Run the daemon as a launchd agent (macOS) or systemd user service (Linux) |
-| `hive config path \| show \| default \| init \| validate` | Inspect and create the configuration file |
+| `hive config path \| show \| default \| init \| validate \| reset-keys` | Inspect and create the configuration file; put the default key bindings back |
 | `hive completion bash\|zsh\|fish\|powershell` | Shell completion, including environment and process IDs |
 
 Every command that talks to the daemon starts it if it is not running (turn this off with `daemon.autostart = false`). Add `--json` to any command for machine-readable output. Exit codes: `0` success, `1` error, `2` bad command line, `3` daemon not running.
@@ -108,6 +122,18 @@ stop_grace = "3s"           # SIGTERM → SIGKILL delay when stopping an agent
 default_width = 220         # size of a new agent terminal
 default_height = 50
 scrollback_mb = 10          # history kept per agent (lines that scrolled off its screen)
+
+[ui]
+sidebar = true              # show environments and agents beside the panes
+sidebar_width = 28
+mouse = true                # click, drag borders, select to copy, scroll
+clipboard = "auto"          # auto | osc52 | local | off
+
+[theme]
+name = "auto"               # auto | catppuccin | catppuccin-latte | tokyo-night | gruvbox | nord | terminal | custom
+
+[keys]
+prefix_keys = ["ctrl+b"]    # bindings per mode in [keys.<mode>]; see docs/keybindings.md
 ```
 
 Unknown keys and invalid values are reported as warnings and fall back to the defaults, so a typo never stops the daemon that keeps your agents alive. A file that is not valid TOML is an error, and the daemon refuses to start with it. `hive config validate` checks a file and exits non-zero on any problem.
@@ -120,14 +146,14 @@ Hive is a single binary with three roles:
 
 - a **shim** per agent (`hive __shim`), which owns the agent's PTY, terminal emulator and logs, and outlives everything except `hive stop`;
 - a **daemon** that owns environments and supervises agents through their shims;
-- **clients** (the CLI and the dashboard) that talk to the daemon over a unix socket.
+- **clients** (the CLI and the multiplexer UI) that talk to the daemon over a unix socket.
 
 Closing a client never touches an agent. Stopping, crashing or upgrading the daemon doesn't either: the next daemon re-attaches to the shims ([ADR 0006](docs/adr/0006-shims-protocol-2-and-frames.md)).
 
 ```
 cmd/hive ──────────── CLI composition root: builds one `app` (paths, config, client); cobra commands
  │
- ├── tui ──────────── dashboard; depends only on the client.Client contract
+ ├── tui ──────────── multiplexer UI (mux app, compositor, keymap, copy mode, themes); depends only on client
  ├── daemonctl ────── start the daemon detached (autostart), install launchd / systemd services
  ├── config ───────── config.toml: defaults, forgiving validation, rendering
  ├── client ───────── protocol 2 over one connection (falls back to protocol 1)
@@ -192,7 +218,7 @@ hive ps start -t dev -- claude
 One JSON object per line. Requests carry `type`, `id`, `method` and `params`; each response carries the same `id` with either `result` or `error: {code, message}`. Error codes are `invalid_request`, `unknown_method`, `invalid_params`, `not_found`, `internal_error`, `unsupported_version`, `unsupported` and `unavailable`.
 
 - **Protocol 1** is the default: one request, one response, in order. Hand-written clients (`nc`) use it. A request may open a *pipe* that takes over the rest of the connection.
-- **Protocol 2** starts with `{"type":"hello","version":"2","params":{"client":…}}`. The server answers with a `welcome` listing its methods and capabilities. From then on, requests run concurrently and any number of pipes share the connection: the response that opens one carries a `stream` ID, and its bytes travel as `{"type":"data","stream":…,"data":<base64>}` until a `close`. The CLI and the dashboard speak protocol 2, and fall back to protocol 1 against an older daemon.
+- **Protocol 2** starts with `{"type":"hello","version":"2","params":{"client":…}}`. The server answers with a `welcome` listing its methods and capabilities. From then on, requests run concurrently and any number of pipes share the connection: the response that opens one carries a `stream` ID, and its bytes travel as `{"type":"data","stream":…,"data":<base64>}` until a `close`. The CLI and the multiplexer speak protocol 2, and fall back to protocol 1 against an older daemon.
 
 | Namespace | Methods |
 |-----------|---------|

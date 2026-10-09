@@ -1,0 +1,26 @@
+ api │ 1:agents  2:logs•  +
+─ a ────────────────┬─ b ───────────────
+left side           │top right
+line 2              │
+                    │
+                    │
+                    │
+                    ├─ c ───────────────
+                    │bottom right
+                    │a much longer line
+                    │
+                    │
+cursor: 23,9
+--- accent ---
+      **********
+
+
+
+
+
+
+                    ********************
+                    *
+                    *
+                    *
+                    *

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"math/rand/v2"
+	"reflect"
 	"testing"
 
 	"github.com/admirable-oss/hive/internal/vt"
@@ -40,6 +41,10 @@ func FuzzDecodeFrame(f *testing.F) {
 			f.Add(vt.AppendFrame(nil, fr)[4:])
 		}
 	}
+	_, _ = term.Write([]byte("\x1b]8;;https://example.com\x07linked\x1b]8;;\x07 text"))
+	if fr := term.Frame(&v); fr != nil {
+		f.Add(vt.AppendFrameWith(nil, fr, true)[4:])
+	}
 	_ = term.Close()
 	f.Add([]byte{})
 	f.Add([]byte{1, 0, 0})
@@ -48,15 +53,16 @@ func FuzzDecodeFrame(f *testing.F) {
 		if err != nil {
 			return
 		}
-		// Anything accepted must re-encode to a frame that decodes the same.
-		again, err := vt.DecodeFrame(vt.AppendFrame(nil, fr)[4:])
+		// Anything accepted must re-encode (with links) to a frame that
+		// decodes to the same cells.
+		again, err := vt.DecodeFrame(vt.AppendFrameWith(nil, fr, true)[4:])
 		if err != nil {
 			t.Fatalf("re-encoded frame does not decode: %v", err)
 		}
 		s1, s2 := &vt.Screen{}, &vt.Screen{}
 		s1.Apply(fr)
 		s2.Apply(again)
-		if s1.Text() != s2.Text() {
+		if !reflect.DeepEqual(s1.Lines, s2.Lines) {
 			t.Fatal("round trip changed the frame")
 		}
 	})
