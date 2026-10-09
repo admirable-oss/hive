@@ -17,6 +17,9 @@ type Config struct {
 	Terminal  Terminal
 	Git       Git
 	Worktrees Worktrees
+	UI        UI
+	Theme     Theme
+	Keys      Keys
 }
 
 type Daemon struct {
@@ -63,6 +66,44 @@ type Worktrees struct {
 	Directory string
 }
 
+// UI configures the multiplexer (`hive ui`).
+type UI struct {
+	// Sidebar shows the sidebar when the UI opens.
+	Sidebar      bool
+	SidebarWidth int
+	// Mouse lets the UI take the mouse (focus, drag borders, select).
+	Mouse bool
+	// Clipboard is where copied text goes: auto | osc52 | local | off.
+	Clipboard string
+}
+
+// Clipboard modes.
+var clipboardModes = []string{"auto", "osc52", "local", "off"}
+
+// Theme picks the UI's colours.
+type Theme struct {
+	// Name is auto, a built-in theme, or custom. The UI checks it.
+	Name string
+	// Custom is the [theme.custom] table: base and colour overrides.
+	Custom map[string]string
+}
+
+// Keys are the UI's key bindings. Mode and action names are checked by the
+// UI, which owns them; this package only reads the shapes.
+type Keys struct {
+	// Prefix lists the prefix keys.
+	Prefix []string
+	// Modes holds [keys.<mode>] tables: action → keys. An empty list
+	// unbinds the action.
+	Modes map[string]map[string][]string
+}
+
+// KeyModes are the input modes a [keys.<mode>] table may name.
+var KeyModes = []string{"terminal", "prefix", "navigate", "resize", "copy"}
+
+// DefaultPrefix is the prefix key unless configured.
+const DefaultPrefix = "ctrl+b"
+
 // Defaults returns the built-in configuration.
 func Defaults() Config {
 	return Config{
@@ -71,6 +112,9 @@ func Defaults() Config {
 		Process:  Process{StopGrace: 3 * time.Second},
 		Terminal: Terminal{DefaultWidth: 220, DefaultHeight: 50, ScrollbackMB: 10},
 		Git:      Git{RefreshInterval: 5 * time.Second},
+		UI:       UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},
+		Theme:    Theme{Name: "auto"},
+		Keys:     Keys{Prefix: []string{DefaultPrefix}},
 	}
 }
 

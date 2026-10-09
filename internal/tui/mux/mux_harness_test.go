@@ -27,7 +27,7 @@ var update = flag.Bool("update", false, "rewrite golden files")
 
 // startDaemon runs a daemon whose shell is cat, so a pane shows exactly
 // what is typed into it.
-func startDaemon(t *testing.T) client.Client {
+func startDaemon(t testing.TB) client.Client {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "hv")
 	if err != nil {
@@ -57,7 +57,7 @@ func startDaemon(t *testing.T) client.Client {
 // harness is an App against a real daemon, with one environment ("api")
 // holding one tab ("main") of one pane.
 type harness struct {
-	t    *testing.T
+	t    testing.TB
 	c    client.Client
 	api  client.Workspace
 	a    *App
@@ -65,7 +65,7 @@ type harness struct {
 	w, h int
 }
 
-func newHarness(t *testing.T, w, h int, opts Options) *harness {
+func newHarness(t testing.TB, w, h int, opts Options) *harness {
 	t.Helper()
 	c := startDaemon(t)
 	ctx := context.Background()
@@ -80,7 +80,7 @@ func newHarness(t *testing.T, w, h int, opts Options) *harness {
 	return startApp(t, c, w, h, dir, opts)
 }
 
-func startApp(t *testing.T, c client.Client, w, h int, dir string, opts Options) *harness {
+func startApp(t testing.TB, c client.Client, w, h int, dir string, opts Options) *harness {
 	t.Helper()
 	if opts.Clipboard == "" {
 		opts.Clipboard = ClipboardOSC52 // never run pbcopy from tests

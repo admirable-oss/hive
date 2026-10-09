@@ -3,12 +3,14 @@ package mux
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 
 	"github.com/admirable-oss/hive/internal/process"
+	"github.com/admirable-oss/hive/internal/tui/bee"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
 	"github.com/admirable-oss/hive/internal/tui/copymode"
 	"github.com/admirable-oss/hive/internal/tui/keymap"
@@ -20,14 +22,24 @@ import (
 const previewLogLines = 200
 
 // overview is the dashboard: every agent of every environment, with a live
-// preview of the selected one. Enter goes to the agent's pane.
+// preview of the selected one, under the bee. Enter goes to the agent's
+// pane.
 type overview struct {
 	rows  []string // process IDs, by environment then start time
 	selID string
 
 	logsFor string // the agent logs were read for
 	logs    [][]vt.Cell
+
+	bee     bee.Model
+	ticking bool
 }
+
+// beeTickMsg advances the bee's animation while the Overview is open.
+type beeTickMsg struct{}
+
+// minBeeHeight is the shortest screen that still has room for the bee.
+const minBeeHeight = 24
 
 type previewLogsMsg struct {
 	procID string
@@ -49,9 +61,47 @@ func (a *App) toggleOverview() {
 func (a *App) openOverview(sel string) {
 	a.exitCopy()
 	a.ui.mode = keymap.ModeTerminal
-	a.ui.overview = &overview{selID: sel}
+	a.ui.overview = &overview{selID: sel, bee: bee.New()}
 	a.ui.overview.sync(a)
+	a.ui.overview.animate(a)
 	a.syncViews()
+}
+
+// animate keeps the bee's wings moving: one timer at a time, and none once
+// the Overview closes.
+func (o *overview) animate(a *App) {
+	if o.ticking {
+		return
+	}
+	o.ticking = true
+	a.after(o.bee.FrameDelay(), beeTickMsg{})
+}
+
+func (a *App) beeTick() {
+	o := a.ui.overview
+	if o == nil {
+		return
+	}
+	o.ticking = false
+	state := bee.StateIdle
+	switch {
+	case a.ws.err != nil || !a.ws.live:
+		state = bee.StateDisconnected
+	case a.ws.snap != nil && slices.ContainsFunc(a.ws.snap.procs, func(p process.Process) bool { return p.Status == process.StatusRunning }):
+		state = bee.StateActive
+	}
+	o.bee.SetState(state)
+	o.bee.Tick()
+	o.animate(a)
+}
+
+// header is how many lines precede the agent rows: the bee (when there is
+// room) and the column titles.
+func (o *overview) header(a *App) int {
+	if a.height >= minBeeHeight {
+		return bee.Height + 2
+	}
+	return 1
 }
 
 func (a *App) closeOverview() {
@@ -195,7 +245,7 @@ func (o *overview) key(a *App, k uv.Key) {
 }
 
 func (o *overview) click(a *App, line int) {
-	row := line - 1 // the first line is the header
+	row := line - o.header(a)
 	if row < 0 || row >= len(o.rows) {
 		return
 	}
@@ -236,7 +286,14 @@ func (o *overview) view(a *App) compositor.Overlay {
 	muted := uv.Style{Fg: a.theme.Muted}
 	nameW, envW := 22, 14
 	running, ended := 0, 0
-	lines := []compositor.Spans{{{Text: fmt.Sprintf("  %-*s %-*s %s", nameW, "AGENT", envW, "ENVIRONMENT", "STATUS"), Style: muted}}}
+	var lines []compositor.Spans
+	if o.header(a) > 1 {
+		for _, l := range o.bee.Lines() {
+			lines = append(lines, append(compositor.Spans{{Text: "  "}}, l...))
+		}
+		lines = append(lines, compositor.Spans{})
+	}
+	lines = append(lines, compositor.Spans{{Text: fmt.Sprintf("  %-*s %-*s %s", nameW, "AGENT", envW, "ENVIRONMENT", "STATUS"), Style: muted}})
 	for _, id := range o.rows {
 		p := s.process(id)
 		if p == nil {
@@ -261,7 +318,7 @@ func (o *overview) view(a *App) compositor.Overlay {
 	title := fmt.Sprintf("Overview · %d running · %d ended", running, ended)
 	ov := compositor.Overlay{
 		Title: title, Width: a.width, Height: a.height,
-		Lines: lines, Selected: o.index() + 1, ListWidth: nameW + envW + 20,
+		Lines: lines, Selected: o.index() + o.header(a), ListWidth: nameW + envW + 20,
 		Footer: []compositor.Span{{Text: "↑↓ select  ⏎ go to pane  x stop  / find  esc close"}},
 	}
 	if o.index() < 0 {

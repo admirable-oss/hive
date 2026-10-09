@@ -7,7 +7,7 @@
 // Every binding can be changed in the [keys] section of the config file:
 //
 //	[keys]
-//	prefix = ["ctrl+b", "ctrl+a"]
+//	prefix_keys = ["ctrl+b", "ctrl+a"]
 //	[keys.prefix]
 //	split_right = ["|", "%"]
 //	zoom = []            # unbind

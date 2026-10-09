@@ -21,6 +21,7 @@ type view struct {
 	screen *vt.Screen // nil until the first frame (or a cached screen)
 	ended  bool       // the stream ended: the agent exited or the daemon went away
 	failed bool       // the stream could not be opened
+	frames uint64     // frames applied so far
 
 	ops    chan viewOp
 	cancel context.CancelFunc
@@ -97,6 +98,7 @@ func (v *view) run(ctx context.Context, c client.Client, wake func(), sz size) {
 				v.screen = &vt.Screen{}
 			}
 			v.screen.Apply(f)
+			v.frames++
 			v.mu.Unlock()
 			wake()
 		}

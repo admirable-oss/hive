@@ -1,7 +1,6 @@
 package bee_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/admirable-oss/hive/internal/tui/bee"
@@ -39,19 +38,20 @@ func TestBee_Animation(t *testing.T) {
 	}
 }
 
-func TestBee_View(t *testing.T) {
+func TestBee_Lines(t *testing.T) {
 	m := bee.New()
 	for _, state := range []bee.State{bee.StateIdle, bee.StateActive, bee.StateDisconnected} {
 		m.SetState(state)
 		for f := range bee.TotalFrames {
 			m.FrameIndex = f
-			out := m.View()
-			if out == "" {
-				t.Fatalf("expected non-empty view for state %s, frame %d", state, f)
+			lines := m.Lines()
+			if len(lines) != bee.Height {
+				t.Fatalf("state %s frame %d: %d lines of art, want %d", state, f, len(lines), bee.Height)
 			}
-			lines := strings.Split(out, "\n")
-			if len(lines) != 7 {
-				t.Errorf("expected 7 lines of art, got %d", len(lines))
+			for i, l := range lines {
+				if w := l.Width(); w != bee.Width {
+					t.Errorf("state %s frame %d line %d: width %d, want %d", state, f, i, w, bee.Width)
+				}
 			}
 		}
 	}

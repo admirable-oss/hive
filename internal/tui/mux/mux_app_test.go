@@ -470,3 +470,22 @@ func (h *harness) clickHit(kind compositor.HitKind, id string) {
 	}
 	h.t.Fatalf("nothing of kind %d %q on screen:\n%s", kind, id, h.screen())
 }
+
+func TestOverviewShowsTheBeeOnTallScreens(t *testing.T) {
+	h := newHarness(t, 100, 30, Options{HideSidebar: true})
+	h.press("ctrl+b", "O")
+	h.waitText("▀ ▀  ▀ ▀") // its feet, the same in every frame
+	if !h.a.ui.overview.ticking {
+		t.Fatal("the bee flaps while the Overview is open")
+	}
+	// Row clicks still land on agents below the bee.
+	h.screen()
+	for _, hit := range h.a.last.Hits {
+		if hit.Kind == compositor.HitOverlayLine && hit.Index == h.a.ui.overview.header(h.a) {
+			h.click(hit.Rect.Min.X, hit.Rect.Min.Y, 0)
+			h.click(hit.Rect.Min.X, hit.Rect.Min.Y, 0)
+			break
+		}
+	}
+	h.waitFor("the agent's pane", func() bool { return h.a.ui.overview == nil })
+}

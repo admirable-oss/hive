@@ -231,6 +231,8 @@ func (a *App) Handle(m Msg) {
 		}
 	case toastExpiredMsg:
 		a.expireToasts()
+	case beeTickMsg:
+		a.beeTick()
 	case func():
 		m()
 	}

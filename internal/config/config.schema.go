@@ -45,6 +45,34 @@ func (c *Config) schema() map[string]map[string]setter {
 		"git": {
 			"refresh_interval": duration(&c.Git.RefreshInterval, time.Second, 10*time.Minute),
 		},
+		"ui": {
+			"sidebar":       boolean(&c.UI.Sidebar),
+			"sidebar_width": integer(&c.UI.SidebarWidth, 16, 120),
+			"mouse":         boolean(&c.UI.Mouse),
+			"clipboard": func(raw any) error {
+				return setString(raw, func(s string) error {
+					s = strings.ToLower(strings.TrimSpace(s))
+					if !slices.Contains(clipboardModes, s) {
+						return fmt.Errorf("%q is not one of %s", s, strings.Join(clipboardModes, ", "))
+					}
+					c.UI.Clipboard = s
+					return nil
+				})
+			},
+		},
+		"theme": {
+			"name": func(raw any) error {
+				return setString(raw, func(s string) error {
+					if s = strings.ToLower(strings.TrimSpace(s)); s == "" {
+						return fmt.Errorf("is empty")
+					}
+					c.Theme.Name = s
+					return nil
+				})
+			},
+			"custom": stringTable(&c.Theme.Custom),
+		},
+		"keys": c.keysSchema(),
 		"worktrees": {
 			"directory": func(raw any) error {
 				return setString(raw, func(s string) error {
@@ -56,6 +84,98 @@ func (c *Config) schema() map[string]map[string]setter {
 				})
 			},
 		},
+	}
+}
+
+// keysSchema reads [keys]: prefix_keys, and a table per mode.
+func (c *Config) keysSchema() map[string]setter {
+	keys := map[string]setter{
+		"prefix_keys": func(raw any) error {
+			list, err := keyList(raw)
+			if err != nil {
+				return err
+			}
+			if len(list) == 0 {
+				return fmt.Errorf("needs at least one key")
+			}
+			c.Keys.Prefix = list
+			return nil
+		},
+	}
+	for _, mode := range KeyModes {
+		keys[mode] = func(raw any) error {
+			table, ok := raw.(map[string]any)
+			if !ok && mode == "prefix" {
+				return fmt.Errorf("is the table of prefix-mode bindings; set the prefix key itself with keys.prefix_keys")
+			}
+			if !ok {
+				return typeError("a table of action = key(s)", raw)
+			}
+			bindings := map[string][]string{}
+			var bad []string
+			for _, action := range slices.Sorted(maps.Keys(table)) {
+				list, err := keyList(table[action])
+				if err != nil {
+					bad = append(bad, action+" "+err.Error())
+					continue
+				}
+				bindings[action] = list
+			}
+			if len(bindings) > 0 {
+				if c.Keys.Modes == nil {
+					c.Keys.Modes = map[string]map[string][]string{}
+				}
+				c.Keys.Modes[mode] = bindings
+			}
+			if len(bad) > 0 {
+				return fmt.Errorf("%s (ignored)", strings.Join(bad, "; "))
+			}
+			return nil
+		}
+	}
+	return keys
+}
+
+// keyList reads a key ("ctrl+a") or a list of keys; [] is an empty,
+// non-nil list (unbind).
+func keyList(raw any) ([]string, error) {
+	switch v := raw.(type) {
+	case string:
+		return []string{v}, nil
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			s, ok := item.(string)
+			if !ok {
+				return nil, typeError("a key or a list of keys", item)
+			}
+			out = append(out, s)
+		}
+		return out, nil
+	}
+	return nil, typeError("a key or a list of keys", raw)
+}
+
+// stringTable reads a table of strings.
+func stringTable(dst *map[string]string) setter {
+	return func(raw any) error {
+		table, ok := raw.(map[string]any)
+		if !ok {
+			return typeError("a table", raw)
+		}
+		out := map[string]string{}
+		for k, v := range table {
+			s, ok := v.(string)
+			if !ok {
+				return fmt.Errorf("%s %w", k, typeError("a string", v))
+			}
+			out[k] = s
+		}
+		if len(out) == 0 {
+			out = nil // an empty table sets nothing
+		}
+		*dst = out
+		return nil
 	}
 }
 

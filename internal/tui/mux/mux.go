@@ -30,7 +30,8 @@ type Options struct {
 	// Keymap resolves keys; nil is the built-in key map.
 	Keymap *keymap.Keymap
 	// Theme names the colour scheme: auto (default), a built-in theme, or
-	// custom with CustomTheme.
+	// custom with CustomTheme. An unknown name falls back to the default;
+	// the caller reports it (see theme.Resolve).
 	Theme       string
 	CustomTheme *theme.Theme
 	// Env is the environment to show first; empty picks the one for Cwd,
@@ -62,9 +63,6 @@ func (o Options) withDefaults() Options {
 	}
 	if o.Clipboard == "" {
 		o.Clipboard = ClipboardAuto
-	}
-	if _, err := theme.Resolve(o.Theme, o.CustomTheme, true); err != nil {
-		o.Warnings = append(o.Warnings, err.Error())
 	}
 	return o
 }

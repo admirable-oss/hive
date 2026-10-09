@@ -86,3 +86,30 @@ about the cause. The conflict came from Lip Gloss v1 pinning an old
 Requiring `x/cellbuf` v0.0.15 resolves it; M1 does this to use `x/vt` next to
 the Bubble Tea v1 dashboard. A migration can therefore be gradual if needed.
 The decision itself (draw cells through ultraviolet in M3) is unchanged.
+
+## Amendment (M3, 2026-10-09)
+
+M3 implemented the decision; the dashboard and Bubble Tea are gone.
+
+- **Shape.** `internal/tui/mux` is the app: one loop goroutine owns the UI
+  state, daemon calls run in the background and post results back, and
+  `Run` connects it to `uv.Terminal`. The compositor draws a `Scene` into
+  the `uv.TerminalScreen`, whose renderer diffs cells. Pane screens are
+  `vt.Screen`s fed by frame streams (ADR 0006), not local emulators: the
+  shim already emulates, so the client only applies line deltas.
+- **Damage.** Rather than redrawing only damaged panes, every frame is
+  composed in full and the renderer's cell diff decides the output. Frames
+  are paced instead: agent output is drawn at most every 8 ms, while input
+  and the echo that follows it (within 50 ms) are drawn at once.
+- **Chrome** is drawn by the compositor directly in cells, without Lip
+  Gloss. The Overview mode replaces the dashboard and keeps its bee.
+- **Tests.** The roadmap named `teatest` goldens, which need Bubble Tea.
+  Golden screens take their place: compositor goldens per element, and app
+  goldens per mode and overlay, driven against a real in-process daemon
+  whose shell is `cat`.
+- **Latency.** With 16 visible panes, fifteen printing 50 lines a second,
+  a keystroke reaches a drawn frame in 1.5 ms at p50 and under 5 ms at p99
+  on an M4 Pro (`BenchmarkInputLatency16Panes`; `TestInputLatency16Panes`
+  enforces the 10 ms budget outside `-race`). Keys are spaced at
+  auto-repeat speed: the daemon sends at most one frame per view per 8 ms
+  (`terminal.FrameInterval`), so keys typed back to back measure that cap.

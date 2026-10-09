@@ -85,6 +85,7 @@ func TestCommandNamesAndAliasesResolve(t *testing.T) {
 		"config show":           "show",
 		"config path":           "path",
 		"config default":        "default",
+		"config reset-keys":     "reset-keys",
 		"daemon start":          "start",
 		"daemon stop":           "stop",
 		"daemon status":         "status",
