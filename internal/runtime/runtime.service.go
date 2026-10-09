@@ -44,6 +44,8 @@ type Snapshot struct {
 	PID             int    `json:"pid"`
 	Version         string `json:"version"`
 	ProtocolVersion string `json:"protocol_version"`
+	// APILevel is protocol.APILevel of this build.
+	APILevel int `json:"api_level"`
 	// AgentsSurviveRestart is true when agents run under shims and keep
 	// running when the daemon stops or restarts.
 	AgentsSurviveRestart bool `json:"agents_survive_restart"`
@@ -211,6 +213,7 @@ func (s *Server) Snapshot() Snapshot {
 		PID:                  os.Getpid(),
 		Version:              buildinfo.Get().Version,
 		ProtocolVersion:      protocol.Version2,
+		APILevel:             protocol.APILevel,
 		AgentsSurviveRestart: s.cfg.Shim != nil,
 		Session:              session.Normalize(s.cfg.Session),
 	}

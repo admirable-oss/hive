@@ -10,6 +10,9 @@ type Status struct {
 	PID             int       `json:"pid"`
 	Version         string    `json:"version"`
 	ProtocolVersion string    `json:"protocol_version"`
+	// APILevel is the daemon's protocol.APILevel; 0 for daemons that
+	// predate it.
+	APILevel int `json:"api_level"`
 	// AgentsSurviveRestart is true when the daemon runs agents under shims.
 	AgentsSurviveRestart bool `json:"agents_survive_restart"`
 }

@@ -123,6 +123,9 @@ type service struct {
 
 	mu   sync.Mutex
 	live map[string]*liveProcess
+	// finishing holds processes that exited and whose final state is being
+	// written, so stopping waits for those too.
+	finishing map[string]*liveProcess
 }
 
 // liveProcess is a process this daemon launched and is still supervising.
@@ -145,6 +148,7 @@ func NewService(store Store, envs Environments, runner Runner, terms Terminals, 
 		lookup:    platform.LookupProcess,
 		terminate: pgroup.Terminate,
 		live:      make(map[string]*liveProcess),
+		finishing: make(map[string]*liveProcess),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -329,11 +333,17 @@ func (nopEvents) Publish(string, any) {}
 
 // monitor waits for the process to exit and records how it ended.
 func (s *service) monitor(p Process, lp *liveProcess) {
-	defer close(lp.done)
+	defer func() {
+		close(lp.done)
+		s.mu.Lock()
+		delete(s.finishing, p.ID)
+		s.mu.Unlock()
+	}()
 	err := lp.handle.Wait()
 
 	s.mu.Lock()
 	delete(s.live, p.ID)
+	s.finishing[p.ID] = lp
 	stopping, detaching := lp.stopping, lp.detaching
 	p.EnvironmentID = lp.envID // it may have moved since it started
 	s.mu.Unlock()
@@ -471,11 +481,18 @@ func (s *service) StopAll(ctx context.Context) error {
 // final state is on disk (or ctx expires).
 func (s *service) stopLive(ctx context.Context, match func(*liveProcess) bool) error {
 	s.mu.Lock()
-	var targets []*liveProcess
+	var targets, ending []*liveProcess
 	for _, lp := range s.live {
 		if match(lp) {
 			lp.stopping = true
 			targets = append(targets, lp)
+		}
+	}
+	// Processes that already exited may still be writing their final
+	// state: wait for them too, or stopping returns too early.
+	for _, lp := range s.finishing {
+		if match(lp) {
+			ending = append(ending, lp)
 		}
 	}
 	s.mu.Unlock()
@@ -484,7 +501,7 @@ func (s *service) stopLive(ctx context.Context, match func(*liveProcess) bool) e
 	for _, lp := range targets {
 		errs = append(errs, lp.handle.Kill())
 	}
-	for _, lp := range targets {
+	for _, lp := range append(targets, ending...) {
 		select {
 		case <-lp.done:
 		case <-ctx.Done():

@@ -15,6 +15,7 @@ import (
 	"github.com/admirable-oss/hive/internal/config"
 	"github.com/admirable-oss/hive/internal/daemonctl"
 	"github.com/admirable-oss/hive/internal/platform"
+	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/session"
 )
 
@@ -111,7 +112,10 @@ func (a *app) reportConfig() {
 // enabled. Commands that only make sense against a running daemon use it.
 func (a *app) ensureDaemon(ctx context.Context) error {
 	err := a.client.Ping(ctx)
-	if err == nil || !errors.Is(err, client.ErrUnavailable) {
+	if err == nil {
+		return a.ensureCurrentDaemon(ctx)
+	}
+	if !errors.Is(err, client.ErrUnavailable) {
 		return err
 	}
 	if !a.cfg.Daemon.Autostart {
@@ -124,11 +128,66 @@ func (a *app) ensureDaemon(ctx context.Context) error {
 	return nil
 }
 
+// ensureCurrentDaemon replaces a running daemon older than this build (one
+// started before an upgrade, or by an older checkout), which would answer
+// requests it no longer understands. It does so only when no agent can be
+// lost: when its agents outlive restarts (shims) or it runs none.
+// Otherwise it explains and leaves the daemon alone.
+func (a *app) ensureCurrentDaemon(ctx context.Context) error {
+	st, err := a.client.Status(ctx)
+	if err != nil || st.APILevel >= protocol.APILevel {
+		return nil // current, or it cannot say: let the command try
+	}
+	who := fmt.Sprintf("the running hive daemon (pid %d, %s)", st.PID, st.Version)
+	if !a.cfg.Daemon.Autostart {
+		return fmt.Errorf("%s is older than this hive; restart it with `hive daemon restart`", who)
+	}
+	if !st.AgentsSurviveRestart {
+		n, err := a.runningAgents(ctx)
+		switch {
+		case err != nil:
+			return fmt.Errorf("%s is older than this hive, and its agents would not survive a restart; stop them, then run `hive daemon restart`", who)
+		case n > 0:
+			return fmt.Errorf("%s is older than this hive, and restarting it would stop its %d running agent(s), which it does not keep alive across restarts; stop them, then run `hive daemon restart`", who, n)
+		}
+	}
+	fmt.Fprintf(a.errOut, "hive: %s is older than this hive; replacing it (agents keep running)\n", who)
+	if err := a.shutdownDaemon(ctx, false); err != nil {
+		return fmt.Errorf("stop %s: %w", who, err)
+	}
+	return a.startDaemon(ctx)
+}
+
+// runningAgents counts the daemon's running agents, through calls every
+// daemon version answers.
+func (a *app) runningAgents(ctx context.Context) (int, error) {
+	envs, err := a.client.EnvironmentList(ctx)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, e := range envs {
+		procs, err := a.client.ProcessList(ctx, e.ID)
+		if err != nil {
+			return 0, err
+		}
+		for _, p := range procs {
+			if p.Active() {
+				n++
+			}
+		}
+	}
+	return n, nil
+}
+
 // startDaemon launches `hive daemon` detached and waits until it answers.
 func (a *app) startDaemon(ctx context.Context) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("locate the hive binary: %w", err)
+	}
+	if exe, err = a.stableExecutable(exe); err != nil {
+		return err
 	}
 	return daemonctl.Spawn(ctx, daemonctl.SpawnOptions{
 		Executable: exe,

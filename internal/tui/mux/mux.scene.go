@@ -1,6 +1,7 @@
 package mux
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 
+	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/pane"
@@ -320,20 +322,24 @@ func commandName(p *process.Process) string {
 
 func (a *App) addPanes(s *compositor.Scene) {
 	snap := a.ws.snap
+	quit := "\n\n" + a.keyHint(keymap.Detach) + " or ctrl+c quits"
 	switch {
+	case snap == nil && errors.Is(a.ws.err, client.ErrUnavailable):
+		s.Empty = "Cannot reach the hive daemon\nretrying…" + quit
+		return
 	case snap == nil && a.ws.err != nil:
-		s.Empty = "Cannot reach the hive daemon\n" + errText(a.ws.err) + "\nretrying…"
+		s.Empty = "The hive daemon returned an error\n" + errText(a.ws.err) + "\nretrying…" + quit
 		return
 	case snap == nil:
-		s.Empty = "Connecting to the hive daemon…"
+		s.Empty = "Connecting to the hive daemon…" + quit
 		return
 	case a.env() == nil:
-		s.Empty = "No environments yet\n\n" + a.keyHint(keymap.NewTab) + " opens a tab in " + displayDir(a.opts.Cwd)
+		s.Empty = "No environments yet\n\n" + a.keyHint(keymap.NewTab) + " opens a tab in " + displayDir(a.opts.Cwd) + quit
 		return
 	}
 	t := a.tab()
 	if t == nil {
-		s.Empty = "No tabs in " + a.ws.envID + "\n\n" + a.keyHint(keymap.NewTab) + " opens one"
+		s.Empty = "No tabs in " + a.ws.envID + "\n\n" + a.keyHint(keymap.NewTab) + " opens one" + quit
 		return
 	}
 	geo := a.geometry()

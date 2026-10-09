@@ -49,6 +49,7 @@ type workspaceState struct {
 	live     bool            // the event stream is open
 	retry    time.Duration   // the next pause before subscribing again
 	activity map[string]bool // tabs whose agents printed since they were last shown
+	finals   map[string]bool // exited agents whose last screen was asked for
 	claims   map[string]size // tab sizes this client asked for, by tab ID
 	claiming map[string]bool // tab.resize calls in flight
 }
@@ -203,6 +204,7 @@ func (a *App) afterChange() {
 		o.reload(a)
 	}
 	a.syncViews()
+	a.loadFinals()
 	a.claimSize(false)
 	a.seen()
 	a.dirty = true

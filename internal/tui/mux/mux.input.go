@@ -93,6 +93,10 @@ func (a *App) key(k uv.Key) {
 			a.do(act)
 			return
 		}
+		if a.focusedPane() == nil && keyName(k) == "ctrl+c" {
+			a.quit = true // nothing to type into: ctrl+c leaves, as anywhere else
+			return
+		}
 		a.typeKey(k)
 	case a.ui.mode == keymap.ModeCopy:
 		a.copyKey(k)

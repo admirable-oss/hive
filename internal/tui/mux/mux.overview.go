@@ -164,9 +164,9 @@ func (o *overview) fetchLogs(a *App) {
 		return
 	}
 	if p.Terminal {
-		if _, ok := a.cache[p.ID]; ok {
-			return // its last screen is still here
-		}
+		// Its last screen: kept from when it ran, or rebuilt from its log.
+		a.loadFinal(p, size{a.width - 40, a.height - 3})
+		return
 	}
 	o.logsFor, o.logs = p.ID, nil
 	id, c := p.ID, a.c
