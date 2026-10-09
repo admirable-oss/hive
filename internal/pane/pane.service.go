@@ -835,7 +835,7 @@ func (s *Service) Move(ctx context.Context, req MoveRequest) (Pane, error) {
 
 	// Take it out of the source tab. Tabs are addressed by ID from here on:
 	// removing or adding a tab moves the others within their slice.
-	srcID, dstID := src.ID, ""
+	srcID, srcEnv, dstID := src.ID, src.EnvironmentID, ""
 	if dst != nil {
 		dstID = dst.ID
 	}
@@ -867,7 +867,7 @@ func (s *Service) Move(ctx context.Context, req MoveRequest) (Pane, error) {
 	dstState.ActiveTab = dst.ID
 	dstState.Panes = append(dstState.Panes, pane)
 
-	for _, envID := range uniq(pane.EnvironmentID, src.EnvironmentID) {
+	for _, envID := range uniq(pane.EnvironmentID, srcEnv) {
 		if err := s.saveLocked(ctx, envID); err != nil {
 			return Pane{}, err
 		}

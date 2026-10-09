@@ -66,13 +66,22 @@ func shares(size int, ratio float64) (int, int) {
 	return first, avail - first
 }
 
-// Neighbor returns the pane next to pane in direction d: the one whose area
-// lies beyond pane's border on that side and overlaps it the most.
+// Neighbor returns the pane next to pane in direction d: the nearest one
+// whose area lies beyond pane's border on that side, overlapping it the
+// most. Equal candidates go to the topmost (left or right) or leftmost (up
+// or down) one, so the answer does not depend on map order.
 func Neighbor(root *Node, area Rect, pane string, d Direction) (string, bool) {
 	rects := Geometry(root, area, "")
 	from, ok := rects[pane]
 	if !ok {
 		return "", false
+	}
+	// pos is a candidate's place along pane's border, for ties.
+	pos := func(r Rect) int {
+		if d == Left || d == Right {
+			return r.Y
+		}
+		return r.X
 	}
 	best, bestOverlap, bestDist := "", -1, math.MaxInt
 	for id, r := range rects {
@@ -93,7 +102,9 @@ func Neighbor(root *Node, area Rect, pane string, d Direction) (string, bool) {
 		if dist < 0 || overlap <= 0 {
 			continue
 		}
-		if dist < bestDist || (dist == bestDist && overlap > bestOverlap) {
+		better := dist < bestDist || (dist == bestDist && overlap > bestOverlap) ||
+			(dist == bestDist && overlap == bestOverlap && pos(r) < pos(rects[best]))
+		if better {
 			best, bestOverlap, bestDist = id, overlap, dist
 		}
 	}

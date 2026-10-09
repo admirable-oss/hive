@@ -169,7 +169,7 @@ func TestNeighbor(t *testing.T) {
 		{"b", layout.Left, "a"},
 		{"a", layout.Down, "c"},
 		{"b", layout.Down, "c"},
-		{"c", layout.Up, "a"}, // a and b overlap c equally; the left one wins ties by distance order
+		{"c", layout.Up, "a"}, // a and b overlap c equally; the leftmost wins the tie
 		{"a", layout.Up, ""},
 	}
 	for _, tt := range tests {
@@ -178,9 +178,6 @@ func TestNeighbor(t *testing.T) {
 			if ok {
 				t.Errorf("%s %s: got %s, want none", tt.from, tt.d, got)
 			}
-			continue
-		}
-		if tt.from == "c" && (got == "a" || got == "b") {
 			continue
 		}
 		if got != tt.want {
@@ -292,5 +289,27 @@ func checkTiling(t *testing.T, seed uint64, root *layout.Node) {
 	}
 	if paneCells > area.W*area.H {
 		t.Fatalf("seed %d: panes cover more than the area", seed)
+	}
+}
+
+func TestNeighborTiesAreStable(t *testing.T) {
+	// a | b      With 101 columns a and b are 50 wide each, so both
+	// --+--      overlap c equally: the leftmost must win every time,
+	//   c        not whichever map order yields first.
+	root := mustSplit(t, layout.Leaf("a"), "a", layout.Down, 0, "c")
+	root = mustSplit(t, root, "a", layout.Right, 0, "b")
+	even := layout.Rect{W: 101, H: 41}
+	for range 50 {
+		if got, _ := layout.Neighbor(root, even, "c", layout.Up); got != "a" {
+			t.Fatalf("c up = %q, want a", got)
+		}
+	}
+	// The same across a vertical border: x is 41 rows, two equal halves.
+	root = mustSplit(t, layout.Leaf("x"), "x", layout.Right, 0, "y")
+	root = mustSplit(t, root, "y", layout.Down, 0, "z")
+	for range 50 {
+		if got, _ := layout.Neighbor(root, even, "x", layout.Right); got != "y" {
+			t.Fatalf("x right = %q, want y (the top one)", got)
+		}
 	}
 }

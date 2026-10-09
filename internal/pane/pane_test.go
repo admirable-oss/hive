@@ -216,6 +216,24 @@ func TestMovingAPaneKeepsItsProcess(t *testing.T) {
 	if again.TabID == dst.ID {
 		t.Fatal("a move to an environment makes a new tab")
 	}
+
+	// Both environments were saved: a restarted daemon finds each pane once,
+	// in its new place.
+	st, err := w.store.Load(ctx, "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Tabs) != 0 || len(st.Panes) != 0 {
+		t.Fatalf("stored state of the emptied environment: %+v", st)
+	}
+	reloaded := pane.NewService(pane.Config{Size: terminal.Size{Width: 81, Height: 24}}, w.store, w.procs, w.terms, w.envs, nil)
+	panes, err := reloaded.Panes(ctx, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(panes) != 3 {
+		t.Fatalf("panes after a reload = %d, want 3: %+v", len(panes), panes)
+	}
 }
 
 func TestPopupClosesWithItsCommand(t *testing.T) {
@@ -460,6 +478,7 @@ func TestRandomOperationsKeepStateConsistent(t *testing.T) {
 func checkConsistent(t *testing.T, w *world) {
 	t.Helper()
 	ctx := context.Background()
+	stored := map[string]string{} // pane → environment, across environments
 	for _, env := range []string{"a", "b"} {
 		st, err := w.store.Load(ctx, env)
 		if err != nil {
@@ -488,6 +507,10 @@ func checkConsistent(t *testing.T, w *world) {
 			if where[p.ID] != p.TabID || p.EnvironmentID != env {
 				t.Fatalf("pane %s record (tab %s env %s) disagrees with layouts (tab %s env %s)", p.ID, p.TabID, p.EnvironmentID, where[p.ID], env)
 			}
+			if prev, dup := stored[p.ID]; dup {
+				t.Fatalf("pane %s stored in environments %s and %s", p.ID, prev, env)
+			}
+			stored[p.ID] = env
 			delete(where, p.ID)
 		}
 		if len(where) != 0 {
