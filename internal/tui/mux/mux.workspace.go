@@ -43,6 +43,7 @@ type workspaceState struct {
 	envID   string
 
 	live     bool            // the event stream is open
+	activity map[string]bool // tabs whose agents printed since they were last shown
 	claims   map[string]size // tab sizes this client asked for, by tab ID
 	claiming map[string]bool // tab.resize calls in flight
 }
@@ -169,6 +170,11 @@ func (a *App) loaded(m loadedMsg) {
 	} else {
 		a.ws.err = nil
 		a.ws.snap = m.snap
+		for id := range a.ws.activity {
+			if m.snap.tab(id) == nil {
+				delete(a.ws.activity, id) // the tab closed
+			}
+		}
 		a.pickEnv()
 		a.afterChange()
 	}
@@ -193,6 +199,7 @@ func (a *App) afterChange() {
 	}
 	a.syncViews()
 	a.claimSize(false)
+	a.seen()
 	a.dirty = true
 }
 
@@ -296,6 +303,45 @@ func (a *App) paneOrder() []string {
 	return t.Layout.Panes()
 }
 
+// noteOutput marks the tab of an agent that printed, unless it is on
+// screen.
+func (a *App) noteOutput(ev event.Event) {
+	var out struct {
+		ID string `json:"id"`
+	}
+	if json.Unmarshal(ev.Data, &out) != nil {
+		return
+	}
+	p := a.ws.snap.paneOfProcess(out.ID)
+	if p == nil {
+		return
+	}
+	if t := a.tab(); t != nil && t.ID == p.TabID && a.ui.overview == nil {
+		return // on screen already
+	}
+	if !a.ws.activity[p.TabID] {
+		a.ws.activity[p.TabID] = true
+		a.dirty = true
+	}
+}
+
+// seen clears the activity mark of the tab on screen.
+func (a *App) seen() {
+	if t := a.tab(); t != nil && a.ui.overview == nil && a.ws.activity[t.ID] {
+		delete(a.ws.activity, t.ID)
+	}
+}
+
+// envActivity reports whether a tab of envID has unseen output.
+func (a *App) envActivity(envID string) bool {
+	for _, t := range a.ws.snap.tabsOf(envID) {
+		if a.ws.activity[t.ID] {
+			return true
+		}
+	}
+	return false
+}
+
 // --- sizes ---
 
 // claimedMsg reports a finished tab.resize.
@@ -391,6 +437,12 @@ func (a *App) handleEvents(m eventsMsg) {
 // workspace again.
 func (a *App) apply(ev event.Event) {
 	s := a.ws.snap
+	if ev.Type == event.ProcessOutput {
+		if s != nil {
+			a.noteOutput(ev)
+		}
+		return // news, not a change to the workspace
+	}
 	if s == nil {
 		a.refresh()
 		return

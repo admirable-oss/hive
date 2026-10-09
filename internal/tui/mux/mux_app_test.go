@@ -552,3 +552,27 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 	}
 	return b
 }
+
+func TestHiddenTabsShowActivity(t *testing.T) {
+	h := newHarness(t, 90, 12, Options{})
+	ctx := context.Background()
+	shown := h.a.tab().ID
+	created, err := h.api.TabCreate(ctx, pane.CreateTabRequest{
+		EnvironmentID: "api", Name: "logs",
+		Pane: pane.Spec{Command: []string{"/bin/sh", "-c", "sleep 0.3; while :; do echo tick; sleep 0.1; done"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.api.TabFocus(ctx, shown); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor("the logs tab, hidden", func() bool { return len(h.a.envTabs()) == 2 && h.a.tab().ID == shown })
+	h.waitFor("an activity mark on it", func() bool { return h.a.ws.activity[created.Tab.ID] })
+	h.waitText("2 logs•")
+	if h.a.ws.activity[shown] {
+		t.Fatal("the tab on screen is never marked")
+	}
+	h.press("ctrl+b", "2")
+	h.waitFor("the mark to clear once shown", func() bool { return h.a.tab().ID == created.Tab.ID && !h.a.ws.activity[created.Tab.ID] })
+}

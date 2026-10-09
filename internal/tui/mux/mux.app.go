@@ -106,6 +106,7 @@ func New(ctx context.Context, c client.Client, opts Options) *App {
 	a.ui.collapsed = map[string]bool{}
 	a.ws.claims = map[string]size{}
 	a.ws.claiming = map[string]bool{}
+	a.ws.activity = map[string]bool{}
 	for _, w := range opts.Warnings {
 		a.toast(compositor.ToastWarning, w)
 	}

@@ -71,9 +71,10 @@ func (a *App) tabBar() compositor.TabBar {
 		active := a.tab()
 		for i, t := range s.tabsOf(a.ws.envID) {
 			tb.Tabs = append(tb.Tabs, compositor.Tab{
-				ID:     t.ID,
-				Label:  fmt.Sprintf("%d %s", i+1, t.Name),
-				Active: active != nil && t.ID == active.ID,
+				ID:       t.ID,
+				Label:    fmt.Sprintf("%d %s", i+1, t.Name),
+				Active:   active != nil && t.ID == active.ID,
+				Activity: a.ws.activity[t.ID],
 			})
 		}
 	}
@@ -195,6 +196,9 @@ func (a *App) sidebarRows() []compositor.SidebarRow {
 		for _, e := range s.envs {
 			glyph, c := a.envGlyph(s, e)
 			spans := []compositor.Span{{Text: glyph + " ", Style: uv.Style{Fg: c}}, {Text: e.ID}}
+			if e.ID != a.ws.envID && a.envActivity(e.ID) {
+				spans = append(spans, compositor.Span{Text: " •", Style: uv.Style{Fg: a.theme.Accent}})
+			}
 			if g := gitSummary(e.Git); g != "" {
 				spans = append(spans, compositor.Span{Text: "  " + g, Style: muted})
 			}

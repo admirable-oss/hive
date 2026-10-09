@@ -106,6 +106,7 @@ func (o *overview) header(a *App) int {
 
 func (a *App) closeOverview() {
 	a.ui.overview = nil
+	a.seen()
 	a.afterResize()
 }
 
