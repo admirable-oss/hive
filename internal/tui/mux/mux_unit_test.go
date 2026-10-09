@@ -1,7 +1,10 @@
 package mux
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -210,5 +213,41 @@ func TestOutputNewsDoesNotRedrawForNothing(t *testing.T) {
 	h.a.Handle(eventsMsg{ev: &event.Event{Type: event.ProcessOutput, Data: mustJSON(t, map[string]string{"id": p.ProcessID})}})
 	if h.a.dirty {
 		t.Fatal("output from the tab on screen changes nothing to redraw (its frames do that)")
+	}
+}
+
+func TestLocalClipboardRunsTheSystemTool(t *testing.T) {
+	dir := t.TempDir()
+	got := filepath.Join(dir, "clipboard")
+	for _, tool := range []string{"pbcopy", "wl-copy", "xclip", "xsel"} {
+		script := "#!/bin/sh\n/bin/cat > " + got + "\n"
+		if err := os.WriteFile(filepath.Join(dir, tool), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir)
+	t.Setenv("WAYLAND_DISPLAY", "wayland-0")
+	t.Setenv("SSH_TTY", "")
+	t.Setenv("SSH_CONNECTION", "")
+	a := New(context.Background(), nil, Options{Clipboard: ClipboardLocal})
+	a.clipboard("copied text")
+	a.Close() // waits for the tool
+	if b, _ := os.ReadFile(got); string(b) != "copied text" {
+		t.Fatalf("the tool got %q", b)
+	}
+	if out := a.TakeOutput(); len(out) != 0 {
+		t.Fatalf("local mode sends no OSC 52: %q", out)
+	}
+
+	b := New(context.Background(), nil, Options{Clipboard: ClipboardAuto})
+	t.Setenv("SSH_TTY", "/dev/ttys001")
+	_ = os.Remove(got)
+	b.clipboard("over ssh")
+	b.Close()
+	if _, err := os.Stat(got); err == nil {
+		t.Fatal("over SSH, auto mode must not use the local tool (it would copy on the remote machine)")
+	}
+	if out := b.TakeOutput(); len(out) != 1 {
+		t.Fatalf("over SSH, auto mode uses OSC 52: %q", out)
 	}
 }

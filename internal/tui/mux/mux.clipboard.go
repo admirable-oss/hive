@@ -39,6 +39,9 @@ func ParseClipboard(s string) (Clipboard, bool) {
 	return ClipboardAuto, false
 }
 
+// toolTimeout bounds the clipboard tool and the link opener.
+const toolTimeout = 5 * time.Second
+
 // maxOSC52 is the largest copy sent through the terminal; many terminals
 // drop longer OSC 52 sequences, and base64 grows them by a third.
 const maxOSC52 = 74 << 10
@@ -57,7 +60,9 @@ func (a *App) clipboard(text string) {
 			a.bg.Add(1)
 			go func() {
 				defer a.bg.Done()
-				ctx, cancel := context.WithTimeout(a.ctx, 5*time.Second)
+				// Not a.ctx: copying and then leaving at once must still copy
+				// (Close waits for it).
+				ctx, cancel := context.WithTimeout(context.Background(), toolTimeout)
 				defer cancel()
 				cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 				cmd.Stdin = strings.NewReader(text)
@@ -94,14 +99,17 @@ func (a *App) openURL(url string) {
 		a.copyText(url)
 		return
 	}
-	cmd := exec.CommandContext(a.ctx, opener, url)
+	ctx, cancel := context.WithTimeout(context.Background(), toolTimeout) // outlives a quick detach
+	cmd := exec.CommandContext(ctx, opener, url)
 	if err := cmd.Start(); err != nil {
+		cancel()
 		a.copyText(url)
 		return
 	}
 	a.bg.Add(1)
 	go func() {
 		defer a.bg.Done()
+		defer cancel()
 		_ = cmd.Wait()
 	}()
 }

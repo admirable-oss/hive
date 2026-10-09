@@ -3,8 +3,10 @@ package mux
 import (
 	"context"
 	"encoding/json"
+	"image/color"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -599,5 +601,119 @@ func TestCtrlClickOpensHyperlinks(t *testing.T) {
 	h.click(x, y, 0) // without ctrl a click only focuses
 	if len(opened) != 2 {
 		t.Fatalf("a plain click opened %q", opened)
+	}
+}
+
+func TestEveryModeDrawsAtAnySize(t *testing.T) {
+	h := newHarness(t, 80, 24, Options{})
+	h.press("ctrl+b", "%")
+	h.waitFor("a split", func() bool { return len(h.panes()) == 2 })
+	h.typeLines("some text")
+	states := map[string]func(){
+		"terminal": func() {},
+		"help":     func() { h.press("ctrl+b", "?") },
+		"picker":   func() { h.press("ctrl+b", "w") },
+		"overview": func() { h.press("ctrl+b", "O") },
+		"prompt":   func() { h.press("ctrl+b", ",") },
+		"confirm":  func() { h.press("ctrl+b", "x") },
+		"copy": func() {
+			h.press("ctrl+b", "[")
+			h.waitFor("copy", func() bool { return h.a.ui.copy != nil && h.a.ui.copy.c != nil })
+		},
+		"sidebar": func() { h.press("ctrl+b", "b") },
+	}
+	for _, name := range sortedNames(states) {
+		states[name]()
+		for w := 1; w <= 30; w += 3 {
+			for ht := 1; ht <= 12; ht++ {
+				h.a.HandleEvent(uv.WindowSizeEvent{Width: w, Height: ht})
+				h.w, h.h = w, ht
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							t.Fatalf("%s at %dx%d: %v", name, w, ht, r)
+						}
+					}()
+					h.screen()
+				}()
+			}
+		}
+		h.a.HandleEvent(uv.WindowSizeEvent{Width: 80, Height: 24})
+		h.w, h.h = 80, 24
+		// Back to terminal mode for the next state.
+		h.a.ui.overlay, h.a.ui.overview = nil, nil
+		h.a.exitCopy()
+		h.a.ui.sidebar = true
+		h.settle()
+	}
+}
+
+func sortedNames(m map[string]func()) []string {
+	var out []string
+	for k := range m {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
+}
+
+func TestRemainingPaneAndTabActions(t *testing.T) {
+	h := newHarness(t, 100, 16, Options{HideSidebar: true})
+	h.press("ctrl+b", "%")
+	h.waitFor("a split", func() bool { return len(h.panes()) == 2 })
+	a, b := h.panes()[0], h.panes()[1]
+
+	h.press("ctrl+b", "o")
+	h.waitFor("focus-next wraps to the first pane", func() bool { return h.focused() == a })
+	h.press("ctrl+b", ";")
+	h.waitFor("focus-prev", func() bool { return h.focused() == b })
+
+	h.press("ctrl+b", "{")
+	h.waitFor("swap", func() bool { p := h.panes(); return len(p) == 2 && p[0] == b && p[1] == a })
+
+	h.press("ctrl+b", ".", "ctrl+u")
+	h.typeText("worker")
+	h.press("enter")
+	h.waitFor("the pane's new name", func() bool { return strings.Contains(h.screen(), "─ worker ") })
+
+	h.press("ctrl+b", "f")
+	h.waitFor("a popup", func() bool { return len(h.a.tab().Popups) == 1 && h.focused() == h.a.tab().Popups[0].Pane })
+	popup := h.focused()
+	h.press("ctrl+d") // its shell (cat) ends, and the popup with it
+	h.waitFor("the popup to close", func() bool { return len(h.a.tab().Popups) == 0 && h.a.ws.snap.pane(popup) == nil })
+
+	h.press("ctrl+b", "c")
+	h.waitFor("a second tab", func() bool { return len(h.a.envTabs()) == 2 })
+	h.press("ctrl+b", "&")
+	if _, ok := h.a.ui.overlay.(*confirm); !ok {
+		t.Fatal("closing a tab asks first")
+	}
+	h.press("y")
+	h.waitFor("one tab", func() bool { return len(h.a.envTabs()) == 1 })
+}
+
+func TestConfiguredKeysAndAutoTheme(t *testing.T) {
+	km, warnings := keymap.New(keymap.Overrides{
+		Prefix: []string{"ctrl+a"},
+		Modes:  map[keymap.Mode]map[keymap.Action][]string{keymap.ModePrefix: {keymap.SplitRight: {"v"}}},
+	})
+	if len(warnings) > 0 {
+		t.Fatal(warnings)
+	}
+	h := newHarness(t, 90, 12, Options{HideSidebar: true, Keymap: km})
+	h.press("ctrl+b") // not a prefix any more: typed into the pane
+	h.waitText("^B")
+	h.press("ctrl+a", "v")
+	h.waitFor("a split from the configured key", func() bool { return len(h.panes()) == 2 })
+	if !strings.Contains(h.screen(), "C-a ? help") {
+		t.Fatal("hints use the configured prefix")
+	}
+
+	if h.a.theme.Name != "catppuccin" {
+		t.Fatalf("auto starts dark: %s", h.a.theme.Name)
+	}
+	h.a.HandleEvent(uv.BackgroundColorEvent{Color: color.White})
+	if h.a.theme.Name != "catppuccin-latte" {
+		t.Fatalf("a light terminal gets the light theme: %s", h.a.theme.Name)
 	}
 }
