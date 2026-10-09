@@ -3,6 +3,7 @@ package mux
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/layout"
 	"github.com/admirable-oss/hive/internal/pane"
+	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
 	"github.com/admirable-oss/hive/internal/tui/keymap"
 )
@@ -428,9 +430,21 @@ func TestFollowsChangesFromOtherClients(t *testing.T) {
 
 func TestExitedPaneStaysWithItsStatus(t *testing.T) {
 	h := newHarness(t, 70, 10, Options{HideSidebar: true})
-	h.typeLines("bye")
-	h.press("ctrl+d") // cat exits
-	h.waitText("[exited 0]")
+	// A command that exits by itself: ending cat with ctrl+d would leave
+	// "^D" on screen on macOS and not on Linux, whose terminals echo EOF
+	// differently.
+	created, err := h.api.TabCreate(context.Background(), pane.CreateTabRequest{
+		EnvironmentID: "api", Name: "job",
+		Pane: pane.Spec{Command: []string{"/bin/sh", "-c", "echo bye; echo done; exit 3"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.api.TabFocus(context.Background(), created.Tab.ID); err != nil {
+		t.Fatal(err)
+	}
+	h.waitText("[exited 3]")
+	h.waitText("done")
 	h.golden("exited")
 }
 
@@ -742,5 +756,51 @@ func TestSwitchingTabsDoesNotLeak(t *testing.T) {
 	}
 	if len(h.a.cache) > 4 {
 		t.Fatalf("%d cached screens for 4 agents", len(h.a.cache))
+	}
+}
+
+func TestCtrlCQuitsOnlyWithNoPaneToTypeInto(t *testing.T) {
+	h := newHarness(t, 70, 10, Options{HideSidebar: true})
+	h.press("ctrl+c")
+	if h.a.Quit() {
+		t.Fatal("with a pane focused, ctrl+c belongs to the pane")
+	}
+	h.waitText("^C")
+
+	c := client.NewService(client.Config{SocketPath: filepath.Join(t.TempDir(), "none.sock")})
+	t.Cleanup(func() { _ = c.Close() })
+	a := New(context.Background(), c, Options{Clipboard: ClipboardOff})
+	t.Cleanup(a.Close)
+	a.HandleEvent(uv.WindowSizeEvent{Width: 70, Height: 12})
+	a.Start()
+	down := &harness{t: t, c: c, a: a, w: 70, h: 12}
+	down.waitText("ctrl+c quits")
+	down.press("ctrl+c")
+	if !a.Quit() {
+		t.Fatal("with nothing to type into, ctrl+c quits")
+	}
+}
+
+// failingClient is a daemon that answers, but not the way this UI needs
+// (an older build).
+type failingClient struct{ client.Client }
+
+func (failingClient) EnvironmentList(context.Context) ([]environment.Environment, error) {
+	return nil, &protocol.Error{Code: protocol.ErrorCodeInvalidParams, Message: "process.list: environment id is required"}
+}
+
+func (failingClient) Events(context.Context, ...string) (*client.EventStream, error) {
+	return nil, errors.New("no events")
+}
+
+func TestADaemonThatAnswersBadlyIsNotCalledUnreachable(t *testing.T) {
+	a := New(context.Background(), failingClient{}, Options{Clipboard: ClipboardOff})
+	t.Cleanup(a.Close)
+	a.HandleEvent(uv.WindowSizeEvent{Width: 70, Height: 12})
+	a.Start()
+	h := &harness{t: t, a: a, w: 70, h: 12}
+	h.waitText("The hive daemon returned an error")
+	if strings.Contains(h.screen(), "Cannot reach") {
+		t.Fatal("the daemon answered: it is reachable")
 	}
 }

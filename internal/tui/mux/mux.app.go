@@ -109,6 +109,7 @@ func New(ctx context.Context, c client.Client, opts Options) *App {
 	a.ws.claims = map[string]size{}
 	a.ws.claiming = map[string]bool{}
 	a.ws.activity = map[string]bool{}
+	a.ws.finals = map[string]bool{}
 	for _, w := range opts.Warnings {
 		a.toast(compositor.ToastWarning, w)
 	}
@@ -230,6 +231,8 @@ func (a *App) Handle(m Msg) {
 		}
 	case copyLoadedMsg:
 		a.copyLoaded(m)
+	case finalScreenMsg:
+		a.finalLoaded(m)
 	case previewLogsMsg:
 		if a.ui.overview != nil {
 			a.ui.overview.setLogs(m)

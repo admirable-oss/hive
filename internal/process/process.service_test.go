@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
@@ -350,4 +351,47 @@ func settleProcesses(t *testing.T, svc process.Service) {
 			return true
 		})
 	})
+}
+
+// slowStore holds exit records until release is closed.
+type slowStore struct {
+	process.Store
+	writing chan struct{} // closed when an exit record write starts
+	release chan struct{}
+	once    sync.Once
+}
+
+func (s *slowStore) Update(ctx context.Context, p process.Process) error {
+	if !p.Active() {
+		s.once.Do(func() { close(s.writing) })
+		<-s.release
+	}
+	return s.Store.Update(ctx, p)
+}
+
+func TestStopAllWaitsForExitsStillBeingRecorded(t *testing.T) {
+	root := t.TempDir()
+	envs := environment.NewService(environment.NewFilesystemStore(root))
+	ctx := context.Background()
+	if _, err := envs.Create(ctx, environment.CreateRequest{ID: "e"}); err != nil {
+		t.Fatal(err)
+	}
+	store := &slowStore{Store: process.NewFilesystemStore(root), writing: make(chan struct{}), release: make(chan struct{})}
+	svc := process.NewService(store, envs, &fakeRunner{}, nil) // its processes exit at once
+	if _, err := svc.Start(ctx, process.StartRequest{EnvironmentID: "e", Command: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	<-store.writing // exited, and its record is being written
+
+	stopped := make(chan error, 1)
+	go func() { stopped <- svc.StopAll(ctx) }()
+	select {
+	case <-stopped:
+		t.Fatal("StopAll returned while an exit was still being recorded")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(store.release)
+	if err := <-stopped; err != nil {
+		t.Fatal(err)
+	}
 }

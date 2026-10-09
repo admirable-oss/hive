@@ -208,6 +208,15 @@ func stopDaemon(ctx context.Context, a *app, stopAgents bool) error {
 		fmt.Fprintln(a.out, "hive daemon is not running")
 		return nil
 	}
+	if err := a.shutdownDaemon(ctx, stopAgents); err != nil {
+		return err
+	}
+	fmt.Fprintln(a.out, "hive daemon stopped")
+	return nil
+}
+
+// shutdownDaemon stops the running daemon and waits until it is gone.
+func (a *app) shutdownDaemon(ctx context.Context, stopAgents bool) error {
 	// Agents get the configured grace to exit, plus slack for the reply.
 	ctx, cancel := context.WithTimeout(ctx, a.cfg.Daemon.ShutdownTimeout+5*time.Second)
 	defer cancel()
@@ -227,7 +236,6 @@ func stopDaemon(ctx context.Context, a *app, stopAgents bool) error {
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
-	fmt.Fprintln(a.out, "hive daemon stopped")
 	return nil
 }
 

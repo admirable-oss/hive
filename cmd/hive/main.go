@@ -1,6 +1,6 @@
 // Command hive is the CLI. `hive daemon` runs the runtime; every other command
 // is a thin client of it, and starts it on demand. With no arguments, hive
-// opens the dashboard.
+// opens the multiplexer.
 //
 // Call chain: main → execute → newApp (composition root) → cobra command →
 // client → socket → daemon (see internal/runtime for the server side).

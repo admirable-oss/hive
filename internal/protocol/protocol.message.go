@@ -27,6 +27,18 @@ const Version = "1"
 // Version2 is the multiplexed protocol a client asks for in its hello.
 const Version2 = "2"
 
+// APILevel is the generation of the daemon's API: its methods, events and
+// what they mean. The daemon reports it in runtime.status; a client that
+// finds a daemon below its own level is talking to an older build (one
+// started before an upgrade, or by an older checkout) and replaces it.
+// Raise it whenever a method or event is added or changes meaning.
+// Daemons from before the level existed report none: 0.
+//
+//	1 protocol 2, frames, shims (M1)
+//	2 sessions, environments, tabs, panes, layouts, git (M2)
+//	3 the multiplexer: active tabs, frames/2, process.output (M3)
+const APILevel = 3
+
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.
 func CheckVersion(v string) error {

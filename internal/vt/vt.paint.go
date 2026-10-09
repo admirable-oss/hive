@@ -131,7 +131,7 @@ func isASCII(s string) bool {
 }
 
 // LineANSI renders cells as text with SGR styling, ending with a reset. It
-// is for drawing a line inside another UI (the dashboard).
+// is for drawing a line inside another UI, and for snapshots with --ansi.
 func LineANSI(cells []Cell) string {
 	var b bytes.Buffer
 	var cur Style
