@@ -25,7 +25,8 @@ LDFLAGS := -s -w \
 # Fuzz targets as <package>:<FuzzName>.
 FUZZ_TARGETS := \
 	./internal/protocol/tests:FuzzStreamReceive \
-	./internal/config:FuzzParse
+	./internal/config:FuzzParse \
+	./internal/vt:FuzzDecodeFrame
 
 .DEFAULT_GOAL := help
 

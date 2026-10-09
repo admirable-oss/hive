@@ -67,7 +67,7 @@ func TestRuntime_RemoteShutdownClosesDone(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := client.NewService(client.Config{SocketPath: path}).Shutdown(ctx); err != nil {
+	if err := client.NewService(client.Config{SocketPath: path}).Shutdown(ctx, true); err != nil {
 		t.Fatalf("shutdown: %v", err)
 	}
 	select {

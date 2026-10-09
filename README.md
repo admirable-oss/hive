@@ -31,13 +31,16 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 
 | Area | State |
 |------|-------|
-| Runtime daemon, unix-socket protocol, CLI | ✅ working |
+| Runtime daemon, unix-socket protocol (multiplexed protocol 2, plain protocol 1), CLI | ✅ working |
+| Agents survive daemon crashes, restarts and upgrades (one shim per agent) | ✅ working |
 | Daemon autostart, login service (launchd / systemd), single-instance lock | ✅ working |
 | Config file, structured logs with rotation | ✅ working |
 | Environments (persistent workspaces) | ✅ working |
 | Processes: plain or PTY-backed, lifecycle, stdout/stderr logs (tail, follow), clean stop of the whole process tree | ✅ working |
-| Terminal attach / detach, live input, resize | ✅ working |
-| Dashboard TUI with live logs and interactive takeover | ✅ working |
+| Terminal emulation: attach shows the exact screen at once, snapshots, scrollback | ✅ working |
+| Terminal attach / detach, live input, resize ("last to type sets the size") | ✅ working |
+| Event stream (`hive events`): processes and environments as they change | ✅ working |
+| Dashboard TUI: live agent screens, event-driven, interactive takeover | ✅ working |
 | Crash recovery: stale records closed out, orphaned agents stopped (PID and start time verified) | ✅ working |
 | Agent state detection (*blocked*, *waiting for input*) | 🚧 next |
 | Agent-facing API (agents managing agents) | 🗺 planned |
@@ -68,12 +71,15 @@ In the dashboard: `↑↓`/`tab` select an agent, `↵` takes control of its ter
 | `hive ps start [-t] <env> [--] <cmd> [args…]` | Start a process (`-t` gives it a terminal) |
 | `hive ps list [env] \| get <id> \| stop <id>` | Inspect and stop processes |
 | `hive ps logs <id> [-n N] [-f] [--stderr]` | Print a process's output; `-f` follows it until the process exits |
-| `hive terminal attach <id>` | Attach to an agent's terminal; **Ctrl+]** detaches |
+| `hive terminal attach <id>` | Attach to an agent's terminal; **Ctrl+]** detaches and the agent keeps running |
+| `hive terminal snapshot <id> [--ansi] [--scrollback N]` | Print an agent's current screen, optionally with its last N lines of history |
 | `hive terminal input <id> <text>` · `resize <id> <w> <h>` | Type into / resize an agent's terminal |
+| `hive events [type-prefix…]` | Stream daemon events as JSON lines |
 | `hive status` · `hive ping` · `hive version` | Inspect the runtime (exit code 3 when the daemon is not running) |
-| `hive stop` | Stop the runtime and every agent it runs |
+| `hive stop` | Stop the runtime **and every agent it runs** |
 | `hive daemon` | Run the runtime in the foreground (what service managers run) |
-| `hive daemon start \| stop \| restart \| status \| logs [-f]` | Manage the background daemon |
+| `hive daemon restart` | Restart the runtime; agents keep running and are re-attached |
+| `hive daemon start \| stop [--keep-agents] \| status \| logs [-f]` | Manage the background daemon |
 | `hive daemon install \| uninstall` | Run the daemon as a launchd agent (macOS) or systemd user service (Linux) |
 | `hive config path \| show \| default \| init \| validate` | Inspect and create the configuration file |
 | `hive completion bash\|zsh\|fish\|powershell` | Shell completion, including environment and process IDs |
@@ -101,7 +107,7 @@ stop_grace = "3s"           # SIGTERM → SIGKILL delay when stopping an agent
 [terminal]
 default_width = 220         # size of a new agent terminal
 default_height = 50
-history_kb = 64             # output replayed to a client when it attaches
+scrollback_mb = 10          # history kept per agent (lines that scrolled off its screen)
 ```
 
 Unknown keys and invalid values are reported as warnings and fall back to the defaults, so a typo never stops the daemon that keeps your agents alive. A file that is not valid TOML is an error, and the daemon refuses to start with it. `hive config validate` checks a file and exits non-zero on any problem.
@@ -110,7 +116,13 @@ Data lives in `~/.hive`. Set `HIVE_HOME` to use another directory, for example t
 
 ## Architecture
 
-Hive is a single binary with two roles: a **daemon** that owns environments and agent processes, and **clients** (the CLI and the dashboard) that talk to it over a unix socket. Closing a client never touches an agent; only the daemon does.
+Hive is a single binary with three roles:
+
+- a **shim** per agent (`hive __shim`), which owns the agent's PTY, terminal emulator and logs, and outlives everything except `hive stop`;
+- a **daemon** that owns environments and supervises agents through their shims;
+- **clients** (the CLI and the dashboard) that talk to the daemon over a unix socket.
+
+Closing a client never touches an agent. Stopping, crashing or upgrading the daemon doesn't either: the next daemon re-attaches to the shims ([ADR 0006](docs/adr/0006-shims-protocol-2-and-frames.md)).
 
 ```
 cmd/hive ──────────── CLI composition root: builds one `app` (paths, config, client); cobra commands
@@ -118,16 +130,20 @@ cmd/hive ──────────── CLI composition root: builds one `
  ├── tui ──────────── dashboard; depends only on the client.Client contract
  ├── daemonctl ────── start the daemon detached (autostart), install launchd / systemd services
  ├── config ───────── config.toml: defaults, forgiving validation, rendering
- ├── client ───────── one generic call() per request over protocol.Stream
+ ├── client ───────── protocol 2 over one connection (falls back to protocol 1)
  │        ╎
  │        ╎  unix socket (0600) · newline-delimited JSON
  │        ╎
  └── runtime ──────── daemon composition root: wires modules, serves the socket, owns agent lifetimes
-       ├── process ── supervises agents: start, monitor, stop, recover (and reap orphans), logs
+       ├── process ── supervises agents: start, monitor, stop, recover / adopt, logs
        │     ├── environment ── persistent workspaces
-       │     └── terminal ───── PTY sessions, live output fan-out
-       └── protocol ─ framing, router, typed handlers           (leaf)
-           jsonfile · pgroup · platform · logging · buildinfo   (leaves)
+       │     └── terminal ───── sessions, viewers, size arbitration, attach / frames / snapshot
+       │            └── shim ──── one process per agent: PTY + emulator; adopted after restarts
+       │                   ╎
+       │                   ╎  run/<id>/shim.sock · protocol 2
+       ├── event ──── event bus behind `events.subscribe`
+       └── vt ─────── terminal emulation (x/vt), frames codec, ANSI painter, scrollback
+           protocol · jsonfile · pgroup · platform · logging · buildinfo   (leaves)
 ```
 
 Dependencies only point **down**. Leaf packages know nothing about Hive's domain, and no package imports one above it. The rule is enforced by `depguard` in `make lint`.
@@ -147,8 +163,9 @@ hive ps start -t dev -- claude
   protocol.Router.Handle            internal/protocol     → "process.start"
   protocol.Method[StartRequest]     decodes params once, encodes the result
   process.service.Start             internal/process      → Environments.Get (port)
-  process.service.launch            → terminal.Service.Open → PTYFactory.Open → creack/pty
-  process.service.monitor           waits, then persists the final state via Store
+  process.service.launch            → terminal.Service.Open → shim.Launcher.Open: spawn `hive __shim` (setsid)
+  shim.Run (in the shim process)    internal/shim         → PTYFactory.Open → creack/pty, vt.Terminal
+  process.service.monitor           Remote.Wait (shim.wait) → persist the final state → Remote.Release
 ```
 
 ### On disk
@@ -159,6 +176,9 @@ hive ps start -t dev -- claude
   hive.pid                                   daemon PID; flock-ed while the daemon runs (one daemon per root)
   logs/daemon.log[.1…]                       structured daemon log, rotated by size
   logs/daemon.stderr                         the daemon's stderr from its last start (start-up errors)
+  run/<process-id>/                          one shim per live agent (0700)
+    spec.json  state.json                    what it runs; running / exited + exit code
+    shim.sock  shim.log  shim.stderr         its socket (0600) and its own logs
   environments/<env>/
     environment.json
     workspace/                               where the env's agents run
@@ -169,16 +189,20 @@ hive ps start -t dev -- claude
 
 ### Wire protocol
 
-One JSON object per line. Requests carry `version`, `type`, `id`, `method` and `params`. Each response carries the same `id` with either `result` or `error: {code, message}`. Error codes are `invalid_request`, `unknown_method`, `invalid_params`, `not_found`, `internal_error` and `unsupported_version`. A request stamped with another protocol version is answered with `unsupported_version` (an unversioned request counts as current, so the socket stays easy to drive by hand).
+One JSON object per line. Requests carry `type`, `id`, `method` and `params`; each response carries the same `id` with either `result` or `error: {code, message}`. Error codes are `invalid_request`, `unknown_method`, `invalid_params`, `not_found`, `internal_error`, `unsupported_version`, `unsupported` and `unavailable`.
+
+- **Protocol 1** is the default: one request, one response, in order. Hand-written clients (`nc`) use it. A request may open a *pipe* that takes over the rest of the connection.
+- **Protocol 2** starts with `{"type":"hello","version":"2","params":{"client":…}}`. The server answers with a `welcome` listing its methods and capabilities. From then on, requests run concurrently and any number of pipes share the connection: the response that opens one carries a `stream` ID, and its bytes travel as `{"type":"data","stream":…,"data":<base64>}` until a `close`. The CLI and the dashboard speak protocol 2, and fall back to protocol 1 against an older daemon.
 
 | Namespace | Methods |
 |-----------|---------|
-| `runtime` | `ping`, `status`, `shutdown` |
+| `runtime` | `ping`, `status`, `shutdown` (`stop_agents`, default true) |
 | `environment` | `list`, `create`, `get`, `remove` |
-| `process` | `start`, `list`, `get`, `logs`, `logs.stream`, `stop` |
-| `terminal` | `attach`, `input`, `resize` |
+| `process` | `start`, `list`, `get`, `logs`, `logs.stream` (pipe), `stop` |
+| `terminal` | `attach` (pipe: screen painted as ANSI, keystrokes back), `frames` (pipe: binary screen frames), `snapshot`, `input`, `resize` |
+| `events` | `subscribe` (pipe: one JSON event per line; `events_lost` means resync) |
 
-`terminal.attach` and `process.logs.stream` *upgrade* the connection. After the reply, the socket carries raw bytes: terminal I/O in both directions for `attach`, and the log (optionally followed until the process exits) for `logs.stream`. The server's reader is kept for the whole connection, so no byte that arrives right behind the reply is lost. `process.logs` returns a size-capped tail in a single reply (`truncated: true` when cut).
+Screens never travel as raw output. Each agent's terminal is emulated in its shim, and viewers get frames computed from the current screen when they are ready for one. A slow viewer gets fewer frames, never a corrupted screen, and a late one starts with an exact keyframe. `process.logs` returns a size-capped tail in one reply (`truncated: true` when cut); `process.logs.stream` sends logs of any size.
 
 ## Design principles
 

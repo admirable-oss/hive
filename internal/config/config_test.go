@@ -50,14 +50,14 @@ func TestParseOverridesOnlyGivenKeys(t *testing.T) {
 level = "WARNING"
 
 [terminal]
-history_kb = 256
+scrollback_mb = 64
 `))
 	if err != nil || len(warnings) != 0 {
 		t.Fatalf("parse: %v, warnings %v", err, warnings)
 	}
 	want := config.Defaults()
 	want.Log.Level = "warn"
-	want.Terminal.HistoryKB = 256
+	want.Terminal.ScrollbackMB = 64
 	if cfg != want {
 		t.Fatalf("got %+v, want %+v", cfg, want)
 	}
@@ -191,5 +191,15 @@ func TestLoggingConfig(t *testing.T) {
 	lc := cfg.LoggingConfig("/tmp/d.log", true)
 	if lc.Level != slog.LevelError || lc.MaxSizeBytes != 2<<20 || lc.Path != "/tmp/d.log" || !lc.Stderr {
 		t.Fatalf("unexpected logging config %+v", lc)
+	}
+}
+
+func TestDeprecatedKeysWarnButLoad(t *testing.T) {
+	cfg, warnings, err := config.Parse([]byte("[terminal]\nhistory_kb = 64\n"))
+	if err != nil || cfg != config.Defaults() {
+		t.Fatalf("parse: %+v, %v", cfg, err)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "terminal.history_kb: is no longer used") {
+		t.Fatalf("warnings = %v", warnings)
 	}
 }

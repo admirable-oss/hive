@@ -28,7 +28,9 @@ func startDaemon(t *testing.T) client.Client {
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_ = mod.Service.Stop(ctx)
+		if err := mod.Service.Stop(ctx); err != nil {
+			t.Errorf("stop daemon: %v", err)
+		}
 	})
 	return client.NewService(client.Config{SocketPath: path})
 }
@@ -198,7 +200,7 @@ func TestClient_StatusIdentifiesTheDaemon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.PID == 0 || st.Version == "" || st.ProtocolVersion != protocol.Version {
+	if st.PID == 0 || st.Version == "" || st.ProtocolVersion != protocol.Version2 {
 		t.Fatalf("status lacks identity: %+v", st)
 	}
 }

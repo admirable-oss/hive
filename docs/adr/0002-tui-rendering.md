@@ -77,3 +77,12 @@ Findings:
 - ultraviolet has no tagged release (pseudo-versions). Pin it and cover it
   with golden-screen tests in `internal/tui/compositor`, so an upgrade that
   changes output fails CI rather than users.
+
+## Amendment (M1, 2026-10-08)
+
+The finding that "Bubble Tea v1 and v2 cannot live in one module" was wrong
+about the cause. The conflict came from Lip Gloss v1 pinning an old
+`charmbracelet/x/cellbuf` that does not compile against `x/ansi` v0.11.
+Requiring `x/cellbuf` v0.0.15 resolves it; M1 does this to use `x/vt` next to
+the Bubble Tea v1 dashboard. A migration can therefore be gradual if needed.
+The decision itself (draw cells through ultraviolet in M3) is unchanged.

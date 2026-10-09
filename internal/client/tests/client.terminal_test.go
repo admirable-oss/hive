@@ -65,53 +65,56 @@ func TestClientTerminalIntegration(t *testing.T) {
 		t.Errorf("expected status running, got %s", proc.Status)
 	}
 
-	// 3. Connect and interact via TerminalAttach
-	inReader, inWriter := io.Pipe()
-	syncWriter := &syncBuffer{}
-
+	// 3. Attach: keystrokes go in, the screen (painted as ANSI) comes out.
+	att, err := c.TerminalAttach(ctx, client.ViewRequest{ProcessID: proc.ID, Width: 250, Height: 30})
+	if err != nil {
+		t.Fatalf("TerminalAttach: %v", err)
+	}
+	if att.ID == "" || att.Width != 250 {
+		t.Fatalf("attach view = %+v; an attach takes over the terminal size", att.View)
+	}
+	painted := &syncBuffer{}
 	attachDone := make(chan error, 1)
 	go func() {
-		attachDone <- c.TerminalAttach(ctx, proc.ID, inReader, syncWriter)
+		_, err := io.Copy(painted, att)
+		attachDone <- err
 	}()
 
-	// Helper to send command and wait for output
+	// Helper to send a command and wait for the screen to show the result.
 	waitForOutput := func(send string, expected string) {
-		_, err := inWriter.Write([]byte(send))
-		if err != nil {
+		if _, err := att.Write([]byte(send)); err != nil {
 			t.Fatalf("write %q: %v", send, err)
 		}
-
 		deadline := time.Now().Add(3 * time.Second)
 		for time.Now().Before(deadline) {
-			if strings.Contains(syncWriter.String(), expected) {
+			snap, err := c.TerminalSnapshot(ctx, client.SnapshotRequest{ProcessID: proc.ID})
+			if err == nil && strings.Contains(strings.Join(snap.Lines, "\n"), expected) {
 				return
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
-		t.Fatalf("timed out waiting for output %q, current output:\n%s", expected, syncWriter.String())
+		snap, _ := c.TerminalSnapshot(ctx, client.SnapshotRequest{ProcessID: proc.ID})
+		t.Fatalf("timed out waiting for %q, screen:\n%s", expected, strings.Join(snap.Lines, "\n"))
 	}
 
-	// Test: echo hello -> expect "hello"
 	waitForOutput("echo hello\n", "hello")
-
-	// Test: pwd -> expect environment path
 	waitForOutput("pwd\n", env.Path)
-
-	// Test: export TEST=hive && echo $TEST -> expect "hive"
 	waitForOutput("export TEST=hive\necho $TEST\n", "hive")
+	if !strings.Contains(painted.String(), "hello") {
+		t.Fatalf("the attach output should paint the screen, got %q", painted.String())
+	}
 
-	// Test: exit -> shell terminates
-	_, _ = inWriter.Write([]byte("exit\n"))
-	_ = inWriter.Close()
-
+	// exit -> the shell terminates and the attach ends.
+	_, _ = att.Write([]byte("exit\n"))
 	select {
 	case err := <-attachDone:
 		if err != nil {
-			t.Fatalf("TerminalAttach finished with error: %v", err)
+			t.Fatalf("attach finished with error: %v", err)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for attach to finish after exit")
 	}
+	_ = att.Close()
 
 	// 4. Verify process transitioned to EXITED with exit code 0
 	deadline := time.Now().Add(3 * time.Second)

@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/admirable-oss/hive/internal/process"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 // Layout: a top bar, a 2×2 grid of panels inside one box, and a footer.
@@ -22,6 +23,20 @@ const (
 	topRowHeight        = 10
 	chromeLines         = 5 // top bar + three box borders + footer
 )
+
+// logsPanelSize returns the size of the agent output area (the right half of
+// the bottom row, inside its header) for a window of width × height. A
+// terminal agent the user types into is resized to exactly this.
+func logsPanelSize(width, height int) (int, int) {
+	width, height = max(width, minWidth), max(height, minHeight)
+	leftW := 36
+	if width > 130 {
+		leftW = 38
+	}
+	rightW := width - leftW - 3
+	bottomRowHeight := max(height-topRowHeight-chromeLines, 9)
+	return max(rightW-4, 10), max(bottomRowHeight-2, 3)
+}
 
 func (m Model) View() string {
 	if m.Quitting {
@@ -224,6 +239,11 @@ func (m Model) renderLogsPanel(width, height int) []string {
 		"  " + rule.Render(strings.Repeat("─", max(width-4, 0))),
 	}
 
+	if cur != nil && cur.Terminal {
+		if scr := m.screens[cur.ID]; scr != nil {
+			return append(lines, m.renderScreen(scr, width-4, height-2)...)
+		}
+	}
 	var logs []string
 	if cur != nil {
 		logs = m.logLines[cur.ID]
@@ -385,4 +405,34 @@ func padRight(s string, width int) string {
 func padLeft(s string, width int) string {
 	s = fitWidth(s, width)
 	return strings.Repeat(" ", max(width-ansi.StringWidth(s), 0)) + s
+}
+
+// renderScreen draws an agent's terminal screen into a w × h area. A screen
+// taller than the area shows the rows that end at the cursor (or the last
+// line with text), where the agent's activity is.
+func (m Model) renderScreen(scr *vt.Screen, w, h int) []string {
+	end := scr.Cursor.Y + 1
+	for y := scr.Rows - 1; y >= end; y-- {
+		if scr.LineText(y) != "" {
+			end = y + 1
+			break
+		}
+	}
+	end = min(max(end, h), scr.Rows)
+	start := max(0, end-h)
+	out := make([]string, 0, end-start)
+	for y := start; y < end; y++ {
+		line := scr.Lines[y]
+		if m.Interactive && y == scr.Cursor.Y && !scr.Cursor.Hidden && scr.Cursor.X < len(line) {
+			// Show where typing goes.
+			line = append([]vt.Cell(nil), line...)
+			c := &line[scr.Cursor.X]
+			c.Style.Attrs ^= vt.AttrReverse
+			if c.Content == "" {
+				c.Content = " "
+			}
+		}
+		out = append(out, "  "+ansi.Truncate(vt.LineANSI(line), w, ""))
+	}
+	return out
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/terminal"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 // ─── fakes ───────────────────────────────────────────────────────────────
@@ -21,6 +22,8 @@ type fakeSession struct {
 	closed  bool
 	waitErr error
 	waitCh  chan struct{}
+	size    terminal.Size
+	resizes int
 }
 
 func newFakeSession(pid int) *fakeSession {
@@ -42,18 +45,34 @@ func (s *fakeSession) Write(b []byte) (int, error) {
 	return s.buf.Write(b)
 }
 
-func (s *fakeSession) Resize(_ terminal.Size) error { return nil }
-func (s *fakeSession) Pid() int                     { return s.pid }
+func (s *fakeSession) Resize(size terminal.Size) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.size = size
+	s.resizes++
+	return nil
+}
+
+func (s *fakeSession) Size() terminal.Size {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.size
+}
+
+func (s *fakeSession) Pid() int { return s.pid }
+
+func (s *fakeSession) Snapshot(context.Context) (*vt.Screen, error) { return vt.NewScreen(1, 1), nil }
+
+func (s *fakeSession) Scrollback(context.Context, int, bool) ([]string, error) { return nil, nil }
+
+func (s *fakeSession) Frames(ctx context.Context, _ func(*vt.Frame) error) error {
+	<-ctx.Done()
+	return nil
+}
 
 func (s *fakeSession) Wait() error {
 	<-s.waitCh
 	return s.waitErr
-}
-
-func (s *fakeSession) Subscribe() *terminal.Subscription {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return terminal.NewSubscription(make(chan []byte), s.buf.Bytes(), nil, nil)
 }
 
 func (s *fakeSession) Close() error {
@@ -271,5 +290,66 @@ func TestTerminalService_FailedOpen(t *testing.T) {
 	_, err := svc.Open(context.Background(), "proc-7", terminal.Command{Path: "/bin/sh"})
 	if err == nil {
 		t.Fatal("expected error from failed open")
+	}
+}
+
+func TestTerminalService_LastViewToInteractSetsTheSize(t *testing.T) {
+	fake := newFakeSession(104)
+	factory := &fakeFactory{openFn: func(context.Context, terminal.Command) (terminal.Session, error) { return fake, nil }}
+	svc := newTestService(t, factory)
+	if _, err := svc.Open(context.Background(), "p", terminal.Command{Path: "/bin/sh"}); err != nil {
+		t.Fatal(err)
+	}
+	small, big := terminal.Size{Width: 80, Height: 20}, terminal.Size{Width: 200, Height: 60}
+
+	// A passive viewer (the dashboard) does not resize the agent's terminal.
+	dash, err := svc.Join("p", small, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fake.Size() != (terminal.Size{}) {
+		t.Fatalf("joining passively resized the terminal to %+v", fake.Size())
+	}
+	// An attach takes over at once.
+	attach, err := svc.Join("p", big, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fake.Size() != big {
+		t.Fatalf("attach: size %+v, want %+v", fake.Size(), big)
+	}
+	// Typing in the dashboard hands the size back to it.
+	if err := svc.Interact("p", dash); err != nil {
+		t.Fatal(err)
+	}
+	if fake.Size() != small {
+		t.Fatalf("after dashboard input: size %+v, want %+v", fake.Size(), small)
+	}
+	// Repeated input from the view in control does not resize again.
+	before := fake.resizes
+	_ = svc.Interact("p", dash)
+	if fake.resizes != before {
+		t.Fatal("input from the view in control must not resize")
+	}
+	// A view in control follows its own window size; others only record it.
+	if err := svc.ResizeView("p", dash, terminal.Size{Width: 90, Height: 25}); err != nil || fake.Size().Width != 90 {
+		t.Fatalf("resize of the active view: %+v, %v", fake.Size(), err)
+	}
+	if err := svc.ResizeView("p", attach, terminal.Size{Width: 300, Height: 70}); err != nil || fake.Size().Width != 90 {
+		t.Fatalf("resize of an inactive view must not apply: %+v, %v", fake.Size(), err)
+	}
+	svc.Leave("p", dash)
+	if err := svc.Interact("p", dash); !errors.Is(err, terminal.ErrViewNotFound) {
+		t.Fatalf("interact after leave: %v", err)
+	}
+	if _, err := svc.Join("missing", small, false); !errors.Is(err, terminal.ErrSessionNotFound) {
+		t.Fatalf("join on a missing session: %v", err)
+	}
+}
+
+func TestTerminalService_AdoptNeedsAnAdopter(t *testing.T) {
+	svc := newTestService(t, &fakeFactory{})
+	if _, err := svc.Adopt(context.Background(), "p"); !errors.Is(err, terminal.ErrNotAdoptable) {
+		t.Fatalf("got %v, want ErrNotAdoptable", err)
 	}
 }

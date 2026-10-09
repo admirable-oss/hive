@@ -11,7 +11,7 @@ import (
 func FuzzParse(f *testing.F) {
 	f.Add(config.Render(config.Defaults()))
 	f.Add([]byte("[daemon]\nautostart = false\nshutdown_timeout = \"1m\"\n"))
-	f.Add([]byte("[terminal]\ndefault_width = 99999\nhistory_kb = -1\n"))
+	f.Add([]byte("[terminal]\ndefault_width = 99999\nscrollback_mb = -1\nhistory_kb = 3\n"))
 	f.Add([]byte("log = 3\n[log.level]\nx = 1\n"))
 	f.Add([]byte("[[daemon]]\n"))
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -26,7 +26,7 @@ func FuzzParse(f *testing.F) {
 		switch {
 		case tm.DefaultWidth < 20 || tm.DefaultWidth > 1000,
 			tm.DefaultHeight < 5 || tm.DefaultHeight > 500,
-			tm.HistoryKB < 4 || tm.HistoryKB > 64<<10,
+			tm.ScrollbackMB < 0 || tm.ScrollbackMB > 1024,
 			cfg.Log.MaxSizeMB < 1 || cfg.Log.MaxSizeMB > 1024,
 			cfg.Log.MaxBackups < 0 || cfg.Log.MaxBackups > 100,
 			cfg.Daemon.ShutdownTimeout <= 0,

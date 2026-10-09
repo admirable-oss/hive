@@ -121,3 +121,19 @@ Rules for M1:
   The port isolates all three, so callers do not change.
 - Until the gate is met, panes whose agent is not visible may be emulated
   lazily (bytes buffered, parsed on demand). The shim design must allow that.
+
+## Amendment (M1, 2026-10-09)
+
+The rules above are implemented in `internal/vt`. The synthetic cases are in
+`vt.conformance_test.go`, and the recorded corpus is in
+`testdata/recorded/`: vim, less and a colour script captured with
+`docs/adr/spikes/vt` (`go run . dump`). Each recording must reproduce its
+reviewed golden screen with 4 KiB and 7-byte chunks, through frames and
+through the painter. `top` is recorded by the spike but kept out of the
+corpus because it shows the recording machine's processes.
+
+Scrollback is Hive-owned as decided: x/vt's own scrollback is only a
+staging area, drained after every write into `vt.Scrollback` (byte budget
+`terminal.scrollback_mb`). It is readable through `terminal.snapshot
+{"scrollback": N}`. The performance gate still stands; see ADR 0006 for the
+measured memory per shim.

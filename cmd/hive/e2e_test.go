@@ -50,6 +50,9 @@ func (c *cli) run(args ...string) (string, string, int) {
 		"HIVE_HOME="+c.home,
 		"HIVE_CONFIG="+c.cfg,
 		"HIVE_LOG=debug",
+		// Race-enabled binaries otherwise sleep a second at exit; shims and
+		// daemons here are race-enabled children.
+		"GORACE=atexit_sleep_ms=0",
 	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr

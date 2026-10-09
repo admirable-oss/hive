@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 // detachKey (Ctrl+]) ends an attach session, as in telnet. Every other key,
@@ -34,6 +35,7 @@ func newTerminalCmd(a *app) *cobra.Command {
 			ValidArgsFunction: completeProcesses(a, true),
 			RunE:              func(cmd *cobra.Command, args []string) error { return termAttach(cmd.Context(), a, args[0]) },
 		}),
+		newTerminalSnapshotCmd(a),
 		needsDaemon(&cobra.Command{
 			Use:               "input <process-id> <text>",
 			Short:             "Type text into an agent's terminal",
@@ -80,38 +82,71 @@ func parseDimension(s string) (uint16, error) {
 }
 
 func termAttach(ctx context.Context, a *app, id string) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	in, out := os.Stdin.Fd(), os.Stdout.Fd()
+	interactive := term.IsTerminal(in) && term.IsTerminal(out)
+	req := client.ViewRequest{ProcessID: id}
+	if interactive {
+		if w, h, err := term.GetSize(out); err == nil && w > 0 && h > 0 {
+			req.Width, req.Height = uint16(w), uint16(h)
+		}
+	}
+	att, err := a.client.TerminalAttach(ctx, req)
+	if err != nil {
+		return err
+	}
+	defer att.Close()
 
-	fd := os.Stdin.Fd()
-	if term.IsTerminal(fd) {
-		state, err := term.MakeRaw(fd)
+	if interactive {
+		state, err := term.MakeRaw(in)
 		if err != nil {
 			return fmt.Errorf("switch terminal to raw mode: %w", err)
 		}
-		defer func() { _ = term.Restore(fd, state) }()
-		go followWindowSize(ctx, a.client, id, fd)
+		// The daemon paints the agent's screen; draw it on the alternate
+		// screen so detaching restores the shell exactly as it was.
+		fmt.Fprint(a.out, "\x1b[?1049h")
+		defer func() {
+			fmt.Fprint(a.out, vt.ResetSequence()+"\x1b[?1049l")
+			_ = term.Restore(in, state)
+		}()
+		wctx, stop := context.WithCancel(ctx)
+		defer stop()
+		go followWindowSize(wctx, att, out)
 	}
 
-	fmt.Fprintf(a.errOut, "attached to %s — press Ctrl+] to detach\r\n", id)
-	err := a.client.TerminalAttach(ctx, id, detachReader{os.Stdin}, a.out)
-	fmt.Fprint(a.errOut, "\r\ndetached\r\n")
-	return err
+	detached := make(chan struct{})
+	go func() {
+		// Keystrokes go to the agent until the detach key.
+		_, _ = io.Copy(att, detachReader{os.Stdin})
+		close(detached)
+		_ = att.Close()
+	}()
+	_, err = io.Copy(a.out, att)
+	select {
+	case <-detached:
+		defer fmt.Fprintf(a.errOut, "detached from %s; it keeps running\n", id)
+		return nil
+	default:
+		if err != nil && ctx.Err() == nil {
+			return err
+		}
+		defer fmt.Fprintf(a.errOut, "%s has exited\n", id)
+		return nil
+	}
 }
 
-// followWindowSize keeps the agent's PTY the same size as this terminal.
-func followWindowSize(ctx context.Context, c client.Client, id string, fd uintptr) {
+// followWindowSize keeps the view's size in step with this terminal.
+func followWindowSize(ctx context.Context, att *client.Attachment, fd uintptr) {
 	winch := make(chan os.Signal, 1)
 	signal.Notify(winch, syscall.SIGWINCH)
 	defer signal.Stop(winch)
 	for {
-		if w, h, err := term.GetSize(fd); err == nil && w > 0 && h > 0 {
-			_ = c.TerminalResize(ctx, id, uint16(w), uint16(h))
-		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-winch:
+			if w, h, err := term.GetSize(fd); err == nil && w > 0 && h > 0 {
+				_ = att.Resize(ctx, uint16(w), uint16(h))
+			}
 		}
 	}
 }
@@ -125,4 +160,39 @@ func (d detachReader) Read(p []byte) (int, error) {
 		return i, io.EOF
 	}
 	return n, err
+}
+
+func newTerminalSnapshotCmd(a *app) *cobra.Command {
+	var (
+		ansi       bool
+		scrollback int
+	)
+	cmd := needsDaemon(&cobra.Command{
+		Use:               "snapshot <process-id>",
+		Short:             "Print an agent's current screen (and, with --scrollback, its history)",
+		Args:              exactArgs(1),
+		ValidArgsFunction: completeProcesses(a, true),
+		RunE: withTimeout(10*time.Second, func(ctx context.Context, _ *cobra.Command, args []string) error {
+			snap, err := a.client.TerminalSnapshot(ctx, client.SnapshotRequest{ProcessID: args[0], ANSI: ansi, Scrollback: scrollback})
+			if err != nil {
+				return err
+			}
+			return a.emit(snap, func() error {
+				for _, l := range snap.Scrollback {
+					fmt.Fprintln(a.out, l)
+				}
+				last := len(snap.Lines)
+				for last > 0 && snap.Lines[last-1] == "" {
+					last--
+				}
+				for _, l := range snap.Lines[:last] {
+					fmt.Fprintln(a.out, l)
+				}
+				return nil
+			})
+		}),
+	})
+	cmd.Flags().BoolVar(&ansi, "ansi", false, "keep colours and styles (ANSI escape sequences)")
+	cmd.Flags().IntVar(&scrollback, "scrollback", 0, "also print up to this many lines that scrolled off the screen")
+	return cmd
 }

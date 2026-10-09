@@ -45,6 +45,7 @@ func TestLaunchdPlistIsValidXMLAndEscaped(t *testing.T) {
 		"/opt/node &amp; co/bin",
 		"<key>HIVE_HOME</key>",
 		"<key>SuccessfulExit</key>",
+		"<key>AbandonProcessGroup</key>",
 		"/Users/me/.hive/logs/launchd.log",
 	} {
 		if !strings.Contains(string(plist), want) {
@@ -64,7 +65,7 @@ func TestSystemdUnitQuotesValues(t *testing.T) {
 		`Environment="PATH=/a:/b$$x"`,
 		`Environment="PCT=100%%"`,
 		"Restart=on-failure",
-		"KillMode=mixed",
+		"KillMode=process",
 		"WantedBy=default.target",
 	} {
 		if !strings.Contains(unit, want) {

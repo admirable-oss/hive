@@ -1,54 +1,47 @@
 package terminal
 
-import "context"
+import (
+	"context"
 
-// Session is a running process with a terminal attached. The PTY is an
-// implementation detail behind this contract.
+	"github.com/admirable-oss/hive/internal/vt"
+)
+
+// Session is a running process with a terminal attached. The PTY and the
+// emulator are implementation details behind this contract; a session may
+// live in this process or in a shim (package shim).
 type Session interface {
 	// Write sends input to the process, as if typed on a keyboard.
 	Write(b []byte) (int, error)
-	// Resize changes the terminal dimensions, e.g. after a window resize.
+	// Resize changes the terminal dimensions.
 	Resize(size Size) error
+	// Size returns the current dimensions.
+	Size() Size
 	// Wait blocks until the process exits and returns its error.
 	Wait() error
 	// Pid returns the OS PID of the running process.
 	Pid() int
 	// Close stops the process and releases the terminal.
 	Close() error
-	// Subscribe attaches a listener to the live output stream.
-	Subscribe() *Subscription
+	// Snapshot returns the current screen.
+	Snapshot(ctx context.Context) (*vt.Screen, error)
+	// Scrollback returns up to n of the newest lines that scrolled off the
+	// top of the screen, oldest first, as plain text or with ANSI styling.
+	Scrollback(ctx context.Context, n int, ansi bool) ([]string, error)
+	// Frames calls emit with the screen as frames: a keyframe first, then
+	// changes. It returns once the session's output has ended (after a
+	// final frame), when ctx ends, or when emit fails. A slow emit gets
+	// fewer, larger frames, never a gap: each frame is computed from the
+	// screen as it is when the previous one was delivered.
+	Frames(ctx context.Context, emit func(*vt.Frame) error) error
 }
-
-// Subscription is one listener on a session's output.
-type Subscription struct {
-	// C delivers output chunks in order. It is closed when the session ends,
-	// when Close is called, or when the subscriber falls too far behind (see
-	// Lagged). A subscriber never sees a gap: it is cut off instead.
-	C <-chan []byte
-	// History is the recent output that preceded the first chunk on C.
-	History []byte
-
-	cancel func()
-	lagged func() bool
-}
-
-// NewSubscription builds a Subscription. cancel detaches the listener and
-// lagged reports whether it was cut off for falling behind; either may be nil.
-func NewSubscription(c <-chan []byte, history []byte, cancel func(), lagged func() bool) *Subscription {
-	return &Subscription{C: c, History: history, cancel: cancel, lagged: lagged}
-}
-
-// Close detaches the listener. It is safe to call more than once.
-func (s *Subscription) Close() {
-	if s.cancel != nil {
-		s.cancel()
-	}
-}
-
-// Lagged reports whether C was closed because the listener could not keep up.
-func (s *Subscription) Lagged() bool { return s.lagged != nil && s.lagged() }
 
 // Factory opens a new terminal session for the given command.
 type Factory interface {
 	Open(ctx context.Context, cmd Command) (Session, error)
+}
+
+// Adopter is implemented by factories whose sessions outlive the daemon: it
+// reconnects to the session with the given ID after a daemon restart.
+type Adopter interface {
+	Adopt(ctx context.Context, id string) (Session, error)
 }

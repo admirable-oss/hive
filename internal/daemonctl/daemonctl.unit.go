@@ -28,7 +28,9 @@ type UnitSpec struct {
 }
 
 // LaunchdPlist renders a per-user launchd agent. KeepAlive restarts the
-// daemon after a crash but not after a clean `hive stop`.
+// daemon after a crash but not after a clean `hive stop`. AbandonProcessGroup
+// keeps launchd from killing leftover processes when the daemon exits (shims
+// run in their own sessions anyway; this makes it explicit).
 func LaunchdPlist(spec UnitSpec) []byte {
 	var b bytes.Buffer
 	if err := plistTmpl.Execute(&b, spec); err != nil {
@@ -37,9 +39,9 @@ func LaunchdPlist(spec UnitSpec) []byte {
 	return b.Bytes()
 }
 
-// SystemdUnit renders a systemd user service. KillMode=mixed sends SIGTERM to
-// the daemon alone, so it can stop its agents gracefully; whatever is left
-// after TimeoutStopSec is killed with the rest of the cgroup.
+// SystemdUnit renders a systemd user service. KillMode=process signals only
+// the daemon: agents run under shims in the same cgroup, and stopping or
+// restarting the service must leave them running for the next daemon.
 func SystemdUnit(spec UnitSpec) []byte {
 	var b bytes.Buffer
 	if err := systemdTmpl.Execute(&b, spec); err != nil {
@@ -93,6 +95,8 @@ var plistTmpl = template.Must(template.New("plist").Funcs(funcs).Parse(`<?xml ve
 	</dict>
 	<key>ProcessType</key>
 	<string>Interactive</string>
+	<key>AbandonProcessGroup</key>
+	<true/>
 	<key>ExitTimeOut</key>
 	<integer>30</integer>
 	<key>StandardOutPath</key>
@@ -115,7 +119,7 @@ Environment={{sq (printf "%s=%s" $k $v)}}
 {{- end}}
 Restart=on-failure
 RestartSec=2
-KillMode=mixed
+KillMode=process
 TimeoutStopSec=30
 
 [Install]

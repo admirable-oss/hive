@@ -1,6 +1,7 @@
-// Package tui is the interactive dashboard (Bubble Tea). It polls the daemon
-// through the client.Client contract only, so it runs unchanged against a
-// real daemon or a test fake.
+// Package tui is the interactive dashboard (Bubble Tea). It talks to the
+// daemon through the client.Client contract only, so it runs unchanged
+// against a real daemon or a test fake: events drive refreshes (with polling
+// as the fallback), and the selected agent's screen streams in as frames.
 package tui
 
 import (

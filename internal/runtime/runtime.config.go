@@ -27,6 +27,18 @@ type Config struct {
 	Terminal terminal.Config
 	// StopGrace is the SIGTERM → SIGKILL delay for plain processes.
 	StopGrace time.Duration
+	// Shim runs every agent under its own shim process, so agents outlive
+	// the daemon (see package shim). Nil runs agents inside the daemon,
+	// which tests use.
+	Shim *ShimConfig
+}
+
+// ShimConfig says how to start a shim: Exe Args… <dir>, with Env added to
+// the daemon's environment.
+type ShimConfig struct {
+	Exe  string
+	Args []string
+	Env  []string
 }
 
 func (c Config) Validate() error {

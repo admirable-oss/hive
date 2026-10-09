@@ -7,8 +7,10 @@ import (
 	lg1 "github.com/charmbracelet/lipgloss"
 )
 
-type stepMsg struct{}
-type doneMsg struct{}
+type (
+	stepMsg struct{}
+	doneMsg struct{}
+)
 
 type model1 struct {
 	g    *grid

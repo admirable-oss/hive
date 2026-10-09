@@ -27,8 +27,8 @@ func newXVTsized(w, h int) *xvt {
 	return &xvt{e}
 }
 
-func (x *xvt) Name() string                  { return "x/vt" }
-func (x *xvt) Write(p []byte) (int, error)   { return x.e.Write(p) }
+func (x *xvt) Name() string                { return "x/vt" }
+func (x *xvt) Write(p []byte) (int, error) { return x.e.Write(p) }
 func (x *xvt) Rows() []string {
 	rows := make([]string, x.e.Height())
 	for y := range rows {

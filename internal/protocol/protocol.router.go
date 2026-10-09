@@ -3,6 +3,8 @@ package protocol
 import (
 	"context"
 	"encoding/json"
+	"maps"
+	"slices"
 )
 
 // Handler answers one request. It is the only contract a domain package must
@@ -38,6 +40,12 @@ func (r *Router) Register(method string, h Handler) error {
 	}
 	r.handlers[method] = h
 	return nil
+}
+
+// Methods lists the registered method names, sorted. A protocol-2 server
+// sends them in its welcome so clients can tell what it supports.
+func (r *Router) Methods() []string {
+	return slices.Sorted(maps.Keys(r.handlers))
 }
 
 // MustRegister is Register for startup wiring, where a failure is a bug.
@@ -82,4 +90,25 @@ func DecodeParams(req Request, v any) error {
 		return NewError(ErrorCodeInvalidParams, err)
 	}
 	return nil
+}
+
+// PipeMethod adapts a typed function that opens a byte pipe: params decode
+// into P, the result R is sent as the response, then the returned PipeFunc
+// serves the pipe. An error means no pipe is opened.
+func PipeMethod[P, R any](fn func(context.Context, P) (R, PipeFunc, error)) Handler {
+	return HandlerFunc(func(ctx context.Context, req Request) Response {
+		var params P
+		if err := DecodeParams(req, &params); err != nil {
+			return Fail(req, err)
+		}
+		result, pipe, err := fn(ctx, params)
+		if err != nil {
+			return Fail(req, err)
+		}
+		resp := Reply(req, result)
+		if resp.Error == nil {
+			resp.Pipe = pipe
+		}
+		return resp
+	})
 }

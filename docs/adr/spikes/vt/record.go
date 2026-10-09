@@ -86,6 +86,8 @@ func recordAll(dir string) []recording {
 		record("less", []string{"less", "-R", sample}, []step{
 			{p, " "}, {p, " "}, {p, "/lazy\r"}, {p, "n"}, {p, "G"}, {p, "g"}, {p, "q"},
 		}),
+		// top is recorded for the spike comparison but not committed to the
+		// corpus: it shows the processes of the machine that recorded it.
 		record("top", []string{"top"}, []step{
 			{1500 * time.Millisecond, ""}, {1200 * time.Millisecond, "o"}, {p, "cpu\r"}, {1200 * time.Millisecond, "q"},
 		}),

@@ -116,10 +116,19 @@ func TestServiceShutdown(t *testing.T) {
 	}
 
 	c := client.NewService(client.Config{SocketPath: path})
+	defer c.Close()
 
 	ctxShutdown, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	if err := c.Shutdown(ctxShutdown); err != nil {
+	if err := c.Shutdown(ctxShutdown, true); err != nil {
 		t.Fatalf("shutdown: %v", err)
 	}
+	select {
+	case <-mod.Service.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("remote shutdown did not complete")
+	}
+	// The daemon process would exit here; in a test, stop the server so its
+	// open connections close.
+	_ = mod.Service.Stop(ctx)
 }

@@ -16,6 +16,11 @@ type Config struct {
 	// means pgroup.Grace. PTY processes take theirs from the terminal module.
 	StopGrace time.Duration
 	Logger    *slog.Logger
+	// Runner launches plain processes; nil runs them in the daemon's process
+	// (they then die with it). Adopter re-attaches to them after a restart.
+	Runner  Runner
+	Adopter Adopter
+	Events  Events
 }
 
 type Module struct {
@@ -24,5 +29,16 @@ type Module struct {
 
 func NewModule(cfg Config, envs Environments, terms Terminals) *Module {
 	store := NewFilesystemStore(filepath.Join(cfg.BaseDir, "environments"))
-	return &Module{Service: NewService(store, envs, NewExecRunner(cfg.StopGrace), terms, WithLogger(cfg.Logger))}
+	runner := cfg.Runner
+	if runner == nil {
+		runner = NewExecRunner(cfg.StopGrace)
+	}
+	opts := []Option{WithLogger(cfg.Logger)}
+	if cfg.Adopter != nil {
+		opts = append(opts, WithAdopter(cfg.Adopter))
+	}
+	if cfg.Events != nil {
+		opts = append(opts, WithEvents(cfg.Events))
+	}
+	return &Module{Service: NewService(store, envs, runner, terms, opts...)}
 }

@@ -4,108 +4,202 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net"
 
 	"github.com/admirable-oss/hive/internal/protocol"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
-type sessionParams struct {
+type viewParams struct {
 	ProcessID string `json:"process_id"`
+	// Width and Height are the client's size for this view.
+	Width  uint16 `json:"width,omitempty"`
+	Height uint16 `json:"height,omitempty"`
+}
+
+type viewResult struct {
+	ViewID string `json:"view_id"`
+	Width  uint16 `json:"width"`
+	Height uint16 `json:"height"`
 }
 
 type inputParams struct {
 	ProcessID string `json:"process_id"`
 	Data      []byte `json:"data"` // base64 on the wire, so any byte survives
+	ViewID    string `json:"view_id,omitempty"`
 }
 
 type resizeParams struct {
 	ProcessID string `json:"process_id"`
 	Width     uint16 `json:"width"`
 	Height    uint16 `json:"height"`
+	// ViewID makes this a view's resize (applied when that view is in
+	// control). Without it the terminal is resized directly.
+	ViewID string `json:"view_id,omitempty"`
+}
+
+type snapshotParams struct {
+	ProcessID string `json:"process_id"`
+	// ANSI returns lines with SGR styling instead of plain text.
+	ANSI bool `json:"ansi,omitempty"`
+	// Scrollback also returns up to this many lines that scrolled off the
+	// top of the screen.
+	Scrollback int `json:"scrollback,omitempty"`
+}
+
+// MaxScrollbackLines bounds one snapshot's scrollback.
+const MaxScrollbackLines = 10_000
+
+// SnapshotResult is a screen as text.
+type SnapshotResult struct {
+	Width     int       `json:"width"`
+	Height    int       `json:"height"`
+	Lines     []string  `json:"lines"`
+	Cursor    vt.Cursor `json:"cursor"`
+	Title     string    `json:"title,omitempty"`
+	AltScreen bool      `json:"alt_screen,omitempty"`
+	// Scrollback holds the requested history, oldest first; it precedes
+	// Lines.
+	Scrollback []string `json:"scrollback,omitempty"`
 }
 
 // Register exposes svc on the wire as terminal.*. Sessions are created by the
-// process service; the wire only attaches to, types into and resizes them.
+// process service; the wire views them, types into them and resizes them.
 func Register(r *protocol.Router, svc Service) {
-	r.MustRegister("terminal.attach", protocol.HandlerFunc(func(_ context.Context, req protocol.Request) protocol.Response {
-		var p sessionParams
-		if err := protocol.DecodeParams(req, &p); err != nil {
-			return protocol.Fail(req, err)
-		}
-		sess, err := lookup(svc, p.ProcessID)
-		if err != nil {
-			return protocol.Fail(req, err)
-		}
-		resp := protocol.Reply(req, map[string]string{"status": "attached"})
-		resp.Hijack = stream(sess)
-		return resp
+	// terminal.attach: a pipe carrying the screen painted as ANSI for a real
+	// terminal, and keystrokes back. It takes over the terminal size.
+	r.MustRegister("terminal.attach", protocol.PipeMethod(func(_ context.Context, p viewParams) (viewResult, protocol.PipeFunc, error) {
+		return openView(svc, p, true, func(w io.Writer) func(*vt.Frame) error {
+			return vt.NewPainter(w).Paint
+		})
+	}))
+	// terminal.frames: a pipe carrying the screen as binary frames (see
+	// vt.AppendFrame), and keystrokes back. For clients that draw the screen
+	// themselves; it only takes over the size once the client types.
+	r.MustRegister("terminal.frames", protocol.PipeMethod(func(_ context.Context, p viewParams) (viewResult, protocol.PipeFunc, error) {
+		return openView(svc, p, false, func(w io.Writer) func(*vt.Frame) error {
+			var buf []byte
+			return func(f *vt.Frame) error {
+				buf = vt.AppendFrame(buf[:0], f)
+				_, err := w.Write(buf)
+				return err
+			}
+		})
 	}))
 	r.MustRegister("terminal.input", protocol.Method(func(_ context.Context, p inputParams) (protocol.Empty, error) {
 		sess, err := lookup(svc, p.ProcessID)
-		if err == nil {
-			_, err = sess.Write(p.Data)
+		if err != nil {
+			return protocol.Empty{}, err
 		}
+		if p.ViewID != "" {
+			if err := svc.Interact(p.ProcessID, p.ViewID); err != nil {
+				return protocol.Empty{}, wireError(err)
+			}
+		}
+		_, err = sess.Write(p.Data)
 		return protocol.Empty{}, err
 	}))
 	r.MustRegister("terminal.resize", protocol.Method(func(_ context.Context, p resizeParams) (protocol.Empty, error) {
+		size := Size{Width: p.Width, Height: p.Height}
+		if !size.Valid() {
+			return protocol.Empty{}, protocol.NewError(protocol.ErrorCodeInvalidParams, errors.New("width and height must be positive"))
+		}
+		if p.ViewID != "" {
+			return protocol.Empty{}, wireError(svc.ResizeView(p.ProcessID, p.ViewID, size))
+		}
 		sess, err := lookup(svc, p.ProcessID)
 		if err == nil {
-			err = sess.Resize(Size{Width: p.Width, Height: p.Height})
+			err = sess.Resize(size)
 		}
 		return protocol.Empty{}, err
 	}))
+	r.MustRegister("terminal.snapshot", protocol.Method(func(ctx context.Context, p snapshotParams) (SnapshotResult, error) {
+		sess, err := lookup(svc, p.ProcessID)
+		if err != nil {
+			return SnapshotResult{}, err
+		}
+		s, err := sess.Snapshot(ctx)
+		if err != nil {
+			return SnapshotResult{}, wireError(err)
+		}
+		res := SnapshotResult{Width: s.Cols, Height: s.Rows, Cursor: s.Cursor, Title: s.Title, AltScreen: s.Modes&vt.ModeAltScreen != 0}
+		if p.Scrollback > 0 {
+			res.Scrollback, err = sess.Scrollback(ctx, min(p.Scrollback, MaxScrollbackLines), p.ANSI)
+			if err != nil {
+				return SnapshotResult{}, wireError(err)
+			}
+		}
+		for y := range s.Rows {
+			if p.ANSI {
+				res.Lines = append(res.Lines, vt.LineANSI(s.Lines[y]))
+			} else {
+				res.Lines = append(res.Lines, s.LineText(y))
+			}
+		}
+		return res, nil
+	}))
+}
+
+// openView joins a view and returns the pipe that serves it: frames out
+// through the encoder made by newEmit, keystrokes in.
+func openView(svc Service, p viewParams, interactive bool, newEmit func(io.Writer) func(*vt.Frame) error) (viewResult, protocol.PipeFunc, error) {
+	sess, err := lookup(svc, p.ProcessID)
+	if err != nil {
+		return viewResult{}, nil, err
+	}
+	size := Size{Width: p.Width, Height: p.Height}
+	if !size.Valid() {
+		size = sess.Size()
+	}
+	viewID, err := svc.Join(p.ProcessID, size, interactive)
+	if err != nil {
+		return viewResult{}, nil, wireError(err)
+	}
+	cur := sess.Size()
+	res := viewResult{ViewID: viewID, Width: cur.Width, Height: cur.Height}
+	return res, func(ctx context.Context, pipe protocol.Pipe) error {
+		defer svc.Leave(p.ProcessID, viewID)
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		inputDone := make(chan struct{})
+		go func() {
+			defer close(inputDone)
+			defer cancel() // the client closed its end: stop sending frames
+			buf := make([]byte, 4096)
+			for {
+				n, err := pipe.Read(buf)
+				if n > 0 {
+					_ = svc.Interact(p.ProcessID, viewID)
+					if _, werr := sess.Write(buf[:n]); werr != nil {
+						return
+					}
+				}
+				if err != nil {
+					return
+				}
+			}
+		}()
+		err := sess.Frames(ctx, newEmit(pipe))
+		cancel()
+		if c, ok := pipe.(io.Closer); ok {
+			_ = c.Close() // ends the input reader
+		}
+		<-inputDone
+		return err
+	}, nil
 }
 
 func lookup(svc Service, processID string) (Session, error) {
 	sess, err := svc.Get(processID)
-	if errors.Is(err, ErrSessionNotFound) {
-		return nil, protocol.NewError(protocol.ErrorCodeNotFound, err)
-	}
-	return sess, err
+	return sess, wireError(err)
 }
 
-// lagNotice is written to a client that was cut off for falling behind, so
-// the user knows why the session ended and that the agent is still running.
-const lagNotice = "\r\n[hive] detached: this terminal could not keep up with the agent's output. The agent is still running; attach again to continue.\r\n"
-
-// stream turns an attached connection into a raw terminal: history first, then
-// live output to the client and client bytes to the PTY, until either side ends.
-func stream(sess Session) protocol.HijackFunc {
-	return func(ctx context.Context, conn net.Conn) {
-		sub := sess.Subscribe()
-		defer sub.Close()
-
-		if _, err := conn.Write(sub.History); err != nil {
-			return
-		}
-
-		done := make(chan struct{}, 2)
-		go func() {
-			defer func() { done <- struct{}{} }()
-			for chunk := range sub.C {
-				if _, err := conn.Write(chunk); err != nil {
-					return
-				}
-			}
-			if sub.Lagged() {
-				_, _ = conn.Write([]byte(lagNotice))
-			}
-		}()
-		go func() {
-			_, _ = io.Copy(sess, conn)
-			done <- struct{}{}
-		}()
-
-		pending := 2
-		select {
-		case <-done:
-			pending--
-		case <-ctx.Done():
-		}
-		_ = conn.Close() // unblocks the input copy
-		sub.Close()      // ends the output loop
-		for ; pending > 0; pending-- {
-			<-done
-		}
+// wireError gives domain errors their protocol codes.
+func wireError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, ErrSessionNotFound), errors.Is(err, ErrViewNotFound):
+		return protocol.NewError(protocol.ErrorCodeNotFound, err)
 	}
+	return err
 }

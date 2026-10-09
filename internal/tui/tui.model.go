@@ -12,6 +12,7 @@ import (
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/tui/bee"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 const (
@@ -57,13 +58,17 @@ type Model struct {
 	input      *inputQueue         // ordered keystroke delivery; shared by every copy of the model
 	notice     string              // transient problem shown in the footer
 	noticeAt   time.Time
+
+	live         *live                 // daemon streams; shared by every copy of the model
+	screens      map[string]*vt.Screen // last screen seen per terminal agent
+	eventsActive bool                  // events drive refreshes; polling is the fallback
 }
 
 // noticeTTL is how long a footer notice stays visible.
 const noticeTTL = 5 * time.Second
 
 func NewModel(c client.Client) Model {
-	return Model{
+	m := Model{
 		Client:        c,
 		Bee:           bee.New(),
 		Width:         100,
@@ -71,13 +76,20 @@ func NewModel(c client.Client) Model {
 		WorkspacePath: displayCwd(),
 		StartTime:     time.Now(),
 		logLines:      make(map[string][]string),
-		input:         newInputQueue(c.TerminalInput),
+		screens:       make(map[string]*vt.Screen),
 	}
+	m.live = &live{c: c}
+	m.input = newInputQueue(m.live.send)
+	return m
 }
 
-// Close waits for keystrokes still being delivered. Run calls it after the
-// program exits; tests that drive Update directly call it before asserting.
-func (m Model) Close() { m.input.Close() }
+// Close waits for keystrokes still being delivered and closes the daemon
+// streams. Run calls it after the program exits; tests that drive Update
+// directly call it before asserting.
+func (m Model) Close() {
+	m.input.Close()
+	m.live.close()
+}
 
 // displayCwd shows the working directory with $HOME collapsed to ~.
 func displayCwd() string {
@@ -92,7 +104,7 @@ func displayCwd() string {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(bee.Tick(m.Bee), m.refresh, pollTick())
+	return tea.Batch(bee.Tick(m.Bee), m.refresh, pollTick(), m.subscribe)
 }
 
 // refresh is a tea.Cmd that fetches every process in one call. A failed call
@@ -105,6 +117,19 @@ func (m Model) refresh() tea.Msg {
 		return RefreshMsg{Err: err}
 	}
 	return RefreshMsg{Connected: true, Processes: procs}
+}
+
+// logsCmd fetches the selected agent's log tail when its screen is not
+// streamed: plain agents, and terminal agents that have exited.
+func (m Model) logsCmd() tea.Cmd {
+	cur := m.CurrentProcess()
+	if cur == nil {
+		return nil
+	}
+	if cur.Terminal && m.screens[cur.ID] != nil {
+		return nil
+	}
+	return m.fetchLogsCmd(cur.ID)
 }
 
 func (m Model) fetchLogsCmd(procID string) tea.Cmd {
@@ -140,7 +165,7 @@ func (m *Model) selectIndex(i int) tea.Cmd {
 	}
 	m.SelectedProc = (i%n + n) % n
 	m.selectedID = m.Processes[m.SelectedProc].ID
-	return m.fetchLogsCmd(m.selectedID)
+	return tea.Batch(m.logsCmd(), m.syncView())
 }
 
 // reanchor keeps the selection on the same agent after the list changes;

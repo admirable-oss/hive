@@ -51,30 +51,8 @@ it after a crash, use ` + "`hive daemon install`" + `.`,
 				return nil
 			}),
 		},
-		&cobra.Command{
-			Use:   "stop",
-			Short: "Stop the daemon and every agent it runs",
-			Args:  noArgs,
-			RunE:  func(cmd *cobra.Command, _ []string) error { return stopDaemon(cmd.Context(), a) },
-		},
-		&cobra.Command{
-			Use:   "restart",
-			Short: "Restart the daemon (stops every agent it runs)",
-			Args:  noArgs,
-			RunE: func(cmd *cobra.Command, _ []string) error {
-				if err := stopDaemon(cmd.Context(), a); err != nil {
-					return err
-				}
-				ctx, cancel := context.WithTimeout(cmd.Context(), 15*time.Second)
-				defer cancel()
-				if err := a.startDaemon(ctx); err != nil {
-					return err
-				}
-				st, _ := a.daemonRunning(ctx)
-				fmt.Fprintf(a.out, "hive daemon started (pid %d)\n", st.PID)
-				return nil
-			},
-		},
+		newDaemonStopCmd(a),
+		newDaemonRestartCmd(a),
 		&cobra.Command{
 			Use:   "status",
 			Short: "Show whether the daemon is running",
@@ -97,6 +75,42 @@ it after a crash, use ` + "`hive daemon install`" + `.`,
 			}),
 		},
 	)
+	return cmd
+}
+
+func newDaemonStopCmd(a *app) *cobra.Command {
+	var keep bool
+	cmd := &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the daemon and every agent it runs (--keep-agents to leave them running)",
+		Args:  noArgs,
+		RunE:  func(cmd *cobra.Command, _ []string) error { return stopDaemon(cmd.Context(), a, !keep) },
+	}
+	cmd.Flags().BoolVar(&keep, "keep-agents", false, "leave agents running; the next daemon re-attaches to them")
+	return cmd
+}
+
+func newDaemonRestartCmd(a *app) *cobra.Command {
+	var stopAgents bool
+	cmd := &cobra.Command{
+		Use:   "restart",
+		Short: "Restart the daemon; agents keep running and are re-attached",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := stopDaemon(cmd.Context(), a, stopAgents); err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), 15*time.Second)
+			defer cancel()
+			if err := a.startDaemon(ctx); err != nil {
+				return err
+			}
+			st, _ := a.daemonRunning(ctx)
+			fmt.Fprintf(a.out, "hive daemon started (pid %d)\n", st.PID)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&stopAgents, "stop-agents", false, "stop every agent too")
 	return cmd
 }
 
@@ -125,17 +139,28 @@ func runDaemon(ctx context.Context, a *app) error {
 	signal.Notify(hup, syscall.SIGHUP)
 	defer signal.Stop(hup)
 
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("locate the hive binary: %w", err)
+	}
 	t := a.cfg.Terminal
+	scrollback := t.ScrollbackMB << 20
+	if scrollback == 0 {
+		scrollback = -1 // none
+	}
 	mod := runtime.NewModule(runtime.Config{
 		SocketPath: a.socket,
 		BaseDir:    a.root,
 		Logger:     log,
 		StopGrace:  a.cfg.Process.StopGrace,
 		Terminal: terminal.Config{
-			DefaultSize:  terminal.Size{Width: uint16(t.DefaultWidth), Height: uint16(t.DefaultHeight)},
-			HistoryBytes: t.HistoryKB << 10,
-			StopGrace:    a.cfg.Process.StopGrace,
+			DefaultSize:     terminal.Size{Width: uint16(t.DefaultWidth), Height: uint16(t.DefaultHeight)},
+			ScrollbackBytes: scrollback,
+			StopGrace:       a.cfg.Process.StopGrace,
 		},
+		// Every agent runs under its own shim (this binary), so agents
+		// keep running when the daemon stops, crashes or is upgraded.
+		Shim: &runtime.ShimConfig{Exe: exe, Args: []string{shimCommand}},
 	})
 	if err := mod.Service.Start(ctx); err != nil {
 		if errors.Is(err, runtime.ErrAlreadyRunning) {
@@ -145,7 +170,7 @@ func runDaemon(ctx context.Context, a *app) error {
 		return err
 	}
 	if interactive {
-		fmt.Fprintf(a.errOut, "hive daemon running on %s (logs: %s). Press Ctrl+C to stop.\n", a.socket, a.daemonLog())
+		fmt.Fprintf(a.errOut, "hive daemon running on %s (logs: %s).\nPress Ctrl+C to stop the daemon; agents keep running (`hive stop` stops them too).\n", a.socket, a.daemonLog())
 	}
 
 	for running := true; running; {
@@ -160,17 +185,19 @@ func runDaemon(ctx context.Context, a *app) error {
 		}
 	}
 
-	// ctx is already cancelled when a signal arrived; shutdown gets its own budget.
+	// ctx is already cancelled when a signal arrived; shutdown gets its own
+	// budget. Agents keep running; `hive stop` (runtime.shutdown) is what
+	// stops them.
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.cfg.Daemon.ShutdownTimeout)
 	defer cancel()
 	err = mod.Service.Stop(stopCtx)
 	if interactive {
-		fmt.Fprintln(a.errOut, "hive daemon stopped")
+		fmt.Fprintln(a.errOut, "hive daemon stopped; agents keep running")
 	}
 	return err
 }
 
-func stopDaemon(ctx context.Context, a *app) error {
+func stopDaemon(ctx context.Context, a *app, stopAgents bool) error {
 	if _, ok := a.daemonRunning(ctx); !ok {
 		fmt.Fprintln(a.out, "hive daemon is not running")
 		return nil
@@ -178,9 +205,10 @@ func stopDaemon(ctx context.Context, a *app) error {
 	// Agents get the configured grace to exit, plus slack for the reply.
 	ctx, cancel := context.WithTimeout(ctx, a.cfg.Daemon.ShutdownTimeout+5*time.Second)
 	defer cancel()
-	if err := a.client.Shutdown(ctx); err != nil {
+	if err := a.client.Shutdown(ctx, stopAgents); err != nil {
 		return err
 	}
+	_ = a.client.Close()
 	// The reply comes before the process exits; wait until the socket is gone
 	// so a following start cannot race the old daemon.
 	for {

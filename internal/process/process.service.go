@@ -21,10 +21,24 @@ type Environments interface {
 	Get(ctx context.Context, id string) (environment.Environment, error)
 }
 
-// Terminals opens PTY sessions for processes started with Terminal: true.
+// Terminals opens PTY sessions for processes started with Terminal: true,
+// and re-attaches to them after a daemon restart when they survived it.
 type Terminals interface {
 	Open(ctx context.Context, processID string, cmd terminal.Command) (terminal.Session, error)
+	Adopt(ctx context.Context, processID string) (terminal.Session, error)
 }
+
+// Events receives lifecycle events (see package event).
+type Events interface {
+	Publish(typ string, data any)
+}
+
+// Event types this package publishes.
+const (
+	EventStarted   = "process.started"
+	EventExited    = "process.exited"
+	EventRecovered = "process.recovered"
+)
 
 type Service interface {
 	Start(ctx context.Context, req StartRequest) (Process, error)
@@ -42,9 +56,15 @@ type Service interface {
 	StopEnvironment(ctx context.Context, envID string) error
 	// StopAll stops every live process and waits for them (daemon shutdown).
 	StopAll(ctx context.Context) error
-	// Recover closes out records a crashed daemon left "running" and stops
-	// any of their processes that are provably still alive.
+	// Recover runs at start-up for records an earlier daemon left running:
+	// processes that survived it (under shims) are supervised again, the
+	// rest are closed out, and orphans that are provably ours are stopped.
 	Recover(ctx context.Context) error
+	// Detach lets go of every live process without stopping it, for a
+	// daemon that exits while its agents keep running. It reports whether
+	// they survive (false when processes cannot outlive the daemon, in
+	// which case they are stopped instead).
+	Detach(ctx context.Context) (bool, error)
 }
 
 // Option customises a service built by NewService.
@@ -55,6 +75,17 @@ func WithLogger(l *slog.Logger) Option {
 	return func(s *service) { s.log = logging.OrDiscard(l) }
 }
 
+// WithEvents publishes lifecycle events to ev.
+func WithEvents(ev Events) Option {
+	return func(s *service) { s.events = ev }
+}
+
+// WithAdopter lets the service re-attach to plain processes that outlived
+// an earlier daemon. Without it they are closed out at start-up.
+func WithAdopter(a Adopter) Option {
+	return func(s *service) { s.adopter = a }
+}
+
 // WithOrphanControl replaces how processes left by an earlier daemon are
 // inspected and stopped. Tests use it to avoid touching real processes.
 func WithOrphanControl(lookup func(pid int) (platform.ProcessInfo, error), terminate func(pid int) error) Option {
@@ -62,11 +93,13 @@ func WithOrphanControl(lookup func(pid int) (platform.ProcessInfo, error), termi
 }
 
 type service struct {
-	store  Store
-	envs   Environments
-	runner Runner
-	terms  Terminals // nil disables Terminal: true
-	log    *slog.Logger
+	store   Store
+	envs    Environments
+	runner  Runner
+	terms   Terminals // nil disables Terminal: true
+	adopter Adopter   // nil: plain processes die with the daemon
+	events  Events
+	log     *slog.Logger
 
 	// Orphan control: see reapOrphan.
 	lookup    func(pid int) (platform.ProcessInfo, error)
@@ -78,10 +111,11 @@ type service struct {
 
 // liveProcess is a process this daemon launched and is still supervising.
 type liveProcess struct {
-	envID    string
-	handle   Handle
-	stopping bool          // set by Stop so the exit is recorded as killed
-	done     chan struct{} // closed once the final state is persisted
+	envID     string
+	handle    Handle
+	stopping  bool          // set by Stop so the exit is recorded as killed
+	detaching bool          // set by Detach: the exit is not ours to record
+	done      chan struct{} // closed once the final state is persisted
 }
 
 func NewService(store Store, envs Environments, runner Runner, terms Terminals, opts ...Option) Service {
@@ -91,6 +125,7 @@ func NewService(store Store, envs Environments, runner Runner, terms Terminals, 
 		runner:    runner,
 		terms:     terms,
 		log:       logging.Discard(),
+		events:    nopEvents{},
 		lookup:    platform.LookupProcess,
 		terminate: pgroup.Terminate,
 		live:      make(map[string]*liveProcess),
@@ -156,14 +191,19 @@ func (s *service) Start(ctx context.Context, req StartRequest) (Process, error) 
 		return Process{}, err
 	}
 
+	log.Info("process started", "pid", p.PID, "command", p.Command, "terminal", p.Terminal)
+	s.supervise(p, handle) //nolint:contextcheck // supervision outlives the start request by design
+	s.events.Publish(EventStarted, p)
+	return p, nil
+}
+
+// supervise records p as live and watches it until it exits.
+func (s *service) supervise(p Process, handle Handle) {
 	lp := &liveProcess{envID: p.EnvironmentID, handle: handle, done: make(chan struct{})}
 	s.mu.Lock()
 	s.live[p.ID] = lp
 	s.mu.Unlock()
-	log.Info("process started", "pid", p.PID, "command", p.Command, "terminal", p.Terminal)
-	go s.monitor(p, lp) //nolint:gosec,contextcheck // supervision outlives the start request by design
-
-	return p, nil
+	go s.monitor(p, lp)
 }
 
 // launch starts p either in a PTY or as a plain process; both become a Handle
@@ -172,12 +212,12 @@ func (s *service) launch(ctx context.Context, p Process, req StartRequest) (Hand
 	stdout, stderr := s.store.LogPaths(p)
 	if !p.Terminal {
 		return s.runner.Start(ctx, Command{
-			Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir,
+			ID: p.ID, Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir,
 			StdoutPath: stdout, StderrPath: stderr,
 		})
 	}
 	sess, err := s.terms.Open(ctx, p.ID, terminal.Command{
-		Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir,
+		ID: p.ID, Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir,
 		LogPath: stdout,
 		Size:    terminal.Size{Width: req.Width, Height: req.Height},
 	})
@@ -194,6 +234,28 @@ type sessionHandle struct{ terminal.Session }
 func (h sessionHandle) PID() int    { return h.Pid() }
 func (h sessionHandle) Kill() error { return h.Close() }
 
+func (h sessionHandle) Release() {
+	if r, ok := h.Session.(releaser); ok {
+		r.Release()
+	}
+}
+
+// detachable returns h's detacher when its process can outlive the daemon.
+// A sessionHandle forwards to its session, so the session decides: an
+// in-process PTY dies with the daemon, a shim's session does not.
+func detachable(h Handle) (detacher, bool) {
+	if sh, ok := h.(sessionHandle); ok {
+		d, ok := sh.Session.(detacher)
+		return d, ok
+	}
+	d, ok := h.(detacher)
+	return d, ok
+}
+
+type nopEvents struct{}
+
+func (nopEvents) Publish(string, any) {}
+
 // monitor waits for the process to exit and records how it ended.
 func (s *service) monitor(p Process, lp *liveProcess) {
 	defer close(lp.done)
@@ -201,8 +263,11 @@ func (s *service) monitor(p Process, lp *liveProcess) {
 
 	s.mu.Lock()
 	delete(s.live, p.ID)
-	stopping := lp.stopping
+	stopping, detaching := lp.stopping, lp.detaching
 	s.mu.Unlock()
+	if detaching {
+		return // the process lives on; a later daemon records how it ends
+	}
 
 	code, status := 0, StatusExited
 	if ec, ok := errors.AsType[interface {
@@ -226,7 +291,12 @@ func (s *service) monitor(p Process, lp *liveProcess) {
 	log.Info("process ended", "status", status, "exit_code", code, "runtime", now.Sub(p.StartedAt).Round(time.Millisecond))
 	if err := s.store.Update(context.Background(), p); err != nil {
 		log.Error("record process exit", "err", err)
+		return // keep the shim (and its record of the exit) for the next daemon
 	}
+	if r, ok := lp.handle.(releaser); ok {
+		r.Release()
+	}
+	s.events.Publish(EventExited, p)
 }
 
 func (s *service) Get(ctx context.Context, id string) (Process, error) {
@@ -357,14 +427,95 @@ func (s *service) Recover(ctx context.Context) error {
 		if !p.Active() || live {
 			continue
 		}
-		status := StatusFailed
-		if s.reapOrphan(p) {
-			status = StatusKilled
-		}
-		s.log.Warn("closed out process left by a previous daemon", "process", p.ID, "env", p.EnvironmentID, "pid", p.PID, "status", status)
-		errs = append(errs, s.closeOut(ctx, p, status))
+		errs = append(errs, s.recoverOne(ctx, p))
 	}
 	return errors.Join(errs...)
+}
+
+// recoverOne re-attaches to p if it survived, records how it ended if it
+// finished meanwhile, and otherwise closes it out.
+func (s *service) recoverOne(ctx context.Context, p Process) error {
+	log := s.log.With("process", p.ID, "env", p.EnvironmentID, "pid", p.PID)
+	handle, err := s.adopt(ctx, p)
+	if err == nil {
+		s.supervise(p, handle) //nolint:contextcheck // supervision outlives recovery by design
+		log.Info("re-attached to a process that outlived the previous daemon")
+		s.events.Publish(EventRecovered, p)
+		return nil
+	}
+	if ec, ok := errors.AsType[interface {
+		error
+		ExitCode() int
+	}](err); ok {
+		code, status := ec.ExitCode(), StatusExited
+		if code == -1 {
+			status = StatusKilled
+		}
+		now := time.Now()
+		p.Status, p.ExitCode, p.EndedAt = status, &code, &now
+		log.Info("process ended while no daemon was running", "status", status, "exit_code", code)
+		return s.store.Update(ctx, p)
+	}
+	status := StatusFailed
+	if s.reapOrphan(p) {
+		status = StatusKilled
+	}
+	log.Warn("closed out process left by a previous daemon", "status", status, "reason", err)
+	return s.closeOut(ctx, p, status)
+}
+
+// adopt re-attaches to p through whichever port launched it.
+func (s *service) adopt(ctx context.Context, p Process) (Handle, error) {
+	if p.Terminal {
+		if s.terms == nil {
+			return nil, ErrNoTerminalSupport
+		}
+		sess, err := s.terms.Adopt(ctx, p.ID)
+		if err != nil {
+			return nil, err
+		}
+		return sessionHandle{sess}, nil
+	}
+	if s.adopter == nil {
+		return nil, ErrNotAdoptable
+	}
+	return s.adopter.Adopt(ctx, p)
+}
+
+func (s *service) Detach(ctx context.Context) (bool, error) {
+	s.mu.Lock()
+	var targets []*liveProcess
+	canDetach := true
+	for _, lp := range s.live {
+		if _, ok := detachable(lp.handle); !ok {
+			canDetach = false
+		}
+		targets = append(targets, lp)
+	}
+	if canDetach {
+		for _, lp := range targets {
+			lp.detaching = true
+		}
+	}
+	s.mu.Unlock()
+	if !canDetach {
+		// Some processes would die with the daemon anyway; stop them all
+		// cleanly so their records are accurate.
+		return false, s.StopAll(ctx)
+	}
+	for _, lp := range targets {
+		d, _ := detachable(lp.handle)
+		d.Detach()
+	}
+	for _, lp := range targets {
+		select {
+		case <-lp.done:
+		case <-ctx.Done():
+			return true, ctx.Err()
+		}
+	}
+	s.log.Info("detached from running processes; they keep running", "count", len(targets))
+	return true, nil
 }
 
 // orphanStartWindow bounds how far a process's kernel start time may be from

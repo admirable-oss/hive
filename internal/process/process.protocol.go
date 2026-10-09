@@ -3,8 +3,6 @@ package process
 import (
 	"context"
 	"errors"
-	"io"
-	"net"
 	"strings"
 
 	"github.com/admirable-oss/hive/internal/environment"
@@ -79,20 +77,10 @@ func Register(r *protocol.Router, svc Service) {
 			return protocol.Fail(req, wireError(err))
 		}
 		resp := protocol.Reply(req, map[string]bool{"following": ls.Following()})
-		resp.Hijack = func(ctx context.Context, conn net.Conn) {
-			ctx, cancel := context.WithCancel(ctx)
-			defer cancel()
-			hungUp := make(chan struct{})
-			go func() {
-				defer close(hungUp)
-				// Nothing is expected from the client; a read returning
-				// means it hung up.
-				_, _ = io.Copy(io.Discard, conn)
-				cancel()
-			}()
-			_ = ls.WriteTo(ctx, conn)
-			_ = conn.Close()
-			<-hungUp
+		resp.Pipe = func(ctx context.Context, p protocol.Pipe) error {
+			ctx, stop := protocol.UntilClosed(ctx, p)
+			defer stop()
+			return ls.WriteTo(ctx, p)
 		}
 		return resp
 	}))

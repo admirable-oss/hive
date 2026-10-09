@@ -53,9 +53,9 @@ var cases = []vtCase{
 }
 
 type caseResult struct {
-	name     string
-	pass     map[string]bool
-	detail   map[string]string
+	name   string
+	pass   map[string]bool
+	detail map[string]string
 }
 
 func runConformance(emus []func() screener) []caseResult {

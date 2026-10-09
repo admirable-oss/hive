@@ -16,7 +16,11 @@ import (
 	"syscall"
 
 	"github.com/admirable-oss/hive/internal/protocol"
+	"github.com/admirable-oss/hive/internal/shim"
 )
+
+// shimCommand is the hidden command the daemon uses to start shims.
+const shimCommand = "__shim"
 
 // Exit codes. Scripts may rely on them.
 const (
@@ -33,6 +37,11 @@ func main() {
 
 // execute runs the CLI and returns the process exit code.
 func execute(args []string, stdout, stderr io.Writer, getenv func(string) string) int {
+	// `hive __shim <dir>` is how the daemon runs an agent's shim. It needs
+	// no configuration, client or command tree.
+	if len(args) == 2 && args[0] == shimCommand {
+		return shim.Main(args[1])
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 

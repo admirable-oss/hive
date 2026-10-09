@@ -7,8 +7,10 @@ import (
 	lg2 "charm.land/lipgloss/v2"
 )
 
-type stepMsg struct{}
-type doneMsg struct{}
+type (
+	stepMsg struct{}
+	doneMsg struct{}
+)
 
 type model2 struct {
 	g    *grid

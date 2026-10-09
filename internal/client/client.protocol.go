@@ -9,10 +9,15 @@ import (
 )
 
 // Client is every call the daemon answers, one method per wire method.
+// Implementations are safe for concurrent use.
 type Client interface {
 	Ping(context.Context) error
 	Status(context.Context) (Status, error)
-	Shutdown(context.Context) error
+	// Shutdown stops the daemon. With stopAgents false its agents keep
+	// running (when they run under shims) and the next daemon adopts them.
+	Shutdown(ctx context.Context, stopAgents bool) error
+	// Close releases the client's connection.
+	Close() error
 
 	EnvironmentList(context.Context) ([]environment.Environment, error)
 	EnvironmentCreate(ctx context.Context, id string) (environment.Environment, error)
@@ -30,10 +35,18 @@ type Client interface {
 	// keeps writing new output until the process exits or ctx is cancelled.
 	ProcessLogsStream(ctx context.Context, req process.LogsRequest, out io.Writer) error
 
-	// TerminalAttach streams the process's terminal: in is sent as keystrokes
-	// and output is written to out. It returns when either stream ends or ctx
-	// is cancelled.
-	TerminalAttach(ctx context.Context, processID string, in io.Reader, out io.Writer) error
+	// TerminalAttach opens a full-screen view: reading it yields the screen
+	// painted as ANSI for a real terminal, writing it types into the agent.
+	// It takes over the agent's terminal size.
+	TerminalAttach(ctx context.Context, req ViewRequest) (*Attachment, error)
+	// TerminalFrames opens a view that yields the screen as frames, for
+	// clients that draw it themselves.
+	TerminalFrames(ctx context.Context, req ViewRequest) (*FrameStream, error)
+	TerminalSnapshot(ctx context.Context, req SnapshotRequest) (Snapshot, error)
 	TerminalResize(ctx context.Context, processID string, width, height uint16) error
 	TerminalInput(ctx context.Context, processID string, data []byte) error
+
+	// Events subscribes to daemon events whose type starts with one of
+	// types (all events when none are given).
+	Events(ctx context.Context, types ...string) (*EventStream, error)
 }

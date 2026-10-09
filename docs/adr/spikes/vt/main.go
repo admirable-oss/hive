@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 func main() {
@@ -13,6 +14,23 @@ func main() {
 	switch os.Args[1] {
 	case "perf":
 		runPerf()
+	case "dump":
+		// Write each recording, cut just before its last key (the quit), to
+		// os.Args[2] for the conformance corpus in internal/vt/testdata.
+		dir, _ := os.MkdirTemp("", "vtrec")
+		for _, r := range recordAll(dir) {
+			if r.name == "top" {
+				continue // private: it shows the recording machine's processes
+			}
+			data := r.data
+			if len(r.markers) > 1 {
+				data = data[:r.markers[len(r.markers)-1]]
+			}
+			if err := os.WriteFile(filepath.Join(os.Args[2], r.name+".raw"), data, 0o644); err != nil {
+				panic(err)
+			}
+			fmt.Printf("%s: %d bytes\n", r.name, len(data))
+		}
 	case "record":
 		dir, _ := os.MkdirTemp("", "vtrec")
 		recs := recordAll(dir)

@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-type counter struct{ n int64; writes int }
+type counter struct {
+	n      int64
+	writes int
+}
 
 func (c *counter) Write(p []byte) (int, error) { c.n += int64(len(p)); c.writes++; return len(p), nil }
 

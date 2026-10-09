@@ -88,6 +88,10 @@ this, so a wrong import fails lint.
   told why (`Subscription.Lagged`). It does not silently lose bytes.
 - When order matters, give it a single writer. Fanning work out to one
   goroutine per event reorders it (see the TUI's `inputQueue`).
+- Prefer state over queues for things a slow consumer can skip. A screen
+  viewer gets a frame computed from the current screen when it is ready,
+  not a queue of every change (`vt.View`), so it can never fall behind
+  into corruption.
 
 ### Errors
 
@@ -134,5 +138,13 @@ this, so a wrong import fails lint.
 - Fuzz anything that parses untrusted bytes (`FuzzStreamReceive`,
   `FuzzParse`) and register new targets in the `Makefile`'s `FUZZ_TARGETS`.
 - The CLI's end-to-end tests re-run the test binary as `hive`
-  (`HIVE_CLI_TEST_EXEC=1`). Never let an in-process test autostart a daemon:
+  (`HIVE_CLI_TEST_EXEC=1`), and shim tests re-run it as a shim
+  (`HIVE_SHIM_TEST_EXEC=1`). Never let an in-process test autostart a daemon:
   `os.Executable()` is the test binary there.
+- Children of a race-enabled test binary are race-enabled too. Give them
+  `GORACE=atexit_sleep_ms=0`, or each one lingers a second after exiting and
+  trips the leak check. Check their stderr for `DATA RACE`, because a race in
+  a child does not fail the parent test by itself.
+- A test that starts processes waits for them to exit (see `release` in
+  `internal/shim/shim_test.go`). Sleeping and hoping is not enough under
+  `-race` on a loaded CI machine.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/terminal"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 func writeFile(t *testing.T, path, data string) {
@@ -247,6 +248,10 @@ func (f fakeTerminals) Open(context.Context, string, terminal.Command) (terminal
 	return fakeSession(f), nil
 }
 
+func (f fakeTerminals) Adopt(context.Context, string) (terminal.Session, error) {
+	return nil, terminal.ErrNotAdoptable
+}
+
 type fakeSession fakeTerminals
 
 func (fakeSession) Write(b []byte) (int, error) { return len(b), nil }
@@ -254,6 +259,13 @@ func (fakeSession) Resize(terminal.Size) error  { return nil }
 func (s fakeSession) Wait() error               { <-s.exit; return nil }
 func (fakeSession) Pid() int                    { return 10 }
 func (s fakeSession) Close() error              { s.stop(); return nil }
-func (fakeSession) Subscribe() *terminal.Subscription {
-	return terminal.NewSubscription(nil, nil, nil, nil)
+func (fakeSession) Size() terminal.Size         { return terminal.Size{Width: 80, Height: 24} }
+
+func (fakeSession) Snapshot(context.Context) (*vt.Screen, error) { return vt.NewScreen(80, 24), nil }
+
+func (fakeSession) Scrollback(context.Context, int, bool) ([]string, error) { return nil, nil }
+
+func (fakeSession) Frames(ctx context.Context, _ func(*vt.Frame) error) error {
+	<-ctx.Done()
+	return nil
 }

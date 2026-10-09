@@ -90,24 +90,39 @@ func TestServe_MalformedRequestIsAnsweredThenClosed(t *testing.T) {
 	}
 }
 
-func TestServe_HijackGetsTheConnection(t *testing.T) {
+func TestServe_Protocol1PipeGetsTheConnection(t *testing.T) {
 	r := protocol.NewRouter()
 	r.MustRegister("upgrade", protocol.HandlerFunc(func(_ context.Context, req protocol.Request) protocol.Response {
 		resp := protocol.Reply(req, protocol.Empty{})
-		resp.Hijack = func(_ context.Context, conn net.Conn) { _, _ = conn.Write([]byte("raw")) }
+		resp.Pipe = func(_ context.Context, p protocol.Pipe) error {
+			buf := make([]byte, 3)
+			if _, err := io.ReadFull(p, buf); err != nil {
+				return err
+			}
+			_, err := p.Write([]byte("raw:" + string(buf)))
+			return err
+		}
 		return resp
 	}))
 	s, done := serve(t, r)
 
-	if resp := roundTrip(t, s, "1", "upgrade"); resp.Error != nil {
-		t.Fatalf("unexpected error: %+v", resp.Error)
+	// The pipe's input is sent right behind the request, in the same write:
+	// the server must not lose it to read-ahead.
+	req, _ := protocol.NewRequest("1", "upgrade", nil)
+	line, _ := json.Marshal(req)
+	if _, err := s.Conn().Write(append(append(line, '\n'), "abc"...)); err != nil {
+		t.Fatal(err)
+	}
+	var resp protocol.Response
+	if err := s.Receive(&resp); err != nil || resp.Error != nil {
+		t.Fatalf("unexpected reply %+v, %v", resp, err)
 	}
 	raw, _ := io.ReadAll(s.Conn())
-	if string(raw) != "raw" {
-		t.Fatalf("expected hijacked bytes, got %q", raw)
+	if string(raw) != "raw:abc" {
+		t.Fatalf("expected piped bytes, got %q", raw)
 	}
 	if err := waitServe(t, done); err != nil {
-		t.Fatalf("expected nil after hijack, got %v", err)
+		t.Fatalf("expected nil after the pipe ended, got %v", err)
 	}
 }
 

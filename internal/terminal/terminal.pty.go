@@ -6,31 +6,31 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/creack/pty"
 
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/pgroup"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 const (
-	// DefaultHistoryBytes bounds the output replayed to a newly attached client.
-	DefaultHistoryBytes = 64 << 10
-	// subscriberBuffer is how many chunks (up to 4 KiB each) a subscriber may
-	// fall behind before it is cut off.
-	subscriberBuffer = 256
-	readChunk        = 4096
+	readChunk = 16 << 10
+	// FrameInterval is the minimum time between two frames to one viewer
+	// (at most ~120 per second). The first frame after a quiet period is
+	// sent at once, so typing feels immediate.
+	FrameInterval = 8 * time.Millisecond
 )
 
-// PTYFactory opens real OS pseudo-terminals. Its zero value uses the
-// defaults, so PTYFactory{} is ready to use.
+// PTYFactory opens real OS pseudo-terminals in this process. Its zero value
+// uses the defaults, so PTYFactory{} is ready to use.
 type PTYFactory struct {
 	// Size applies when a Command has no size. Zero means DefaultSize.
 	Size Size
-	// HistoryBytes is the replay buffer per session. Zero means the default.
-	HistoryBytes int
+	// ScrollbackBytes bounds each session's scrollback. Zero means the
+	// emulator's default; negative keeps none.
+	ScrollbackBytes int
 	// StopGrace is the SIGTERM → SIGKILL delay of Close. Zero means pgroup.Grace.
 	StopGrace time.Duration
 	Logger    *slog.Logger
@@ -51,15 +51,15 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 		logFile = lf
 	}
 
-	size := cmd.Size
-	if size.Width == 0 || size.Height == 0 {
-		size = f.Size
-	}
-	if size.Width == 0 || size.Height == 0 {
-		size = DefaultSize
-	}
+	size := cmd.Size.Or(f.Size, DefaultSize)
 	c := exec.Command(cmd.Path, cmd.Args...) //nolint:noctx // agents outlive any request context
 	c.Dir = cmd.WorkingDir
+	c.Env = cmd.Env
+	if c.Env == nil {
+		c.Env = os.Environ()
+	}
+	// Programs inside a Hive terminal see a capable xterm-compatible one.
+	c.Env = append(c.Env, "TERM=xterm-256color", "COLORTERM=truecolor", "TERM_PROGRAM=hive")
 	// pty.Start makes the child a session (and so process-group) leader,
 	// which is what lets Close stop the whole group.
 	ptmx, err := pty.StartWithSize(c, &pty.Winsize{Cols: size.Width, Rows: size.Height})
@@ -70,23 +70,24 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 		return nil, err
 	}
 
-	histBytes := f.HistoryBytes
-	if histBytes <= 0 {
-		histBytes = DefaultHistoryBytes
-	}
 	grace := f.StopGrace
 	if grace <= 0 {
 		grace = pgroup.Grace
 	}
 	s := &ptySession{
-		cmd:         c,
-		ptmx:        ptmx,
-		logFile:     logFile,
-		grace:       grace,
-		log:         logging.OrDiscard(f.Logger).With("pid", c.Process.Pid),
-		history:     newHistory(histBytes),
-		subscribers: make(map[*subscriber]struct{}),
+		cmd:      c,
+		ptmx:     ptmx,
+		logFile:  logFile,
+		grace:    grace,
+		log:      logging.OrDiscard(f.Logger).With("pid", c.Process.Pid),
+		size:     size,
+		watchers: make(map[chan struct{}]struct{}),
 	}
+	// Answers to the program's terminal queries go back to its input.
+	s.term = vt.New(int(size.Width), int(size.Height), vt.Options{
+		Reply:           func(b []byte) { _, _ = ptmx.Write(b) },
+		ScrollbackBytes: f.ScrollbackBytes,
+	})
 	go s.readLoop()
 	return s, nil
 }
@@ -101,22 +102,38 @@ type ptySession struct {
 	waitOnce sync.Once
 	waitErr  error
 
-	mu          sync.Mutex
-	subscribers map[*subscriber]struct{}
-	history     *history
-	ended       bool // output stream finished; subscriber channels are closed
-	closing     bool
-}
-
-type subscriber struct {
-	ch     chan []byte
-	lagged atomic.Bool
+	mu       sync.Mutex
+	term     *vt.Terminal
+	size     Size
+	watchers map[chan struct{}]struct{} // Frames loops waiting for changes
+	ended    bool                       // output finished; the screen is final
+	closing  bool
 }
 
 func (s *ptySession) Write(b []byte) (int, error) { return s.ptmx.Write(b) }
 
 func (s *ptySession) Resize(size Size) error {
-	return pty.Setsize(s.ptmx, &pty.Winsize{Cols: size.Width, Rows: size.Height})
+	if !size.Valid() {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if size == s.size || s.ended {
+		return nil
+	}
+	if err := pty.Setsize(s.ptmx, &pty.Winsize{Cols: size.Width, Rows: size.Height}); err != nil {
+		return err
+	}
+	s.size = size
+	s.term.Resize(int(size.Width), int(size.Height))
+	s.notifyLocked()
+	return nil
+}
+
+func (s *ptySession) Size() Size {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.size
 }
 
 // Wait is safe to call from several goroutines (the terminal service and the
@@ -146,51 +163,109 @@ func (s *ptySession) Close() error {
 	return pgroup.TerminateAfter(s.Pid(), s.grace)
 }
 
-func (s *ptySession) Subscribe() *Subscription {
+func (s *ptySession) Snapshot(context.Context) (*vt.Screen, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.term.Snapshot(), nil
+}
 
-	sub := &subscriber{ch: make(chan []byte, subscriberBuffer)}
-	hist := s.history.Bytes()
-	if s.ended {
-		close(sub.ch)
-		return NewSubscription(sub.ch, hist, nil, nil)
+func (s *ptySession) Scrollback(_ context.Context, n int, ansi bool) ([]string, error) {
+	s.mu.Lock()
+	lines := s.term.Scrollback().Tail(n)
+	s.mu.Unlock()
+	return FormatLines(lines, ansi), nil
+}
+
+// FormatLines renders lines of cells as plain text or ANSI-styled text.
+func FormatLines(lines [][]vt.Cell, ansi bool) []string {
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		if ansi {
+			out[i] = vt.LineANSI(l)
+		} else {
+			out[i] = vt.LineText(l)
+		}
 	}
-	s.subscribers[sub] = struct{}{}
-	cancel := func() {
+	return out
+}
+
+func (s *ptySession) Frames(ctx context.Context, emit func(*vt.Frame) error) error {
+	changed := make(chan struct{}, 1)
+	s.mu.Lock()
+	s.watchers[changed] = struct{}{}
+	s.mu.Unlock()
+	defer func() {
 		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.drop(sub)
+		delete(s.watchers, changed)
+		s.mu.Unlock()
+	}()
+
+	var (
+		view vt.View
+		last time.Time
+	)
+	for {
+		s.mu.Lock()
+		f := s.term.Frame(&view)
+		ended := s.ended
+		s.mu.Unlock()
+		if f != nil {
+			if err := emit(f); err != nil {
+				return err
+			}
+			last = time.Now()
+		}
+		if ended {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-changed:
+		}
+		// Coalesce bursts: no more than one frame per FrameInterval.
+		if wait := FrameInterval - time.Since(last); wait > 0 {
+			t := time.NewTimer(wait)
+			select {
+			case <-ctx.Done():
+				t.Stop()
+				return nil
+			case <-t.C:
+			}
+		}
 	}
-	return NewSubscription(sub.ch, hist, cancel, sub.lagged.Load)
 }
 
-// drop removes and closes sub if it is still registered. Callers hold mu.
-func (s *ptySession) drop(sub *subscriber) {
-	if _, ok := s.subscribers[sub]; ok {
-		delete(s.subscribers, sub)
-		close(sub.ch)
+// notifyLocked wakes every Frames loop. Callers hold mu.
+func (s *ptySession) notifyLocked() {
+	for ch := range s.watchers {
+		select {
+		case ch <- struct{}{}:
+		default: // already pending
+		}
 	}
 }
 
-// readLoop fans PTY output out to the log file, the history buffer and every
-// subscriber. It is the single reader of ptmx and the owner of its lifetime.
+// readLoop feeds PTY output to the log file and the emulator. It is the
+// single reader of ptmx and the owner of its lifetime.
 func (s *ptySession) readLoop() {
 	buf := make([]byte, readChunk)
 	logOK := s.logFile != nil
 	for {
 		n, err := s.ptmx.Read(buf)
 		if n > 0 {
-			chunk := append([]byte(nil), buf[:n]...)
 			// Disk I/O happens before taking the lock, so a slow disk can
-			// delay this agent's output but never Subscribe or other calls.
+			// delay this agent's output but never viewers or other calls.
 			if logOK {
-				if _, werr := s.logFile.Write(chunk); werr != nil {
+				if _, werr := s.logFile.Write(buf[:n]); werr != nil {
 					s.log.Warn("terminal log write failed; further output is not logged", "err", werr)
 					logOK = false
 				}
 			}
-			s.publish(chunk)
+			s.mu.Lock()
+			_, _ = s.term.Write(buf[:n])
+			s.notifyLocked()
+			s.mu.Unlock()
 		}
 		if err != nil {
 			break // EIO once every holder of the terminal has exited
@@ -199,31 +274,12 @@ func (s *ptySession) readLoop() {
 
 	s.mu.Lock()
 	s.ended = true
-	for sub := range s.subscribers {
-		s.drop(sub)
-	}
+	s.notifyLocked()
+	_ = s.term.Close()
 	s.mu.Unlock()
 
 	_ = s.ptmx.Close()
 	if s.logFile != nil {
 		_ = s.logFile.Close()
-	}
-}
-
-func (s *ptySession) publish(chunk []byte) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.history.Write(chunk)
-	// Blocking here would freeze the agent once the PTY buffer fills, and
-	// skipping a chunk would corrupt the subscriber's screen. A subscriber
-	// that cannot keep up is cut off instead and told why (Lagged).
-	for sub := range s.subscribers {
-		select {
-		case sub.ch <- chunk:
-		default:
-			sub.lagged.Store(true)
-			s.drop(sub)
-			s.log.Warn("terminal subscriber fell behind and was detached")
-		}
 	}
 }

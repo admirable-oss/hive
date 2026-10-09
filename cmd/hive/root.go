@@ -62,6 +62,7 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newEnvironmentCmd(a),
 		newProcessCmd(a),
 		newTerminalCmd(a),
+		newEventsCmd(a),
 		newDemoCmd(a),
 	)
 	add("runtime",

@@ -47,6 +47,6 @@ stop_grace = {{dur .Process.StopGrace}}
 # Size of a new agent terminal when the caller does not choose one.
 default_width = {{.Terminal.DefaultWidth}}
 default_height = {{.Terminal.DefaultHeight}}
-# Raw output replayed to a client when it attaches, in KiB.
-history_kb = {{.Terminal.HistoryKB}}
+# Scrollback kept per agent, in MiB (lines that scrolled off its screen).
+scrollback_mb = {{.Terminal.ScrollbackMB}}
 `))

@@ -2,26 +2,39 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"syscall"
 
+	"github.com/admirable-oss/hive/internal/buildinfo"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
+// service talks protocol 2 over one connection, dialled on first use and
+// re-dialled after it breaks (a daemon restart). When the daemon only speaks
+// protocol 1 it falls back to a connection per call.
 type service struct {
 	config Config
-	seq    atomic.Uint64 // request IDs, unique per client
+
+	mu     sync.Mutex
+	mux    *protocol.MuxClient
+	legacy bool
+
+	seq atomic.Uint64 // protocol-1 request IDs
 }
 
 func NewService(config Config) Client {
+	if config.Name == "" {
+		config.Name = "cli"
+	}
 	return &service{config: config}
 }
 
@@ -34,6 +47,7 @@ type terminalParams struct {
 	Data      []byte `json:"data,omitempty"`
 	Width     uint16 `json:"width,omitempty"`
 	Height    uint16 `json:"height,omitempty"`
+	ViewID    string `json:"view_id,omitempty"`
 }
 
 func (s *service) Ping(ctx context.Context) error {
@@ -45,9 +59,20 @@ func (s *service) Status(ctx context.Context) (Status, error) {
 	return call[Status](ctx, s, "runtime.status", nil)
 }
 
-func (s *service) Shutdown(ctx context.Context) error {
-	_, err := call[struct{}](ctx, s, "runtime.shutdown", nil)
+func (s *service) Shutdown(ctx context.Context, stopAgents bool) error {
+	_, err := call[struct{}](ctx, s, "runtime.shutdown", map[string]bool{"stop_agents": stopAgents})
 	return err
+}
+
+func (s *service) Close() error {
+	s.mu.Lock()
+	mux := s.mux
+	s.mux = nil
+	s.mu.Unlock()
+	if mux != nil {
+		return mux.Close()
+	}
+	return nil
 }
 
 func (s *service) EnvironmentList(ctx context.Context) ([]environment.Environment, error) {
@@ -90,21 +115,49 @@ func (s *service) ProcessLogs(ctx context.Context, req process.LogsRequest) (Log
 }
 
 func (s *service) ProcessLogsStream(ctx context.Context, req process.LogsRequest, out io.Writer) error {
-	stream, done, err := s.open(ctx)
+	p, err := s.openPipe(ctx, "process.logs.stream", req, nil)
 	if err != nil {
 		return err
 	}
-	defer done()
-	if err := s.exchange(stream, "process.logs.stream", req, nil); err != nil {
-		return err
-	}
-	// After the ack the daemon sends raw log bytes and closes the connection
-	// when it is finished; cancelling ctx closes it from this side.
-	_, err = io.Copy(out, stream.Conn())
+	defer p.Close()
+	stop := context.AfterFunc(ctx, func() { _ = p.Close() })
+	defer stop()
+	// The daemon sends the log and closes the pipe when it is finished;
+	// cancelling ctx closes it from this side.
+	_, err = io.Copy(out, p)
 	if ctx.Err() != nil {
 		return nil // the caller stopped following
 	}
 	return err
+}
+
+func (s *service) TerminalAttach(ctx context.Context, req ViewRequest) (*Attachment, error) {
+	var view View
+	p, err := s.openPipe(ctx, "terminal.attach", req, &view)
+	if err != nil {
+		return nil, err
+	}
+	return &Attachment{pipe: p, View: view, processID: req.ProcessID, client: s}, nil
+}
+
+func (s *service) TerminalFrames(ctx context.Context, req ViewRequest) (*FrameStream, error) {
+	if err := s.requireMux(ctx); err != nil {
+		return nil, err
+	}
+	var view View
+	p, err := s.openPipe(ctx, "terminal.frames", req, &view)
+	if err != nil {
+		return nil, err
+	}
+	a := &Attachment{pipe: p, View: view, processID: req.ProcessID, client: s}
+	return &FrameStream{Attachment: a, reader: vt.NewFrameReader(p)}, nil
+}
+
+func (s *service) TerminalSnapshot(ctx context.Context, req SnapshotRequest) (Snapshot, error) {
+	if err := s.requireMux(ctx); err != nil {
+		return Snapshot{}, err
+	}
+	return call[Snapshot](ctx, s, "terminal.snapshot", req)
 }
 
 func (s *service) TerminalResize(ctx context.Context, processID string, width, height uint16) error {
@@ -117,88 +170,169 @@ func (s *service) TerminalInput(ctx context.Context, processID string, data []by
 	return err
 }
 
-func (s *service) TerminalAttach(ctx context.Context, processID string, in io.Reader, out io.Writer) error {
-	stream, done, err := s.open(ctx)
+func (s *service) Events(ctx context.Context, types ...string) (*EventStream, error) {
+	if err := s.requireMux(ctx); err != nil {
+		return nil, err
+	}
+	p, err := s.openPipe(ctx, "events.subscribe", map[string][]string{"types": types}, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer done()
-	if err := s.exchange(stream, "terminal.attach", terminalParams{ProcessID: processID}, nil); err != nil {
-		return err
-	}
-
-	// After the ack the connection is a raw byte stream in both directions.
-	conn := stream.Conn()
-	finished := make(chan struct{}, 2)
-	if in != nil {
-		go func() { _, _ = io.Copy(conn, in); finished <- struct{}{} }()
-	}
-	if out == nil {
-		out = io.Discard
-	}
-	go func() { _, _ = io.Copy(out, conn); finished <- struct{}{} }()
-
-	<-finished // ctx cancellation closes the stream, which ends the copies
-	return nil
+	return newEventStream(p), nil
 }
 
-// call performs one request/response exchange on a fresh connection.
-func call[R any](ctx context.Context, s *service, method string, params any) (R, error) {
-	var result R
-	stream, done, err := s.open(ctx)
-	if err != nil {
-		return result, err
-	}
-	defer done()
-	err = s.exchange(stream, method, params, &result)
-	return result, err
-}
+// errLegacy routes a call to protocol 1.
+var errLegacy = errors.New("protocol 1")
 
-// open dials the daemon. The returned func closes the connection; it is also
-// closed as soon as ctx ends, so no read or write can outlive the caller.
-func (s *service) open(ctx context.Context) (*protocol.Stream, func(), error) {
+// conn returns the protocol-2 connection, dialling it when needed.
+func (s *service) conn(ctx context.Context) (*protocol.MuxClient, error) {
 	if err := s.config.Validate(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.legacy {
+		return nil, errLegacy
+	}
+	if s.mux != nil {
+		if s.mux.Err() == nil {
+			return s.mux, nil
+		}
+		_ = s.mux.Close()
+		s.mux = nil
+	}
+	raw, err := s.dial(ctx)
+	if err != nil {
+		return nil, err
+	}
+	mux, err := protocol.Handshake(ctx, raw, protocol.Hello{
+		Client: s.config.Name, ClientVersion: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability},
+	}, protocol.DefaultMaxMessageSize)
+	if errors.Is(err, protocol.ErrProtocol1Only) {
+		s.legacy = true
+		return nil, errLegacy
+	}
+	if err != nil {
+		return nil, fmt.Errorf("connect to runtime: %w", err)
+	}
+	s.mux = mux
+	return mux, nil
+}
+
+func (s *service) requireMux(ctx context.Context) error {
+	_, err := s.conn(ctx)
+	if errors.Is(err, errLegacy) {
+		return ErrDaemonTooOld
+	}
+	return err
+}
+
+func (s *service) dial(ctx context.Context) (net.Conn, error) {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "unix", s.config.SocketPath)
 	if err != nil {
 		if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED) {
-			return nil, nil, fmt.Errorf("%w (%s)", ErrUnavailable, s.config.SocketPath)
+			return nil, fmt.Errorf("%w (%s)", ErrUnavailable, s.config.SocketPath)
 		}
-		return nil, nil, fmt.Errorf("connect to runtime: %w", err)
+		return nil, fmt.Errorf("connect to runtime: %w", err)
+	}
+	return conn, nil
+}
+
+// call performs one request and decodes its result.
+func call[R any](ctx context.Context, s *service, method string, params any) (R, error) {
+	var result R
+	mux, err := s.conn(ctx)
+	switch {
+	case errors.Is(err, errLegacy):
+		err = s.legacyCall(ctx, method, params, &result)
+	case err != nil:
+		return result, err
+	default:
+		err = mux.Call(ctx, method, params, &result)
+	}
+	if err != nil {
+		return result, fmt.Errorf("%s: %w", method, err)
+	}
+	return result, nil
+}
+
+// openPipe opens a pipe; on protocol 1 the pipe is the rest of a dedicated
+// connection.
+func (s *service) openPipe(ctx context.Context, method string, params, result any) (io.ReadWriteCloser, error) {
+	mux, err := s.conn(ctx)
+	switch {
+	case errors.Is(err, errLegacy):
+		return s.legacyPipe(ctx, method, params, result)
+	case err != nil:
+		return nil, err
+	}
+	p, err := mux.OpenPipe(ctx, method, params, result)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", method, err)
+	}
+	return p, nil
+}
+
+// Protocol 1: a connection per call.
+
+func (s *service) legacyCall(ctx context.Context, method string, params, result any) error {
+	stream, done, err := s.legacyOpen(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	return s.legacyExchange(stream, method, params, result)
+}
+
+func (s *service) legacyPipe(ctx context.Context, method string, params, result any) (io.ReadWriteCloser, error) {
+	conn, err := s.dial(ctx)
+	if err != nil {
+		return nil, err
+	}
+	stream := protocol.NewStream(conn, protocol.DefaultMaxMessageSize)
+	if err := s.legacyExchange(stream, method, params, result); err != nil {
+		_ = stream.Close()
+		return nil, fmt.Errorf("%s: %w", method, err)
+	}
+	return stream.Conn(), nil
+}
+
+func (s *service) legacyOpen(ctx context.Context) (*protocol.Stream, func(), error) {
+	conn, err := s.dial(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
 	stream := protocol.NewStream(conn, protocol.DefaultMaxMessageSize)
 	stop := context.AfterFunc(ctx, func() { _ = stream.Close() })
 	return stream, func() { stop(); _ = stream.Close() }, nil
 }
 
-// exchange sends one request and decodes the response into result (if non-nil).
-func (s *service) exchange(stream *protocol.Stream, method string, params, result any) error {
+func (s *service) legacyExchange(stream *protocol.Stream, method string, params, result any) error {
 	req, err := protocol.NewRequest(strconv.FormatUint(s.seq.Add(1), 10), method, params)
 	if err != nil {
-		return fmt.Errorf("%s: %w", method, err)
+		return err
 	}
 	if err := stream.Send(req); err != nil {
-		return fmt.Errorf("%s: send: %w", method, err)
+		return fmt.Errorf("send: %w", err)
 	}
 	var resp protocol.Response
 	if err := stream.Receive(&resp); err != nil {
-		return fmt.Errorf("%s: receive: %w", method, err)
+		return fmt.Errorf("receive: %w", err)
 	}
 	if err := protocol.CheckVersion(resp.Version); err != nil {
-		return fmt.Errorf("%s: %w; restart the daemon with `hive stop` so it matches this CLI", method, err)
+		return fmt.Errorf("%w; restart the daemon with `hive daemon restart`", err)
 	}
 	if resp.Error != nil {
-		return fmt.Errorf("%s: %w", method, resp.Error)
+		return resp.Error
 	}
 	if result == nil {
 		return nil
 	}
 	if len(resp.Result) == 0 {
-		return fmt.Errorf("%s: %w", method, errMissingResult)
+		return errMissingResult
 	}
-	return json.Unmarshal(resp.Result, result)
+	return jsonUnmarshal(resp.Result, result)
 }
 
 var errMissingResult = errors.New("missing result")

@@ -39,8 +39,9 @@ type Terminal struct {
 	// caller does not.
 	DefaultWidth  int
 	DefaultHeight int
-	// HistoryKB is how much raw output is replayed to a newly attached client.
-	HistoryKB int
+	// ScrollbackMB bounds each agent's scrollback (lines that scrolled off
+	// its screen). 0 keeps none.
+	ScrollbackMB int
 }
 
 // Defaults returns the built-in configuration.
@@ -49,7 +50,7 @@ func Defaults() Config {
 		Daemon:   Daemon{Autostart: true, ShutdownTimeout: 15 * time.Second},
 		Log:      Log{Level: "info", Format: "text", MaxSizeMB: 10, MaxBackups: 3},
 		Process:  Process{StopGrace: 3 * time.Second},
-		Terminal: Terminal{DefaultWidth: 220, DefaultHeight: 50, HistoryKB: 64},
+		Terminal: Terminal{DefaultWidth: 220, DefaultHeight: 50, ScrollbackMB: 10},
 	}
 }
 

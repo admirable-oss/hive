@@ -14,6 +14,7 @@ import (
 	"github.com/admirable-oss/hive/internal/buildinfo"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/protocol"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 // stopTimeout bounds a remote runtime.shutdown: how long agents get to exit
@@ -41,6 +42,9 @@ type Snapshot struct {
 	PID             int    `json:"pid"`
 	Version         string `json:"version"`
 	ProtocolVersion string `json:"protocol_version"`
+	// AgentsSurviveRestart is true when agents run under shims and keep
+	// running when the daemon stops or restarts.
+	AgentsSurviveRestart bool `json:"agents_survive_restart"`
 }
 
 // Supervisor is what the server needs from the process domain: closing out
@@ -48,6 +52,9 @@ type Snapshot struct {
 type Supervisor interface {
 	Recover(ctx context.Context) error
 	StopAll(ctx context.Context) error
+	// Detach lets go of running agents without stopping them; it reports
+	// whether they keep running (false: they were stopped instead).
+	Detach(ctx context.Context) (bool, error)
 }
 
 // Server owns the daemon socket. It serves handler on every accepted
@@ -145,9 +152,19 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 // Stop shuts the daemon down, closes every open connection and waits for
-// their handlers to return. It is safe to call more than once.
+// their handlers to return. Agents keep running when they can (under
+// shims); a later daemon adopts them. It is safe to call more than once.
 func (s *Server) Stop(ctx context.Context) error {
-	err := s.shutdown(ctx)
+	return s.stop(ctx, false)
+}
+
+// StopWithAgents is Stop, but it stops every agent first.
+func (s *Server) StopWithAgents(ctx context.Context) error {
+	return s.stop(ctx, true)
+}
+
+func (s *Server) stop(ctx context.Context, stopAgents bool) error {
+	err := s.shutdown(ctx, stopAgents)
 
 	s.mu.Lock()
 	if s.cancel != nil {
@@ -170,19 +187,20 @@ func (s *Server) Snapshot() Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return Snapshot{
-		Status:          s.status,
-		Socket:          s.cfg.SocketPath,
-		StartedAt:       s.startedAt,
-		PID:             os.Getpid(),
-		Version:         buildinfo.Get().Version,
-		ProtocolVersion: protocol.Version,
+		Status:               s.status,
+		Socket:               s.cfg.SocketPath,
+		StartedAt:            s.startedAt,
+		PID:                  os.Getpid(),
+		Version:              buildinfo.Get().Version,
+		ProtocolVersion:      protocol.Version2,
+		AgentsSurviveRestart: s.cfg.Shim != nil,
 	}
 }
 
-// shutdown stops accepting connections, removes the socket and stops every
-// agent. Open connections are left alone so a runtime.shutdown caller still
-// gets its reply; Stop closes them afterwards.
-func (s *Server) shutdown(ctx context.Context) error {
+// shutdown stops accepting connections, removes the socket and either stops
+// every agent or detaches from them. Open connections are left alone so a
+// runtime.shutdown caller still gets its reply; Stop closes them afterwards.
+func (s *Server) shutdown(ctx context.Context, stopAgents bool) error {
 	s.mu.Lock()
 	ln := s.listener
 	s.listener = nil
@@ -194,12 +212,22 @@ func (s *Server) shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	s.log.Info("daemon stopping; stopping all agents")
 	errs := []error{ln.Close()}
 	if err := os.Remove(s.cfg.SocketPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		errs = append(errs, err)
 	}
-	errs = append(errs, s.procs.StopAll(ctx))
+	if stopAgents {
+		s.log.Info("daemon stopping; stopping all agents")
+		errs = append(errs, s.procs.StopAll(ctx))
+	} else {
+		kept, err := s.procs.Detach(ctx)
+		errs = append(errs, err)
+		if kept {
+			s.log.Info("daemon stopping; agents keep running and will be re-attached by the next daemon")
+		} else {
+			s.log.Info("daemon stopping; agents could not outlive it and were stopped")
+		}
+	}
 
 	s.mu.Lock()
 	s.status = StatusStopped
@@ -236,7 +264,8 @@ func (s *Server) accept(ctx context.Context, ln net.Listener) {
 		go func() {
 			defer s.wg.Done()
 			defer s.untrack(conn)
-			if err := protocol.Serve(ctx, conn, s.handler, protocol.DefaultMaxMessageSize); err != nil && !errors.Is(err, net.ErrClosed) {
+			info := protocol.ServerInfo{Version: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability}}
+			if err := protocol.ServeConn(ctx, conn, s.handler, info); err != nil && !errors.Is(err, net.ErrClosed) {
 				s.log.Debug("connection ended with an error", "err", err)
 			}
 		}()

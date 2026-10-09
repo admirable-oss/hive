@@ -14,10 +14,13 @@ import (
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if next, cmd, ok := m.updateLive(msg); ok {
+		return next, cmd
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width, m.Height = msg.Width, msg.Height
-		return m, nil
+		return m, m.resizeView()
 
 	case bee.TickMsg:
 		m.Bee.Tick()
@@ -29,7 +32,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if m.notice != "" && time.Since(m.noticeAt) > noticeTTL {
 			m.notice = ""
 		}
-		return m, tea.Batch(pollTick(), m.refresh, m.fetchLogsCmd(m.selectedID))
+		var refresh tea.Cmd
+		if !m.eventsActive {
+			refresh = m.refresh // events are down: poll
+		}
+		return m, tea.Batch(pollTick(), refresh, m.logsCmd())
 
 	case LogsMsg:
 		if msg.ProcessID != "" {
@@ -38,7 +45,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case RefreshMsg:
-		return m.applyRefresh(msg), nil
+		m = m.applyRefresh(msg)
+		return m, tea.Batch(m.syncView(), m.logsCmd())
 
 	case attachFinishedMsg:
 		return m, m.refresh
@@ -87,7 +95,7 @@ func (m Model) updateInteractive(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.input.Enqueue(cur.ID, data)
-	return m, m.fetchLogsCmd(cur.ID)
+	return m, m.logsCmd()
 }
 
 func (m Model) updateNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -113,7 +121,7 @@ func (m Model) updateNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if running {
 			m.Interactive = true
-			return m, m.fetchLogsCmd(cur.ID)
+			return m, tea.Batch(m.syncView(), m.logsCmd())
 		}
 		cmd := m.selectIndex(m.SelectedProc + 1)
 		return m, cmd

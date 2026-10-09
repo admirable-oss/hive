@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -29,6 +30,9 @@ type fakeClient struct {
 	inputCalls int
 	inputErr   error
 	inputDelay func() // runs before each delivery is recorded; simulates latency
+
+	events func() (*client.EventStream, error)
+	frames func() (*client.FrameStream, error)
 }
 
 func (f *fakeClient) Ping(_ context.Context) error {
@@ -39,8 +43,26 @@ func (f *fakeClient) Status(_ context.Context) (client.Status, error) {
 	return client.Status{Status: "running"}, nil
 }
 
-func (f *fakeClient) Shutdown(_ context.Context) error {
-	return nil
+func (f *fakeClient) Shutdown(context.Context, bool) error { return nil }
+
+func (f *fakeClient) Close() error { return nil }
+
+func (f *fakeClient) TerminalFrames(context.Context, client.ViewRequest) (*client.FrameStream, error) {
+	if f.frames != nil {
+		return f.frames()
+	}
+	return nil, errors.New("no frames in this fake")
+}
+
+func (f *fakeClient) TerminalSnapshot(context.Context, client.SnapshotRequest) (client.Snapshot, error) {
+	return client.Snapshot{}, nil
+}
+
+func (f *fakeClient) Events(context.Context, ...string) (*client.EventStream, error) {
+	if f.events != nil {
+		return f.events()
+	}
+	return nil, errors.New("no events in this fake")
 }
 
 func (f *fakeClient) EnvironmentList(_ context.Context) ([]environment.Environment, error) {
@@ -103,8 +125,8 @@ func (f *fakeClient) ProcessLogsStream(context.Context, process.LogsRequest, io.
 	return nil
 }
 
-func (f *fakeClient) TerminalAttach(_ context.Context, _ string, _ io.Reader, _ io.Writer) error {
-	return nil
+func (f *fakeClient) TerminalAttach(context.Context, client.ViewRequest) (*client.Attachment, error) {
+	return nil, errors.New("no attach in this fake")
 }
 
 func (f *fakeClient) TerminalResize(_ context.Context, _ string, _, _ uint16) error {

@@ -21,6 +21,13 @@ const (
 	// ErrorCodeUnsupportedVersion answers a request stamped with a protocol
 	// version this daemon does not speak. The connection stays open.
 	ErrorCodeUnsupportedVersion = "unsupported_version"
+	// ErrorCodeUnsupported answers a request the server understands but
+	// cannot serve on this connection or build (e.g. a pipe over protocol 1
+	// that needs framing).
+	ErrorCodeUnsupported = "unsupported"
+	// ErrorCodeUnavailable means the target exists but cannot answer now
+	// (e.g. an agent whose terminal is gone).
+	ErrorCodeUnavailable = "unavailable"
 )
 
 // Error is the error payload of a Response. It is also a Go error, so domain

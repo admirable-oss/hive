@@ -35,7 +35,8 @@ func (c *Config) schema() map[string]map[string]setter {
 		"terminal": {
 			"default_width":  integer(&c.Terminal.DefaultWidth, 20, 1000),
 			"default_height": integer(&c.Terminal.DefaultHeight, 5, 500),
-			"history_kb":     integer(&c.Terminal.HistoryKB, 4, 64<<10),
+			"scrollback_mb":  integer(&c.Terminal.ScrollbackMB, 0, 1024),
+			"history_kb":     deprecated("attaching now repaints the screen; set terminal.scrollback_mb for history instead"),
 		},
 	}
 }
@@ -69,6 +70,11 @@ func (c *Config) apply(doc map[string]any) []string {
 		}
 	}
 	return warnings
+}
+
+// deprecated accepts a removed key with a warning instead of failing.
+func deprecated(why string) setter {
+	return func(any) error { return fmt.Errorf("is no longer used (%s)", why) }
 }
 
 func boolean(dst *bool) setter {

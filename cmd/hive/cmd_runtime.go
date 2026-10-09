@@ -40,6 +40,9 @@ func showStatus(ctx context.Context, a *app) error {
 		fmt.Fprintf(w, "Socket\t%s\n", st.Socket)
 		fmt.Fprintf(w, "Started\t%s (%s ago)\n", formatTime(st.StartedAt), time.Since(st.StartedAt).Round(time.Second))
 		fmt.Fprintf(w, "Logs\t%s\n", a.daemonLog())
+		if st.AgentsSurviveRestart {
+			fmt.Fprintf(w, "Agents\tkeep running across daemon restarts\n")
+		}
 		if cli := buildinfo.Get().Version; st.Version != cli {
 			fmt.Fprintf(w, "Note\tthis CLI is %s; run `hive daemon restart` to match\n", cli)
 		}
@@ -68,7 +71,7 @@ func newStopCmd(a *app) *cobra.Command {
 		Use:   "stop",
 		Short: "Stop the daemon and every agent it runs",
 		Args:  noArgs,
-		RunE:  func(cmd *cobra.Command, _ []string) error { return stopDaemon(cmd.Context(), a) },
+		RunE:  func(cmd *cobra.Command, _ []string) error { return stopDaemon(cmd.Context(), a, true) },
 	}
 }
 

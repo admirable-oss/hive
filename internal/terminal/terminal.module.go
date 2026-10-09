@@ -1,6 +1,10 @@
 // Package terminal runs commands inside pseudo-terminals so agents that expect
 // a real TTY (interactive CLIs, prompts, colours) behave as they would for a
-// human. It owns live sessions only; process lifecycle lives in package process.
+// human. Each session emulates its terminal (package vt), so any number of
+// clients can view it, join late and still see the exact screen.
+//
+// The daemon's Service tracks live sessions and the clients viewing them; it
+// owns sessions but not processes, whose lifecycle lives in package process.
 package terminal
 
 import (
@@ -8,12 +12,16 @@ import (
 	"time"
 )
 
-// Config tunes the PTY sessions the module opens. Zero values use defaults.
+// Config tunes the PTY sessions the module opens in this process. Zero
+// values use defaults.
 type Config struct {
-	DefaultSize  Size
-	HistoryBytes int
-	StopGrace    time.Duration
-	Logger       *slog.Logger
+	DefaultSize     Size
+	ScrollbackBytes int
+	StopGrace       time.Duration
+	Logger          *slog.Logger
+	// Factory replaces the in-process PTY factory (the daemon passes the
+	// shim launcher, whose sessions outlive it).
+	Factory Factory
 }
 
 type Module struct {
@@ -21,10 +29,14 @@ type Module struct {
 }
 
 func NewModule(cfg Config) *Module {
-	return &Module{Service: NewService(PTYFactory{
-		Size:         cfg.DefaultSize,
-		HistoryBytes: cfg.HistoryBytes,
-		StopGrace:    cfg.StopGrace,
-		Logger:       cfg.Logger,
-	})}
+	factory := cfg.Factory
+	if factory == nil {
+		factory = PTYFactory{
+			Size:            cfg.DefaultSize,
+			ScrollbackBytes: cfg.ScrollbackBytes,
+			StopGrace:       cfg.StopGrace,
+			Logger:          cfg.Logger,
+		}
+	}
+	return &Module{Service: NewService(factory)}
 }
