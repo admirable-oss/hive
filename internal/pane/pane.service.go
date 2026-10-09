@@ -16,6 +16,7 @@ import (
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/layout"
 	"github.com/admirable-oss/hive/internal/logging"
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/terminal"
 	"github.com/admirable-oss/hive/internal/vt"
@@ -80,6 +81,9 @@ type Service struct {
 func NewService(cfg Config, store Store, procs Processes, terms Terminals, envs Environments, events Events) *Service {
 	if !cfg.Size.Valid() {
 		cfg.Size = terminal.DefaultSize
+	}
+	if cfg.WorkingDir == nil {
+		cfg.WorkingDir = platform.ProcessCwd
 	}
 	if events == nil {
 		events = nopEvents{}
@@ -243,6 +247,31 @@ func (s *Service) resizeTabLocked(st *State, t *Tab) {
 			s.log.Debug("resize pane", "pane", p.ID, "err", err)
 		}
 	}
+}
+
+// workingDirLocked is where paneID's process is working now (its shell's
+// directory after `cd`), so a pane split from it or opened over it starts
+// there, as in tmux with pane_current_path. "" (the environment's root)
+// when that cannot be known: the process ended, the OS does not say, or
+// the directory is gone.
+func (s *Service) workingDirLocked(ctx context.Context, st *State, paneID string) string {
+	i := slices.IndexFunc(st.Panes, func(p Pane) bool { return p.ID == paneID })
+	if i < 0 {
+		return ""
+	}
+	proc, err := s.procs.Get(ctx, st.Panes[i].ProcessID)
+	if err != nil || !proc.Active() || proc.PID <= 0 {
+		return ""
+	}
+	dir, err := s.cfg.WorkingDir(proc.PID)
+	if err != nil {
+		s.log.Debug("read a pane's working directory", "pane", paneID, "pid", proc.PID, "err", err)
+		return ""
+	}
+	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+		return ""
+	}
+	return dir
 }
 
 // --- process start ---
@@ -545,6 +574,9 @@ func (s *Service) Split(ctx context.Context, req SplitRequest) (Pane, error) {
 		return Pane{}, err
 	}
 
+	if req.Spec.Cwd == "" {
+		req.Spec.Cwd = s.workingDirLocked(ctx, st, target)
+	}
 	pane := Pane{ID: s.idSource("p"), TabID: t.ID, EnvironmentID: t.EnvironmentID, Name: req.Spec.Name, CreatedAt: s.nowFn()}
 	next, err := layout.Split(t.Layout.Clone(), target, d, req.Ratio, pane.ID)
 	if err != nil {
@@ -590,6 +622,9 @@ func (s *Service) Popup(ctx context.Context, req PopupRequest) (Pane, error) {
 	env, err := s.envs.Get(ctx, t.EnvironmentID)
 	if err != nil {
 		return Pane{}, err
+	}
+	if req.Spec.Cwd == "" && t.Focused != "" {
+		req.Spec.Cwd = s.workingDirLocked(ctx, st, t.Focused)
 	}
 	pane := Pane{ID: s.idSource("p"), TabID: t.ID, EnvironmentID: t.EnvironmentID, Name: req.Spec.Name, CreatedAt: s.nowFn()}
 	popup := Popup{Pane: pane.ID, WidthPct: req.WidthPct, HeightPct: req.HeightPct}

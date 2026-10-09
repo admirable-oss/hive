@@ -28,3 +28,13 @@ func LookupProcess(pid int) (ProcessInfo, error) {
 	}
 	return lookupProcess(pid)
 }
+
+// ProcessCwd returns the working directory of the live process pid, so a
+// new pane can start where the user is working (`cd` in a shell changes
+// it). It needs no special privilege for the user's own processes.
+func ProcessCwd(pid int) (string, error) {
+	if pid <= 0 {
+		return "", ErrNoProcess
+	}
+	return processCwd(pid)
+}

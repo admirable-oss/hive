@@ -27,6 +27,10 @@ type Config struct {
 	// $SHELL as a login shell, or /bin/sh.
 	Shell  []string
 	Logger *slog.Logger
+	// WorkingDir reads a process's working directory, for new panes that
+	// start where the pane they come from is. Nil means
+	// platform.ProcessCwd; tests replace it.
+	WorkingDir func(pid int) (string, error)
 }
 
 type Module struct {

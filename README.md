@@ -74,7 +74,7 @@ The multiplexer works like tmux: press the prefix, `Ctrl+B`, then a key.
 | `?` | every binding, with a filter |
 | `d` | detach; agents keep running |
 
-The mouse works too: click to focus, drag borders, select to copy, scroll into history. [docs/keybindings.md](docs/keybindings.md) lists every binding and how to change them.
+A split or popup starts in the directory its pane is working in (after a `cd`, too); a new tab starts at the environment's root. The mouse works too: click to focus, drag borders, select to copy, scroll into history. [docs/keybindings.md](docs/keybindings.md) lists every binding and how to change them.
 
 ### CLI
 
