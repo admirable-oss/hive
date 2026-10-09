@@ -35,6 +35,9 @@ func TestRenderRoundTripsCustomValues(t *testing.T) {
 	want.Log.Level, want.Log.Format = "debug", "json"
 	want.Process.StopGrace = 1500 * time.Millisecond
 	want.Terminal.DefaultWidth = 120
+	want.Terminal.Shell = "/bin/zsh -l"
+	want.Git.RefreshInterval = 30 * time.Second
+	want.Worktrees.Directory = "~/src/worktrees"
 	cfg, warnings, err := config.Parse(config.Render(want))
 	if err != nil || len(warnings) != 0 {
 		t.Fatalf("parse: %v, warnings %v", err, warnings)
@@ -81,6 +84,9 @@ stop_grace = "1h"
 
 [terminal]
 default_width = 1.5
+
+[worktrees]
+directory = "relative/dir"
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -97,6 +103,7 @@ default_width = 1.5
 		"log.max_size_mb: 0 is outside 1..1024",
 		"process.stop_grace: 1h0m0s is outside",
 		"terminal.default_width: must be an integer",
+		"worktrees.directory: \"relative/dir\" must be absolute",
 	}
 	if len(warnings) != len(wantFragments) {
 		t.Fatalf("got %d warnings, want %d:\n%s", len(warnings), len(wantFragments), strings.Join(warnings, "\n"))
@@ -201,5 +208,23 @@ func TestDeprecatedKeysWarnButLoad(t *testing.T) {
 	}
 	if len(warnings) != 1 || !strings.Contains(warnings[0], "terminal.history_kb: is no longer used") {
 		t.Fatalf("warnings = %v", warnings)
+	}
+}
+
+func TestWorkspaceSettings(t *testing.T) {
+	cfg := config.Defaults()
+	if got := cfg.WorktreeDir("/home/me", "/home/me/.hive"); got != "/home/me/.hive/worktrees" {
+		t.Errorf("default worktree dir = %q", got)
+	}
+	cfg.Worktrees.Directory = "~/wt"
+	if got := cfg.WorktreeDir("/home/me", "/x"); got != "/home/me/wt" {
+		t.Errorf("~ worktree dir = %q", got)
+	}
+	if cfg.ShellArgv() != nil {
+		t.Error("the default shell is $SHELL")
+	}
+	cfg.Terminal.Shell = " fish  --login "
+	if got := cfg.ShellArgv(); len(got) != 2 || got[0] != "fish" || got[1] != "--login" {
+		t.Errorf("shell argv = %q", got)
 	}
 }

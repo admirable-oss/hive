@@ -182,3 +182,40 @@ func itoa(i int) string {
 		return string(b)
 	}())
 }
+
+func TestChangedLinesAndScrollbackSince(t *testing.T) {
+	term := newTerm(t, 20, 3, vt.Options{})
+	_, _ = term.Write([]byte("a\r\nb\r\nc"))
+	v := term.Version()
+	pushed := term.Scrollback().Pushed()
+	_, _ = term.Write([]byte("\r\nd\r\ne"))
+	changed := term.ChangedLines(v)
+	if strings.Join(changed, ",") != "c,d,e" {
+		t.Fatalf("changed lines = %q", changed)
+	}
+	lines, now := term.Scrollback().Since(pushed)
+	if len(lines) != 2 || now != pushed+2 {
+		t.Fatalf("scrolled off since: %d lines, count %d", len(lines), now)
+	}
+	if got := vt.LineText(lines[0]) + vt.LineText(lines[1]); got != "ab" {
+		t.Fatalf("scrolled lines = %q", got)
+	}
+	if more, _ := term.Scrollback().Since(now); len(more) != 0 {
+		t.Fatal("nothing new since now")
+	}
+	before := term.Version()
+	term.Resize(30, 3)
+	if len(term.ChangedLines(before)) != 3 {
+		t.Fatal("after a resize every line counts as changed")
+	}
+}
+
+func TestUnwrapJoinsFullWidthLines(t *testing.T) {
+	term := newTerm(t, 10, 5, vt.Options{})
+	_, _ = term.Write([]byte(strings.Repeat("x", 10) + "yy\r\nshort"))
+	s := term.Snapshot()
+	got := vt.Unwrap(s.Lines[:3], 10)
+	if len(got) != 2 || got[0] != strings.Repeat("x", 10)+"yy" || got[1] != "short" {
+		t.Fatalf("unwrapped = %q", got)
+	}
+}

@@ -15,6 +15,8 @@ import (
 const (
 	EnvironmentCreated = "environment.created" // environment.Environment
 	EnvironmentRemoved = "environment.removed" // {"id": …}
+	EnvironmentUpdated = "environment.updated" // environment.Environment (its variables changed)
+	EnvironmentGit     = "environment.git"     // {"id": …, "git": git.Status or null}
 	ProcessStarted     = "process.started"     // process.Process
 	ProcessExited      = "process.exited"      // process.Process (final record)
 	ProcessRecovered   = "process.recovered"   // process.Process, re-attached after a daemon restart

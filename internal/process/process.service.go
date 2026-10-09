@@ -5,7 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -52,6 +55,11 @@ type Service interface {
 	// follow new output (see LogStream).
 	OpenLogs(ctx context.Context, req LogsRequest) (*LogStream, error)
 
+	// Move transfers a process, running or not, to another environment. A
+	// running process keeps running (in its original directory); only its
+	// record and logs move.
+	Move(ctx context.Context, id, envID string) (Process, error)
+
 	// StopEnvironment stops every live process in envID and waits for them.
 	StopEnvironment(ctx context.Context, envID string) error
 	// StopAll stops every live process and waits for them (daemon shutdown).
@@ -75,6 +83,13 @@ func WithLogger(l *slog.Logger) Option {
 	return func(s *service) { s.log = logging.OrDiscard(l) }
 }
 
+// WithLaunchEnv sets how process environments are built (see LaunchEnv).
+// Without it processes inherit the daemon's environment unfiltered, which
+// only tests should rely on.
+func WithLaunchEnv(l LaunchEnv) Option {
+	return func(s *service) { s.launchEnv = &l }
+}
+
 // WithEvents publishes lifecycle events to ev.
 func WithEvents(ev Events) Option {
 	return func(s *service) { s.events = ev }
@@ -93,13 +108,14 @@ func WithOrphanControl(lookup func(pid int) (platform.ProcessInfo, error), termi
 }
 
 type service struct {
-	store   Store
-	envs    Environments
-	runner  Runner
-	terms   Terminals // nil disables Terminal: true
-	adopter Adopter   // nil: plain processes die with the daemon
-	events  Events
-	log     *slog.Logger
+	store     Store
+	envs      Environments
+	runner    Runner
+	terms     Terminals // nil disables Terminal: true
+	adopter   Adopter   // nil: plain processes die with the daemon
+	events    Events
+	launchEnv *LaunchEnv
+	log       *slog.Logger
 
 	// Orphan control: see reapOrphan.
 	lookup    func(pid int) (platform.ProcessInfo, error)
@@ -156,13 +172,23 @@ func (s *service) Start(ctx context.Context, req StartRequest) (Process, error) 
 	if req.Args == nil {
 		req.Args = []string{}
 	}
+	cwd, err := resolveCwd(env.Path, req.Cwd)
+	if err != nil {
+		return Process{}, err
+	}
+	for k := range req.Env {
+		if !validEnvName(k) {
+			return Process{}, fmt.Errorf("%w: %q", ErrInvalidEnv, k)
+		}
+	}
 
 	p := Process{
 		ID:            newID(),
 		EnvironmentID: env.ID,
 		Command:       req.Command,
 		Args:          req.Args,
-		WorkingDir:    env.Path,
+		WorkingDir:    cwd,
+		Env:           req.Env,
 		Terminal:      req.Terminal,
 		Status:        StatusStarting,
 		StartedAt:     time.Now(),
@@ -173,7 +199,7 @@ func (s *service) Start(ctx context.Context, req StartRequest) (Process, error) 
 	log := s.log.With("process", p.ID, "env", p.EnvironmentID)
 
 	// The process outlives this request, so it gets a context that is never cancelled.
-	handle, err := s.launch(context.WithoutCancel(ctx), p, req)
+	handle, err := s.launch(context.WithoutCancel(ctx), p, req, s.processEnv(p, env.Env))
 	if err != nil {
 		now := time.Now()
 		p.Status, p.EndedAt = StatusFailed, &now
@@ -197,6 +223,51 @@ func (s *service) Start(ctx context.Context, req StartRequest) (Process, error) 
 	return p, nil
 }
 
+// processEnv builds p's environment: the launch base, the environment's
+// variables, the request's, then Hive's own.
+func (s *service) processEnv(p Process, envVars map[string]string) []string {
+	l := s.launchEnv
+	if l == nil {
+		if len(envVars) == 0 && len(p.Env) == 0 {
+			return nil // inherit
+		}
+		base := DaemonLaunchEnv(nil)
+		l = &base
+	}
+	return l.build(envVars, p.Env, map[string]string{
+		"HIVE_PROCESS_ID": p.ID,
+		"HIVE_ENV_ID":     p.EnvironmentID,
+	})
+}
+
+// resolveCwd returns where a process runs: dir for "", rel joined to dir,
+// or an absolute path; it must be an existing directory.
+func resolveCwd(dir, cwd string) (string, error) {
+	switch {
+	case cwd == "":
+		return dir, nil
+	case !filepath.IsAbs(cwd):
+		cwd = filepath.Join(dir, cwd)
+	}
+	info, err := os.Stat(cwd)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("%w: %q", ErrInvalidCwd, cwd)
+	}
+	return filepath.Clean(cwd), nil
+}
+
+func validEnvName(k string) bool {
+	if k == "" {
+		return false
+	}
+	for i, r := range k {
+		if r != '_' && (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (i == 0 || r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
+}
+
 // supervise records p as live and watches it until it exits.
 func (s *service) supervise(p Process, handle Handle) {
 	lp := &liveProcess{envID: p.EnvironmentID, handle: handle, done: make(chan struct{})}
@@ -208,16 +279,16 @@ func (s *service) supervise(p Process, handle Handle) {
 
 // launch starts p either in a PTY or as a plain process; both become a Handle
 // so the rest of the lifecycle doesn't care which.
-func (s *service) launch(ctx context.Context, p Process, req StartRequest) (Handle, error) {
+func (s *service) launch(ctx context.Context, p Process, req StartRequest, environ []string) (Handle, error) {
 	stdout, stderr := s.store.LogPaths(p)
 	if !p.Terminal {
 		return s.runner.Start(ctx, Command{
-			ID: p.ID, Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir,
+			ID: p.ID, Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir, Env: environ,
 			StdoutPath: stdout, StderrPath: stderr,
 		})
 	}
 	sess, err := s.terms.Open(ctx, p.ID, terminal.Command{
-		ID: p.ID, Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir,
+		ID: p.ID, Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir, Env: environ,
 		LogPath: stdout,
 		Size:    terminal.Size{Width: req.Width, Height: req.Height},
 	})
@@ -264,6 +335,7 @@ func (s *service) monitor(p Process, lp *liveProcess) {
 	s.mu.Lock()
 	delete(s.live, p.ID)
 	stopping, detaching := lp.stopping, lp.detaching
+	p.EnvironmentID = lp.envID // it may have moved since it started
 	s.mu.Unlock()
 	if detaching {
 		return // the process lives on; a later daemon records how it ends
@@ -332,6 +404,32 @@ func (s *service) Stop(ctx context.Context, id string) error {
 	}
 	s.log.Info("stopping process", "process", id, "pid", p.PID)
 	return lp.handle.Kill()
+}
+
+func (s *service) Move(ctx context.Context, id, envID string) (Process, error) {
+	p, err := s.store.Get(ctx, id)
+	if err != nil {
+		return Process{}, err
+	}
+	if p.EnvironmentID == envID {
+		return p, nil
+	}
+	if _, err := s.envs.Get(ctx, envID); err != nil {
+		return Process{}, err
+	}
+	// Hold the live map while moving so a concurrent exit records the
+	// final state in the new place.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	moved, err := s.store.Move(ctx, p, envID)
+	if err != nil {
+		return Process{}, err
+	}
+	if lp, ok := s.live[id]; ok {
+		lp.envID = envID
+	}
+	s.log.Info("process moved", "process", id, "from", p.EnvironmentID, "to", envID)
+	return moved, nil
 }
 
 func (s *service) Logs(ctx context.Context, req LogsRequest) (string, error) {

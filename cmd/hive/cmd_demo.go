@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
 )
 
@@ -54,7 +55,7 @@ func newDemoCmd(a *app) *cobra.Command {
 }
 
 func runDemo(ctx context.Context, a *app) error {
-	_, _ = a.client.EnvironmentCreate(ctx, demoEnv) // fine if it already exists
+	_, _ = a.client.EnvironmentCreate(ctx, environment.CreateRequest{ID: demoEnv}) // fine if it already exists
 
 	// Replace any demo agents left over from a previous run.
 	existing, err := a.client.ProcessList(ctx, demoEnv)

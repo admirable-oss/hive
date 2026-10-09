@@ -30,7 +30,7 @@ func (r recordingProcs) StopEnvironment(_ context.Context, id string) error {
 
 func TestEnvGuardStopsAgentsBeforeDeleting(t *testing.T) {
 	var calls []string
-	g := envGuard{Service: recordingEnvs{calls: &calls}, procs: recordingProcs{calls: &calls}}
+	g := &envGuard{Service: recordingEnvs{calls: &calls}, procs: recordingProcs{calls: &calls}}
 	if err := g.Delete(context.Background(), "dev"); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestEnvGuardStopsAgentsBeforeDeleting(t *testing.T) {
 func TestEnvGuardKeepsEnvironmentWhenStopFails(t *testing.T) {
 	var calls []string
 	boom := errors.New("agents would not stop")
-	g := envGuard{Service: recordingEnvs{calls: &calls}, procs: recordingProcs{calls: &calls, err: boom}}
+	g := &envGuard{Service: recordingEnvs{calls: &calls}, procs: recordingProcs{calls: &calls, err: boom}}
 	if err := g.Delete(context.Background(), "dev"); !errors.Is(err, boom) {
 		t.Fatalf("got %v, want the stop error", err)
 	}

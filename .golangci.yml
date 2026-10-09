@@ -99,6 +99,8 @@ linters:
             - "**/internal/logging/*.go"
             - "**/internal/protocol/*.go"
             - "**/internal/vt/*.go"
+            - "**/internal/layout/*.go"
+            - "**/internal/session/*.go"
             - "!$test"
           deny:
             - pkg: github.com/admirable-oss/hive/internal
@@ -112,6 +114,8 @@ linters:
             - "**/internal/daemonctl/*.go"
             - "**/internal/shim/*.go"
             - "**/internal/event/*.go"
+            - "**/internal/git/*.go"
+            - "**/internal/pane/*.go"
             - "!$test"
           deny:
             - pkg: github.com/admirable-oss/hive/internal/runtime

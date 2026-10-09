@@ -13,7 +13,9 @@ import (
 
 	"github.com/admirable-oss/hive/internal/buildinfo"
 	"github.com/admirable-oss/hive/internal/logging"
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/protocol"
+	"github.com/admirable-oss/hive/internal/session"
 	"github.com/admirable-oss/hive/internal/vt"
 )
 
@@ -45,6 +47,8 @@ type Snapshot struct {
 	// AgentsSurviveRestart is true when agents run under shims and keep
 	// running when the daemon stops or restarts.
 	AgentsSurviveRestart bool `json:"agents_survive_restart"`
+	// Session is the session this daemon serves.
+	Session string `json:"session"`
 }
 
 // Supervisor is what the server needs from the process domain: closing out
@@ -72,6 +76,7 @@ type Server struct {
 	listener  net.Listener
 	conns     map[net.Conn]struct{}
 	cancel    context.CancelFunc
+	workers   []func(ctx context.Context)
 
 	wg       sync.WaitGroup
 	done     chan struct{}
@@ -97,7 +102,7 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 	// The socket's directory doubles as the lock's, so it must exist first.
-	if err := os.MkdirAll(filepath.Dir(s.cfg.SocketPath), 0o700); err != nil {
+	if err := platform.PrepareSocketDir(s.cfg.SocketPath); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(s.cfg.root(), 0o700); err != nil {
@@ -147,8 +152,21 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.wg.Add(1)
 	go s.accept(serveCtx, ln)
+	for _, w := range s.workers {
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			w(serveCtx)
+		}()
+	}
 	s.log.Info("daemon listening", "path", s.cfg.SocketPath, "version", buildinfo.Get().Version, "pid", os.Getpid())
 	return nil
+}
+
+// Go adds a background task that runs from Start until Stop. It must be
+// called before Start.
+func (s *Server) Go(task func(ctx context.Context)) {
+	s.workers = append(s.workers, task)
 }
 
 // Stop shuts the daemon down, closes every open connection and waits for
@@ -194,6 +212,7 @@ func (s *Server) Snapshot() Snapshot {
 		Version:              buildinfo.Get().Version,
 		ProtocolVersion:      protocol.Version2,
 		AgentsSurviveRestart: s.cfg.Shim != nil,
+		Session:              session.Normalize(s.cfg.Session),
 	}
 }
 

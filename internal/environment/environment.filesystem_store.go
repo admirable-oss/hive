@@ -13,7 +13,11 @@ import (
 // FilesystemStore keeps one directory per environment:
 //
 //	<root>/<id>/environment.json
-//	<root>/<id>/workspace/
+//	<root>/<id>/workspace/        only for managed environments
+//
+// Deleting an environment removes <root>/<id> only. An environment rooted in
+// the user's own directory keeps nothing there, so that directory is never
+// touched.
 type FilesystemStore struct {
 	root string
 }
@@ -38,16 +42,32 @@ func (s *FilesystemStore) Create(_ context.Context, env Environment) (Environmen
 		return Environment{}, err
 	}
 
-	env.Path = filepath.Join(dir, "workspace")
-	err := os.Mkdir(env.Path, 0o755)
+	var err error
+	if env.Path == "" {
+		env.Path, env.Managed = filepath.Join(dir, "workspace"), true
+		err = os.Mkdir(env.Path, 0o755)
+	}
 	if err == nil {
-		err = jsonfile.Write(s.file(env.ID), env)
+		err = jsonfile.Write(s.file(env.ID), stored(env))
 	}
 	if err != nil {
 		_ = os.RemoveAll(dir)
 		return Environment{}, err
 	}
 	return env, nil
+}
+
+func (s *FilesystemStore) Update(_ context.Context, env Environment) error {
+	if _, err := os.Stat(s.file(env.ID)); errors.Is(err, fs.ErrNotExist) {
+		return ErrNotFound
+	}
+	return jsonfile.Write(s.file(env.ID), stored(env))
+}
+
+// stored is env as written to disk: current schema, no live state.
+func stored(env Environment) Environment {
+	env.Schema, env.Git = schema, nil
+	return env
 }
 
 func (s *FilesystemStore) Get(_ context.Context, id string) (Environment, error) {
@@ -57,6 +77,10 @@ func (s *FilesystemStore) Get(_ context.Context, id string) (Environment, error)
 			return Environment{}, ErrNotFound
 		}
 		return Environment{}, err
+	}
+	if env.Schema == 0 {
+		// Before schema 1 every environment had a managed workspace.
+		env.Schema, env.Managed = schema, true
 	}
 	return env, nil
 }

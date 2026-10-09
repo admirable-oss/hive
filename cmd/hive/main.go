@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/admirable-oss/hive/internal/protocol"
@@ -28,6 +29,7 @@ const (
 	exitError       = 1
 	exitUsage       = 2 // bad command line
 	exitNotRunning  = 3 // the daemon is not running (status, ping)
+	exitTimeout     = 4 // a wait ran out of time (pane wait-output)
 	exitInterrupted = 130
 )
 
@@ -49,6 +51,14 @@ func execute(args []string, stdout, stderr io.Writer, getenv func(string) string
 	if err != nil {
 		fmt.Fprintln(stderr, "hive:", err)
 		return exitError
+	}
+	// The session decides which daemon and storage the whole command tree
+	// uses, so it is read before cobra parses anything.
+	if name, ok := sessionFlag(args); ok {
+		if err := a.useSession(name); err != nil {
+			fmt.Fprintln(stderr, "hive: --session:", err)
+			return exitUsage
+		}
 	}
 	root := newRootCmd(a)
 	root.SetArgs(args)
@@ -73,6 +83,21 @@ func execute(args []string, stdout, stderr io.Writer, getenv func(string) string
 		return exitUsage
 	}
 	return exitError
+}
+
+// sessionFlag finds --session NAME or --session=NAME before any "--".
+func sessionFlag(args []string) (string, bool) {
+	for i := 0; i < len(args); i++ {
+		switch arg := args[i]; {
+		case arg == "--":
+			return "", false
+		case arg == "--session" && i+1 < len(args):
+			return args[i+1], true
+		case strings.HasPrefix(arg, "--session="):
+			return strings.TrimPrefix(arg, "--session="), true
+		}
+	}
+	return "", false
 }
 
 // codedError ends the program with a specific exit code. An empty message

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/runtime"
 )
@@ -41,7 +42,7 @@ func TestClientTerminalIntegration(t *testing.T) {
 	c := client.NewService(client.Config{SocketPath: path})
 
 	// 1. Create environment "dev"
-	env, err := c.EnvironmentCreate(ctx, "dev")
+	env, err := c.EnvironmentCreate(ctx, environment.CreateRequest{ID: "dev"})
 	if err != nil {
 		t.Fatalf("create environment: %v", err)
 	}

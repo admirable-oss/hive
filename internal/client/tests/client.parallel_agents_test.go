@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/runtime"
 )
@@ -41,7 +42,7 @@ func TestClientParallelAgentsIntegration(t *testing.T) {
 	c := client.NewService(client.Config{SocketPath: path})
 
 	// 1. Create environment "acme-api"
-	env, err := c.EnvironmentCreate(ctx, "acme-api")
+	env, err := c.EnvironmentCreate(ctx, environment.CreateRequest{ID: "acme-api"})
 	if err != nil {
 		t.Fatalf("create environment: %v", err)
 	}

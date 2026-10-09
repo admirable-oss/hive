@@ -49,4 +49,16 @@ default_width = {{.Terminal.DefaultWidth}}
 default_height = {{.Terminal.DefaultHeight}}
 # Scrollback kept per agent, in MiB (lines that scrolled off its screen).
 scrollback_mb = {{.Terminal.ScrollbackMB}}
+# What a new pane runs when no command is given ("" means $SHELL -l).
+shell = {{q .Terminal.Shell}}
+
+[git]
+# How often environments' branch and dirty state are re-read (changes to the
+# repository itself, like commits and checkouts, are noticed at once).
+refresh_interval = {{dur .Git.RefreshInterval}}
+
+[worktrees]
+# Where ` + "`hive worktree create`" + ` puts checkouts, as <directory>/<repo>/<branch>
+# ("" means ~/.hive/worktrees, or $HIVE_HOME/worktrees).
+directory = {{q .Worktrees.Directory}}
 `))

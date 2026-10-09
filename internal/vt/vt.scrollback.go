@@ -88,3 +88,22 @@ func trimBlank(line []Cell) []Cell {
 	}
 	return line[:end]
 }
+
+// Since returns the stored lines pushed after the first pushed lines (as
+// counted by Pushed), oldest first, and the current count. Lines dropped
+// for the budget are skipped.
+func (s *Scrollback) Since(pushed uint64) ([][]Cell, uint64) {
+	if pushed >= s.pushed {
+		return nil, s.pushed
+	}
+	newer := s.pushed - pushed // lines pushed since
+	first := 0
+	if newer < uint64(s.n) {
+		first = s.n - int(newer)
+	}
+	out := make([][]Cell, 0, s.n-first)
+	for i := first; i < s.n; i++ {
+		out = append(out, s.Line(i))
+	}
+	return out, s.pushed
+}

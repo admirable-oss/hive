@@ -69,10 +69,18 @@ func (f *fakeClient) EnvironmentList(_ context.Context) ([]environment.Environme
 	return f.envs, nil
 }
 
-func (f *fakeClient) EnvironmentCreate(_ context.Context, id string) (environment.Environment, error) {
-	env := environment.Environment{ID: id, Path: "/tmp/" + id}
+func (f *fakeClient) EnvironmentCreate(_ context.Context, req environment.CreateRequest) (environment.Environment, error) {
+	env := environment.Environment{ID: req.ID, Path: "/tmp/" + req.ID}
 	f.envs = append(f.envs, env)
 	return env, nil
+}
+
+func (f *fakeClient) EnvironmentUpdate(_ context.Context, req environment.UpdateRequest) (environment.Environment, error) {
+	return f.EnvironmentGet(context.Background(), req.ID)
+}
+
+func (f *fakeClient) Call(context.Context, string, any, any) error {
+	return errors.New("no workspace API in this fake")
 }
 
 func (f *fakeClient) EnvironmentGet(_ context.Context, id string) (environment.Environment, error) {

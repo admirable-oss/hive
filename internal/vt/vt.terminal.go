@@ -231,3 +231,20 @@ func (t *Terminal) drainScrollback() {
 func clamp(v, lo, hi int) int { return max(lo, min(v, hi)) }
 
 var _ io.Writer = (*Terminal)(nil)
+
+// Version returns the terminal's change counter: it increases whenever a
+// line changes or the terminal is resized.
+func (t *Terminal) Version() uint64 { return t.version }
+
+// ChangedLines returns the screen lines that changed after version since
+// (every line after a resize), with their current text.
+func (t *Terminal) ChangedLines(since uint64) []string {
+	var out []string
+	all := t.resized > since
+	for y, v := range t.versions {
+		if all || v > since {
+			out = append(out, LineText(t.screen.Lines[y]))
+		}
+	}
+	return out
+}

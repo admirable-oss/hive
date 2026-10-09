@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -36,7 +37,24 @@ func (c *Config) schema() map[string]map[string]setter {
 			"default_width":  integer(&c.Terminal.DefaultWidth, 20, 1000),
 			"default_height": integer(&c.Terminal.DefaultHeight, 5, 500),
 			"scrollback_mb":  integer(&c.Terminal.ScrollbackMB, 0, 1024),
-			"history_kb":     deprecated("attaching now repaints the screen; set terminal.scrollback_mb for history instead"),
+			"shell": func(raw any) error {
+				return setString(raw, func(s string) error { c.Terminal.Shell = strings.TrimSpace(s); return nil })
+			},
+			"history_kb": deprecated("attaching now repaints the screen; set terminal.scrollback_mb for history instead"),
+		},
+		"git": {
+			"refresh_interval": duration(&c.Git.RefreshInterval, time.Second, 10*time.Minute),
+		},
+		"worktrees": {
+			"directory": func(raw any) error {
+				return setString(raw, func(s string) error {
+					if s != "" && s != "~" && !strings.HasPrefix(s, "~/") && !filepath.IsAbs(s) {
+						return fmt.Errorf("%q must be absolute or start with ~/", s)
+					}
+					c.Worktrees.Directory = s
+					return nil
+				})
+			},
 		},
 	}
 }

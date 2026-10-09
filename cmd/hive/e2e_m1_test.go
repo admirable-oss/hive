@@ -66,7 +66,7 @@ func agentScript(name string) string {
 // identical screen.
 func TestE2E_AgentsSurviveADaemonCrash(t *testing.T) {
 	c := newCLI(t)
-	c.must("env", "create", "dev")
+	c.must("env", "create", "dev", "--managed")
 	type agent struct {
 		id     string
 		pid    int
@@ -158,7 +158,7 @@ while :; do sleep 1; done`
 // and checks the very first paint reproduces its screen exactly.
 func TestE2E_AttachShowsTheScreenAtOnce(t *testing.T) {
 	c := newCLI(t)
-	c.must("env", "create", "dev")
+	c.must("env", "create", "dev", "--managed")
 	id, _ := c.startAgent("-t", "--width", "60", "--height", "12", "dev", "--", "sh", "-c", inkLikeAgent)
 	want := c.waitSnapshot(id, "✔ done")
 

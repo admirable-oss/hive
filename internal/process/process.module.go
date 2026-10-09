@@ -21,6 +21,9 @@ type Config struct {
 	Runner  Runner
 	Adopter Adopter
 	Events  Events
+	// LaunchEnv builds every process's environment; nil inherits the
+	// daemon's unfiltered (tests only).
+	LaunchEnv *LaunchEnv
 }
 
 type Module struct {
@@ -36,6 +39,9 @@ func NewModule(cfg Config, envs Environments, terms Terminals) *Module {
 	opts := []Option{WithLogger(cfg.Logger)}
 	if cfg.Adopter != nil {
 		opts = append(opts, WithAdopter(cfg.Adopter))
+	}
+	if cfg.LaunchEnv != nil {
+		opts = append(opts, WithLaunchEnv(*cfg.LaunchEnv))
 	}
 	if cfg.Events != nil {
 		opts = append(opts, WithEvents(cfg.Events))

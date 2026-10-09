@@ -28,6 +28,11 @@ const (
 	// ErrorCodeUnavailable means the target exists but cannot answer now
 	// (e.g. an agent whose terminal is gone).
 	ErrorCodeUnavailable = "unavailable"
+	// ErrorCodeTimeout means a call with a deadline (a wait) ran out of time.
+	ErrorCodeTimeout = "timeout"
+	// ErrorCodeConflict means the request clashes with current state (a
+	// path already in use, uncommitted changes in a worktree to remove).
+	ErrorCodeConflict = "conflict"
 )
 
 // Error is the error payload of a Response. It is also a Go error, so domain

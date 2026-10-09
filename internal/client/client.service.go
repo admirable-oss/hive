@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -79,8 +80,23 @@ func (s *service) EnvironmentList(ctx context.Context) ([]environment.Environmen
 	return call[[]environment.Environment](ctx, s, "environment.list", nil)
 }
 
-func (s *service) EnvironmentCreate(ctx context.Context, id string) (environment.Environment, error) {
-	return call[environment.Environment](ctx, s, "environment.create", idParams{id})
+func (s *service) EnvironmentCreate(ctx context.Context, req environment.CreateRequest) (environment.Environment, error) {
+	return call[environment.Environment](ctx, s, "environment.create", req)
+}
+
+func (s *service) EnvironmentUpdate(ctx context.Context, req environment.UpdateRequest) (environment.Environment, error) {
+	return call[environment.Environment](ctx, s, "environment.update", req)
+}
+
+func (s *service) Call(ctx context.Context, method string, params, result any) error {
+	raw, err := call[json.RawMessage](ctx, s, method, params)
+	if err != nil || result == nil || len(raw) == 0 {
+		return err
+	}
+	if err := json.Unmarshal(raw, result); err != nil {
+		return fmt.Errorf("%s: decode result: %w", method, err)
+	}
+	return nil
 }
 
 func (s *service) EnvironmentGet(ctx context.Context, id string) (environment.Environment, error) {

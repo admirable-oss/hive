@@ -169,7 +169,7 @@ func TestShim_ScrollbackCrossesTheShim(t *testing.T) {
 	// 40 lines on a 12-row screen: the first ones scroll into history.
 	r := openAgent(t, l, "sb", `i=0; while [ $i -lt 40 ]; do echo "history $i"; i=$((i+1)); done; echo end; while :; do sleep 1; done`)
 	waitScreen(t, r, "end")
-	lines, err := r.Scrollback(context.Background(), 3, false)
+	lines, err := r.Read(context.Background(), terminal.ReadRequest{Source: terminal.SourceHistory, Lines: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,6 +183,35 @@ func TestShim_ScrollbackCrossesTheShim(t *testing.T) {
 		t.Fatalf("newest scrollback line %q does not precede the screen's first line %q", lines[2], first)
 	}
 	checkShimStderr(t, l, "sb")
+	stop(t, l, r)
+}
+
+func TestShim_WaitOutputAcrossTheShim(t *testing.T) {
+	l := newLauncher(t)
+	r := openAgent(t, l, "wo", `echo ready; read _; echo "tests: 42 passed"; read _`)
+	waitScreen(t, r, "ready")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan string, 1)
+	go func() {
+		line, err := r.WaitOutput(ctx, terminal.WaitRequest{Pattern: `\d+ passed`})
+		if err != nil {
+			t.Errorf("wait: %v", err)
+		}
+		done <- line
+	}()
+	time.Sleep(100 * time.Millisecond)
+	_, _ = r.Write([]byte("\n"))
+	if got := <-done; got != "tests: 42 passed" {
+		t.Fatalf("matched %q", got)
+	}
+
+	short, cancelShort := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancelShort()
+	if _, err := r.WaitOutput(short, terminal.WaitRequest{Pattern: "never"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("timeout through the shim: %v", err)
+	}
+	checkShimStderr(t, l, "wo")
 	stop(t, l, r)
 }
 
@@ -329,9 +358,16 @@ func TestShim_StartFailures(t *testing.T) {
 	if _, err := os.Stat(l.Dir("f1")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("a failed start must not leave its directory behind")
 	}
+}
 
-	long := &shim.Launcher{Exe: os.Args[0], RunDir: "/" + strings.Repeat("x", 120)}
-	if _, err := long.Open(context.Background(), terminal.Command{ID: "f2", Path: "sh"}); err == nil || !strings.Contains(err.Error(), "HIVE_HOME") {
-		t.Fatalf("long socket path: %v", err)
+// A storage root too deep for a unix socket address still works: the
+// socket moves to a short private directory.
+func TestShim_DeepRunDir(t *testing.T) {
+	l := newLauncher(t)
+	l.RunDir = filepath.Join(l.RunDir, strings.Repeat("d", 60), strings.Repeat("e", 60))
+	r := openAgent(t, l, "deep", "echo deep-ok")
+	if err := r.Wait(); err != nil {
+		t.Fatalf("Wait = %v", err)
 	}
+	release(t, l, r)
 }

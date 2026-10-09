@@ -15,7 +15,7 @@ import (
 func newEnv(t *testing.T, root, id string) environment.Service {
 	t.Helper()
 	envs := environment.NewService(environment.NewFilesystemStore(root))
-	if _, err := envs.Create(context.Background(), id); err != nil {
+	if _, err := envs.Create(context.Background(), environment.CreateRequest{ID: id}); err != nil {
 		t.Fatalf("create env: %v", err)
 	}
 	return envs
@@ -104,7 +104,7 @@ func TestService_RecoverClosesOutStaleRecords(t *testing.T) {
 func TestService_StopEnvironmentStopsOnlyThatEnvironment(t *testing.T) {
 	root := t.TempDir()
 	envs := newEnv(t, root, "a")
-	if _, err := envs.Create(context.Background(), "b"); err != nil {
+	if _, err := envs.Create(context.Background(), environment.CreateRequest{ID: "b"}); err != nil {
 		t.Fatal(err)
 	}
 

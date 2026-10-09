@@ -14,13 +14,17 @@ import (
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/config"
 	"github.com/admirable-oss/hive/internal/daemonctl"
+	"github.com/admirable-oss/hive/internal/platform"
+	"github.com/admirable-oss/hive/internal/session"
 )
 
 // app is everything a command needs. execute builds it once (the CLI's
 // composition root) and passes it down, so commands never reach for globals.
 type app struct {
 	home       string // the user's home directory
-	root       string // storage root, e.g. ~/.hive
+	base       string // every session's data: $HIVE_HOME or ~/.hive
+	session    string // the session commands talk to
+	root       string // the session's storage root (base for the default session)
 	socket     string // daemon socket inside root
 	logDir     string // daemon logs
 	configPath string
@@ -41,27 +45,52 @@ func newApp(getenv func(string) string, stdout, stderr io.Writer) (*app, error) 
 	if err != nil {
 		return nil, fmt.Errorf("locate home directory: %w", err)
 	}
-	root := getenv("HIVE_HOME")
-	if root == "" {
-		root = filepath.Join(home, ".hive")
+	base := getenv("HIVE_HOME")
+	if base == "" {
+		base = filepath.Join(home, ".hive")
 	}
 	a := &app{
 		home:       home,
-		root:       root,
-		socket:     filepath.Join(root, "hive.sock"),
-		logDir:     filepath.Join(root, "logs"),
+		base:       base,
 		configPath: config.ResolvePath(getenv, home),
 		getenv:     getenv,
 		out:        stdout,
 		errOut:     stderr,
 	}
-	a.client = client.NewService(client.Config{SocketPath: a.socket})
+	if err := a.useSession(getenv(session.EnvVar)); err != nil {
+		return nil, fmt.Errorf("%s: %w", session.EnvVar, err)
+	}
 
 	cfg, warnings, err := config.Load(a.configPath)
 	cfg, envWarnings := config.ApplyEnv(cfg, getenv)
 	warnings = append(warnings, envWarnings...)
 	a.cfg, a.warnings, a.cfgErr = cfg, warnings, err
 	return a, nil
+}
+
+// useSession points the app at session name ("" is the default session).
+func (a *app) useSession(name string) error {
+	root, err := session.Root(a.base, name)
+	if err != nil {
+		return err
+	}
+	if a.client != nil {
+		_ = a.client.Close()
+	}
+	a.session = session.Normalize(name)
+	a.root = root
+	a.socket = platform.SocketPath(root, "hive.sock")
+	a.logDir = filepath.Join(root, "logs")
+	a.client = client.NewService(client.Config{SocketPath: a.socket})
+	return nil
+}
+
+// sessionArgs is the --session flag that selects a.session in a child hive.
+func (a *app) sessionArgs() []string {
+	if a.session == session.Default {
+		return nil
+	}
+	return []string{"--session", a.session}
 }
 
 func (a *app) daemonLog() string    { return filepath.Join(a.logDir, "daemon.log") }
@@ -103,7 +132,7 @@ func (a *app) startDaemon(ctx context.Context) error {
 	}
 	return daemonctl.Spawn(ctx, daemonctl.SpawnOptions{
 		Executable: exe,
-		Args:       []string{"daemon"},
+		Args:       append(a.sessionArgs(), "daemon"),
 		StderrPath: a.daemonStderr(),
 		LogPath:    a.daemonLog(),
 		Ready:      a.client.Ping,

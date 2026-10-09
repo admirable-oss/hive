@@ -18,6 +18,7 @@ import (
 	"github.com/admirable-oss/hive/internal/jsonfile"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/pgroup"
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/terminal"
 	"github.com/admirable-oss/hive/internal/vt"
@@ -63,6 +64,9 @@ func Run(ctx context.Context, dir string) error {
 	// Listen before starting the agent, so the daemon can connect the
 	// moment state.json says running.
 	sock := socketPath(dir)
+	if err := platform.PrepareSocketDir(sock); err != nil {
+		return s.fail(err)
+	}
 	_ = os.Remove(sock)
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "unix", sock)
@@ -301,9 +305,24 @@ type dataParams struct {
 
 type stopParams struct{}
 
-type scrollbackParams struct {
-	Lines int  `json:"lines"`
-	ANSI  bool `json:"ansi,omitempty"`
+type waitParams struct {
+	terminal.WaitRequest
+	TimeoutMS int64 `json:"timeout_ms,omitempty"`
+}
+
+// waitError gives wait outcomes wire codes the daemon maps back.
+func waitError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, context.DeadlineExceeded):
+		return protocol.NewError(protocol.ErrorCodeTimeout, err)
+	case errors.Is(err, terminal.ErrEnded):
+		return protocol.NewError(protocol.ErrorCodeUnavailable, err)
+	case errors.Is(err, terminal.ErrInvalidRead):
+		return protocol.NewError(protocol.ErrorCodeInvalidParams, err)
+	}
+	return err
 }
 
 type snapshotResult struct {
@@ -348,12 +367,27 @@ func (s *server) router() *protocol.Router {
 		}
 		return snapshotResult{Frame: vt.AppendFrame(nil, scr.Keyframe())[4:]}, nil
 	}))
-	r.MustRegister("shim.scrollback", protocol.Method(func(ctx context.Context, p scrollbackParams) ([]string, error) {
+	r.MustRegister("shim.read", protocol.Method(func(ctx context.Context, p terminal.ReadRequest) ([]string, error) {
 		sess, err := term()
 		if err != nil {
 			return nil, err
 		}
-		return sess.Scrollback(ctx, p.Lines, p.ANSI)
+		return sess.Read(ctx, p)
+	}))
+	// shim.wait_output blocks until a line matches; the caller's deadline
+	// (the request's timeout) bounds it.
+	r.MustRegister("shim.wait_output", protocol.Method(func(ctx context.Context, p waitParams) (string, error) {
+		sess, err := term()
+		if err != nil {
+			return "", err
+		}
+		if p.TimeoutMS > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, time.Duration(p.TimeoutMS)*time.Millisecond)
+			defer cancel()
+		}
+		line, err := sess.WaitOutput(ctx, p.WaitRequest)
+		return line, waitError(err)
 	}))
 	r.MustRegister("shim.frames", protocol.PipeMethod(func(context.Context, struct{}) (protocol.Empty, protocol.PipeFunc, error) {
 		sess, err := term()
