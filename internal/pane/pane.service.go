@@ -304,27 +304,38 @@ func (s *Service) Tabs(ctx context.Context, envID string) ([]Tab, error) {
 		if err != nil {
 			return nil, err
 		}
-		return slices.Clone(st.Tabs), nil
+		return withActive(st), nil
 	}
 	if err := s.loadAllLocked(ctx); err != nil {
 		return nil, err
 	}
 	var out []Tab
 	for _, id := range slices.Sorted(maps.Keys(s.states)) {
-		out = append(out, s.states[id].Tabs...)
+		out = append(out, withActive(s.states[id])...)
 	}
 	return out, nil
+}
+
+// withActive copies an environment's tabs, marking the active one.
+func withActive(st *State) []Tab {
+	out := slices.Clone(st.Tabs)
+	for i := range out {
+		out[i].Active = out[i].ID == st.ActiveTab
+	}
+	return out
 }
 
 // Tab returns a tab.
 func (s *Service) Tab(ctx context.Context, tabID string) (Tab, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, t, err := s.tabLocked(ctx, tabID)
+	st, t, err := s.tabLocked(ctx, tabID)
 	if err != nil {
 		return Tab{}, err
 	}
-	return *t, nil
+	tab := *t
+	tab.Active = st.ActiveTab == tab.ID
+	return tab, nil
 }
 
 // RenameTab renames a tab.
