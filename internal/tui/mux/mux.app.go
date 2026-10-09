@@ -207,7 +207,9 @@ func (a *App) call(what string, f func(ctx context.Context) error, done func(err
 
 // Handle processes one message from Msgs.
 func (a *App) Handle(m Msg) {
-	a.dirty = true
+	if _, ok := m.(eventsMsg); !ok {
+		a.dirty = true // events say themselves whether the screen changed
+	}
 	switch m := m.(type) {
 	case callDoneMsg:
 		if m.err != nil && a.ctx.Err() == nil {

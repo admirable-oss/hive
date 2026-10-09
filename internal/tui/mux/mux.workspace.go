@@ -20,9 +20,13 @@ import (
 	"github.com/admirable-oss/hive/internal/tui/compositor"
 )
 
-// resubscribeDelay is the pause before subscribing to events again after
-// the stream ended (the daemon restarted, the connection dropped).
-const resubscribeDelay = 2 * time.Second
+// Reconnecting after the event stream ended (the daemon restarted, the
+// connection dropped): the first retry is quick, as a restarted daemon is
+// back within moments, then the pause doubles up to the maximum.
+const (
+	resubscribeFirst = 200 * time.Millisecond
+	resubscribeMax   = 2 * time.Second
+)
 
 // snapshot is the workspace as last read from the daemon.
 type snapshot struct {
@@ -43,6 +47,7 @@ type workspaceState struct {
 	envID   string
 
 	live     bool            // the event stream is open
+	retry    time.Duration   // the next pause before subscribing again
 	activity map[string]bool // tabs whose agents printed since they were last shown
 	claims   map[string]size // tab sizes this client asked for, by tab ID
 	claiming map[string]bool // tab.resize calls in flight
@@ -419,13 +424,14 @@ func (a *App) subscribe() {
 func (a *App) handleEvents(m eventsMsg) {
 	switch {
 	case m.err != nil:
-		a.ws.live = false
+		a.ws.live, a.dirty = false, true
 		// Read the workspace now (whatever changed meanwhile) and try the
 		// stream again shortly.
 		a.refresh()
-		a.after(resubscribeDelay, func() { a.subscribe() })
+		a.ws.retry = min(max(a.ws.retry*2, resubscribeFirst), resubscribeMax)
+		a.after(a.ws.retry, func() { a.subscribe() })
 	case m.ev == nil:
-		a.ws.live = true
+		a.ws.live, a.ws.retry, a.dirty = true, 0, true
 		a.refresh() // changes made before the stream opened
 	default:
 		a.apply(*m.ev)

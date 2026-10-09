@@ -1,12 +1,15 @@
 package mux
 
 import (
+	"errors"
+	"slices"
 	"testing"
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/vt"
 )
@@ -178,5 +181,34 @@ func TestForwardedDragsStayInsideThePane(t *testing.T) {
 	}
 	if x, y := h.a.panePosClamped(id, 500, 500); x != r.W-1 || y != r.H-1 {
 		t.Errorf("below-right of the pane: %d,%d, want %d,%d", x, y, r.W-1, r.H-1)
+	}
+}
+
+func TestResubscribeBacksOff(t *testing.T) {
+	h := newHarness(t, 60, 8, Options{HideSidebar: true})
+	a := h.a
+	var waits []time.Duration
+	for range 6 {
+		a.handleEvents(eventsMsg{err: errors.New("stream ended")})
+		waits = append(waits, a.ws.retry)
+	}
+	want := []time.Duration{200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond, 1600 * time.Millisecond, 2 * time.Second, 2 * time.Second}
+	if !slices.Equal(waits, want) {
+		t.Fatalf("waits %v, want %v", waits, want)
+	}
+	a.handleEvents(eventsMsg{}) // the stream opened again
+	if a.ws.retry != 0 || !a.ws.live {
+		t.Fatal("a successful subscription resets the backoff")
+	}
+	h.waitFor("the resubscriptions to settle", func() bool { return a.ws.live })
+}
+
+func TestOutputNewsDoesNotRedrawForNothing(t *testing.T) {
+	h := newHarness(t, 60, 8, Options{HideSidebar: true})
+	h.screen() // draw: the frame is clean
+	p := h.a.ws.snap.pane(h.focused())
+	h.a.Handle(eventsMsg{ev: &event.Event{Type: event.ProcessOutput, Data: mustJSON(t, map[string]string{"id": p.ProcessID})}})
+	if h.a.dirty {
+		t.Fatal("output from the tab on screen changes nothing to redraw (its frames do that)")
 	}
 }

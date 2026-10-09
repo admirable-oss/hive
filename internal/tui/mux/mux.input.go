@@ -119,6 +119,10 @@ func (a *App) send(v *view, data []byte) {
 		return
 	}
 	a.claimSize(true)
+	if v.isEnded() {
+		a.toast(compositor.ToastWarning, "not connected to the pane; reconnecting…")
+		return
+	}
 	if !v.send(data) {
 		a.toast(compositor.ToastWarning, "the pane is not reading its input; keys were dropped")
 	}
