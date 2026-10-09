@@ -138,26 +138,32 @@ func (v *view) drain(ctx context.Context) {
 	}
 }
 
-// send queues keystrokes for the agent.
-func (v *view) send(ctx context.Context, data []byte) {
+// send queues keystrokes for the agent. It never blocks the loop: an
+// agent that stops reading its input (its terminal's buffer full) would
+// otherwise freeze the whole UI. It reports false when the queue is full
+// and the input was dropped.
+func (v *view) send(data []byte) bool {
 	if len(data) == 0 {
-		return
+		return true
 	}
 	select {
 	case v.ops <- viewOp{data: data}:
-	case <-ctx.Done():
+		return true
+	default:
+		return false
 	}
 }
 
 // resize asks for the agent's terminal to take sz while this view types.
-func (v *view) resize(ctx context.Context, sz size) {
+// A full queue leaves v.size as it was, so the next sync asks again.
+func (v *view) resize(sz size) {
 	if sz == v.size || sz.w <= 0 || sz.h <= 0 {
 		return
 	}
-	v.size = sz
 	select {
 	case v.ops <- viewOp{resize: &sz}:
-	case <-ctx.Done():
+		v.size = sz
+	default:
 	}
 }
 
@@ -238,7 +244,7 @@ func (a *App) syncViews() {
 			delete(a.cache, id)
 			a.views[id] = a.openView(id, sz, cached)
 		case sz != (size{}):
-			v.resize(a.ctx, sz)
+			v.resize(sz)
 		}
 	}
 	for id, sz := range want {

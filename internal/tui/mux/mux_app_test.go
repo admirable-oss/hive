@@ -2,6 +2,7 @@ package mux
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/layout"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
@@ -488,4 +490,65 @@ func TestOverviewShowsTheBeeOnTallScreens(t *testing.T) {
 		}
 	}
 	h.waitFor("the agent's pane", func() bool { return h.a.ui.overview == nil })
+}
+
+// --- robustness ---
+
+func TestAPaneThatStopsReadingCannotFreezeTheUI(t *testing.T) {
+	h := newHarness(t, 80, 12, Options{HideSidebar: true})
+	if _, err := h.api.PaneSplit(context.Background(), pane.SplitRequest{
+		Pane: h.focused(), Direction: layout.Right, Spec: pane.Spec{Command: []string{"/bin/sleep", "60"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor("the sleeping pane, focused and streaming", func() bool {
+		return len(h.panes()) == 2 && h.focused() == h.panes()[1] && h.a.focusedView() != nil
+	})
+	big := strings.Repeat("never read ", 6000) // 66 KB, more than a terminal buffers
+	start := time.Now()
+	for range 400 {
+		h.a.HandleEvent(uv.PasteEvent{Content: big})
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("400 pastes into a pane that does not read took %v: the loop blocked", d)
+	}
+	h.waitText("not reading its input")
+	// Closing the app must not hang on the blocked write (Cleanup closes it).
+}
+
+func TestCopyModeEndsWhenItsPaneCloses(t *testing.T) {
+	h := newHarness(t, 90, 12, Options{HideSidebar: true})
+	h.press("ctrl+b", "%")
+	h.waitFor("a split", func() bool { return len(h.panes()) == 2 })
+	left, right := h.panes()[0], h.panes()[1]
+	h.a.enterCopy(right, false, 0)
+	if h.a.ui.copy == nil {
+		t.Fatal("copy mode on the right pane")
+	}
+	if _, err := h.api.PaneFocus(context.Background(), left, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.api.PaneClose(context.Background(), right); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor("copy mode to end", func() bool { return h.a.ui.copy == nil && h.a.ui.mode == keymap.ModeTerminal })
+}
+
+func TestEventsDuringAReadAreNotUndone(t *testing.T) {
+	h := newHarness(t, 90, 12, Options{HideSidebar: true})
+	h.a.ws.loading = true // a read is in flight
+	h.a.apply(event.Event{Type: "pane.focused", Data: mustJSON(t, *h.a.ws.snap.pane(h.focused()))})
+	if !h.a.ws.stale {
+		t.Fatal("an event during a read must make the read happen again")
+	}
+	h.a.ws.loading = false
+}
+
+func mustJSON(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }

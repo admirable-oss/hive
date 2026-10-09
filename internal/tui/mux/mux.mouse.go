@@ -222,14 +222,14 @@ func (a *App) mouseMove(m uv.Mouse) {
 		if id, pos, ok := a.paneAt(m.X, m.Y); ok {
 			if p := a.ws.snap.pane(id); p != nil {
 				if v := a.views[p.ProcessID]; v != nil && v.modes()&vt.ModeMouseAny != 0 {
-					v.send(a.ctx, encodeMouse(mouseMotion, m, pos.X, pos.Y, v.modes()))
+					v.send(encodeMouse(mouseMotion, m, pos.X, pos.Y, v.modes()))
 				}
 			}
 		}
 	case dragForward:
 		if v := a.paneView(ms.paneID); v != nil {
-			x, y := a.panePos(ms.paneID, m.X, m.Y)
-			v.send(a.ctx, encodeMouse(mouseMotion, m, x, y, v.modes()))
+			x, y := a.panePosClamped(ms.paneID, m.X, m.Y)
+			v.send(encodeMouse(mouseMotion, m, x, y, v.modes()))
 		}
 	case dragSidebar:
 		w := min(max(m.X, minSidebarW), a.width-minPaneColumns)
@@ -281,7 +281,7 @@ func (a *App) mouseUp(m uv.Mouse) {
 	switch ms.drag {
 	case dragForward:
 		if v := a.paneView(ms.paneID); v != nil {
-			x, y := a.panePos(ms.paneID, m.X, m.Y)
+			x, y := a.panePosClamped(ms.paneID, m.X, m.Y)
 			a.send(v, encodeMouse(mouseRelease, m, x, y, v.modes()))
 		}
 	case dragSidebar:
@@ -378,7 +378,7 @@ func (a *App) wheel(m uv.Mouse) {
 	modes := v.modes()
 	switch {
 	case mouseTracking(modes):
-		v.send(a.ctx, encodeMouse(mouseWheel, m, pos.X, pos.Y, modes))
+		v.send(encodeMouse(mouseWheel, m, pos.X, pos.Y, modes))
 	case modes&vt.ModeAltScreen != 0:
 		// Full-screen programs without the mouse get arrow keys, as
 		// terminals do in the alternate screen.
@@ -387,7 +387,7 @@ func (a *App) wheel(m uv.Mouse) {
 			k.Code = uv.KeyUp
 		}
 		seq := encodeKey(k, modes)
-		v.send(a.ctx, []byte(strings.Repeat(string(seq), wheelLines)))
+		v.send([]byte(strings.Repeat(string(seq), wheelLines)))
 	case up:
 		a.enterCopy(id, true, -wheelLines)
 	}
@@ -406,6 +406,14 @@ func (a *App) panePos(id string, x, y int) (int, int) {
 	r := a.geometry()[id]
 	area := a.regions().Panes
 	return x - area.Min.X - r.X, y - area.Min.Y - r.Y
+}
+
+// panePosClamped is panePos kept inside the pane, for reports to its
+// program: a drag that leaves the pane reports its edge, as terminals do.
+func (a *App) panePosClamped(id string, x, y int) (int, int) {
+	r := a.geometry()[id]
+	x, y = a.panePos(id, x, y)
+	return min(max(x, 0), max(r.W-1, 0)), min(max(y, 0), max(r.H-1, 0))
 }
 
 // --- links ---

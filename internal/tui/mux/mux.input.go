@@ -119,7 +119,9 @@ func (a *App) send(v *view, data []byte) {
 		return
 	}
 	a.claimSize(true)
-	v.send(a.ctx, data)
+	if !v.send(data) {
+		a.toast(compositor.ToastWarning, "the pane is not reading its input; keys were dropped")
+	}
 }
 
 // focusedView is the live view of the focused pane.
@@ -167,9 +169,9 @@ func (a *App) focusReport(in bool) {
 		return
 	}
 	if in {
-		v.send(a.ctx, []byte("\x1b[I"))
+		v.send([]byte("\x1b[I"))
 	} else {
-		v.send(a.ctx, []byte("\x1b[O"))
+		v.send([]byte("\x1b[O"))
 	}
 }
 

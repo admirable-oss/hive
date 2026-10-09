@@ -180,8 +180,10 @@ func (a *App) loaded(m loadedMsg) {
 
 // afterChange brings everything that depends on the workspace up to date.
 func (a *App) afterChange() {
-	if a.ui.copy != nil && a.focusedPane() == nil {
-		a.exitCopy()
+	if c := a.ui.copy; c != nil {
+		if _, shown := a.geometry()[c.paneID]; !shown {
+			a.exitCopy() // its pane closed, moved, or went off screen
+		}
 	}
 	if a.ui.overview != nil {
 		a.ui.overview.sync(a)
@@ -392,6 +394,10 @@ func (a *App) apply(ev event.Event) {
 	if s == nil {
 		a.refresh()
 		return
+	}
+	if a.ws.loading {
+		// A read in flight began before this event and would undo it.
+		a.ws.stale = true
 	}
 	switch ev.Type {
 	case "pane.focused":

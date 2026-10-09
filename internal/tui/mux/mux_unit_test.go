@@ -167,3 +167,16 @@ func TestFramePacing(t *testing.T) {
 		t.Error("nothing changed: nothing to draw")
 	}
 }
+
+func TestForwardedDragsStayInsideThePane(t *testing.T) {
+	h := newHarness(t, 80, 12, Options{HideSidebar: true})
+	id := h.focused()
+	r := h.a.geometry()[id]
+	area := h.a.regions().Panes
+	if x, y := h.a.panePosClamped(id, area.Min.X-5, area.Min.Y-5); x != 0 || y != 0 {
+		t.Errorf("above-left of the pane: %d,%d", x, y)
+	}
+	if x, y := h.a.panePosClamped(id, 500, 500); x != r.W-1 || y != r.H-1 {
+		t.Errorf("below-right of the pane: %d,%d, want %d,%d", x, y, r.W-1, r.H-1)
+	}
+}
