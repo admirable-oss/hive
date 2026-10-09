@@ -173,7 +173,7 @@ func (a *App) paneDown(id string, m uv.Mouse) {
 	}
 	if m.Mod.Contains(uv.ModCtrl) || m.Mod.Contains(uv.ModSuper) {
 		if url := a.urlAt(id, pos); url != "" {
-			a.openURL(url)
+			a.open(url)
 		}
 		return
 	}
@@ -420,7 +420,8 @@ func (a *App) panePosClamped(id string, x, y int) (int, int) {
 
 var urlRe = regexp.MustCompile(`(?:https?|file|ftp)://[^\s<>"'` + "`" + `]+`)
 
-// urlAt returns the URL under a pane cell, from the screen's text.
+// urlAt returns the URL under a pane cell: the cell's hyperlink, else a
+// URL in the screen's text.
 func (a *App) urlAt(paneID string, pos uv.Position) string {
 	p := a.ws.snap.pane(paneID)
 	if p == nil {
@@ -432,7 +433,11 @@ func (a *App) urlAt(paneID string, pos uv.Position) string {
 	if scr == nil || pos.Y < 0 || pos.Y >= len(scr.Lines) {
 		return ""
 	}
-	return urlInLine(scr.Lines[pos.Y], pos.X)
+	line := scr.Lines[pos.Y]
+	if pos.X >= 0 && pos.X < len(line) && line[pos.X].Link != "" {
+		return line[pos.X].Link // an OSC 8 hyperlink
+	}
+	return urlInLine(line, pos.X)
 }
 
 // urlInLine finds the URL covering column x of a line.

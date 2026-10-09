@@ -283,7 +283,7 @@ func (s *Server) accept(ctx context.Context, ln net.Listener) {
 		go func() {
 			defer s.wg.Done()
 			defer s.untrack(conn)
-			info := protocol.ServerInfo{Version: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability}}
+			info := protocol.ServerInfo{Version: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability, vt.FrameLinksCapability}}
 			if err := protocol.ServeConn(ctx, conn, s.handler, info); err != nil && !errors.Is(err, net.ErrClosed) {
 				s.log.Debug("connection ended with an error", "err", err)
 			}

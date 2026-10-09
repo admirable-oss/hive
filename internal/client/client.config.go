@@ -16,6 +16,9 @@ type Config struct {
 	SocketPath string
 	// Name identifies this client to the daemon (e.g. "cli", "tui").
 	Name string
+	// Capabilities are offered to the daemon in the hello; nil offers all
+	// this build supports. Tests set fewer to act as an older client.
+	Capabilities []string
 }
 
 func (c Config) Validate() error {

@@ -19,6 +19,7 @@ import (
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/terminal"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 // Launcher starts shims and reconnects to them. It implements
@@ -147,7 +148,7 @@ func (l *Launcher) dial(ctx context.Context, dir, id string) (*Remote, error) {
 	if err != nil {
 		return nil, err
 	}
-	mux, err := protocol.Handshake(ctx, conn, protocol.Hello{Client: "hived", ClientVersion: buildinfo.Get().Version}, 0)
+	mux, err := protocol.Handshake(ctx, conn, protocol.Hello{Client: "hived", ClientVersion: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability, vt.FrameLinksCapability}}, 0)
 	if err != nil {
 		return nil, err
 	}

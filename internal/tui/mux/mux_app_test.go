@@ -576,3 +576,28 @@ func TestHiddenTabsShowActivity(t *testing.T) {
 	h.press("ctrl+b", "2")
 	h.waitFor("the mark to clear once shown", func() bool { return h.a.tab().ID == created.Tab.ID && !h.a.ws.activity[created.Tab.ID] })
 }
+
+func TestCtrlClickOpensHyperlinks(t *testing.T) {
+	h := newHarness(t, 80, 10, Options{HideSidebar: true})
+	var opened []string
+	h.a.open = func(url string) { opened = append(opened, url) }
+	if _, err := h.api.PaneSplit(context.Background(), pane.SplitRequest{
+		Pane: h.focused(), Direction: layout.Down,
+		Spec: pane.Spec{Command: []string{"/bin/sh", "-c", `printf '\033]8;;https://example.com/pr/1\007PR #1\033]8;;\007 and https://plain.example/x.'; sleep 30`}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor("the link", func() bool { return strings.Contains(h.screen(), "PR #1 and") })
+	id := h.focused()
+	x, y := h.paneCell(id, 1, 0)
+	h.click(x, y, uv.ModCtrl)
+	x, y = h.paneCell(id, 15, 0)
+	h.click(x, y, uv.ModCtrl)
+	if strings.Join(opened, " ") != "https://example.com/pr/1 https://plain.example/x" {
+		t.Fatalf("opened %q", opened)
+	}
+	h.click(x, y, 0) // without ctrl a click only focuses
+	if len(opened) != 2 {
+		t.Fatalf("a plain click opened %q", opened)
+	}
+}

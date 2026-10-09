@@ -46,7 +46,7 @@ type muxServer struct {
 }
 
 func serveMux(ctx context.Context, stream *Stream, h Handler, info ServerInfo, hello Message) error {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(withPeer(ctx, hello))
 	m := &muxServer{
 		stream: stream,
 		h:      h,

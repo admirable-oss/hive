@@ -23,7 +23,7 @@ func (s *Scrollback) Push(line []Cell) {
 	if s.budget <= 0 {
 		return
 	}
-	enc := appendCells(nil, trimBlank(line))
+	enc := appendCells(nil, trimBlank(line), true) // in memory only: keep links
 	if len(enc) > s.budget {
 		return
 	}
@@ -64,7 +64,7 @@ func (s *Scrollback) Line(i int) []Cell {
 	if i < 0 || i >= s.n {
 		return nil
 	}
-	cells, _, err := readCells(s.lines[(s.head+i)%len(s.lines)])
+	cells, _, err := readCells(s.lines[(s.head+i)%len(s.lines)], true)
 	if err != nil {
 		return nil // cannot happen: the data was encoded here
 	}

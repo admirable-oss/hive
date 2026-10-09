@@ -517,7 +517,11 @@ func (c *Compositor) drawPane(scr uv.Screen, ox, oy int, area uv.Rectangle, p *P
 			if content == "" {
 				content = " "
 			}
-			scr.SetCell(x0+x, y0+y, &uv.Cell{Content: content, Width: int(cell.Width), Style: style})
+			out := uv.Cell{Content: content, Width: int(cell.Width), Style: style}
+			if cell.Link != "" {
+				out.Link = uv.Link{URL: cell.Link} // the outer terminal makes it clickable
+			}
+			scr.SetCell(x0+x, y0+y, &out)
 		}
 		// Highlights past the end of the text (an empty selected line).
 		for _, h := range hl[y] {

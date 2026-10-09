@@ -317,3 +317,16 @@ func TestOverlayWithSidePreview(t *testing.T) {
 		t.Fatalf("preview hit = %+v", h)
 	}
 }
+
+func TestLinksReachTheOuterTerminal(t *testing.T) {
+	line := []vt.Cell{{Content: "a", Width: 1, Link: "https://x.dev"}, {Content: "b", Width: 1}}
+	s := scene(20, 5, 0, layout.Leaf("p"), "", map[string][][]vt.Cell{"p": {line}})
+	buf := uv.NewScreenBuffer(20, 5)
+	compositor.New().Draw(buf, s)
+	if c := buf.CellAt(0, 2); c.Link.URL != "https://x.dev" {
+		t.Fatalf("linked cell = %+v", c.Link)
+	}
+	if c := buf.CellAt(1, 2); !c.Link.IsZero() {
+		t.Fatalf("plain cell has a link: %+v", c.Link)
+	}
+}

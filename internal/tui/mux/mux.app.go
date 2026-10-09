@@ -35,6 +35,7 @@ type App struct {
 	km   *keymap.Keymap
 	comp *compositor.Compositor
 	now  func() time.Time
+	open func(url string) // opens a link (the system's handler; tests replace it)
 
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -99,6 +100,7 @@ func New(ctx context.Context, c client.Client, opts Options) *App {
 		height: 24,
 		dirty:  true,
 	}
+	a.open = a.openURL
 	a.theme = opts.resolveTheme(true)
 	a.ui.mode = keymap.ModeTerminal
 	a.ui.sidebar = !opts.HideSidebar

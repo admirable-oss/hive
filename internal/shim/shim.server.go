@@ -285,7 +285,7 @@ func (s *server) snapshotState() State {
 
 func (s *server) accept(ctx context.Context, ln net.Listener, conns *connSet) {
 	router := s.router()
-	info := protocol.ServerInfo{Version: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability}}
+	info := protocol.ServerInfo{Version: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability, vt.FrameLinksCapability}}
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -389,17 +389,19 @@ func (s *server) router() *protocol.Router {
 		line, err := sess.WaitOutput(ctx, p.WaitRequest)
 		return line, waitError(err)
 	}))
-	r.MustRegister("shim.frames", protocol.PipeMethod(func(context.Context, struct{}) (protocol.Empty, protocol.PipeFunc, error) {
+	r.MustRegister("shim.frames", protocol.PipeMethod(func(ctx context.Context, _ struct{}) (protocol.Empty, protocol.PipeFunc, error) {
 		sess, err := term()
 		if err != nil {
 			return protocol.Empty{}, nil, err
 		}
+		// A daemon older than this shim may not read hyperlinks.
+		links := protocol.PeerHas(ctx, vt.FrameLinksCapability)
 		return protocol.Empty{}, func(ctx context.Context, p protocol.Pipe) error {
 			ctx, stop := protocol.UntilClosed(ctx, p)
 			defer stop()
 			var buf []byte
 			return sess.Frames(ctx, func(f *vt.Frame) error {
-				buf = vt.AppendFrame(buf[:0], f)
+				buf = vt.AppendFrameWith(buf[:0], f, links)
 				_, err := p.Write(buf)
 				return err
 			})

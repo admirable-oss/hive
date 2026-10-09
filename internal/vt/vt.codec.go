@@ -11,14 +11,19 @@ import (
 // Frames travel as a 4-byte big-endian length followed by the encoded frame.
 // The encoding is compact rather than self-describing: it is internal to
 // Hive, and both ends come from the same build or negotiate it (protocol
-// capability "frames/1").
+// capabilities "frames/1" and "frames/2").
 //
 //	frame: flags u8 · cols · rows · cursor x · cursor y · cursor flags u8 ·
 //	       modes · bells · title · line count · lines
 //	line:  y · cells
-//	cells: run count · runs; run: style · cell count · cells
+//	cells: run count · runs; run: style · [link] · cell count · cells
 //	cell:  len(content)<<2 | width · content bytes
 //	style: attrs u8 · underline u8 · fg · bg · underline colour
+//
+// frames/2 adds hyperlinks: a frame with the links flag carries each run's
+// link (a string, empty for none), and runs split where links change.
+// Peers that only offered frames/1 get frames without the flag, and so
+// without links.
 //
 // Every integer without a size is an unsigned varint; strings are a varint
 // length and bytes.
@@ -27,13 +32,18 @@ import (
 // of a big, busy screen; anything larger is corruption.
 const MaxFrameSize = 32 << 20
 
-// FrameCapability names this encoding in protocol negotiation.
-const FrameCapability = "frames/1"
+// FrameCapability names this encoding in protocol negotiation;
+// FrameLinksCapability names the encoding with hyperlinks.
+const (
+	FrameCapability      = "frames/1"
+	FrameLinksCapability = "frames/2"
+)
 
 var errCorrupt = errors.New("vt: corrupt frame")
 
 const (
 	flagKeyframe = 1 << iota
+	flagLinks
 )
 
 const (
@@ -41,13 +51,21 @@ const (
 	cursorBlink
 )
 
-// AppendFrame appends f, length-prefixed, to dst.
-func AppendFrame(dst []byte, f *Frame) []byte {
+// AppendFrame appends f, length-prefixed, to dst, without hyperlinks
+// (frames/1).
+func AppendFrame(dst []byte, f *Frame) []byte { return AppendFrameWith(dst, f, false) }
+
+// AppendFrameWith appends f, with its hyperlinks when links is set (for
+// peers that offered frames/2).
+func AppendFrameWith(dst []byte, f *Frame, links bool) []byte {
 	start := len(dst)
 	dst = append(dst, 0, 0, 0, 0)
 	var flags byte
 	if f.Keyframe {
 		flags |= flagKeyframe
+	}
+	if links {
+		flags |= flagLinks
 	}
 	dst = append(dst, flags)
 	dst = binary.AppendUvarint(dst, uint64(f.Cols))
@@ -68,7 +86,7 @@ func AppendFrame(dst []byte, f *Frame) []byte {
 	dst = binary.AppendUvarint(dst, uint64(len(f.Lines)))
 	for _, l := range f.Lines {
 		dst = binary.AppendUvarint(dst, uint64(l.Y))
-		dst = appendCells(dst, l.Cells)
+		dst = appendCells(dst, l.Cells, links)
 	}
 	binary.BigEndian.PutUint32(dst[start:], uint32(len(dst)-start-4))
 	return dst
@@ -80,6 +98,7 @@ func DecodeFrame(b []byte) (*Frame, error) {
 	f := &Frame{}
 	flags := d.byte()
 	f.Keyframe = flags&flagKeyframe != 0
+	links := flags&flagLinks != 0
 	f.Cols, f.Rows = d.int(), d.int()
 	f.Cursor.X, f.Cursor.Y = d.int(), d.int()
 	cf := d.byte()
@@ -93,7 +112,7 @@ func DecodeFrame(b []byte) (*Frame, error) {
 	}
 	for range n {
 		y := d.int()
-		cells := d.cells(f.Cols)
+		cells := d.cells(f.Cols, links)
 		if d.err != nil {
 			break
 		}
@@ -147,21 +166,25 @@ func appendString(dst []byte, s string) []byte {
 	return append(dst, s...)
 }
 
-// appendCells encodes cells as runs of equal style.
-func appendCells(dst []byte, cells []Cell) []byte {
+// appendCells encodes cells as runs of equal style (and link, with links).
+func appendCells(dst []byte, cells []Cell, links bool) []byte {
+	same := func(a, b *Cell) bool { return a.Style == b.Style && (!links || a.Link == b.Link) }
 	runs := 0
 	for i := range cells {
-		if i == 0 || cells[i].Style != cells[i-1].Style {
+		if i == 0 || !same(&cells[i], &cells[i-1]) {
 			runs++
 		}
 	}
 	dst = binary.AppendUvarint(dst, uint64(runs))
 	for i := 0; i < len(cells); {
 		j := i + 1
-		for j < len(cells) && cells[j].Style == cells[i].Style {
+		for j < len(cells) && same(&cells[j], &cells[i]) {
 			j++
 		}
 		dst = appendStyle(dst, cells[i].Style)
+		if links {
+			dst = appendString(dst, cells[i].Link)
+		}
 		dst = binary.AppendUvarint(dst, uint64(j-i))
 		for _, c := range cells[i:j] {
 			dst = binary.AppendUvarint(dst, uint64(len(c.Content))<<2|uint64(c.Width&3))
@@ -180,9 +203,9 @@ func appendStyle(dst []byte, s Style) []byte {
 }
 
 // readCells decodes an appendCells encoding and returns the remaining bytes.
-func readCells(b []byte) ([]Cell, []byte, error) {
+func readCells(b []byte, links bool) ([]Cell, []byte, error) {
 	d := decoder{b: b}
-	cells := d.cells(-1)
+	cells := d.cells(-1, links)
 	return cells, d.b, d.err
 }
 
@@ -242,7 +265,7 @@ func (d *decoder) string() string {
 }
 
 // cells decodes a cell list; limit (when non-negative) bounds its length.
-func (d *decoder) cells(limit int) []Cell {
+func (d *decoder) cells(limit int, links bool) []Cell {
 	runs := d.int()
 	if d.err != nil || runs > len(d.b) {
 		d.fail()
@@ -252,6 +275,14 @@ func (d *decoder) cells(limit int) []Cell {
 	for range runs {
 		st := Style{Attrs: Attr(d.byte()), Underline: Underline(d.byte())}
 		st.Fg, st.Bg, st.UnderlineColor = Color(d.uvarint()), Color(d.uvarint()), Color(d.uvarint())
+		var link string
+		if links {
+			if link = d.string(); len(link) > MaxLinkLen {
+				d.fail()
+				return nil
+			}
+			link = CleanLink(link)
+		}
 		count := d.int()
 		if d.err != nil || count > len(d.b) || (limit >= 0 && len(cells)+count > limit) {
 			d.fail()
@@ -264,7 +295,7 @@ func (d *decoder) cells(limit int) []Cell {
 				d.fail()
 				return nil
 			}
-			cells = append(cells, Cell{Content: string(d.b[:n]), Width: uint8(hdr & 3), Style: st})
+			cells = append(cells, Cell{Content: string(d.b[:n]), Width: uint8(hdr & 3), Style: st, Link: link})
 			d.b = d.b[n:]
 		}
 	}

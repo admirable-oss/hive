@@ -221,8 +221,12 @@ func (s *service) conn(ctx context.Context) (*protocol.MuxClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	caps := s.config.Capabilities
+	if caps == nil {
+		caps = []string{vt.FrameCapability, vt.FrameLinksCapability}
+	}
 	mux, err := protocol.Handshake(ctx, raw, protocol.Hello{
-		Client: s.config.Name, ClientVersion: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability},
+		Client: s.config.Name, ClientVersion: buildinfo.Get().Version, Capabilities: caps,
 	}, protocol.DefaultMaxMessageSize)
 	if errors.Is(err, protocol.ErrProtocol1Only) {
 		s.legacy = true
