@@ -15,29 +15,11 @@ import (
 
 // captureRunner records the command it was asked to start. Its processes
 // exit at once.
-type captureRunner struct {
-	cmd process.Command
-	ids []string
-}
+type captureRunner struct{ cmd process.Command }
 
 func (r *captureRunner) Start(_ context.Context, cmd process.Command) (process.Handle, error) {
 	r.cmd = cmd
-	r.ids = append(r.ids, cmd.ID)
 	return &fakeHandle{pid: 1}, nil
-}
-
-// settle makes the test wait, before its temporary directory goes, until
-// the service has recorded every started process's exit: it writes the
-// record in the background.
-func (r *captureRunner) settle(t *testing.T, svc process.Service) {
-	t.Cleanup(func() {
-		for _, id := range r.ids {
-			waitFor(t, func() bool {
-				p, err := svc.Get(context.Background(), id)
-				return err == nil && !p.Active()
-			})
-		}
-	})
 }
 
 func envMap(entries []string) map[string]string {
@@ -62,7 +44,7 @@ func TestStart_BuildsTheEnvironmentInLayers(t *testing.T) {
 		Vars: map[string]string{"HIVE_SOCKET_PATH": "/s.sock", "HIVE_BIN": "/bin/hive"},
 	}
 	svc := process.NewService(process.NewFilesystemStore(root), envs, runner, nil, process.WithLaunchEnv(launch))
-	runner.settle(t, svc)
+	settleProcesses(t, svc)
 	p, err := svc.Start(ctx, process.StartRequest{EnvironmentID: "e", Command: "agent", Env: map[string]string{"SHARED": "request", "HIVE_PANE_ID": "p1"}})
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +85,7 @@ func TestStart_WorkingDirectory(t *testing.T) {
 	other := t.TempDir()
 	runner := &captureRunner{}
 	svc := process.NewService(process.NewFilesystemStore(root), envs, runner, nil)
-	runner.settle(t, svc)
+	settleProcesses(t, svc)
 
 	for cwd, want := range map[string]string{"": env.Path, "sub": filepath.Join(env.Path, "sub"), other: other} {
 		if _, err := svc.Start(ctx, process.StartRequest{EnvironmentID: "e", Command: "x", Cwd: cwd}); err != nil {

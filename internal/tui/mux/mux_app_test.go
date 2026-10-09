@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -715,5 +716,31 @@ func TestConfiguredKeysAndAutoTheme(t *testing.T) {
 	h.a.HandleEvent(uv.BackgroundColorEvent{Color: color.White})
 	if h.a.theme.Name != "catppuccin-latte" {
 		t.Fatalf("a light terminal gets the light theme: %s", h.a.theme.Name)
+	}
+}
+
+func TestSwitchingTabsDoesNotLeak(t *testing.T) {
+	h := newHarness(t, 100, 16, Options{HideSidebar: true})
+	h.press("ctrl+b", "%")
+	h.press("ctrl+b", "c")
+	h.waitFor("two tabs", func() bool { return len(h.a.envTabs()) == 2 })
+	h.press("ctrl+b", "%")
+	h.waitFor("two panes in the second tab", func() bool { return len(h.panes()) == 2 })
+	settle := func() int {
+		h.waitFor("views to match the tab", func() bool { return len(h.a.views) == len(h.panes()) })
+		time.Sleep(100 * time.Millisecond) // closed streams finish
+		h.settle()
+		return goruntime.NumGoroutine()
+	}
+	before := settle()
+	for range 100 {
+		h.press("ctrl+b", "n")
+	}
+	after := settle()
+	if after > before+5 {
+		t.Fatalf("goroutines grew from %d to %d over 100 tab switches", before, after)
+	}
+	if len(h.a.cache) > 4 {
+		t.Fatalf("%d cached screens for 4 agents", len(h.a.cache))
 	}
 }

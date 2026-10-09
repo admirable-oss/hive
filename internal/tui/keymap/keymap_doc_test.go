@@ -79,9 +79,12 @@ Actions are written with underscores in the file (` + "`split_right`" + `) and k
 ## Mouse
 
 - Click a pane to focus it, a tab to show it, ` + "`+`" + ` for a new tab, a sidebar row to
-  switch environment or go to an agent.
+  switch environment or go to an agent. A tab marked • has output you have
+  not seen.
 - Drag a border between panes, or the sidebar's edge, to resize.
-- Drag over text to copy it; double-click copies a word. Ctrl-click opens a URL.
+- Drag over text to copy it; double-click copies a word. Ctrl-click opens a
+  link: an OSC 8 hyperlink, or a URL in the text. Hyperlinks also reach your
+  terminal, so its own link handling (cmd-click, say) works too.
 - The wheel scrolls into the pane's history (copy mode); scrolling back to the
   bottom leaves it.
 - Programs that use the mouse themselves (vim, htop) get it; hold shift to

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
@@ -69,6 +68,7 @@ func TestProcessService(t *testing.T) {
 	runner := &fakeRunner{}
 	svc := process.NewService(store, envSvc, runner, nil)
 	ctx := context.Background()
+	settleProcesses(t, svc)
 
 	t.Run("start process", func(t *testing.T) {
 		runner.start = func(ctx context.Context, cmd process.Command) (process.Handle, error) {
@@ -166,12 +166,7 @@ func TestProcessService(t *testing.T) {
 			t.Fatalf("Start failed: %v", err)
 		}
 		<-waitCalled
-		time.Sleep(20 * time.Millisecond)
-
-		got, err := svc.Get(ctx, p.ID)
-		if err != nil {
-			t.Fatalf("Get failed: %v", err)
-		}
+		got := waitEnded(t, svc, p.ID)
 		if got.Status != process.StatusExited {
 			t.Errorf("expected status %s, got %s", process.StatusExited, got.Status)
 		}
@@ -194,12 +189,7 @@ func TestProcessService(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Start failed: %v", err)
 		}
-		time.Sleep(20 * time.Millisecond)
-
-		got, err := svc.Get(ctx, p.ID)
-		if err != nil {
-			t.Fatalf("Get failed: %v", err)
-		}
+		got := waitEnded(t, svc, p.ID)
 		if got.ExitCode == nil {
 			t.Errorf("expected exit code to be recorded")
 		}
@@ -239,14 +229,9 @@ func TestProcessService(t *testing.T) {
 			t.Fatalf("Stop failed: %v", err)
 		}
 
-		time.Sleep(20 * time.Millisecond)
+		got := waitEnded(t, svc, p.ID)
 		if !killed {
 			t.Errorf("expected kill to be called")
-		}
-
-		got, err := svc.Get(ctx, p.ID)
-		if err != nil {
-			t.Fatalf("Get failed: %v", err)
 		}
 		if got.Status != process.StatusKilled {
 			t.Errorf("expected status %s, got %s", process.StatusKilled, got.Status)
@@ -332,5 +317,37 @@ func TestProcessService(t *testing.T) {
 		if len(seen) != 10 {
 			t.Errorf("expected 10 unique processes, got %d", len(seen))
 		}
+	})
+}
+
+// waitEnded waits until the service has recorded id's exit (it does so in
+// the background) and returns the final record.
+func waitEnded(t *testing.T, svc process.Service, id string) process.Process {
+	t.Helper()
+	var p process.Process
+	waitFor(t, func() bool {
+		got, err := svc.Get(context.Background(), id)
+		p = got
+		return err == nil && !got.Active()
+	})
+	return p
+}
+
+// settleProcesses makes a test wait, before its temporary directory goes,
+// until every process the service started has its exit recorded.
+func settleProcesses(t *testing.T, svc process.Service) {
+	t.Cleanup(func() {
+		waitFor(t, func() bool {
+			ps, err := svc.List(context.Background(), "")
+			if err != nil {
+				return false
+			}
+			for _, p := range ps {
+				if p.Active() {
+					return false
+				}
+			}
+			return true
+		})
 	})
 }
