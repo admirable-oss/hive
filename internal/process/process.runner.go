@@ -9,6 +9,7 @@ type Command struct {
 	Path       string
 	Args       []string
 	WorkingDir string
+	Env        []string // the full environment; nil inherits the daemon's
 	StdoutPath string
 	StderrPath string
 }

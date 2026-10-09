@@ -30,7 +30,8 @@ func newFakeSession(pid int) *fakeSession {
 	return &fakeSession{pid: pid, waitCh: make(chan struct{})}
 }
 
-func (s *fakeSession) Read(b []byte) (int, error) {
+// typed returns what was written to the session (its input).
+func (s *fakeSession) typed(b []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.buf.Len() == 0 {
@@ -63,7 +64,12 @@ func (s *fakeSession) Pid() int { return s.pid }
 
 func (s *fakeSession) Snapshot(context.Context) (*vt.Screen, error) { return vt.NewScreen(1, 1), nil }
 
-func (s *fakeSession) Scrollback(context.Context, int, bool) ([]string, error) { return nil, nil }
+func (s *fakeSession) Read(context.Context, terminal.ReadRequest) ([]string, error) { return nil, nil }
+
+func (s *fakeSession) WaitOutput(ctx context.Context, _ terminal.WaitRequest) (string, error) {
+	<-ctx.Done()
+	return "", ctx.Err()
+}
 
 func (s *fakeSession) Frames(ctx context.Context, _ func(*vt.Frame) error) error {
 	<-ctx.Done()
@@ -207,7 +213,7 @@ func TestTerminalService_WriteRead(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 	buf := make([]byte, 5)
-	n, _ := fake.Read(buf)
+	n, _ := fake.typed(buf)
 	if string(buf[:n]) != "hello" {
 		t.Errorf("expected 'hello', got %q", buf[:n])
 	}

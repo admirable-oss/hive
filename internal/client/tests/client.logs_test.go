@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/runtime"
@@ -52,7 +53,7 @@ func waitExited(t *testing.T, c client.Client, id string) process.Process {
 func TestClient_LogsStreamBeyondTheFrameLimit(t *testing.T) {
 	c := startDaemon(t)
 	ctx := context.Background()
-	if _, err := c.EnvironmentCreate(ctx, "logs"); err != nil {
+	if _, err := c.EnvironmentCreate(ctx, environment.CreateRequest{ID: "logs"}); err != nil {
 		t.Fatal(err)
 	}
 	// 3 MiB of output is three times the protocol's 1 MiB frame limit.
@@ -109,7 +110,7 @@ func (l *lockedBuffer) String() string {
 func TestClient_LogsFollowEndsWithTheProcess(t *testing.T) {
 	c := startDaemon(t)
 	ctx := context.Background()
-	if _, err := c.EnvironmentCreate(ctx, "follow"); err != nil {
+	if _, err := c.EnvironmentCreate(ctx, environment.CreateRequest{ID: "follow"}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := c.ProcessStart(ctx, process.StartRequest{
@@ -139,7 +140,7 @@ func TestClient_LogsFollowEndsWithTheProcess(t *testing.T) {
 func TestClient_LogsFollowStopsOnCancel(t *testing.T) {
 	c := startDaemon(t)
 	ctx := context.Background()
-	if _, err := c.EnvironmentCreate(ctx, "cancel"); err != nil {
+	if _, err := c.EnvironmentCreate(ctx, environment.CreateRequest{ID: "cancel"}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := c.ProcessStart(ctx, process.StartRequest{EnvironmentID: "cancel", Command: "sh", Args: []string{"-c", "echo up; sleep 30"}})
@@ -169,7 +170,7 @@ func TestClient_LogsFollowStopsOnCancel(t *testing.T) {
 func TestClient_LogsErrorsAreTyped(t *testing.T) {
 	c := startDaemon(t)
 	ctx := context.Background()
-	if _, err := c.EnvironmentCreate(ctx, "typed"); err != nil {
+	if _, err := c.EnvironmentCreate(ctx, environment.CreateRequest{ID: "typed"}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := c.ProcessStart(ctx, process.StartRequest{EnvironmentID: "typed", Command: "true", Terminal: true})

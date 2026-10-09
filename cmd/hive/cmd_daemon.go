@@ -160,11 +160,17 @@ func runDaemon(ctx context.Context, a *app) error {
 		},
 		// Every agent runs under its own shim (this binary), so agents
 		// keep running when the daemon stops, crashes or is upgraded.
-		Shim: &runtime.ShimConfig{Exe: exe, Args: []string{shimCommand}},
+		Shim:        &runtime.ShimConfig{Exe: exe, Args: []string{shimCommand}},
+		Session:     a.session,
+		Home:        a.base,
+		Bin:         exe,
+		Shell:       a.cfg.ShellArgv(),
+		WorktreeDir: a.cfg.WorktreeDir(a.home, a.base),
+		GitInterval: a.cfg.Git.RefreshInterval,
 	})
 	if err := mod.Service.Start(ctx); err != nil {
 		if errors.Is(err, runtime.ErrAlreadyRunning) {
-			return fmt.Errorf("a hive daemon is already running for %s", a.root)
+			return fmt.Errorf("a hive daemon is already running for session %q (%s)", a.session, a.root)
 		}
 		log.Error("daemon failed to start", "err", err)
 		return err

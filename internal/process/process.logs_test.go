@@ -263,7 +263,12 @@ func (fakeSession) Size() terminal.Size         { return terminal.Size{Width: 80
 
 func (fakeSession) Snapshot(context.Context) (*vt.Screen, error) { return vt.NewScreen(80, 24), nil }
 
-func (fakeSession) Scrollback(context.Context, int, bool) ([]string, error) { return nil, nil }
+func (fakeSession) Read(context.Context, terminal.ReadRequest) ([]string, error) { return nil, nil }
+
+func (fakeSession) WaitOutput(ctx context.Context, _ terminal.WaitRequest) (string, error) {
+	<-ctx.Done()
+	return "", ctx.Err()
+}
 
 func (fakeSession) Frames(ctx context.Context, _ func(*vt.Frame) error) error {
 	<-ctx.Done()

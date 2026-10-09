@@ -29,7 +29,7 @@ func NewExecRunner(grace time.Duration) Runner {
 // appended to the log files. The process outlives ctx by design.
 func (r execRunner) Start(_ context.Context, cmd Command) (Handle, error) {
 	c := exec.Command(cmd.Path, cmd.Args...) //nolint:noctx // agents outlive any request context
-	c.Dir = cmd.WorkingDir
+	c.Dir, c.Env = cmd.WorkingDir, cmd.Env
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	h := &execHandle{cmd: c, grace: r.grace}

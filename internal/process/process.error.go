@@ -6,6 +6,8 @@ var (
 	ErrNotFound          = errors.New("process not found")
 	ErrAlreadyExists     = errors.New("process already exists")
 	ErrCommandRequired   = errors.New("command is required")
+	ErrInvalidCwd        = errors.New("working directory must be an existing directory")
+	ErrInvalidEnv        = errors.New("invalid environment variable name")
 	ErrNoTerminalSupport = errors.New("terminal sessions are not available")
 	ErrInvalidStream     = errors.New(`log stream must be "stdout" or "stderr"`)
 	// ErrNoStderr is returned for stderr of a terminal process: a PTY merges

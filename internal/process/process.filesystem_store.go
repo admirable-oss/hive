@@ -60,6 +60,26 @@ func (s *FilesystemStore) Create(_ context.Context, p Process) error {
 	return jsonfile.Write(s.file(p), p)
 }
 
+func (s *FilesystemStore) Move(_ context.Context, p Process, envID string) (Process, error) {
+	if !environment.ValidID(envID) {
+		return Process{}, environment.ErrInvalidID
+	}
+	from := s.dir(p)
+	moved := p
+	moved.EnvironmentID = envID
+	if err := os.MkdirAll(s.processesDir(envID), 0o755); err != nil {
+		return Process{}, err
+	}
+	if err := os.Rename(from, s.dir(moved)); err != nil {
+		return Process{}, err
+	}
+	if err := jsonfile.Write(s.file(moved), moved); err != nil {
+		_ = os.Rename(s.dir(moved), from)
+		return Process{}, err
+	}
+	return moved, nil
+}
+
 func (s *FilesystemStore) Update(_ context.Context, p Process) error {
 	if _, err := os.Stat(s.file(p)); errors.Is(err, fs.ErrNotExist) {
 		return ErrNotFound

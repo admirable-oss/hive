@@ -82,6 +82,7 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 		log:      logging.OrDiscard(f.Logger).With("pid", c.Process.Pid),
 		size:     size,
 		watchers: make(map[chan struct{}]struct{}),
+		waiters:  make(map[*waiter]struct{}),
 	}
 	// Answers to the program's terminal queries go back to its input.
 	s.term = vt.New(int(size.Width), int(size.Height), vt.Options{
@@ -107,7 +108,11 @@ type ptySession struct {
 	size     Size
 	watchers map[chan struct{}]struct{} // Frames loops waiting for changes
 	ended    bool                       // output finished; the screen is final
-	closing  bool
+
+	waiters     map[*waiter]struct{} // WaitOutput calls
+	waitVersion uint64               // output already checked for waiters
+	waitPushed  uint64
+	closing     bool
 }
 
 func (s *ptySession) Write(b []byte) (int, error) { return s.ptmx.Write(b) }
@@ -169,24 +174,73 @@ func (s *ptySession) Snapshot(context.Context) (*vt.Screen, error) {
 	return s.term.Snapshot(), nil
 }
 
-func (s *ptySession) Scrollback(_ context.Context, n int, ansi bool) ([]string, error) {
+func (s *ptySession) Read(_ context.Context, req ReadRequest) ([]string, error) {
 	s.mu.Lock()
-	lines := s.term.Scrollback().Tail(n)
-	s.mu.Unlock()
-	return FormatLines(lines, ansi), nil
+	defer s.mu.Unlock()
+	return readTerminal(s.term, req)
 }
 
-// FormatLines renders lines of cells as plain text or ANSI-styled text.
-func FormatLines(lines [][]vt.Cell, ansi bool) []string {
-	out := make([]string, len(lines))
-	for i, l := range lines {
-		if ansi {
-			out[i] = vt.LineANSI(l)
-		} else {
-			out[i] = vt.LineText(l)
+func (s *ptySession) WaitOutput(ctx context.Context, req WaitRequest) (string, error) {
+	re, err := compilePattern(req.Pattern)
+	if err != nil {
+		return "", err
+	}
+	w := &waiter{re: re, found: make(chan string, 1)}
+	s.mu.Lock()
+	if req.Anywhere {
+		lines, _ := readTerminal(s.term, ReadRequest{Source: SourceRecent, Lines: MaxReadLines})
+		if line, ok := matchLines(re, lines); ok {
+			s.mu.Unlock()
+			return line, nil
 		}
 	}
-	return out
+	if s.ended {
+		s.mu.Unlock()
+		return "", ErrEnded
+	}
+	if len(s.waiters) == 0 {
+		// Only output from now on counts.
+		s.waitVersion, s.waitPushed = s.term.Version(), s.term.Scrollback().Pushed()
+	}
+	s.waiters[w] = struct{}{}
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.waiters, w)
+		s.mu.Unlock()
+	}()
+
+	select {
+	case line, ok := <-w.found:
+		if !ok {
+			return "", ErrEnded
+		}
+		return line, nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+// checkWaitersLocked matches the output written since the last check (lines
+// that scrolled off, then lines that changed on screen) against every
+// waiter. Callers hold mu.
+func (s *ptySession) checkWaitersLocked() {
+	if len(s.waiters) == 0 {
+		return
+	}
+	var lines []string
+	scrolled, pushed := s.term.Scrollback().Since(s.waitPushed)
+	for _, l := range scrolled {
+		lines = append(lines, vt.LineText(l))
+	}
+	lines = append(lines, s.term.ChangedLines(s.waitVersion)...)
+	s.waitVersion, s.waitPushed = s.term.Version(), pushed
+	for w := range s.waiters {
+		if line, ok := matchLines(w.re, lines); ok {
+			w.found <- line
+			delete(s.waiters, w)
+		}
+	}
 }
 
 func (s *ptySession) Frames(ctx context.Context, emit func(*vt.Frame) error) error {
@@ -264,6 +318,7 @@ func (s *ptySession) readLoop() {
 			}
 			s.mu.Lock()
 			_, _ = s.term.Write(buf[:n])
+			s.checkWaitersLocked()
 			s.notifyLocked()
 			s.mu.Unlock()
 		}
@@ -275,6 +330,10 @@ func (s *ptySession) readLoop() {
 	s.mu.Lock()
 	s.ended = true
 	s.notifyLocked()
+	for w := range s.waiters {
+		close(w.found) // no match is coming
+		delete(s.waiters, w)
+	}
 	_ = s.term.Close()
 	s.mu.Unlock()
 

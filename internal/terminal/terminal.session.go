@@ -24,9 +24,13 @@ type Session interface {
 	Close() error
 	// Snapshot returns the current screen.
 	Snapshot(ctx context.Context) (*vt.Screen, error)
-	// Scrollback returns up to n of the newest lines that scrolled off the
-	// top of the screen, oldest first, as plain text or with ANSI styling.
-	Scrollback(ctx context.Context, n int, ansi bool) ([]string, error)
+	// Read returns part of the terminal's text (see ReadRequest).
+	Read(ctx context.Context, req ReadRequest) ([]string, error)
+	// WaitOutput blocks until a line of output matches req.Pattern and
+	// returns it; ErrEnded when the output ends first; ctx's error when it
+	// ends first. No output can slip past between checks: every write to
+	// the terminal is checked, including lines that scroll off at once.
+	WaitOutput(ctx context.Context, req WaitRequest) (string, error)
 	// Frames calls emit with the screen as frames: a keyframe first, then
 	// changes. It returns once the session's output has ended (after a
 	// final frame), when ctx ends, or when emit fails. A slow emit gets

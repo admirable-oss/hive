@@ -123,7 +123,7 @@ func Register(r *protocol.Router, svc Service) {
 		}
 		res := SnapshotResult{Width: s.Cols, Height: s.Rows, Cursor: s.Cursor, Title: s.Title, AltScreen: s.Modes&vt.ModeAltScreen != 0}
 		if p.Scrollback > 0 {
-			res.Scrollback, err = sess.Scrollback(ctx, min(p.Scrollback, MaxScrollbackLines), p.ANSI)
+			res.Scrollback, err = sess.Read(ctx, ReadRequest{Source: SourceHistory, Lines: min(p.Scrollback, MaxScrollbackLines), ANSI: p.ANSI})
 			if err != nil {
 				return SnapshotResult{}, wireError(err)
 			}

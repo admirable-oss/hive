@@ -17,17 +17,20 @@ const (
 )
 
 type Process struct {
-	ID            string     `json:"id"`
-	EnvironmentID string     `json:"environment_id"`
-	Command       string     `json:"command"`
-	Args          []string   `json:"args"`
-	WorkingDir    string     `json:"working_dir"`
-	PID           int        `json:"pid"`
-	Status        Status     `json:"status"`
-	ExitCode      *int       `json:"exit_code"`
-	Terminal      bool       `json:"terminal"`
-	StartedAt     time.Time  `json:"started_at"`
-	EndedAt       *time.Time `json:"ended_at"`
+	ID            string   `json:"id"`
+	EnvironmentID string   `json:"environment_id"`
+	Command       string   `json:"command"`
+	Args          []string `json:"args"`
+	WorkingDir    string   `json:"working_dir"`
+	// Env holds the variables this process was started with on top of its
+	// environment's (not the full environment).
+	Env       map[string]string `json:"env,omitempty"`
+	PID       int               `json:"pid"`
+	Status    Status            `json:"status"`
+	ExitCode  *int              `json:"exit_code"`
+	Terminal  bool              `json:"terminal"`
+	StartedAt time.Time         `json:"started_at"`
+	EndedAt   *time.Time        `json:"ended_at"`
 }
 
 // Active reports whether the process is (or is about to be) running.
@@ -53,6 +56,11 @@ type StartRequest struct {
 	EnvironmentID string   `json:"environment_id"`
 	Command       string   `json:"command"`
 	Args          []string `json:"args"`
+	// Cwd is where the process runs: empty for the environment's
+	// directory, a path relative to it, or an absolute path.
+	Cwd string `json:"cwd,omitempty"`
+	// Env adds variables on top of the environment's.
+	Env map[string]string `json:"env,omitempty"`
 	// Terminal starts the process inside a PTY; Width and Height size it.
 	Terminal bool   `json:"terminal"`
 	Width    uint16 `json:"width"`

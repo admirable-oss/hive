@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/terminal"
 )
 
@@ -89,9 +90,6 @@ var (
 
 func specPath(dir string) string   { return filepath.Join(dir, "spec.json") }
 func statePath(dir string) string  { return filepath.Join(dir, "state.json") }
-func socketPath(dir string) string { return filepath.Join(dir, "shim.sock") }
+func socketPath(dir string) string { return platform.SocketPath(dir, "shim.sock") }
 func logPath(dir string) string    { return filepath.Join(dir, "shim.log") }
 func stderrPath(dir string) string { return filepath.Join(dir, "shim.stderr") }
-
-// maxSocketPath is the conservative unix socket path limit (macOS: 104).
-const maxSocketPath = 100

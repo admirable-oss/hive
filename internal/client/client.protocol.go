@@ -20,7 +20,8 @@ type Client interface {
 	Close() error
 
 	EnvironmentList(context.Context) ([]environment.Environment, error)
-	EnvironmentCreate(ctx context.Context, id string) (environment.Environment, error)
+	EnvironmentCreate(ctx context.Context, req environment.CreateRequest) (environment.Environment, error)
+	EnvironmentUpdate(ctx context.Context, req environment.UpdateRequest) (environment.Environment, error)
 	EnvironmentGet(ctx context.Context, id string) (environment.Environment, error)
 	EnvironmentRemove(ctx context.Context, id string) error
 
@@ -49,4 +50,8 @@ type Client interface {
 	// Events subscribes to daemon events whose type starts with one of
 	// types (all events when none are given).
 	Events(ctx context.Context, types ...string) (*EventStream, error)
+
+	// Call performs any request and decodes its result into result (which
+	// may be nil). Workspace wraps it with typed methods.
+	Call(ctx context.Context, method string, params, result any) error
 }

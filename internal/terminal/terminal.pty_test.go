@@ -2,6 +2,7 @@ package terminal_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -206,5 +207,101 @@ func TestPTY_FramesEndWithTheProcess(t *testing.T) {
 		if all == nil || !strings.Contains(all.Text(), "bye") {
 			t.Fatal("frames of a finished session must show its final screen")
 		}
+	}
+}
+
+func TestPTY_ReadSources(t *testing.T) {
+	sess := openPTY(t, terminal.PTYFactory{Size: terminal.Size{Width: 20, Height: 4}}, terminal.Command{
+		Path: "sh", Args: []string{"-c", `for i in 1 2 3 4 5 6; do echo "line $i"; done; printf '%s' "$(printf 'w%.0s' $(seq 1 25))"; echo; read _`},
+	})
+	waitScreen(t, sess, "wwwww")
+	ctx := context.Background()
+	read := func(req terminal.ReadRequest) []string {
+		t.Helper()
+		lines, err := sess.Read(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return lines
+	}
+	if got := read(terminal.ReadRequest{}); len(got) != 3 || got[0] != "line 6" {
+		t.Fatalf("visible = %q", got)
+	}
+	if got := read(terminal.ReadRequest{Source: terminal.SourceHistory, Lines: 2}); strings.Join(got, ",") != "line 4,line 5" {
+		t.Fatalf("history = %q", got)
+	}
+	if got := read(terminal.ReadRequest{Source: terminal.SourceRecent, Lines: 4}); strings.Join(got, ",") != "line 5,line 6,"+strings.Repeat("w", 20)+",wwwww" {
+		t.Fatalf("recent = %q", got)
+	}
+	if got := read(terminal.ReadRequest{Source: terminal.SourceRecentUnwrapped, Lines: 2}); strings.Join(got, ",") != "line 6,"+strings.Repeat("w", 25) {
+		t.Fatalf("recent-unwrapped = %q", got)
+	}
+	if _, err := sess.Read(ctx, terminal.ReadRequest{Source: "everything"}); !errors.Is(err, terminal.ErrInvalidRead) {
+		t.Fatalf("unknown source: %v", err)
+	}
+}
+
+// TestPTY_WaitOutputMissesNothing prints the line it waits for in the middle
+// of a burst that scrolls it off the screen at once: frames would skip it,
+// the wait must not.
+func TestPTY_WaitOutputMissesNothing(t *testing.T) {
+	sess := openPTY(t, terminal.PTYFactory{Size: terminal.Size{Width: 40, Height: 5}}, terminal.Command{
+		Path: "sh", Args: []string{"-c", `echo ready; read _; i=0; while [ $i -lt 2000 ]; do echo "noise $i"; [ $i -eq 700 ] && echo "BUILD OK in 12s"; i=$((i+1)); done; read _`},
+	})
+	waitScreen(t, sess, "ready")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	type result struct {
+		line string
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		line, err := sess.WaitOutput(ctx, terminal.WaitRequest{Pattern: `BUILD OK in \d+s`})
+		done <- result{line, err}
+	}()
+	time.Sleep(50 * time.Millisecond) // the wait is registered
+	if _, err := sess.Write([]byte("\n")); err != nil {
+		t.Fatal(err)
+	}
+	r := <-done
+	if r.err != nil || r.line != "BUILD OK in 12s" {
+		t.Fatalf("wait = %q, %v", r.line, r.err)
+	}
+}
+
+func TestPTY_WaitOutputOnlyCountsNewOutputUnlessAnywhere(t *testing.T) {
+	sess := openPTY(t, terminal.PTYFactory{}, terminal.Command{Path: "sh", Args: []string{"-c", `echo "prompt> "; read _; echo finished`}})
+	waitScreen(t, sess, "prompt>")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if _, err := sess.WaitOutput(ctx, terminal.WaitRequest{Pattern: "prompt>"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("text already on screen must not count by default: %v", err)
+	}
+	line, err := sess.WaitOutput(context.Background(), terminal.WaitRequest{Pattern: "prompt>", Anywhere: true})
+	if err != nil || line != "prompt>" {
+		t.Fatalf("anywhere = %q, %v", line, err)
+	}
+	if _, err := sess.WaitOutput(context.Background(), terminal.WaitRequest{Pattern: "("}); !errors.Is(err, terminal.ErrInvalidRead) {
+		t.Fatalf("bad pattern: %v", err)
+	}
+
+	// The program ends without printing a match.
+	done := make(chan error, 1)
+	go func() {
+		_, err := sess.WaitOutput(context.Background(), terminal.WaitRequest{Pattern: "never printed"})
+		done <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+	_, _ = sess.Write([]byte("\n"))
+	select {
+	case err := <-done:
+		if !errors.Is(err, terminal.ErrEnded) {
+			t.Fatalf("got %v, want ErrEnded", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a wait must end when the output does")
 	}
 }

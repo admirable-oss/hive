@@ -117,7 +117,7 @@ func TestE2E_AutostartLifecycleAndLogs(t *testing.T) {
 	}
 
 	// Any daemon command starts it on demand.
-	if out, errOut, code := c.run("env", "create", "dev"); code != 0 || !strings.Contains(out, `created environment "dev"`) || !strings.Contains(errOut, "started the daemon") {
+	if out, errOut, code := c.run("env", "create", "dev", "--managed"); code != 0 || !strings.Contains(out, `created environment "dev"`) || !strings.Contains(errOut, "started the daemon") {
 		t.Fatalf("env create: exit %d\n%s\n%s\n%s", code, out, errOut, c.daemonLog())
 	}
 	pid := c.pid()

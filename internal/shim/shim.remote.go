@@ -114,16 +114,41 @@ func (r *Remote) Snapshot(ctx context.Context) (*vt.Screen, error) {
 	return s, nil
 }
 
-// Scrollback returns up to n of the agent's newest scrollback lines.
-func (r *Remote) Scrollback(ctx context.Context, n int, ansi bool) ([]string, error) {
+// Read returns part of the agent's terminal text.
+func (r *Remote) Read(ctx context.Context, req terminal.ReadRequest) ([]string, error) {
 	if !r.terminal {
 		return nil, ErrNotTerminal
 	}
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	var lines []string
-	err := r.mux.Call(ctx, "shim.scrollback", scrollbackParams{Lines: n, ANSI: ansi}, &lines)
+	err := r.mux.Call(ctx, "shim.read", req, &lines)
 	return lines, err
+}
+
+// WaitOutput waits in the shim for a line matching req.Pattern; ctx's
+// deadline travels with the request.
+func (r *Remote) WaitOutput(ctx context.Context, req terminal.WaitRequest) (string, error) {
+	if !r.terminal {
+		return "", ErrNotTerminal
+	}
+	p := waitParams{WaitRequest: req}
+	if deadline, ok := ctx.Deadline(); ok {
+		p.TimeoutMS = max(time.Until(deadline).Milliseconds(), 1)
+	}
+	var line string
+	err := r.mux.Call(ctx, "shim.wait_output", p, &line)
+	if pe, ok := errors.AsType[*protocol.Error](err); ok {
+		switch pe.Code {
+		case protocol.ErrorCodeTimeout:
+			return "", fmt.Errorf("%w: %s", context.DeadlineExceeded, pe.Message)
+		case protocol.ErrorCodeUnavailable:
+			return "", terminal.ErrEnded
+		case protocol.ErrorCodeInvalidParams:
+			return "", fmt.Errorf("%w: %s", terminal.ErrInvalidRead, pe.Message)
+		}
+	}
+	return line, err
 }
 
 // Frames streams the agent's screen from the shim. Backpressure is end to

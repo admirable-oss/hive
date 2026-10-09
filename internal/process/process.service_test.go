@@ -60,7 +60,7 @@ func TestProcessService(t *testing.T) {
 	envStore := environment.NewFilesystemStore(tempDir)
 	envSvc := environment.NewService(envStore)
 
-	env, err := envSvc.Create(context.Background(), "testenv")
+	env, err := envSvc.Create(context.Background(), environment.CreateRequest{ID: "testenv"})
 	if err != nil {
 		t.Fatalf("failed to create env: %v", err)
 	}

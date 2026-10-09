@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/vt"
 )
@@ -27,7 +28,7 @@ func TestFrames_FiftyBusyAgentsAndAThrottledClient(t *testing.T) {
 	const agents = 50
 	c := startDaemon(t)
 	ctx := context.Background()
-	if _, err := c.EnvironmentCreate(ctx, "load"); err != nil {
+	if _, err := c.EnvironmentCreate(ctx, environment.CreateRequest{ID: "load"}); err != nil {
 		t.Fatal(err)
 	}
 	// Bursts of 20 lines every 50 ms: output keeps flowing for about a

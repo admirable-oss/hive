@@ -44,11 +44,15 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		},
 	}
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "print machine-readable JSON")
+	// Read in execute before parsing; declared so cobra accepts and
+	// documents it.
+	root.PersistentFlags().String("session", "", "the session to use (default $HIVE_SESSION, else \"default\")")
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return &usageError{err} })
 	root.CompletionOptions.HiddenDefaultCmd = false
 
 	root.AddGroup(
 		&cobra.Group{ID: "agents", Title: "Agents:"},
+		&cobra.Group{ID: "workspace", Title: "Workspace:"},
 		&cobra.Group{ID: "runtime", Title: "Runtime:"},
 	)
 	add := func(group string, cmds ...*cobra.Command) {
@@ -59,13 +63,20 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 	}
 	add("agents",
 		newUICmd(a),
-		newEnvironmentCmd(a),
 		newProcessCmd(a),
 		newTerminalCmd(a),
 		newEventsCmd(a),
 		newDemoCmd(a),
 	)
+	add("workspace",
+		newEnvironmentCmd(a),
+		newTabCmd(a),
+		newPaneCmd(a),
+		newLayoutCmd(a),
+		newWorktreeCmd(a),
+	)
 	add("runtime",
+		newSessionCmd(a),
 		newDaemonCmd(a),
 		newStatusCmd(a),
 		newPingCmd(a),

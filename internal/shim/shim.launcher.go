@@ -170,9 +170,6 @@ func (l *Launcher) launch(ctx context.Context, spec Spec) (*Remote, error) {
 	}
 	log := logging.OrDiscard(l.Logger).With("process", spec.ID)
 	dir := l.Dir(spec.ID)
-	if n := len(socketPath(dir)); n > maxSocketPath {
-		return nil, fmt.Errorf("shim: socket path %s is %d bytes, over the %d-byte limit; use a shorter HIVE_HOME", socketPath(dir), n, maxSocketPath)
-	}
 	if err := os.MkdirAll(l.RunDir, 0o700); err != nil {
 		return nil, err
 	}
