@@ -1,9 +1,10 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/708cc3c2-5d35-4dbb-b1e3-35f4735d89be">
-    <img alt="Hive roadmap" src="https://github.com/user-attachments/assets/e1dd814c-ed76-4d2d-823b-2a3046b07a7d" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/e1dd814c-ed76-4d2d-823b-2a3046b07a7d">
+    <img alt="Hive roadmap" src="https://github.com/user-attachments/assets/708cc3c2-5d35-4dbb-b1e3-35f4735d89be" width="100%">
   </picture>
 </p>
+
 
 # Roadmap
 
