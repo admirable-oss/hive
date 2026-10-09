@@ -203,16 +203,26 @@ func (s *Service) ForgetEnvironment(envID string) {
 func area(t *Tab) layout.Rect { return layout.Rect{W: t.Width, H: t.Height} }
 
 // popupRect centres a popup over the tab.
-func popupRect(t *Tab, p Popup) layout.Rect {
-	w, h := max(t.Width*p.WidthPct/100, 1), max(t.Height*p.HeightPct/100, 1)
-	return layout.Rect{X: (t.Width - w) / 2, Y: (t.Height - h) / 2, W: w, H: h}
-}
+func popupRect(t *Tab, p Popup) layout.Rect { return p.Rect(t.Width, t.Height) }
 
 // rects returns every visible pane's area in t.
-func rects(t *Tab) map[string]layout.Rect {
-	g := layout.Geometry(t.Layout, area(t), t.Zoomed)
+func rects(t *Tab) map[string]layout.Rect { return t.Geometry(t.Width, t.Height) }
+
+// Rect is the popup's area in a tab of width × height: centred, sized in
+// percent of the tab.
+func (p Popup) Rect(width, height int) layout.Rect {
+	w, h := max(width*p.WidthPct/100, 1), max(height*p.HeightPct/100, 1)
+	return layout.Rect{X: (width - w) / 2, Y: (height - h) / 2, W: w, H: h}
+}
+
+// Geometry returns every visible pane's area (tiled panes, or the zoomed
+// one, and popups) in a tab area of width × height. Clients lay out their
+// own screen with it, so they agree with the sizes the daemon gives the
+// panes' terminals.
+func (t *Tab) Geometry(width, height int) map[string]layout.Rect {
+	g := layout.Geometry(t.Layout, layout.Rect{W: width, H: height}, t.Zoomed)
 	for _, p := range t.Popups {
-		g[p.Pane] = popupRect(t, p)
+		g[p.Pane] = p.Rect(width, height)
 	}
 	return g
 }

@@ -159,6 +159,10 @@ type Overlay struct {
 	Selected      int // highlighted line, -1 for none
 	Scroll        int // first line shown
 	Footer        []Span
+	// Side, when set, is a pane drawn to the right of the lines (a
+	// preview); the lines then take ListWidth columns (default 40%).
+	Side      *Pane
+	ListWidth int
 }
 
 // Input is an editable line.
@@ -198,6 +202,7 @@ const (
 	HitSidebarBorder // the column between sidebar and panes
 	HitOverlayLine   // a line of the top overlay
 	HitNewTab        // the "+" after the tabs
+	HitSidebarHeader // a sidebar panel's header (collapses it)
 )
 
 // Hit is a clickable area.
@@ -259,9 +264,12 @@ func (c *Compositor) Draw(scr uv.Screen, s *Scene) Result {
 		c.drawPanes(scr, s, st, &res)
 	}
 	for i := range s.Overlays {
-		cur := c.drawOverlay(scr, s, &s.Overlays[i], st, &res, i == len(s.Overlays)-1)
-		if cur != nil {
+		cur, box := c.drawOverlay(scr, s, &s.Overlays[i], st, &res, i == len(s.Overlays)-1)
+		switch {
+		case cur != nil:
 			res.Cursor = cur
+		case res.Cursor != nil && uv.Pos(res.Cursor.X, res.Cursor.Y).In(box):
+			res.Cursor = nil // covered by the box
 		}
 	}
 	if len(s.Toasts) > 0 {
@@ -565,7 +573,9 @@ func drawBox(scr uv.Screen, r uv.Rectangle, st uv.Style, title string) {
 	}
 }
 
-func (c *Compositor) drawOverlay(scr uv.Screen, s *Scene, o *Overlay, st chrome, res *Result, top bool) *vt.Cursor {
+// drawOverlay draws a box and returns its input's cursor, if any, and the
+// box's area.
+func (c *Compositor) drawOverlay(scr uv.Screen, s *Scene, o *Overlay, st chrome, res *Result, top bool) (*vt.Cursor, uv.Rectangle) {
 	w, h := o.Width, o.Height
 	if w <= 0 {
 		w = len(o.Title) + 8
@@ -587,7 +597,7 @@ func (c *Compositor) drawOverlay(scr uv.Screen, s *Scene, o *Overlay, st chrome,
 	}
 	w, h = min(w, s.Width), min(h, s.Height)
 	if w < 4 || h < 3 {
-		return nil
+		return nil, uv.Rectangle{}
 	}
 	r := uv.Rect((s.Width-w)/2, (s.Height-h)/2, w, h)
 	fill(scr, r, st.box)
@@ -618,6 +628,23 @@ func (c *Compositor) drawOverlay(scr uv.Screen, s *Scene, o *Overlay, st chrome,
 		bodyH--
 		drawSpans(scr, inner.Min.X, inner.Max.Y-1, inner.Dx(), withBase(o.Footer, over(st.box, uv.Style{Fg: st.th.Muted})))
 	}
+	listW := inner.Dx()
+	if o.Side != nil && bodyH > 0 {
+		listW = o.ListWidth
+		if listW <= 0 {
+			listW = inner.Dx() * 2 / 5
+		}
+		listW = min(listW, inner.Dx()-3)
+		sepX := inner.Min.X + listW + 1
+		for i := range bodyH {
+			scr.SetCell(sepX, y+i, &uv.Cell{Content: "│", Width: 1, Style: over(st.box, uv.Style{Fg: st.th.Border})})
+		}
+		side := *o.Side
+		side.Rect = layout.Rect{W: inner.Max.X - sepX - 1, H: bodyH}
+		if side.Rect.W > 0 {
+			c.drawPane(scr, sepX+1, y, uv.Rect(sepX+1, y, side.Rect.W, bodyH), &side, st, res)
+		}
+	}
 	scroll := max(o.Scroll, 0)
 	if o.Selected >= 0 {
 		// Keep the selection in view.
@@ -631,13 +658,17 @@ func (c *Compositor) drawOverlay(scr uv.Screen, s *Scene, o *Overlay, st chrome,
 	for i := 0; i < bodyH && scroll+i < len(o.Lines); i++ {
 		idx := scroll + i
 		base := st.box
+		rowW := r.Dx() - 2
+		if o.Side != nil {
+			rowW = listW + 2
+		}
 		if idx == o.Selected {
 			base = st.selected
-			fill(scr, uv.Rect(r.Min.X+1, y+i, r.Dx()-2, 1), base)
+			fill(scr, uv.Rect(r.Min.X+1, y+i, rowW, 1), base)
 		}
-		drawSpans(scr, inner.Min.X, y+i, inner.Dx(), withBase(o.Lines[idx], base))
+		drawSpans(scr, inner.Min.X, y+i, listW, withBase(o.Lines[idx], base))
 		if top {
-			res.Hits = append(res.Hits, Hit{Rect: uv.Rect(r.Min.X+1, y+i, r.Dx()-2, 1), Kind: HitOverlayLine, Index: idx})
+			res.Hits = append(res.Hits, Hit{Rect: uv.Rect(r.Min.X+1, y+i, rowW, 1), Kind: HitOverlayLine, Index: idx})
 		}
 	}
 	if len(o.Lines) > bodyH && bodyH > 0 {
@@ -645,7 +676,7 @@ func (c *Compositor) drawOverlay(scr uv.Screen, s *Scene, o *Overlay, st chrome,
 		pos := scroll * (bodyH - 1) / max(len(o.Lines)-bodyH, 1)
 		scr.SetCell(r.Max.X-1, y+min(pos, bodyH-1), &uv.Cell{Content: "┃", Width: 1, Style: st.boxBorder})
 	}
-	return cursor
+	return cursor, r
 }
 
 func firstRune(s string) (rune, int) {

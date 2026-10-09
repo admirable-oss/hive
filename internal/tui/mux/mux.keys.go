@@ -1,6 +1,3 @@
-// Package mux is the multiplexer UI: it draws the workspace with the
-// compositor and routes keys and the mouse to panes and actions. This file
-// holds the encoders that turn input events into the bytes a terminal sends.
 package mux
 
 import (

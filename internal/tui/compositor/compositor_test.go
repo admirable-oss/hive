@@ -298,3 +298,22 @@ func TestTruncate(t *testing.T) {
 		}
 	}
 }
+
+func TestOverlayWithSidePreview(t *testing.T) {
+	s := scene(60, 10, 0, layout.Leaf("main"), "main", nil)
+	s.Overlays = []compositor.Overlay{{
+		Title: "Overview", Width: 60, Height: 10, ListWidth: 20,
+		Lines:    []compositor.Spans{{{Text: "AGENT"}}, {{Text: "● claude"}}, {{Text: "○ codex"}}},
+		Selected: 1,
+		Footer:   []compositor.Span{{Text: "⏎ go"}},
+		Side:     &compositor.Pane{ID: "claude", Title: "claude", Lines: screen("> fix the tests", "working…")},
+	}}
+	out, res := render(t, s)
+	golden(t, "overview", out)
+	if h, ok := res.HitAt(5, 2); !ok || h.Kind != compositor.HitOverlayLine || h.Index != 1 {
+		t.Fatalf("list hit = %+v", h)
+	}
+	if h, ok := res.HitAt(30, 1); !ok || h.Kind != compositor.HitPane || h.ID != "claude" {
+		t.Fatalf("preview hit = %+v", h)
+	}
+}

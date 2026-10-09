@@ -1,0 +1,14 @@
+╭─ Overview · 2 running · 0 ended ─────────────────────────────────────────────────────────────────╮
+│   AGENT                  ENVIRONMENT    STATUS           │preview me                             │
+│ ● cat                    api            running 0s       │preview me                             │
+│ ● cat                    api            running 0s       │                                       │
+│                                                          │                                       │
+│                                                          │                                       │
+│                                                          │                                       │
+│                                                          │                                       │
+│                                                          │                                       │
+│                                                          │                                       │
+│                                                          │                                       │
+│                                                          │                                       │
+│ ↑↓ select  ⏎ go to pane  x stop  / find  esc close                                               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
