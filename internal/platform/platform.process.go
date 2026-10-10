@@ -38,3 +38,20 @@ func ProcessCwd(pid int) (string, error) {
 	}
 	return processCwd(pid)
 }
+
+// ProcessArgs returns the argument vector of the live process pid, argv[0]
+// first. Interpreted programs show their interpreter first (node, python),
+// with the script after it.
+func ProcessArgs(pid int) ([]string, error) {
+	if pid <= 0 {
+		return nil, ErrNoProcess
+	}
+	return processArgs(pid)
+}
+
+// ForegroundGroup returns the process group in the foreground of the
+// terminal whose file descriptor is fd (usually a PTY master): the job a
+// shell is running, or the shell itself at its prompt.
+func ForegroundGroup(fd uintptr) (int, error) {
+	return foregroundGroup(fd)
+}

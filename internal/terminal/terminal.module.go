@@ -22,11 +22,11 @@ type Config struct {
 	// Factory replaces the in-process PTY factory (the daemon passes the
 	// shim launcher, whose sessions outlive it).
 	Factory Factory
-	// Activity, when set, is told that a session's screen changed, at most
-	// once per ActivityInterval per session (default 1s). The daemon turns
-	// it into process.output events.
-	Activity         func(processID string)
-	ActivityInterval time.Duration
+	// Watcher, when set, follows every session's screen, at most one frame
+	// per WatchInterval per session (default DefaultWatchInterval): the
+	// daemon's agent detection.
+	Watcher       Watcher
+	WatchInterval time.Duration
 }
 
 type Module struct {
@@ -44,8 +44,8 @@ func NewModule(cfg Config) *Module {
 		}
 	}
 	var opts []Option
-	if cfg.Activity != nil {
-		opts = append(opts, WithActivity(cfg.Activity, cfg.ActivityInterval))
+	if cfg.Watcher != nil {
+		opts = append(opts, WithWatcher(cfg.Watcher, cfg.WatchInterval))
 	}
 	return &Module{Service: NewService(factory, opts...)}
 }

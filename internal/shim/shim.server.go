@@ -407,6 +407,17 @@ func (s *server) router() *protocol.Router {
 			})
 		}, nil
 	}))
+	r.MustRegister("shim.foreground", protocol.Method(func(ctx context.Context, _ struct{}) (terminal.Foreground, error) {
+		sess, err := term()
+		if err != nil {
+			return terminal.Foreground{}, err
+		}
+		fr, ok := sess.(terminal.ForegroundReader)
+		if !ok {
+			return terminal.Foreground{}, protocol.NewError(protocol.ErrorCodeUnsupported, errors.New("no foreground for this session"))
+		}
+		return fr.Foreground(ctx)
+	}))
 	r.MustRegister("shim.stop", protocol.Method(func(context.Context, stopParams) (protocol.Empty, error) {
 		return protocol.Empty{}, s.stopAgent()
 	}))

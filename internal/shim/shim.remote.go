@@ -180,6 +180,19 @@ func (r *Remote) Frames(ctx context.Context, emit func(*vt.Frame) error) error {
 	}
 }
 
+var _ terminal.ForegroundReader = (*Remote)(nil)
+
+// Foreground asks the shim which program is in the agent terminal's
+// foreground. Shims from before the call answer unknown_method.
+func (r *Remote) Foreground(ctx context.Context) (terminal.Foreground, error) {
+	if !r.terminal {
+		return terminal.Foreground{}, ErrNotTerminal
+	}
+	var fg terminal.Foreground
+	err := r.mux.Call(ctx, "shim.foreground", nil, &fg)
+	return fg, err
+}
+
 // Wait blocks until the agent exits. It returns nil for exit status 0 and an
 // *Exit otherwise. If the shim disappears without reporting an exit, it
 // returns ErrShimGone; after Detach it returns ErrDetached.

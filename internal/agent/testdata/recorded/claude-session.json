@@ -1,0 +1,52 @@
+{
+  "cols": 120,
+  "rows": 40,
+  "argv": [
+    "claude",
+    "--model",
+    "haiku"
+  ],
+  "checkpoints": [
+    {
+      "offset": 1295,
+      "label": "trust-dialog",
+      "state": "blocked"
+    },
+    {
+      "offset": 3428,
+      "label": "idle",
+      "state": "idle"
+    },
+    {
+      "offset": 4620,
+      "label": "typing",
+      "state": "idle"
+    },
+    {
+      "offset": 5305,
+      "label": "working",
+      "state": "working"
+    },
+    {
+      "offset": 6658,
+      "label": "answered",
+      "state": "idle"
+    },
+    {
+      "offset": 12673,
+      "label": "edit-permission",
+      "state": "blocked"
+    },
+    {
+      "offset": 14045,
+      "label": "edit-rejected",
+      "state": "idle"
+    },
+    {
+      "offset": 27304,
+      "label": "ls-answered",
+      "state": "idle"
+    }
+  ],
+  "agent": "claude"
+}

@@ -1,0 +1,8 @@
+id = "claude"
+name = "Claude Code"
+
+[detect]
+process = ["claude"]
+
+[start]
+command = ["claude"]
