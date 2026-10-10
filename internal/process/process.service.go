@@ -66,8 +66,11 @@ type Service interface {
 	StopAll(ctx context.Context) error
 	// Recover runs at start-up for records an earlier daemon left running:
 	// processes that survived it (under shims) are supervised again, the
-	// rest are closed out, and orphans that are provably ours are stopped.
+	// rest are closed out (and marked Lost unless they ended on their own
+	// in this boot), and orphans that are provably ours are stopped.
 	Recover(ctx context.Context) error
+	// Remove deletes the record and logs of a process that has ended.
+	Remove(ctx context.Context, id string) error
 	// Detach lets go of every live process without stopping it, for a
 	// daemon that exits while its agents keep running. It reports whether
 	// they survive (false when processes cannot outlive the daemon, in
@@ -101,6 +104,16 @@ func WithAdopter(a Adopter) Option {
 	return func(s *service) { s.adopter = a }
 }
 
+// WithLogLimit rotates terminal processes' output logs past limit bytes.
+func WithLogLimit(limit int64) Option {
+	return func(s *service) { s.logMax = limit }
+}
+
+// WithBootTime replaces how the host's boot time is read (see Recover).
+func WithBootTime(boot func() (time.Time, error)) Option {
+	return func(s *service) { s.bootTime = boot }
+}
+
 // WithOrphanControl replaces how processes left by an earlier daemon are
 // inspected and stopped. Tests use it to avoid touching real processes.
 func WithOrphanControl(lookup func(pid int) (platform.ProcessInfo, error), terminate func(pid int) error) Option {
@@ -115,11 +128,13 @@ type service struct {
 	adopter   Adopter   // nil: plain processes die with the daemon
 	events    Events
 	launchEnv *LaunchEnv
+	logMax    int64
 	log       *slog.Logger
 
 	// Orphan control: see reapOrphan.
 	lookup    func(pid int) (platform.ProcessInfo, error)
 	terminate func(pid int) error
+	bootTime  func() (time.Time, error)
 
 	mu   sync.Mutex
 	live map[string]*liveProcess
@@ -147,6 +162,7 @@ func NewService(store Store, envs Environments, runner Runner, terms Terminals, 
 		events:    nopEvents{},
 		lookup:    platform.LookupProcess,
 		terminate: pgroup.Terminate,
+		bootTime:  platform.BootTime,
 		live:      make(map[string]*liveProcess),
 		finishing: make(map[string]*liveProcess),
 	}
@@ -293,8 +309,8 @@ func (s *service) launch(ctx context.Context, p Process, req StartRequest, envir
 	}
 	sess, err := s.terms.Open(ctx, p.ID, terminal.Command{
 		ID: p.ID, Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir, Env: environ,
-		LogPath: stdout,
-		Size:    terminal.Size{Width: req.Width, Height: req.Height},
+		LogPath: stdout, LogMaxBytes: s.logMax, Replay: req.Replay,
+		Size: terminal.Size{Width: req.Width, Height: req.Height},
 	})
 	if err != nil {
 		return nil, err
@@ -525,14 +541,21 @@ func (s *service) liveCount(match func(*liveProcess) bool) int {
 }
 
 // Recover runs at daemon start-up. Records still marked active belong to a
-// daemon that died without stopping its agents. This daemon cannot supervise
-// them (a PTY agent lost its terminal with the old daemon), so any that are
-// provably still running are stopped and the records are closed out: killed
-// when a process was stopped, failed when it was already gone.
+// daemon that died or stopped without stopping its agents. Agents that
+// outlived it (under shims) are re-attached. The rest are closed out, as
+// exited when their shim saw them end, else killed when this daemon stopped
+// a provable orphan, else failed. Every one that did not end on its own is
+// marked Lost: its shim died, or the host rebooted since it started (the
+// shutdown killed it, whatever its shim recorded).
 func (s *service) Recover(ctx context.Context) error {
 	procs, err := s.store.List(ctx, "")
 	if err != nil {
 		return err
+	}
+	boot, err := s.bootTime()
+	if err != nil {
+		s.log.Debug("host boot time unknown; agents are only counted lost when their shim is gone", "err", err)
+		boot = time.Time{}
 	}
 	var errs []error
 	for _, p := range procs {
@@ -542,14 +565,15 @@ func (s *service) Recover(ctx context.Context) error {
 		if !p.Active() || live {
 			continue
 		}
-		errs = append(errs, s.recoverOne(ctx, p))
+		errs = append(errs, s.recoverOne(ctx, p, p.StartedAt.Before(boot)))
 	}
 	return errors.Join(errs...)
 }
 
 // recoverOne re-attaches to p if it survived, records how it ended if it
-// finished meanwhile, and otherwise closes it out.
-func (s *service) recoverOne(ctx context.Context, p Process) error {
+// finished meanwhile, and otherwise closes it out. rebooted says the host
+// booted after p started.
+func (s *service) recoverOne(ctx context.Context, p Process, rebooted bool) error {
 	log := s.log.With("process", p.ID, "env", p.EnvironmentID, "pid", p.PID)
 	handle, err := s.adopt(ctx, p)
 	if err == nil {
@@ -567,16 +591,34 @@ func (s *service) recoverOne(ctx context.Context, p Process) error {
 			status = StatusKilled
 		}
 		now := time.Now()
-		p.Status, p.ExitCode, p.EndedAt = status, &code, &now
-		log.Info("process ended while no daemon was running", "status", status, "exit_code", code)
+		p.Status, p.ExitCode, p.EndedAt, p.Lost = status, &code, &now, rebooted
+		log.Info("process ended while no daemon was running", "status", status, "exit_code", code, "lost", rebooted)
 		return s.store.Update(ctx, p)
 	}
 	status := StatusFailed
-	if s.reapOrphan(p) {
+	// After a reboot the PID belongs to some other process, whatever it
+	// looks like.
+	if !rebooted && s.reapOrphan(p) {
 		status = StatusKilled
 	}
-	log.Warn("closed out process left by a previous daemon", "status", status, "reason", err)
+	log.Warn("closed out process left by a previous daemon", "status", status, "reason", err, "rebooted", rebooted)
+	p.Lost = true
 	return s.closeOut(ctx, p, status)
+}
+
+func (s *service) Remove(ctx context.Context, id string) error {
+	p, err := s.store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, live := s.live[id]
+	_, finishing := s.finishing[id]
+	if p.Active() || live || finishing {
+		return fmt.Errorf("%w: %s", ErrActive, id)
+	}
+	return s.store.Delete(ctx, p)
 }
 
 // adopt re-attaches to p through whichever port launched it.

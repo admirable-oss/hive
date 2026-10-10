@@ -10,6 +10,11 @@ process = ["cursor-agent"]
 [start]
 command = ["cursor-agent"]
 
+[resume]
+# How a restored agent continues its conversation (see README).
+args = ["--resume", "{session_id}"]
+last = ["resume"]
+
 [[rules]]
 state = "blocked"
 priority = 20

@@ -13,6 +13,10 @@ process = ["aider"]
 [start]
 command = ["aider"]
 
+[resume]
+# How a restored agent continues its conversation (see README).
+last = ["--restore-chat-history"]
+
 # Aider writes at the cursor, not at the bottom of the screen, so the rules
 # read the whole screen; an answered question ends in the answer, not ":".
 

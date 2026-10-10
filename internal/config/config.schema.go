@@ -46,6 +46,20 @@ func (c *Config) schema() map[string]map[string]setter {
 		"git": {
 			"refresh_interval": duration(&c.Git.RefreshInterval, time.Second, 10*time.Minute),
 		},
+		"session": {
+			"restore":                  boolean(&c.Session.Restore),
+			"resume_agents_on_restore": boolean(&c.Session.ResumeAgentsOnRestore),
+			"restore_stagger":          duration(&c.Session.RestoreStagger, 0, time.Minute),
+			"snapshot_interval":        duration(&c.Session.SnapshotInterval, 5*time.Second, time.Hour),
+			"keep_snapshots":           integer(&c.Session.KeepSnapshots, 1, 1000),
+			"replay_history":           boolean(&c.Session.ReplayHistory),
+			"replay_lines":             integer(&c.Session.ReplayLines, 1, 100000),
+		},
+		"retention": {
+			"exited_processes": duration(&c.Retention.ExitedProcesses, time.Hour, 10*365*24*time.Hour),
+			"process_log_mb":   integer(&c.Retention.ProcessLogMB, 0, 100000),
+			"gc_interval":      durationOrOff(&c.Retention.GCInterval, time.Minute, 30*24*time.Hour),
+		},
 		"ui": {
 			"sidebar":       boolean(&c.UI.Sidebar),
 			"sidebar_width": integer(&c.UI.SidebarWidth, 16, 120),
@@ -312,6 +326,18 @@ func duration(dst *time.Duration, lo, hi time.Duration) setter {
 			*dst = d
 			return nil
 		})
+	}
+}
+
+// durationOrOff is duration, but "0s" (or "0") turns the feature off.
+func durationOrOff(dst *time.Duration, lo, hi time.Duration) setter {
+	set := duration(dst, lo, hi)
+	return func(raw any) error {
+		if s, ok := raw.(string); ok && (s == "0" || s == "0s") {
+			*dst = 0
+			return nil
+		}
+		return set(raw)
 	}
 }
 

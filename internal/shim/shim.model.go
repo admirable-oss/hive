@@ -19,10 +19,14 @@ type Spec struct {
 	Env        []string `json:"env,omitempty"` // nil inherits the shim's environment
 	// Terminal runs the agent in a PTY with a terminal emulator. Otherwise
 	// it runs plainly with its output appended to the log files.
-	Terminal        bool          `json:"terminal"`
-	Size            terminal.Size `json:"size"`
-	StdoutPath      string        `json:"stdout_path"`
-	StderrPath      string        `json:"stderr_path,omitempty"`
+	Terminal   bool          `json:"terminal"`
+	Size       terminal.Size `json:"size"`
+	StdoutPath string        `json:"stdout_path"`
+	StderrPath string        `json:"stderr_path,omitempty"`
+	// LogMaxBytes rotates a terminal agent's log (see terminal.Command).
+	LogMaxBytes int64 `json:"log_max_bytes,omitempty"`
+	// Replay is shown before a terminal agent's first output.
+	Replay          []byte        `json:"replay,omitempty"`
 	ScrollbackBytes int           `json:"scrollback_bytes,omitempty"`
 	StopGrace       time.Duration `json:"stop_grace,omitempty"`
 }

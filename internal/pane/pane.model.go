@@ -57,6 +57,9 @@ type Spec struct {
 	Command []string          `json:"command,omitempty"`
 	Cwd     string            `json:"cwd,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
+	// Replay is shown on the new terminal before its program's output
+	// (see Respawn). Only the daemon sets it.
+	Replay []byte `json:"-"`
 }
 
 // State is everything stored for one environment.

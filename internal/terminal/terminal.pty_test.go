@@ -305,3 +305,48 @@ func TestPTY_WaitOutputOnlyCountsNewOutputUnlessAnywhere(t *testing.T) {
 		t.Fatal("a wait must end when the output does")
 	}
 }
+
+func TestPTY_ReplayShowsBeforeTheProgramAndIsNotLogged(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "out.log")
+	sess := openPTY(t, terminal.PTYFactory{}, terminal.Command{
+		Path: "sh", Args: []string{"-c", `echo after-replay; read _`}, LogPath: logPath,
+		Replay: []byte("earlier line 1\r\nearlier line 2\r\n"),
+	})
+	s := waitScreen(t, sess, "after-replay")
+	text := s.Text()
+	if i, j := strings.Index(text, "earlier line 2"), strings.Index(text, "after-replay"); i < 0 || j < i {
+		t.Fatalf("replay should come first:\n%s", text)
+	}
+	_, _ = sess.Write([]byte("\n"))
+	_ = sess.Wait()
+	if data, _ := os.ReadFile(logPath); strings.Contains(string(data), "earlier") {
+		t.Fatalf("the replay was logged: %q", data)
+	}
+}
+
+func TestPTY_LogRotatesPastItsLimit(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "out.log")
+	sess := openPTY(t, terminal.PTYFactory{}, terminal.Command{
+		Path: "sh", Args: []string{"-c", `i=0; while [ $i -lt 400 ]; do echo "line $i ................................"; i=$((i+1)); done; echo finished`},
+		LogPath: logPath, LogMaxBytes: 4096,
+	})
+	waitScreen(t, sess, "finished")
+	_ = sess.Wait()
+	cur, err := os.Stat(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := os.Stat(logPath + ".1")
+	if err != nil {
+		t.Fatalf("no rotated log: %v", err)
+	}
+	if cur.Size() > 4096 || old.Size() > 4096 {
+		t.Fatalf("logs exceed the limit: %d and %d bytes", cur.Size(), old.Size())
+	}
+	if _, err := os.Stat(logPath + ".2"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("more than one old log kept: %v", err)
+	}
+	if data, _ := os.ReadFile(logPath); !strings.Contains(string(data), "finished") {
+		t.Fatalf("the current log lacks the latest output: %q", data)
+	}
+}

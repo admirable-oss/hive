@@ -10,6 +10,11 @@ process = ["opencode"]
 [start]
 command = ["opencode"]
 
+[resume]
+# How a restored agent continues its conversation (see README).
+args = ["--session", "{session_id}"]
+last = ["--continue"]
+
 [[rules]]
 state = "blocked"
 priority = 20

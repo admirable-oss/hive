@@ -290,6 +290,7 @@ func (s *Service) startLocked(ctx context.Context, env environment.Environment, 
 	return s.procs.Start(ctx, process.StartRequest{
 		EnvironmentID: env.ID, Command: argv[0], Args: argv[1:], Cwd: spec.Cwd, Env: vars,
 		Terminal: true, Width: uint16(max(r.W, 1)), Height: uint16(max(r.H, 1)),
+		Replay: spec.Replay,
 	})
 }
 
@@ -763,6 +764,39 @@ func (s *Service) Rename(ctx context.Context, paneID, name string) (Pane, error)
 		return Pane{}, err
 	}
 	p.Name = name
+	if err := s.saveLocked(ctx, t.EnvironmentID); err != nil {
+		return Pane{}, err
+	}
+	s.events.Publish(EventPaneUpdated, *p)
+	return s.describeLocked(ctx, t, *p), nil
+}
+
+// Respawn starts spec in a pane whose process has ended, in its place: the
+// pane keeps its ID, name, tab and position. Session restore uses it for
+// panes whose processes went down with the host.
+func (s *Service) Respawn(ctx context.Context, paneID string, spec Spec) (Pane, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, t, p, err := s.paneLocked(ctx, paneID)
+	if err != nil {
+		return Pane{}, err
+	}
+	if proc, err := s.procs.Get(ctx, p.ProcessID); err == nil && proc.Active() {
+		return Pane{}, fmt.Errorf("%w: %s", ErrRunning, paneID)
+	}
+	_, env, err := s.stateLocked(ctx, t.EnvironmentID)
+	if err != nil {
+		return Pane{}, err
+	}
+	r, ok := rects(t)[p.ID]
+	if !ok || r.W <= 0 || r.H <= 0 {
+		r = area(t) // hidden behind a zoomed pane: it is resized when shown
+	}
+	proc, err := s.startLocked(ctx, env, t.ID, p.ID, spec, r)
+	if err != nil {
+		return Pane{}, err
+	}
+	p.ProcessID = proc.ID
 	if err := s.saveLocked(ctx, t.EnvironmentID); err != nil {
 		return Pane{}, err
 	}

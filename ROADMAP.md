@@ -142,7 +142,7 @@ Now it gets really cool: agents driving other agents, through a clean CLI, a Go 
 
 ---
 
-## M6 · Persistence & Resume — `v0.8`
+## M6 · Persistence & Resume — `v0.8`  — **LIVE**
 
 Reboots happen. Hive should shrug them off and pick up right where you left off.
 

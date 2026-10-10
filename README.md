@@ -45,6 +45,8 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 | Agent state detection (working, blocked, done, idle) for Claude Code, Codex and six more; hooks; notifications | ✅ working |
 | Agents operating agents: `hive agent start/prompt/wait/read`, MCP server (`hive mcp`), Go SDK (`pkg/hiveapi`) | ✅ working |
 | Workspace isolation per agent (git worktrees) | ✅ working |
+| Survives reboots: session snapshots, panes restored where they were working, agents resume their conversations ([docs](docs/persistence.md)) | ✅ working |
+| Housekeeping (`hive gc`, retention, output log rotation) and self-update (`hive update`, agents keep running) | ✅ working |
 | Reconnect from another machine | 🗺 planned |
 | Windows support | 🗺 planned |
 
@@ -108,6 +110,9 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive daemon restart` | Restart the runtime; agents keep running and are re-attached |
 | `hive daemon start \| stop [--keep-agents] \| status \| logs [-f]` | Manage the background daemon |
 | `hive daemon install \| uninstall` | Run the daemon as a launchd agent (macOS) or systemd user service (Linux) |
+| `hive session save \| restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again (the daemon does both by itself) |
+| `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
+| `hive update [--check] [--version v] [--from file]` | Update hive to the latest release and restart the daemon; agents keep running |
 | `hive config path \| show \| default \| init \| validate \| reset-keys` | Inspect and create the configuration file; put the default key bindings back |
 | `hive completion bash\|zsh\|fish\|powershell` | Shell completion, including environment and process IDs |
 
@@ -135,6 +140,15 @@ stop_grace = "3s"           # SIGTERM → SIGKILL delay when stopping an agent
 default_width = 220         # size of a new agent terminal
 default_height = 50
 scrollback_mb = 10          # history kept per agent (lines that scrolled off its screen)
+
+[session]
+restore = true              # after a reboot, start panes again where they were working…
+resume_agents_on_restore = true  # …and resume agents' conversations (claude --resume <id>)
+replay_history = false      # show panes' earlier text again (keeps screen text on disk; see docs/persistence.md)
+
+[retention]
+exited_processes = "168h"   # keep ended processes' records and logs this long
+process_log_mb = 50         # rotate each agent's output log at this size
 
 [ui]
 sidebar = true              # show environments and agents beside the panes
@@ -215,6 +229,9 @@ hive ps start -t dev -- claude
   hive.pid                                   daemon PID; flock-ed while the daemon runs (one daemon per root)
   logs/daemon.log[.1…]                       structured daemon log, rotated by size
   logs/daemon.stderr                         the daemon's stderr from its last start (start-up errors)
+  session.json                               the latest workspace snapshot (restore after a reboot)
+  snapshots/session-<time>.json              the 48 before it
+  history/<pane>.txt                         panes' recent text, only with session.replay_history
   run/<process-id>/                          one shim per live agent (0700)
     spec.json  state.json                    what it runs; running / exited + exit code
     shim.sock  shim.log  shim.stderr         its socket (0600) and its own logs
@@ -223,7 +240,7 @@ hive ps start -t dev -- claude
     workspace/                               where the env's agents run
     processes/<id>/
       process.json                           lifecycle record (written atomically)
-      stdout.log  stderr.log                 output, private to the user (PTY output goes to stdout.log)
+      stdout.log  stderr.log                 output, private to the user (PTY output goes to stdout.log; rotates to .1)
 ```
 
 ### Wire protocol
@@ -270,7 +287,7 @@ Hive is designed **contracts first**. Each layer depends on a small interface (a
 
 - **One file per role:** `pkg.model.go` (types), `pkg.service.go` (contract and implementation), `pkg.store.go` (port), `pkg.filesystem_store.go` (adapter), `pkg.protocol.go` (wire handlers), `pkg.module.go` (wiring and package doc), `pkg.error.go`.
 - **Comments explain why, not what.** Each package starts with a short doc comment, and non-obvious decisions are commented where they happen.
-- **Minimal dependencies.** Bubble Tea and Lip Gloss (UI), `creack/pty` (terminals), cobra (CLI), go-toml (config), `x/sys`, and two small `charmbracelet/x` helpers. Everything else is the standard library. A new dependency needs an [ADR](docs/adr/).
+- **Minimal dependencies.** Bubble Tea and Lip Gloss (UI), `creack/pty` (terminals), cobra (CLI), go-toml (config), `x/sys`, godbus (the logind shutdown notice on Linux), and two small `charmbracelet/x` helpers. Everything else is the standard library. A new dependency needs an [ADR](docs/adr/).
 
 ## Contributing
 

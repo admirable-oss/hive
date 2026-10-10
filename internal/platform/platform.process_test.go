@@ -71,3 +71,20 @@ func TestLookupProcessMissing(t *testing.T) {
 		t.Fatalf("lookup of exited pid: %v", err)
 	}
 }
+
+func TestBootTimePrecedesThisProcess(t *testing.T) {
+	boot, err := platform.BootTime()
+	if errors.Is(err, platform.ErrUnsupported) {
+		t.Skip(err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	self, err := platform.LookupProcess(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if boot.IsZero() || boot.After(self.StartTime.Add(time.Second)) || time.Since(boot) > 5*365*24*time.Hour {
+		t.Fatalf("boot time %s is implausible (this process started %s)", boot, self.StartTime)
+	}
+}

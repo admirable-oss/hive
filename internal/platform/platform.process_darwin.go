@@ -29,3 +29,11 @@ func lookupProcess(pid int) (ProcessInfo, error) {
 		StartTime: time.Unix(tv.Sec, int64(tv.Usec)*int64(time.Microsecond)),
 	}, nil
 }
+
+func bootTime() (time.Time, error) {
+	tv, err := unix.SysctlTimeval("kern.boottime")
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Unix(tv.Sec, int64(tv.Usec)*int64(time.Microsecond)), nil
+}

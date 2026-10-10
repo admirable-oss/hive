@@ -21,6 +21,7 @@ type cli struct {
 	home string
 	cfg  string
 	env  []string // added to every command's environment (and so the daemon's)
+	exe  string   // the hive binary to run; empty means this test binary
 }
 
 func newCLI(t *testing.T) *cli {
@@ -45,7 +46,11 @@ func newCLI(t *testing.T) *cli {
 // run executes `hive args...` and returns stdout, stderr and the exit code.
 func (c *cli) run(args ...string) (string, string, int) {
 	c.t.Helper()
-	cmd := exec.Command(os.Args[0], args...)
+	exe := c.exe
+	if exe == "" {
+		exe = os.Args[0]
+	}
+	cmd := exec.Command(exe, args...)
 	cmd.Env = append(os.Environ(),
 		"HIVE_CLI_TEST_EXEC=1",
 		"HIVE_HOME="+c.home,
@@ -101,7 +106,12 @@ func (c *cli) killLeftoverDaemon() {
 
 func (c *cli) waitFor(desc string, cond func() bool) {
 	c.t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	c.waitForUpTo(10*time.Second, desc, cond)
+}
+
+func (c *cli) waitForUpTo(d time.Duration, desc string, cond func() bool) {
+	c.t.Helper()
+	deadline := time.Now().Add(d)
 	for !cond() {
 		if time.Now().After(deadline) {
 			c.t.Fatalf("timed out waiting for %s\ndaemon log:\n%s", desc, c.daemonLog())

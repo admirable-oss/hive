@@ -39,7 +39,8 @@ const Version2 = "2"
 //	3 the multiplexer: active tabs, frames/2, process.output (M3)
 //	4 agent detection: agent.*, agent.state (M4)
 //	5 operating agents: agent.start/prompt/wait/…, api.schema/snapshot (M5)
-const APILevel = 5
+//	6 persistence: session.save/restore, runtime.gc, session.restored (M6)
+const APILevel = 6
 
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.

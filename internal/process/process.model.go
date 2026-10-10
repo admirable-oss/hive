@@ -31,6 +31,10 @@ type Process struct {
 	Terminal  bool              `json:"terminal"`
 	StartedAt time.Time         `json:"started_at"`
 	EndedAt   *time.Time        `json:"ended_at"`
+	// Lost is set when the process did not end on its own: it went down
+	// with the host (a reboot) or with its shim, and a later daemon found
+	// it gone. Such processes are what a session restore starts again.
+	Lost bool `json:"lost,omitempty"`
 }
 
 // Active reports whether the process is (or is about to be) running.
@@ -65,6 +69,9 @@ type StartRequest struct {
 	Terminal bool   `json:"terminal"`
 	Width    uint16 `json:"width"`
 	Height   uint16 `json:"height"`
+	// Replay is shown on a terminal's screen before the program's output
+	// (a restored pane's earlier text). Only the daemon sets it.
+	Replay []byte `json:"-"`
 }
 
 // Stream names one of a process's output logs.

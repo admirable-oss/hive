@@ -193,3 +193,56 @@ func TestKeyframeRecreatesTheScreen(t *testing.T) {
 	got.Apply(f)
 	assertSameScreen(t, got, want)
 }
+
+// TestCoalescerMergesFramesForASlowConsumer passes every frame through a
+// Coalescer and takes from it only now and then: the consumer's screen
+// still ends up exact, and merged frames carry only lines that changed.
+func TestCoalescerMergesFramesForASlowConsumer(t *testing.T) {
+	for seed := range uint64(30) {
+		t.Run(fmt.Sprint(seed), func(t *testing.T) {
+			r := rand.New(rand.NewPCG(seed, 11))
+			term := newTerm(t, 40, 12, vt.Options{})
+			consumer := &vt.Screen{}
+			var view vt.View
+			var merge vt.Coalescer
+			for step := range 80 {
+				_, _ = term.Write(randomOutput(r, 1+r.IntN(20)))
+				if step%23 == 22 {
+					term.Resize(30+r.IntN(20), 8+r.IntN(8))
+				}
+				if f := term.Frame(&view); f != nil {
+					merge.Add(f)
+				}
+				if r.IntN(4) == 0 {
+					if f := merge.Take(); f != nil {
+						consumer.Apply(f)
+					}
+				}
+			}
+			if f := merge.Take(); f != nil {
+				consumer.Apply(f)
+			}
+			assertSameScreen(t, consumer, term.Snapshot())
+			if merge.Take() != nil {
+				t.Fatal("nothing was added since the last Take")
+			}
+		})
+	}
+
+	// Two deltas to different lines merge into one delta with both.
+	term := newTerm(t, 20, 5, vt.Options{})
+	var view vt.View
+	var merge vt.Coalescer
+	merge.Add(term.Frame(&view)) // the first keyframe
+	if f := merge.Take(); f == nil || !f.Keyframe {
+		t.Fatalf("a lone frame passes as it is: %+v", f)
+	}
+	_, _ = term.Write([]byte("\x1b[1;1Hone"))
+	merge.Add(term.Frame(&view))
+	_, _ = term.Write([]byte("\x1b[4;1Hfour"))
+	merge.Add(term.Frame(&view))
+	f := merge.Take()
+	if f.Keyframe || len(f.Lines) != 2 || f.Lines[0].Y != 0 || f.Lines[1].Y != 3 {
+		t.Fatalf("merged frame = %+v", f)
+	}
+}

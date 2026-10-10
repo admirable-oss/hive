@@ -12,6 +12,7 @@ an earlier one, and a factual correction is added as a dated amendment. New depe
 | [0004](0004-single-daemon-lock.md) | One daemon per storage root, enforced by `flock` | Accepted |
 | [0005](0005-orphan-reaping.md) | Recovery stops orphaned agents only when PID and start time match | Accepted |
 | [0006](0006-shims-protocol-2-and-frames.md) | Agents run under shims; protocol 2; screens travel as frames; events | Accepted |
+| [0007](0007-session-persistence.md) | Session snapshots, restore after a reboot by "lost" processes, resume from manifests; godbus for logind | Accepted |
 
 Spike code that produced the measurements lives in [`spikes/`](spikes/). Each
 spike is its own Go module and is not part of the main build.

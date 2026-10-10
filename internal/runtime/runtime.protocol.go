@@ -3,6 +3,8 @@ package runtime
 import (
 	"context"
 
+	"github.com/admirable-oss/hive/internal/persist"
+
 	"github.com/admirable-oss/hive/internal/protocol"
 )
 
@@ -33,6 +35,25 @@ func Register(r *protocol.Router, s *Server) {
 		resp.AfterSend = s.markDone
 		return resp
 	}))
+}
+
+// registerSession exposes snapshots, restore and clean-up.
+func registerSession(r *protocol.Router, k *keeper) {
+	r.MustRegister("session.save", protocol.Method(func(ctx context.Context, _ struct{}) (persist.SaveResult, error) {
+		if k.saver == nil {
+			return persist.SaveResult{}, errSnapshotsOff
+		}
+		wrote, err := k.saver.Save(ctx)
+		return persist.SaveResult{Path: k.store.Path(), Written: wrote}, err
+	}))
+	r.MustRegister("session.restore", protocol.Method(func(ctx context.Context, req persist.RestoreRequest) (persist.RestoreReport, error) {
+		resume := k.cfg == nil || k.cfg.ResumeAgents
+		if req.ResumeAgents != nil {
+			resume = *req.ResumeAgents
+		}
+		return k.restore(ctx, resume)
+	}))
+	r.MustRegister("runtime.gc", protocol.Method(k.gc))
 }
 
 type shutdownParams struct {

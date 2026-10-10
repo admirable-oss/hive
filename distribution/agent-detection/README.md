@@ -23,6 +23,10 @@ command = ["claude"]         # what `hive agent start` runs
 submit = "Enter"             # the key that sends a pasted prompt
 submit_delay_ms = 150        # the pause between pasting a prompt and sending it
 
+[resume]
+args = ["--resume", "{session_id}"]  # resumes the conversation the agent reported
+last = ["--continue"]                # resumes the latest one when no ID is known
+
 [[rules]]
 state = "blocked"            # working | blocked | idle | done
 priority = 20                # the matching rule with the highest priority wins
@@ -57,6 +61,18 @@ A matcher sets exactly one of:
 An agent that was working or blocked and is now idle is **done** until
 someone looks at it (focuses its pane). `hive agent explain <pane>` shows the
 evidence: the rule that matched, any report, and the screen as Hive sees it.
+
+## Resuming after a reboot
+
+When the host reboots, Hive restores every pane and starts its agent again
+(see `session.restore` in the config). With `[resume]`, the agent picks up
+its conversation: Hive runs the agent's program followed by `args`, with
+`{session_id}` replaced by the session ID the agent reported through its
+hooks (`hive integration install claude` sets them up). Without a known ID
+it uses `last`, which most agents read as "the latest conversation in this
+directory". Only the program is kept from the original command line (the
+interpreter and script for node or python agents), not its other flags.
+An agent without `[resume]` is started again with its original command.
 
 ## Fixtures
 
