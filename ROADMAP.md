@@ -82,7 +82,7 @@ Now for the heart of the system: a rock-solid terminal core that survives anythi
 
 ---
 
-## M2 · Workspace Model — `v0.4` ← **START HERE**
+## M2 · Workspace Model — `v0.4`  — **LIVE**
 
 Let's make it feel like home: named sessions, environments, and a flexible layout that adapts to how you work.
 
@@ -95,7 +95,7 @@ Let's make it feel like home: named sessions, environments, and a flexible layou
 
 ---
 
-## M3 · Multiplexer TUI — `v0.5`
+## M3 · Multiplexer TUI — `v0.5`  — **LIVE**
 
 The fun part: a full multiplexer UI you'll enjoy living in — soon your daily tmux replacement.
 
@@ -110,6 +110,17 @@ The fun part: a full multiplexer UI you'll enjoy living in — soon your daily t
 **✅ Acceptance:** you can use Hive daily as a tmux replacement. `teatest` goldens cover each mode. Input latency stays under 10 ms p99 with 16 visible panes.
 
 ---
+
+### M4 · Agent intelligence (v0.6) ← **START HERE**
+
+1. `agent` engine: process detection, the `manifest` engine (regions and matchers), report overrides with TTL, the state machine, rollup, and seq counters.
+2. Manifests for Claude Code, Codex, OpenCode, Gemini, Cursor Agent, Copilot CLI, Amp and Aider, each with recorded-screen fixtures in tests.
+3. `hive agent explain`, `hive server reload-agent-manifests`, and signed remote manifest updates through `update`.
+4. `integration install|uninstall|status <agent>`: Claude `settings.json` hooks and Codex `hooks.json` call `hive pane report-agent` to report state and session ID. Writes are idempotent, back up the original file, and are fully reversible.
+5. `notify`: toast, terminal (OSC 9/777, which works over SSH), system notifications (osascript or notify-send), and sounds for done and blocked, configurable per agent. Notifications are suppressed for the focused pane.
+6. Sidebar state icons, the Overview's RUNNING/AWAITING/COMPLETE counts driven by real states, and `next_agent`/`focus_agent N`/`open_notification_target`.
+
+**Accept:** on the fixture corpus, classification is at least 98 % correct for the top 4 agents. A blocked prompt raises a notification within 500 ms. 100 agents at idle use under 1 % CPU.
 
 ## M5 · Agents Operating Agents — `v0.7`
 
