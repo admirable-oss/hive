@@ -82,7 +82,7 @@ Now for the heart of the system: a rock-solid terminal core that survives anythi
 
 ---
 
-## M2 · Workspace Model — `v0.4` ← **START HERE**
+## M2 · Workspace Model — `v0.4`  — **LIVE**
 
 Let's make it feel like home: named sessions, environments, and a flexible layout that adapts to how you work.
 
@@ -95,7 +95,7 @@ Let's make it feel like home: named sessions, environments, and a flexible layou
 
 ---
 
-## M3 · Multiplexer TUI — `v0.5`
+## M3 · Multiplexer TUI — `v0.5`  — **LIVE**
 
 The fun part: a full multiplexer UI you'll enjoy living in — soon your daily tmux replacement.
 
