@@ -57,6 +57,9 @@ type Start struct {
 	// Submit is the key that sends a prompt after it is pasted (default
 	// Enter).
 	Submit string `toml:"submit" json:"submit,omitempty"`
+	// SubmitDelayMS separates the pasted prompt from the submit key
+	// (default 150).
+	SubmitDelayMS int `toml:"submit_delay_ms" json:"submit_delay_ms,omitempty"`
 }
 
 // Rule maps what a screen shows to a state.

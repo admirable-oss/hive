@@ -88,7 +88,9 @@ func runDemo(ctx context.Context, a *app) error {
 		ag := demoAgents[i]
 		return pane.Spec{Name: ag.name, Command: []string{"sh", "-c", ag.script, ag.name}}
 	}
-	fmt.Fprintf(a.out, "Launching demo agents in %s:\n", demoEnv)
+	if !a.json {
+		fmt.Fprintf(a.out, "Launching demo agents in %s:\n", demoEnv)
+	}
 	created, err := ws.TabCreate(ctx, pane.CreateTabRequest{EnvironmentID: demoEnv, Name: demoTab, Pane: spec(0)})
 	if err != nil {
 		return fmt.Errorf("start %s: %w", demoAgents[0].name, err)
@@ -105,9 +107,11 @@ func runDemo(ctx context.Context, a *app) error {
 		}
 		panes = append(panes, p)
 	}
-	for _, p := range panes {
-		fmt.Fprintf(a.out, "  ◈ %-16s [pane %s / process %s]\n", p.Name, p.ID, p.ProcessID)
-	}
-	fmt.Fprintln(a.out, "\nAll agents running. Open them with: hive  (then C-b O for the Overview, C-b d to leave)")
-	return nil
+	return a.emit(map[string]any{"environment_id": demoEnv, "tab": created.Tab, "panes": panes}, func() error {
+		for _, p := range panes {
+			fmt.Fprintf(a.out, "  ◈ %-16s [pane %s / process %s]\n", p.Name, p.ID, p.ProcessID)
+		}
+		fmt.Fprintln(a.out, "\nAll agents running. Open them with: hive  (then C-b O for the Overview, C-b d to leave)")
+		return nil
+	})
 }

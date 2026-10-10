@@ -41,15 +41,14 @@ it after a crash, use ` + "`hive daemon install`" + `.`,
 			Args:  noArgs,
 			RunE: withTimeout(15*time.Second, func(ctx context.Context, _ *cobra.Command, _ []string) error {
 				if st, ok := a.daemonRunning(ctx); ok {
-					fmt.Fprintf(a.out, "hive daemon is already running (pid %d)\n", st.PID)
-					return nil
+					return a.done(map[string]any{"pid": st.PID, "started": false}, "hive daemon is already running (pid %d)", st.PID)
 				}
 				if err := a.startDaemon(ctx); err != nil {
 					return err
 				}
 				st, _ := a.daemonRunning(ctx)
-				fmt.Fprintf(a.out, "hive daemon started (pid %d, logs: %s)\n", st.PID, a.daemonLog())
-				return nil
+				return a.done(map[string]any{"pid": st.PID, "started": true, "log": a.daemonLog()},
+					"hive daemon started (pid %d, logs: %s)", st.PID, a.daemonLog())
 			}),
 		},
 		newDaemonStopCmd(a),
@@ -72,8 +71,7 @@ it after a crash, use ` + "`hive daemon install`" + `.`,
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(a.out, "removed %s\n", path)
-				return nil
+				return a.done(map[string]any{"path": path}, "removed %s", path)
 			}),
 		},
 	)
@@ -108,8 +106,7 @@ func newDaemonRestartCmd(a *app) *cobra.Command {
 				return err
 			}
 			st, _ := a.daemonRunning(ctx)
-			fmt.Fprintf(a.out, "hive daemon started (pid %d)\n", st.PID)
-			return nil
+			return a.done(map[string]any{"pid": st.PID, "started": true}, "hive daemon started (pid %d)", st.PID)
 		},
 	}
 	cmd.Flags().BoolVar(&stopAgents, "stop-agents", false, "stop every agent too")
@@ -209,14 +206,12 @@ func runDaemon(ctx context.Context, a *app) error {
 
 func stopDaemon(ctx context.Context, a *app, stopAgents bool) error {
 	if _, ok := a.daemonRunning(ctx); !ok {
-		fmt.Fprintln(a.out, "hive daemon is not running")
-		return nil
+		return a.done(map[string]any{"stopped": false}, "hive daemon is not running")
 	}
 	if err := a.shutdownDaemon(ctx, stopAgents); err != nil {
 		return err
 	}
-	fmt.Fprintln(a.out, "hive daemon stopped")
-	return nil
+	return a.done(map[string]any{"stopped": true, "agents_stopped": stopAgents}, "hive daemon stopped")
 }
 
 // shutdownDaemon stops the running daemon and waits until it is gone.
@@ -350,8 +345,8 @@ changing it.`,
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(a.out, "installed %s\nthe daemon now starts at login; remove it with `hive daemon uninstall`\n", path)
-			return nil
+			return a.done(map[string]any{"path": path},
+				"installed %s\nthe daemon now starts at login; remove it with `hive daemon uninstall`", path)
 		}),
 	}
 	cmd.Flags().BoolVar(&printOnly, "print", false, "print the service definition instead of installing it")

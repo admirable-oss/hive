@@ -85,8 +85,7 @@ func newTabCmd(a *app) *cobra.Command {
 				if err := ws().TabClose(ctx, args[0]); err != nil {
 					return err
 				}
-				fmt.Fprintf(a.out, "closed tab %s\n", args[0])
-				return nil
+				return a.done(map[string]any{"id": args[0]}, "closed tab %s", args[0])
 			}),
 		}),
 	)

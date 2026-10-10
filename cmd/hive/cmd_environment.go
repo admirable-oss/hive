@@ -106,8 +106,7 @@ func newEnvironmentCmd(a *app) *cobra.Command {
 				if err := a.client.EnvironmentRemove(ctx, args[0]); err != nil {
 					return err
 				}
-				fmt.Fprintf(a.out, "removed environment %q\n", args[0])
-				return nil
+				return a.done(map[string]any{"id": args[0]}, "removed environment %q", args[0])
 			}),
 		}),
 	)

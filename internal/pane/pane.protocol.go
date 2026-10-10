@@ -209,6 +209,10 @@ func Register(r *protocol.Router, s *Service) {
 	}))
 }
 
+// WireError gives pane, layout, environment and process errors their
+// protocol codes, for methods outside this package that use panes.
+func WireError(err error) error { return wireError(err) }
+
 // wireError gives domain errors their protocol codes.
 func wireError(err error) error {
 	switch {

@@ -106,7 +106,10 @@ func NewModule(cfg Config) *Module {
 	event.Register(router, bus)
 	pane.Register(router, panes)
 	agent.Register(router, agents)
-	registerWorktrees(router, &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir()})
+	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir()}
+	registerWorktrees(router, wts)
+	registerAgentOps(router, &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs})
+	registerAPI(router, server, guardedEnvs, panes, procs, agents) // last: it describes the others
 
 	return &Module{
 		Service:      server,

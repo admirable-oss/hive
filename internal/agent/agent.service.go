@@ -81,6 +81,11 @@ type Config struct {
 	Logger  *slog.Logger
 	// Now replaces the clock in tests.
 	Now func() time.Time
+	// Settle is how long an agent's screen must stay still before a
+	// prompt goes in (default DefaultSettle; negative: not at all).
+	// EchoWait bounds how long a pasted prompt may take to show before it
+	// is submitted anyway (default DefaultEchoWait).
+	Settle, EchoWait time.Duration
 }
 
 // Service follows every terminal and keeps each one's agent state. It is
@@ -99,6 +104,9 @@ type Service struct {
 	trackers  map[string]*tracker // by process ID
 	pending   []Agent             // state changes to publish, in order
 	wake      chan struct{}       // a new terminal needs its kind resolved
+	changed   chan struct{}       // closed and replaced at every state change
+	prompting map[string]*sync.Mutex
+	typed     map[string]time.Time // when input was last typed, by process
 
 	publishing sync.Mutex // keeps batches of state events in order
 }
@@ -114,9 +122,19 @@ func NewService(cfg Config, procs Processes, terms Terminals, locate Locator, ev
 		now:      cfg.Now,
 		trackers: map[string]*tracker{},
 		wake:     make(chan struct{}, 1),
+
+		changed:   make(chan struct{}),
+		prompting: map[string]*sync.Mutex{},
+		typed:     map[string]time.Time{},
 	}
 	if s.now == nil {
 		s.now = time.Now
+	}
+	if s.cfg.Settle == 0 {
+		s.cfg.Settle = DefaultSettle
+	}
+	if s.cfg.EchoWait <= 0 {
+		s.cfg.EchoWait = DefaultEchoWait
 	}
 	if s.events == nil {
 		s.events = nopEvents{}
@@ -179,6 +197,7 @@ func (s *Service) Frame(processID string, f *vt.Frame) {
 	changed := t.apply(f, now)
 	if changed {
 		t.lastFrame = now
+		t.changes++
 	}
 	t.ended, t.endedAt = false, time.Time{}
 	if t.resolved {
@@ -389,6 +408,8 @@ func (s *Service) setLocked(t *tracker, st Status, now time.Time) {
 	st.SessionID = prev.SessionID
 	t.status = st
 	s.pending = append(s.pending, t.agent())
+	close(s.changed)
+	s.changed = make(chan struct{})
 }
 
 // unlockAndPublish releases mu, then publishes the state changes queued
@@ -678,6 +699,7 @@ type tracker struct {
 	verdict         Verdict
 	started         time.Time
 	lastFrame       time.Time // the screen last changed
+	changes         uint64    // how often it changed
 	lastOutputEvent time.Time
 	output          bool // the screen ever changed after the first keyframe
 	blank           bool // the screen shows nothing

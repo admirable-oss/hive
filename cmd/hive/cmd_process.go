@@ -84,8 +84,7 @@ func newProcessCmd(a *app) *cobra.Command {
 				if err := a.client.ProcessStop(ctx, args[0]); err != nil {
 					return err
 				}
-				fmt.Fprintf(a.out, "stopped process %s\n", args[0])
-				return nil
+				return a.done(map[string]any{"id": args[0]}, "stopped process %s", args[0])
 			}),
 		}),
 	)

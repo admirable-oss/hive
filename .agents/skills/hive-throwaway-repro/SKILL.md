@@ -129,11 +129,21 @@ This is the one command that targets the user's session, and it only adds a pane
 
 ### Coding agents
 
-There are no `hive agent` commands yet (they are planned for M5). Start an agent as a pane's command, and talk to it through the pane:
+Start agents with `hive agent` and drive them through it; Hive reads their state (working, blocked, done, idle) from their screens:
 
 ```bash
-"$REPRO/hive" --json pane split <pane> --name agent -- claude --model <approved-model>
+P=$("$REPRO/hive" agent start --kind claude --env repro --name agent -- --model <approved-model>)
+"$REPRO/hive" agent wait "$P" --until blocked --timeout 30s   # a new folder: the trust dialog
+"$REPRO/hive" agent read "$P"                                  # see what it asks
+"$REPRO/hive" agent send-keys "$P" Down Enter                  # answer it (Claude: Down selects "trust")
+"$REPRO/hive" agent prompt "$P" "Reply with exactly one word: PONG" --wait --read 30 --timeout 2m
+"$REPRO/hive" agent explain "$P"                               # why Hive thinks it is in its state
+"$REPRO/hive" agent stop "$P"
 ```
+
+- `--worktree <branch>` on `agent start` gives the agent its own checkout under `$REPRO/home/worktrees`.
+- To test agents driving agents over MCP, point an MCP client at the wrapper: `{"mcpServers":{"hive":{"command":"$REPRO/hive","args":["mcp"]}}}`. When the client is Claude Code run from inside another Claude Code, unset `CLAUDECODE` and the `CLAUDE_CODE_*` session variables for it.
+- A raw recording of an agent's session for a detection fixture is `"$REPRO/hive" ps logs <process> -n 100000 > session.raw` (see `distribution/agent-detection/README.md`).
 
 - Verify the active model on the agent's own screen (`pane read`) rather than trusting an alias.
 - Prefer safe modes and manual permissions for a baseline. Keep prompts narrowly scoped, and do not approve unnecessary file changes, network access or destructive actions.

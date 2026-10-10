@@ -18,9 +18,9 @@ type LaunchEnv struct {
 }
 
 // stripped are variables a process must not inherit from the shell that
-// started the daemon: they describe that shell's multiplexer or terminal,
-// and would make programs inside Hive believe they run inside it (tmux
-// refusing to nest, editors talking to the wrong kitty). Entries ending in
+// started the daemon: they describe that shell's multiplexer, terminal or
+// coding agent, and would make programs inside Hive believe they run
+// inside it (tmux refusing to nest, editors talking to the wrong kitty). Entries ending in
 // "_" or "*" match prefixes.
 var stripped = []string{
 	"TMUX", "TMUX_PANE", "STY", "WINDOW",
@@ -34,6 +34,13 @@ var stripped = []string{
 	"VSCODE_INJECTION", "VSCODE_GIT_IPC_HANDLE",
 	"COLUMNS", "LINES",
 	"HIVE_*",
+	// A coding agent's marks on the processes it runs: an agent Hive starts
+	// from a daemon that one of them started would think itself nested in
+	// that agent's session (Claude Code, Codex's sandbox).
+	"CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_CHILD_SESSION",
+	"CLAUDE_CODE_SESSION_ATTENDED", "CLAUDE_CODE_MESSAGING_*", "CLAUDE_CODE_EXECPATH", "CLAUDE_PID",
+	"CLAUDE_AGENT_SDK_VERSION",
+	"CODEX_SANDBOX*",
 }
 
 func isStripped(name string) bool {

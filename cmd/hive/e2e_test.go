@@ -20,6 +20,7 @@ type cli struct {
 	t    *testing.T
 	home string
 	cfg  string
+	env  []string // added to every command's environment (and so the daemon's)
 }
 
 func newCLI(t *testing.T) *cli {
@@ -54,6 +55,7 @@ func (c *cli) run(args ...string) (string, string, int) {
 		// daemons here are race-enabled children.
 		"GORACE=atexit_sleep_ms=0",
 	)
+	cmd.Env = append(cmd.Env, c.env...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()

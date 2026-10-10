@@ -1,4 +1,4 @@
-# Hive command reference (v0.6)
+# Hive command reference (v0.7)
 
 Every command takes `--json` (machine-readable output) and `--session <name>`. Commands that need the daemon start it on demand. Aliases: `env` for `environment`, `ps` for `process`, `tui` for `ui`. Confirm details with `hive <command> --help`.
 
@@ -44,6 +44,11 @@ Every command takes `--json` (machine-readable output) and `--session <name>`. C
 |---|---|
 | `hive agent list [--all]` | Agents and their states: working, blocked, done, idle, exited (`--all`: every terminal) |
 | `hive agent get [pane]`, `hive agent explain [pane]` | One agent; `explain` shows the rule that matched, reports and the screen |
+| `hive agent start --kind <k> --env <env> [--worktree <branch>] [--name n] [-- args]` | Start an agent in a new tab (prints its pane ID); `--worktree` gives it its own checkout |
+| `hive agent prompt [agent] <text\|-> [--wait] [--until done\|idle] [--timeout d] [--read N]` | Paste and send a prompt (refused while blocked); optionally wait for the turn |
+| `hive agent wait [agent] --until idle\|done\|working\|blocked\|exited\|change [--timeout d] [--after n]` | Wait for a state (exit 4 timed out, 5 blocked/stalled/exited) |
+| `hive agent read [agent] [-s …] [-n N]`, `send-keys <agent> <key>…`, `rename`, `focus`, `stop`, `attach` | Read and drive an agent |
+| `hive mcp`, `hive --skill`, `hive api schema\|snapshot` | MCP tools for agents; the agent skill; the API's schema and the whole workspace as JSON |
 | `hive agent manifests` | The manifests that recognise agents (built in, or in `agent-detection/` beside the config) |
 | `hive server reload-agent-manifests` | Read edited manifests again |
 | `hive pane report-agent [pane] --state working\|blocked\|idle\|done [--ttl d] [--session-id s] [--message m]` | An agent reports its own state; `--hook` for agent hooks (never fails) |
@@ -74,4 +79,4 @@ Every command takes `--json` (machine-readable output) and `--session <name>`. C
 | `hive config path`, `show`, `default`, `init`, `validate`, `reset-keys` | The configuration file |
 | `hive completion bash\|zsh\|fish\|powershell` | Shell completion |
 
-Exit codes: 0 success, 1 error, 2 bad command line, 3 daemon not running, 4 `wait-output` timed out.
+Exit codes: 0 success, 1 error, 2 bad command line, 3 daemon not running, 4 a wait timed out, 5 an agent blocked, stalled or exited.

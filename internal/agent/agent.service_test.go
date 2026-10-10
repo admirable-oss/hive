@@ -52,9 +52,54 @@ func (f *fakeProcs) set(p process.Process) {
 	f.procs[p.ID] = p
 }
 
-type noTerminals struct{}
+// fakeTerms serves the harness's terminals as sessions.
+type fakeTerms struct{ h *harness }
 
-func (noTerminals) Get(string) (terminal.Session, error) { return nil, errors.New("none") }
+func (f fakeTerms) Get(id string) (terminal.Session, error) {
+	f.h.mu.Lock()
+	defer f.h.mu.Unlock()
+	tm := f.h.terms[id]
+	if tm == nil {
+		return nil, errors.New("no terminal")
+	}
+	return &fakeSession{h: f.h, id: id, tm: tm}, nil
+}
+
+// fakeSession records input and passes it to the harness's onInput.
+type fakeSession struct {
+	terminal.Session // unused methods panic
+	h                *harness
+	id               string
+	tm               *term
+}
+
+func (s *fakeSession) Write(b []byte) (int, error) {
+	s.h.mu.Lock()
+	s.tm.input = append(s.tm.input, b...)
+	react := s.h.onInput
+	s.h.mu.Unlock()
+	if react != nil {
+		react(s.id, string(b))
+	}
+	return len(b), nil
+}
+
+func (s *fakeSession) Snapshot(context.Context) (*vt.Screen, error) {
+	s.h.mu.Lock()
+	defer s.h.mu.Unlock()
+	return s.tm.vt.Snapshot(), nil
+}
+
+func (s *fakeSession) Read(context.Context, terminal.ReadRequest) ([]string, error) {
+	scr, _ := s.Snapshot(context.Background())
+	var out []string
+	for y := range scr.Lines {
+		if l := scr.LineText(y); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out, nil
+}
 
 type fakeLocator map[string]Location
 
@@ -90,13 +135,29 @@ type harness struct {
 	svc    *Service
 	procs  *fakeProcs
 	events *recorder
-	now    time.Time
 	terms  map[string]*term
+
+	mu      sync.Mutex // the clock, terminals and input
+	now     time.Time
+	onInput func(id, data string) // called as a session is typed into
 }
 
 type term struct {
-	vt   *vt.Terminal
-	view vt.View
+	vt    *vt.Terminal
+	view  vt.View
+	input []byte
+}
+
+func (h *harness) clock() time.Time {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.now
+}
+
+func (h *harness) input(id string) string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return string(h.terms[id].input)
 }
 
 func newHarness(t testing.TB) *harness {
@@ -109,7 +170,7 @@ func newHarness(t testing.TB) *harness {
 		terms:  map[string]*term{},
 	}
 	loc := fakeLocator{"p1": {PaneID: "pane-1", TabID: "tab-1"}}
-	svc, warnings, err := NewService(Config{Now: func() time.Time { return h.now }}, h.procs, noTerminals{}, loc, h.events)
+	svc, warnings, err := NewService(Config{Now: h.clock, Settle: -1, EchoWait: 30 * time.Millisecond}, h.procs, fakeTerms{h}, loc, h.events)
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("NewService: %v %v", err, warnings)
 	}
@@ -127,9 +188,11 @@ func (h *harness) start(id string, argv []string, env map[string]string, screen 
 	h.t.Helper()
 	h.procs.set(process.Process{
 		ID: id, EnvironmentID: "env", Command: argv[0], Args: argv[1:], Env: env,
-		Status: process.StatusRunning, Terminal: true, PID: 100, StartedAt: h.now,
+		Status: process.StatusRunning, Terminal: true, PID: 100, StartedAt: h.clock(),
 	})
+	h.mu.Lock()
 	h.terms[id] = &term{vt: vt.New(80, 20, vt.Options{})}
+	h.mu.Unlock()
 	h.show(id, screen)
 	h.svc.step(context.Background())
 }
@@ -137,15 +200,22 @@ func (h *harness) start(id string, argv []string, env map[string]string, screen 
 // show writes a screen to a process's terminal and passes the change on.
 func (h *harness) show(id, screen string) {
 	h.t.Helper()
+	h.mu.Lock()
 	tm := h.terms[id]
-	if _, err := tm.vt.Write([]byte(screen)); err != nil {
-		h.t.Fatal(err)
+	_, err := tm.vt.Write([]byte(screen))
+	f := tm.vt.Frame(&tm.view)
+	h.mu.Unlock()
+	if err != nil {
+		h.t.Error(err)
+		return
 	}
-	h.svc.Frame(id, tm.vt.Frame(&tm.view))
+	h.svc.Frame(id, f)
 }
 
 func (h *harness) advance(d time.Duration) {
+	h.mu.Lock()
 	h.now = h.now.Add(d)
+	h.mu.Unlock()
 	h.svc.step(context.Background())
 }
 

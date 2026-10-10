@@ -55,16 +55,29 @@ nothing outside Hive and never fail the agent.`,
 				if err != nil {
 					return err
 				}
+				type result struct {
+					ID      string `json:"id"`
+					Path    string `json:"path"`
+					Changed bool   `json:"changed"`
+				}
+				var results []result
 				for _, in := range list {
 					changed, err := apply(in)
 					if err != nil {
 						return fmt.Errorf("%s: %w", in.Name, err)
+					}
+					results = append(results, result{ID: in.ID, Path: in.Path, Changed: changed})
+					if a.json {
+						continue
 					}
 					if changed {
 						fmt.Fprintf(a.out, "%s: %s (%s)\n", in.Name, did, in.Path)
 					} else {
 						fmt.Fprintf(a.out, "%s: nothing to change (%s)\n", in.Name, in.Path)
 					}
+				}
+				if a.json {
+					return a.printJSON(results)
 				}
 				return nil
 			},

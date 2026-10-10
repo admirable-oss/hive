@@ -21,6 +21,7 @@ args_regex = ""              # optional: must also match the arguments joined by
 [start]
 command = ["claude"]         # what `hive agent start` runs
 submit = "Enter"             # the key that sends a pasted prompt
+submit_delay_ms = 150        # the pause between pasting a prompt and sending it
 
 [[rules]]
 state = "blocked"            # working | blocked | idle | done
@@ -65,4 +66,6 @@ Every manifest has recorded or written terminal sessions in
 known. `go test ./internal/agent -run TestFixtureClassification` checks every
 manifest against them, and `-dump` prints each checkpoint's screen. Fixtures
 under `synthetic/` were written from documentation. Replace them with
-recordings when you can.
+recordings when you can: run the agent in Hive, take `hive ps logs <process>
+-n 100000 > <name>.raw` at the end, and put checkpoints at offsets where a
+frame ends (after `ESC[?2026l` for agents that use synchronized updates).

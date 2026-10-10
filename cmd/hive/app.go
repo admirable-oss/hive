@@ -224,6 +224,26 @@ func (a *app) printJSON(v any) error {
 	return enc.Encode(v)
 }
 
+// done reports an action without a value of its own: under --json as
+// {"ok": true, …fields}, otherwise as the sentence format makes.
+func (a *app) done(fields map[string]any, format string, args ...any) error {
+	v := map[string]any{"ok": true}
+	for k, x := range fields {
+		v[k] = x
+	}
+	return a.emit(v, func() error {
+		_, err := fmt.Fprintf(a.out, format+"\n", args...)
+		return err
+	})
+}
+
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
 // emit prints v as JSON under --json, and calls human otherwise.
 func (a *app) emit(v any, human func() error) error {
 	if a.json {

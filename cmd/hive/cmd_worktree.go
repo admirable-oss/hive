@@ -162,8 +162,7 @@ unless --force. The branch is kept.`,
 			if err := client.NewWorkspace(a.client).WorktreeRemove(ctx, req); err != nil {
 				return err
 			}
-			fmt.Fprintf(a.out, "removed worktree %s\n", args[0])
-			return nil
+			return a.done(map[string]any{"id": args[0]}, "removed worktree %s", args[0])
 		}),
 	})
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "discard uncommitted changes")

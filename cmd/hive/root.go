@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/admirable-oss/hive/skills"
 )
 
 // Command annotations read by the root's pre-run hook.
@@ -15,6 +18,7 @@ const (
 )
 
 func newRootCmd(a *app) *cobra.Command {
+	var skill bool
 	root := &cobra.Command{
 		Use:   "hive",
 		Short: "Run coding agents that keep working when you close the terminal",
@@ -29,9 +33,16 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		SilenceErrors: true,
 		Annotations:   map[string]string{annDaemon: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if skill {
+				_, err := fmt.Fprint(a.out, skills.Hive)
+				return err
+			}
 			return runTUI(cmd.Context(), a)
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if skill {
+				return nil // printing the skill needs nothing else
+			}
 			if cmd.Name() != "daemon" { // the daemon logs its own warnings
 				a.reportConfig()
 			}
@@ -44,6 +55,7 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		},
 	}
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "print machine-readable JSON")
+	root.Flags().BoolVar(&skill, "skill", false, "print the skill that teaches agents to drive other agents through Hive (SKILL.md)")
 	// Read in execute before parsing; declared so cobra accepts and
 	// documents it.
 	root.PersistentFlags().String("session", "", "the session to use (default $HIVE_SESSION, else \"default\")")
@@ -65,6 +77,7 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newUICmd(a),
 		newAgentCmd(a),
 		newIntegrationCmd(a),
+		newMCPCmd(a),
 		newProcessCmd(a),
 		newTerminalCmd(a),
 		newEventsCmd(a),
@@ -84,6 +97,7 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newPingCmd(a),
 		newStopCmd(a),
 		newConfigCmd(a),
+		newAPICmd(a),
 		newVersionCmd(a),
 	)
 	root.SetHelpCommandGroupID("runtime")

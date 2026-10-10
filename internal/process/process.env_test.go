@@ -40,7 +40,7 @@ func TestStart_BuildsTheEnvironmentInLayers(t *testing.T) {
 	}
 	runner := &captureRunner{}
 	launch := process.LaunchEnv{
-		Base: []string{"PATH=/bin", "SHARED=daemon", "TMUX=/tmp/tmux-1/default,1,0", "TMUX_PANE=%1", "ZELLIJ_SESSION_NAME=z", "HIVE_PANE_ID=stale", "KITTY_WINDOW_ID=3", "TERM=screen"},
+		Base: []string{"PATH=/bin", "SHARED=daemon", "TMUX=/tmp/tmux-1/default,1,0", "TMUX_PANE=%1", "ZELLIJ_SESSION_NAME=z", "HIVE_PANE_ID=stale", "KITTY_WINDOW_ID=3", "TERM=screen", "CLAUDECODE=1", "CLAUDE_CODE_SESSION_ID=s"},
 		Vars: map[string]string{"HIVE_SOCKET_PATH": "/s.sock", "HIVE_BIN": "/bin/hive"},
 	}
 	svc := process.NewService(process.NewFilesystemStore(root), envs, runner, nil, process.WithLaunchEnv(launch))
@@ -60,7 +60,7 @@ func TestStart_BuildsTheEnvironmentInLayers(t *testing.T) {
 			t.Errorf("%s = %q, want %q", k, got[k], v)
 		}
 	}
-	for _, k := range []string{"TMUX", "TMUX_PANE", "ZELLIJ_SESSION_NAME", "KITTY_WINDOW_ID", "TERM"} {
+	for _, k := range []string{"TMUX", "TMUX_PANE", "ZELLIJ_SESSION_NAME", "KITTY_WINDOW_ID", "TERM", "CLAUDECODE", "CLAUDE_CODE_SESSION_ID"} {
 		if _, ok := got[k]; ok {
 			t.Errorf("%s must not leak into agents", k)
 		}

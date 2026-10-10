@@ -49,8 +49,7 @@ a pane can drive its own pane (hive pane split, hive pane read).`,
 			if err := w.PaneClose(ctx, id); err != nil {
 				return err
 			}
-			fmt.Fprintf(a.out, "closed pane %s\n", id)
-			return nil
+			return a.done(map[string]any{"id": id}, "closed pane %s", id)
 		}),
 		newPaneRenameCmd(a),
 		paneCmd(a, &cobra.Command{Use: "input [pane]", Short: "Send standard input to a pane, byte for byte"}, func(ctx context.Context, w client.Workspace, id string, _ []string) error {
@@ -303,8 +302,7 @@ func newPaneSwapCmd(a *app) *cobra.Command {
 			if err := client.NewWorkspace(a.client).PaneSwap(ctx, args[0], args[1]); err != nil {
 				return err
 			}
-			fmt.Fprintf(a.out, "swapped %s and %s\n", args[0], args[1])
-			return nil
+			return a.done(map[string]any{"id": args[0], "with": args[1]}, "swapped %s and %s", args[0], args[1])
 		}),
 	})
 }
