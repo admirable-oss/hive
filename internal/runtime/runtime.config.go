@@ -55,6 +55,14 @@ type Config struct {
 	// replace the built-in ones (~/.config/hive/agent-detection). Empty
 	// means only the built-in ones.
 	AgentManifestDir string
+	// Persist turns on session snapshots and restore after a reboot. Nil
+	// turns them off (tests).
+	Persist *PersistConfig
+	// Retention bounds what is kept on disk (see runtime.gc).
+	Retention RetentionConfig
+	// ProcessLogMaxBytes rotates each agent's output log past this size,
+	// keeping one older file. Zero lets logs grow.
+	ProcessLogMaxBytes int64
 	// InheritEnv lets agents inherit the daemon's environment unfiltered,
 	// without the HIVE_* variables. Only tests set it.
 	InheritEnv bool

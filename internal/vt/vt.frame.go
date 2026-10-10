@@ -95,3 +95,56 @@ func (s *Screen) Keyframe() *Frame {
 	}
 	return f
 }
+
+// Coalescer merges frames for a consumer slower than their producer: Take
+// returns one frame that brings the consumer's screen up to date with every
+// frame added since the previous Take (the lines any of them changed, as
+// they are now). A consumer that keeps up gets the frames as they came.
+type Coalescer struct {
+	screen Screen
+	dirty  map[int]bool
+	key    bool   // a keyframe or a resize since the last Take
+	n      int    // frames added since the last Take
+	last   *Frame // the latest of them
+}
+
+// Add records a frame.
+func (c *Coalescer) Add(f *Frame) {
+	if f.Keyframe || f.Cols != c.screen.Cols || f.Rows != c.screen.Rows {
+		c.key = true
+		clear(c.dirty)
+	}
+	c.screen.Apply(f)
+	if !c.key {
+		if c.dirty == nil {
+			c.dirty = map[int]bool{}
+		}
+		for _, l := range f.Lines {
+			c.dirty[l.Y] = true
+		}
+	}
+	c.n++
+	c.last = f
+}
+
+// Take returns the merged frame and starts over, or nil when no frame was
+// added since the previous Take.
+func (c *Coalescer) Take() *Frame {
+	defer func() { c.n, c.last, c.key = 0, nil, false; clear(c.dirty) }()
+	switch {
+	case c.n == 0:
+		return nil
+	case c.n == 1:
+		return c.last
+	case c.key:
+		return c.screen.Keyframe()
+	}
+	s := &c.screen
+	f := &Frame{Cols: s.Cols, Rows: s.Rows, Cursor: s.Cursor, Title: s.Title, Modes: s.Modes, Bells: s.Bells}
+	for y := range s.Lines {
+		if c.dirty[y] {
+			f.Lines = append(f.Lines, LineUpdate{Y: y, Cells: append([]Cell(nil), trimBlank(s.Lines[y])...)})
+		}
+	}
+	return f
+}

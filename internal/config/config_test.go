@@ -368,3 +368,36 @@ focus_left = "alt+h"
 		t.Error("nothing to reset")
 	}
 }
+
+func TestSessionAndRetention(t *testing.T) {
+	cfg, warnings, err := config.Parse([]byte(`
+[session]
+restore = false
+resume_agents_on_restore = false
+restore_stagger = "250ms"
+replay_history = true
+replay_lines = 200
+keep_snapshots = 0
+
+[retention]
+exited_processes = "24h"
+process_log_mb = 0
+gc_interval = "0s"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "session.keep_snapshots") {
+		t.Fatalf("warnings = %q", warnings)
+	}
+	s, r := cfg.Session, cfg.Retention
+	if s.Restore || s.ResumeAgentsOnRestore || s.RestoreStagger != 250*time.Millisecond || !s.ReplayHistory || s.ReplayLines != 200 || s.KeepSnapshots != 48 {
+		t.Errorf("session = %+v", s)
+	}
+	if r.ExitedProcesses != 24*time.Hour || r.ProcessLogMB != 0 || r.GCInterval != 0 {
+		t.Errorf("retention = %+v", r)
+	}
+	if d := config.Defaults(); !d.Session.Restore || !d.Session.ResumeAgentsOnRestore || d.Session.ReplayHistory {
+		t.Errorf("defaults: restore and resume on, history replay off: %+v", d.Session)
+	}
+}

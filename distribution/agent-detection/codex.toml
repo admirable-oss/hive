@@ -8,6 +8,11 @@ process = ["codex"]
 [start]
 command = ["codex"]
 
+[resume]
+# How a restored agent continues its conversation (see README).
+args = ["resume", "{session_id}"]
+last = ["resume", "--last"]
+
 [[rules]]
 state = "blocked"
 priority = 20

@@ -580,3 +580,55 @@ func TestTabsReportTheActiveTab(t *testing.T) {
 		}
 	}
 }
+
+func TestRespawnStartsAnEndedPaneInPlace(t *testing.T) {
+	w := newWorld(t, t.TempDir())
+	w.env(t, "dev")
+	ctx := context.Background()
+	_, first, err := w.panes.CreateTab(ctx, pane.CreateTabRequest{EnvironmentID: "dev", Pane: pane.Spec{Name: "main"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := w.panes.Split(ctx, pane.SplitRequest{Pane: first.ID, Spec: pane.Spec{Command: []string{"sh", "-c", "exit 3"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.panes.Respawn(ctx, first.ID, pane.Spec{}); !errors.Is(err, pane.ErrRunning) {
+		t.Fatalf("respawning a running pane: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		p, _ := w.procs.Get(ctx, second.ProcessID)
+		if !p.Active() {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the split's command never ended")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	got, err := w.panes.Respawn(ctx, second.ID, pane.Spec{
+		Command: []string{"sh", "-c", `echo "again in $HIVE_PANE_ID"; read _`},
+		Replay:  []byte("before the restart\r\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != second.ID || got.ProcessID == second.ProcessID || got.Rect == nil || got.Rect.W != 40 {
+		t.Fatalf("respawned pane = %+v (was process %s)", got, second.ProcessID)
+	}
+	line, err := w.panes.WaitOutput(ctx, second.ID, terminal.WaitRequest{Pattern: "again in", Anywhere: true}, 5*time.Second)
+	if err != nil || line != "again in "+second.ID {
+		t.Fatalf("output %q, %v", line, err)
+	}
+	lines, _ := w.panes.Read(ctx, second.ID, terminal.ReadRequest{})
+	if lines[0] != "before the restart" {
+		t.Fatalf("replayed text missing:\n%s", strings.Join(lines, "\n"))
+	}
+	// The layout still holds both panes, and the change is stored.
+	st, err := w.store.Load(ctx, "dev")
+	if err != nil || len(st.Panes) != 2 || st.Panes[1].ProcessID != got.ProcessID || !st.Tabs[0].Layout.Contains(second.ID) {
+		t.Fatalf("stored state = %+v, %v", st, err)
+	}
+}

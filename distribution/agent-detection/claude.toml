@@ -7,6 +7,11 @@ process = ["claude"]
 [start]
 command = ["claude"]
 
+[resume]
+# How a restored agent continues its conversation (see README).
+args = ["--resume", "{session_id}"]
+last = ["--continue"]
+
 # Claude Code marks its own work: the status line under the prompt box
 # says "esc to interrupt" while it works, so typing is not activity.
 

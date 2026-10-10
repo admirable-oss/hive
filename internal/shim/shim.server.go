@@ -171,6 +171,7 @@ func (s *server) start(ctx context.Context) error {
 	if sp.Terminal {
 		sess, err := terminal.PTYFactory{ScrollbackBytes: sp.ScrollbackBytes, StopGrace: sp.StopGrace, Logger: s.log}.Open(ctx, terminal.Command{
 			ID: sp.ID, Path: sp.Path, Args: sp.Args, WorkingDir: sp.WorkingDir, Env: sp.Env, LogPath: sp.StdoutPath, Size: sp.Size,
+			LogMaxBytes: sp.LogMaxBytes, Replay: sp.Replay,
 		})
 		if err != nil {
 			return err

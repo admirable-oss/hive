@@ -1,4 +1,4 @@
-# Hive command reference (v0.7)
+# Hive command reference (v0.8)
 
 Every command takes `--json` (machine-readable output) and `--session <name>`. Commands that need the daemon start it on demand. Aliases: `env` for `environment`, `ps` for `process`, `tui` for `ui`. Confirm details with `hive <command> --help`.
 
@@ -76,6 +76,9 @@ Every command takes `--json` (machine-readable output) and `--session <name>`. C
 | `hive stop` | Stop the daemon **and every agent** |
 | `hive daemon install`, `uninstall` | Start the daemon at login (launchd / systemd) |
 | `hive session list`, `stop <name>`, `remove <name>` | Separate daemons with their own environments |
+| `hive session save`, `restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again, agents resuming their conversations |
+| `hive gc [--dry-run] [--older-than d]` | Remove old ended processes' records and logs, and leftovers |
+| `hive update [--check] [--version v] [--from file]` | Install a release and restart the daemon; agents keep running |
 | `hive config path`, `show`, `default`, `init`, `validate`, `reset-keys` | The configuration file |
 | `hive completion bash\|zsh\|fish\|powershell` | Shell completion |
 

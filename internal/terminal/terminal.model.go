@@ -34,7 +34,13 @@ type Command struct {
 	WorkingDir string
 	Env        []string // nil inherits the daemon's environment
 	LogPath    string   // optional: every byte of output is appended here
-	Size       Size     // zero means the factory's default
+	// LogMaxBytes rotates the log past this size, keeping one older file
+	// (LogPath.1). Zero lets it grow.
+	LogMaxBytes int64
+	Size        Size // zero means the factory's default
+	// Replay is shown on the screen before the program's first output
+	// (text from an earlier run of the pane). It is not logged.
+	Replay []byte
 }
 
 // DefaultSize is used when no explicit size is provided.

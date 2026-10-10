@@ -59,7 +59,11 @@ func newProcessCmd(a *app) *cobra.Command {
 					w := a.table()
 					fmt.Fprintf(w, "ID\t%s\n", p.ID)
 					fmt.Fprintf(w, "PID\t%d\n", p.PID)
-					fmt.Fprintf(w, "Status\t%s\n", p.Status)
+					if p.Lost {
+						fmt.Fprintf(w, "Status\t%s (lost with the host or its shim; `hive session restore` starts its pane again)\n", p.Status)
+					} else {
+						fmt.Fprintf(w, "Status\t%s\n", p.Status)
+					}
 					fmt.Fprintf(w, "Environment\t%s\n", p.EnvironmentID)
 					fmt.Fprintf(w, "Terminal\t%t\n", p.Terminal)
 					fmt.Fprintf(w, "Command\t%s\n", strings.Join(append([]string{p.Command}, p.Args...), " "))

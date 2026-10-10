@@ -87,6 +87,13 @@ func (s *FilesystemStore) Update(_ context.Context, p Process) error {
 	return jsonfile.Write(s.file(p), p)
 }
 
+func (s *FilesystemStore) Delete(_ context.Context, p Process) error {
+	if !idPattern.MatchString(p.ID) || !environment.ValidID(p.EnvironmentID) {
+		return ErrNotFound
+	}
+	return os.RemoveAll(s.dir(p))
+}
+
 // Get finds a process by ID alone, so it scans each environment's directory.
 func (s *FilesystemStore) Get(_ context.Context, id string) (Process, error) {
 	if !idPattern.MatchString(id) {

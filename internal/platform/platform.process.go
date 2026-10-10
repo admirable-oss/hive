@@ -29,6 +29,12 @@ func LookupProcess(pid int) (ProcessInfo, error) {
 	return lookupProcess(pid)
 }
 
+// BootTime returns when the host last booted. Processes that started
+// before it cannot be running any more: they ended with the previous boot.
+func BootTime() (time.Time, error) {
+	return bootTime()
+}
+
 // ProcessCwd returns the working directory of the live process pid, so a
 // new pane can start where the user is working (`cd` in a shell changes
 // it). It needs no special privilege for the user's own processes.

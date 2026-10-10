@@ -16,6 +16,8 @@ type Store interface {
 	// the updated record. Open log files keep being written (they are
 	// renamed, not copied).
 	Move(ctx context.Context, p Process, envID string) (Process, error)
+	// Delete removes p's record and logs.
+	Delete(ctx context.Context, p Process) error
 	// Tail returns the last n lines of one of p's logs (all of it when n <= 0).
 	Tail(ctx context.Context, p Process, stream Stream, n int) (string, error)
 }

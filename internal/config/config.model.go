@@ -18,6 +18,8 @@ type Config struct {
 	Terminal  Terminal
 	Git       Git
 	Worktrees Worktrees
+	Session   Session
+	Retention Retention
 	Notify    notify.Config
 	UI        UI
 	Theme     Theme
@@ -68,6 +70,41 @@ type Worktrees struct {
 	Directory string
 }
 
+// Session configures snapshots of the workspace and its restore after a
+// reboot (see package persist).
+type Session struct {
+	// Restore starts panes again, where they were working, when the daemon
+	// finds their processes gone with the host or their shims.
+	Restore bool
+	// ResumeAgentsOnRestore resumes restored agents' conversations (their
+	// manifests' [resume]); without it they start fresh.
+	ResumeAgentsOnRestore bool
+	// RestoreStagger separates restored agents' starts.
+	RestoreStagger time.Duration
+	// SnapshotInterval is how often a snapshot is taken besides after
+	// changes (for directories changed by `cd`).
+	SnapshotInterval time.Duration
+	// KeepSnapshots is how many earlier snapshots are kept.
+	KeepSnapshots int
+	// ReplayHistory keeps each pane's recent text and shows it again in a
+	// restored pane. Off by default: the text may hold secrets.
+	ReplayHistory bool
+	// ReplayLines bounds the text kept per pane.
+	ReplayLines int
+}
+
+// Retention bounds what Hive keeps on disk (see `hive gc`).
+type Retention struct {
+	// ExitedProcesses is how long the records and output of processes that
+	// ended (and no pane shows) are kept.
+	ExitedProcesses time.Duration
+	// ProcessLogMB rotates each agent's output log at this size, keeping
+	// one older file; 0 lets logs grow.
+	ProcessLogMB int
+	// GCInterval is how often the daemon cleans up by itself; 0 never.
+	GCInterval time.Duration
+}
+
 // UI configures the multiplexer (`hive ui`).
 type UI struct {
 	// Sidebar shows the sidebar when the UI opens.
@@ -114,10 +151,15 @@ func Defaults() Config {
 		Process:  Process{StopGrace: 3 * time.Second},
 		Terminal: Terminal{DefaultWidth: 220, DefaultHeight: 50, ScrollbackMB: 10},
 		Git:      Git{RefreshInterval: 5 * time.Second},
-		Notify:   notify.Defaults(),
-		UI:       UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},
-		Theme:    Theme{Name: "auto"},
-		Keys:     Keys{Prefix: []string{DefaultPrefix}},
+		Session: Session{
+			Restore: true, ResumeAgentsOnRestore: true, RestoreStagger: time.Second,
+			SnapshotInterval: 30 * time.Second, KeepSnapshots: 48, ReplayLines: 500,
+		},
+		Retention: Retention{ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour},
+		Notify:    notify.Defaults(),
+		UI:        UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},
+		Theme:     Theme{Name: "auto"},
+		Keys:      Keys{Prefix: []string{DefaultPrefix}},
 	}
 }
 

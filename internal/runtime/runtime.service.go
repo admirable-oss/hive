@@ -79,6 +79,8 @@ type Server struct {
 	conns     map[net.Conn]struct{}
 	cancel    context.CancelFunc
 	workers   []func(ctx context.Context)
+	// onShutdown runs as the daemon stops, before agents are let go of.
+	onShutdown []func(ctx context.Context)
 
 	wg       sync.WaitGroup
 	done     chan struct{}
@@ -171,6 +173,13 @@ func (s *Server) Go(task func(ctx context.Context)) {
 	s.workers = append(s.workers, task)
 }
 
+// OnShutdown adds a task that runs as the daemon stops (on a signal, a
+// remote stop or a restart), while agents are still attached. It must be
+// called before Start.
+func (s *Server) OnShutdown(task func(ctx context.Context)) {
+	s.onShutdown = append(s.onShutdown, task)
+}
+
 // Stop shuts the daemon down, closes every open connection and waits for
 // their handlers to return. Agents keep running when they can (under
 // shims); a later daemon adopts them. It is safe to call more than once.
@@ -237,6 +246,9 @@ func (s *Server) shutdown(ctx context.Context, stopAgents bool) error {
 	errs := []error{ln.Close()}
 	if err := os.Remove(s.cfg.SocketPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		errs = append(errs, err)
+	}
+	for _, task := range s.onShutdown {
+		task(ctx)
 	}
 	if stopAgents {
 		s.log.Info("daemon stopping; stopping all agents")

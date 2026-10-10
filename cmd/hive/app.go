@@ -195,6 +195,11 @@ func (a *app) startDaemon(ctx context.Context) error {
 	if exe, err = a.stableExecutable(exe); err != nil {
 		return err
 	}
+	return a.spawnDaemon(ctx, exe)
+}
+
+// spawnDaemon launches `exe daemon` detached and waits until it answers.
+func (a *app) spawnDaemon(ctx context.Context, exe string) error {
 	return daemonctl.Spawn(ctx, daemonctl.SpawnOptions{
 		Executable: exe,
 		Args:       append(a.sessionArgs(), "daemon"),

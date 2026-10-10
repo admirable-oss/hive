@@ -162,19 +162,59 @@ func (r *Remote) Frames(ctx context.Context, emit func(*vt.Frame) error) error {
 	if err != nil {
 		return err
 	}
+	// Frames are read as they arrive, whatever emit's pace: one connection
+	// carries every call to the shim, and a pipe left unread would hold up
+	// the rest (input, snapshots) behind it. Frames that arrive while emit
+	// is busy are merged into one, as a terminal does for a slow viewer.
+	var (
+		mu      sync.Mutex
+		merged  vt.Coalescer
+		readErr error
+		reading sync.WaitGroup
+	)
+	ready := make(chan struct{}, 1)
+	defer reading.Wait()
 	defer p.Close()
 	stop := context.AfterFunc(ctx, func() { _ = p.Close() })
 	defer stop()
-	fr := vt.NewFrameReader(p)
+	reading.Go(func() {
+		fr := vt.NewFrameReader(p)
+		for {
+			f, err := fr.Next()
+			mu.Lock()
+			if err != nil {
+				readErr = err
+			} else {
+				merged.Add(f)
+			}
+			mu.Unlock()
+			select {
+			case ready <- struct{}{}:
+			default:
+			}
+			if err != nil {
+				return
+			}
+		}
+	})
 	for {
-		f, err := fr.Next()
+		select {
+		case <-ready:
+		case <-ctx.Done():
+			return nil
+		}
+		mu.Lock()
+		f, err := merged.Take(), readErr
+		mu.Unlock()
+		if f != nil {
+			if err := emit(f); err != nil {
+				return err
+			}
+		}
 		if err != nil {
 			if errors.Is(err, io.EOF) || ctx.Err() != nil {
 				return nil
 			}
-			return err
-		}
-		if err := emit(f); err != nil {
 			return err
 		}
 	}

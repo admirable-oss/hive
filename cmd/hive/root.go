@@ -96,6 +96,8 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newStatusCmd(a),
 		newPingCmd(a),
 		newStopCmd(a),
+		newGCCmd(a),
+		newUpdateCmd(a),
 		newConfigCmd(a),
 		newAPICmd(a),
 		newVersionCmd(a),

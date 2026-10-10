@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -42,14 +43,18 @@ func NewPTYFactory() Factory { return PTYFactory{} }
 // Open starts cmd in a new PTY. The process outlives ctx: sessions end when
 // the process exits or Close is called, never when a request finishes.
 func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
-	var logFile *os.File
+	var logFile io.WriteCloser
 	if cmd.LogPath != "" {
 		// Agent output can contain secrets, so the log is private.
-		lf, err := os.OpenFile(cmd.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		var err error
+		if cmd.LogMaxBytes > 0 {
+			logFile, err = logging.OpenRotating(cmd.LogPath, cmd.LogMaxBytes, 1)
+		} else {
+			logFile, err = os.OpenFile(cmd.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		}
 		if err != nil {
 			return nil, err
 		}
-		logFile = lf
 	}
 
 	size := cmd.Size.Or(f.Size, DefaultSize)
@@ -90,6 +95,9 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 		Reply:           func(b []byte) { _, _ = ptmx.Write(b) },
 		ScrollbackBytes: f.ScrollbackBytes,
 	})
+	if len(cmd.Replay) > 0 {
+		_, _ = s.term.Write(cmd.Replay)
+	}
 	go s.readLoop()
 	return s, nil
 }
@@ -97,7 +105,7 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 type ptySession struct {
 	cmd     *exec.Cmd
 	ptmx    *os.File
-	logFile *os.File // written only by readLoop, so it needs no lock
+	logFile io.WriteCloser // written only by readLoop, so it needs no lock
 	grace   time.Duration
 	log     *slog.Logger
 

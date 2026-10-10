@@ -59,6 +59,8 @@ func NewModule(cfg Config) *Module {
 		Logger:    log.With("module", "process"),
 		Events:    bus,
 		LaunchEnv: cfg.launchEnv(),
+		// Rotation applies to terminal agents' logs, which the shim writes.
+		LogMaxBytes: cfg.ProcessLogMaxBytes,
 	}
 	if cfg.Shim != nil {
 		// Agents run under shims: they survive the daemon and are adopted
@@ -83,14 +85,18 @@ func NewModule(cfg Config) *Module {
 	gitLog := log.With("module", "git")
 	tracker := newGitTracker(git.New(), envs, bus, cfg.GitInterval, gitLog)
 	guardedEnvs := &envGuard{Service: envs, procs: procs, events: bus, git: tracker}
+	var keep *keeper // built after the panes, which it reads; it supplies their recovery
 	panes := pane.NewModule(pane.Config{
-		BaseDir: root,
-		Size:    termCfg.DefaultSize,
-		Shell:   cfg.Shell,
-		Logger:  log.With("module", "pane"),
+		BaseDir:       root,
+		Size:          termCfg.DefaultSize,
+		Shell:         cfg.Shell,
+		Logger:        log.With("module", "pane"),
+		RecoverLayout: func(envID string) (pane.State, bool) { return keep.layoutFor(envID) },
 	}, procs, terms, guardedEnvs, bus).Service
 	guardedEnvs.panes = panes
 	procsRef.Service, termsRef.Service, locator.panes = procs, terms, panes
+	keep = newKeeper(cfg, guardedEnvs, panes, procs, terms, agents, bus, log.With("module", "session"))
+	keep.load()
 
 	router := protocol.NewRouter()
 	server := NewServer(cfg, router, procs)
@@ -98,6 +104,16 @@ func NewModule(cfg Config) *Module {
 	server.Go(func(ctx context.Context) { closeFinishedPopups(ctx, bus, panes, log) })
 	server.Go(agents.Run)
 	server.Go(func(ctx context.Context) { markSeen(ctx, bus, agents, agentLog) })
+	if p := cfg.Persist; p != nil && p.Restore {
+		server.Go(func(ctx context.Context) {
+			if _, err := keep.restore(ctx, p.ResumeAgents); err != nil && ctx.Err() == nil {
+				log.Warn("session restore failed", "err", err)
+			}
+		})
+	}
+	server.Go(keep.run)
+	server.Go(keep.runGC)
+	server.OnShutdown(keep.save)
 
 	Register(router, server)
 	environment.Register(router, guardedEnvs)
@@ -109,6 +125,7 @@ func NewModule(cfg Config) *Module {
 	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir()}
 	registerWorktrees(router, wts)
 	registerAgentOps(router, &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs})
+	registerSession(router, keep)
 	registerAPI(router, server, guardedEnvs, panes, procs, agents) // last: it describes the others
 
 	return &Module{

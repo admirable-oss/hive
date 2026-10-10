@@ -168,6 +168,21 @@ func runDaemon(ctx context.Context, a *app) error {
 		GitInterval: a.cfg.Git.RefreshInterval,
 
 		AgentManifestDir: a.agentManifestDir(),
+
+		Persist: &runtime.PersistConfig{
+			Keep:          a.cfg.Session.KeepSnapshots,
+			Interval:      a.cfg.Session.SnapshotInterval,
+			Restore:       a.cfg.Session.Restore,
+			ResumeAgents:  a.cfg.Session.ResumeAgentsOnRestore,
+			Stagger:       a.cfg.Session.RestoreStagger,
+			ReplayHistory: a.cfg.Session.ReplayHistory,
+			ReplayLines:   a.cfg.Session.ReplayLines,
+		},
+		Retention: runtime.RetentionConfig{
+			ExitedProcesses: a.cfg.Retention.ExitedProcesses,
+			GCInterval:      a.cfg.Retention.GCInterval,
+		},
+		ProcessLogMaxBytes: int64(a.cfg.Retention.ProcessLogMB) << 20,
 	})
 	if err := mod.Service.Start(ctx); err != nil {
 		if errors.Is(err, runtime.ErrAlreadyRunning) {

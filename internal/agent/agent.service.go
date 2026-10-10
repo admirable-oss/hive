@@ -158,6 +158,13 @@ func (s *Service) Manifests() []*Manifest {
 	return slices.Clone(s.manifests)
 }
 
+// Manifest returns the manifest with id, or nil.
+func (s *Service) Manifest(id string) *Manifest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return byID(s.manifests, id)
+}
+
 // Reload reads the manifests again (after editing a user manifest) and
 // re-detects every terminal's agent.
 func (s *Service) Reload() ([]string, error) {

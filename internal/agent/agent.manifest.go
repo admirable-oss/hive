@@ -29,6 +29,8 @@ type Manifest struct {
 
 	Detect Detect `toml:"detect" json:"detect"`
 	Start  Start  `toml:"start" json:"start"`
+	// Resume is how a restored agent picks up its conversation.
+	Resume Resume `toml:"resume" json:"resume,omitzero"`
 	// Activity, when true, treats a screen that keeps changing without any
 	// rule matching as working, and a quiet one as idle. Agents whose
 	// rules reliably mark work (a spinner, "esc to interrupt") turn it
@@ -60,6 +62,50 @@ type Start struct {
 	// SubmitDelayMS separates the pasted prompt from the submit key
 	// (default 150).
 	SubmitDelayMS int `toml:"submit_delay_ms" json:"submit_delay_ms,omitempty"`
+}
+
+// Resume says how to start an agent again in the conversation it had, after
+// a reboot: its program followed by Args (with {session_id} replaced by
+// the ID the agent reported through its hooks), or by Last when no ID is
+// known (the most recent conversation in its working directory).
+type Resume struct {
+	Args []string `toml:"args" json:"args,omitempty"`
+	Last []string `toml:"last" json:"last,omitempty"`
+}
+
+// SessionIDPlaceholder is replaced by an agent's session ID in Resume.Args.
+const SessionIDPlaceholder = "{session_id}"
+
+// ResumeCommand returns the command line that resumes an agent that ran as
+// argv, in session sessionID ("" when unknown). The program is kept from
+// argv (an interpreter and its script for node, python, …), so an agent
+// installed under another path or name resumes the same way; its other
+// arguments are not. ok is false when the manifest cannot resume it.
+func (m *Manifest) ResumeCommand(argv []string, sessionID string) (cmd []string, ok bool) {
+	var args []string
+	switch {
+	case sessionID != "" && len(m.Resume.Args) > 0:
+		for _, a := range m.Resume.Args {
+			args = append(args, strings.ReplaceAll(a, SessionIDPlaceholder, sessionID))
+		}
+	case len(m.Resume.Last) > 0:
+		args = m.Resume.Last
+	default:
+		return nil, false
+	}
+	var program []string
+	switch {
+	case len(argv) == 0:
+		program = m.Start.Command[:min(1, len(m.Start.Command))]
+	case len(argv) > 1 && isInterpreter(filepath.Base(argv[0])):
+		program = argv[:2]
+	default:
+		program = argv[:1]
+	}
+	if len(program) == 0 {
+		return nil, false
+	}
+	return append(slices.Clone(program), args...), true
 }
 
 // Rule maps what a screen shows to a state.
@@ -117,6 +163,9 @@ func (m *Manifest) compile() error {
 		return errors.New("name is required")
 	case len(m.Detect.Process) == 0:
 		return errors.New("detect.process needs at least one program name")
+	}
+	if len(m.Resume.Args) > 0 && !slices.ContainsFunc(m.Resume.Args, func(a string) bool { return strings.Contains(a, SessionIDPlaceholder) }) {
+		return fmt.Errorf("resume.args must contain %s (use resume.last for a command without one)", SessionIDPlaceholder)
 	}
 	if m.Detect.ArgsRegex != "" {
 		re, err := regexp.Compile(m.Detect.ArgsRegex)

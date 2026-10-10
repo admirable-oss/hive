@@ -24,6 +24,12 @@ type Config struct {
 	// LaunchEnv builds every process's environment; nil inherits the
 	// daemon's unfiltered (tests only).
 	LaunchEnv *LaunchEnv
+	// BootTime reports when the host booted, so recovery can tell agents
+	// that went down with the host; nil means platform.BootTime.
+	BootTime func() (time.Time, error)
+	// LogMaxBytes rotates each terminal process's output log past this
+	// size, keeping one older file. Zero lets logs grow.
+	LogMaxBytes int64
 }
 
 type Module struct {
@@ -37,6 +43,12 @@ func NewModule(cfg Config, envs Environments, terms Terminals) *Module {
 		runner = NewExecRunner(cfg.StopGrace)
 	}
 	opts := []Option{WithLogger(cfg.Logger)}
+	if cfg.LogMaxBytes > 0 {
+		opts = append(opts, WithLogLimit(cfg.LogMaxBytes))
+	}
+	if cfg.BootTime != nil {
+		opts = append(opts, WithBootTime(cfg.BootTime))
+	}
 	if cfg.Adopter != nil {
 		opts = append(opts, WithAdopter(cfg.Adopter))
 	}

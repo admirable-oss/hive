@@ -27,6 +27,9 @@ type Config struct {
 	// $SHELL as a login shell, or /bin/sh.
 	Shell  []string
 	Logger *slog.Logger
+	// RecoverLayout supplies an environment's tabs and panes when its
+	// layout.json cannot be read (see FilesystemStore.Recover).
+	RecoverLayout func(envID string) (State, bool)
 	// WorkingDir reads a process's working directory, for new panes that
 	// start where the pane they come from is. Nil means
 	// platform.ProcessCwd; tests replace it.
@@ -39,5 +42,6 @@ type Module struct {
 
 func NewModule(cfg Config, procs Processes, terms Terminals, envs Environments, events Events) *Module {
 	store := NewFilesystemStore(filepath.Join(cfg.BaseDir, "environments"))
+	store.Recover, store.Log = cfg.RecoverLayout, cfg.Logger
 	return &Module{Service: NewService(cfg, store, procs, terms, envs, events)}
 }

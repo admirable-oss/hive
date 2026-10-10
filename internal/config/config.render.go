@@ -63,6 +63,35 @@ shell = {{q .Terminal.Shell}}
 # repository itself, like commits and checkouts, are noticed at once).
 refresh_interval = {{dur .Git.RefreshInterval}}
 
+[session]
+# When the host reboots (or an agent's shim dies), start its panes again where
+# they were working, with their tabs, layout and focus.
+restore = {{.Session.Restore}}
+# Restored agents continue their conversations (` + "`claude --resume <id>`" + `,
+# ` + "`codex resume <id>`" + `); off, they start fresh.
+resume_agents_on_restore = {{.Session.ResumeAgentsOnRestore}}
+# Pause between restored agents' starts.
+restore_stagger = {{dur .Session.RestoreStagger}}
+# The workspace is saved to session.json after every change and on this timer.
+snapshot_interval = {{dur .Session.SnapshotInterval}}
+# Earlier snapshots kept in snapshots/.
+keep_snapshots = {{.Session.KeepSnapshots}}
+# Keep each pane's recent text and show it again when the pane is restored.
+# The text is whatever programs printed, secrets included; it is kept in
+# history/ (private to you) only while this is on.
+replay_history = {{.Session.ReplayHistory}}
+replay_lines = {{.Session.ReplayLines}}
+
+[retention]
+# Records and output of processes that ended, and that no pane shows, are
+# removed after this long (` + "`hive gc`" + ` removes them now).
+exited_processes = {{dur .Retention.ExitedProcesses}}
+# Each agent's output log rotates at this size in MiB, keeping one older file
+# (0 lets it grow).
+process_log_mb = {{.Retention.ProcessLogMB}}
+# How often the daemon cleans up by itself ("0s": never).
+gc_interval = {{dur .Retention.GCInterval}}
+
 [worktrees]
 # Where ` + "`hive worktree create`" + ` puts checkouts, as <directory>/<repo>/<branch>
 # ("" means ~/.hive/worktrees, or $HIVE_HOME/worktrees).
