@@ -15,6 +15,7 @@ func FuzzParse(f *testing.F) {
 	f.Add([]byte("[terminal]\ndefault_width = 99999\nscrollback_mb = -1\nhistory_kb = 3\n"))
 	f.Add([]byte("log = 3\n[log.level]\nx = 1\n"))
 	f.Add([]byte("[[daemon]]\n"))
+	f.Add([]byte("[notify]\nagents = {}\non = []\n[notify.agents]\n"))
 	f.Add([]byte("[keys]\nprefix_keys = \"ctrl+a\"\n[keys.prefix]\nzoom = []\nsplit_right = [\"|\", 3]\n[theme.custom]\nbase = \"nord\"\n"))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		cfg, _, err := config.Parse(data)

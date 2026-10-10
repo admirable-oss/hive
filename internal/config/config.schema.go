@@ -102,6 +102,9 @@ func (c *Config) schema() map[string]map[string]setter {
 					}
 					out[id] = states
 				}
+				if len(out) == 0 {
+					out = nil // an empty table sets nothing
+				}
 				c.Notify.Agents = out
 				return nil
 			},

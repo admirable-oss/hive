@@ -175,6 +175,8 @@ func (h *harness) screen() string {
 
 func (h *harness) golden(name string) {
 	h.t.Helper()
+	// A pane's first screen arrives on its own stream, after the layout.
+	h.waitFor("every pane's screen", func() bool { return !strings.Contains(h.screen(), "starting…") })
 	got := h.screen()
 	path := filepath.Join("testdata", name+".golden")
 	if *update {
