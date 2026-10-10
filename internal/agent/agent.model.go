@@ -42,8 +42,8 @@ func (s State) detectable() bool {
 // reportable reports whether an agent may report s about itself.
 func (s State) reportable() bool { return s.detectable() }
 
-// rank orders states for rollups: lower is more urgent.
-func (s State) rank() int {
+// Rank orders states for rollups: lower is more urgent.
+func (s State) Rank() int {
 	for i, x := range States {
 		if x == s {
 			return i
@@ -60,7 +60,7 @@ func Rollup(states ...State) State {
 		if s == "" {
 			continue
 		}
-		if best == "" || s.rank() < best.rank() {
+		if best == "" || s.Rank() < best.Rank() {
 			best = s
 		}
 	}

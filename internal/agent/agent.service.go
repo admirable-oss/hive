@@ -188,7 +188,7 @@ func (s *Service) Frame(processID string, f *vt.Frame) {
 	if publishOutput {
 		t.lastOutputEvent = now
 	}
-	s.unlockAndPublish()
+	s.unlockAndPublish(context.Background()) // frames come with no context
 	if publishOutput {
 		s.events.Publish(EventOutput, map[string]string{"id": processID})
 	}
@@ -217,20 +217,26 @@ func (s *Service) Run(ctx context.Context) {
 		case <-tk.C:
 		case <-s.wake:
 		}
-		s.resolve(ctx)
-		s.mu.Lock()
-		now := s.now()
-		for id, t := range s.trackers {
-			if t.status.State == StateExited && now.Sub(t.status.Since) > keepExited {
-				delete(s.trackers, id)
-				continue
-			}
-			if t.resolved {
-				s.evaluateLocked(t, now)
-			}
-		}
-		s.unlockAndPublish()
+		s.step(ctx)
 	}
+}
+
+// step resolves kinds, then re-evaluates every state for the time that
+// passed.
+func (s *Service) step(ctx context.Context) {
+	s.resolve(ctx)
+	s.mu.Lock()
+	now := s.now()
+	for id, t := range s.trackers {
+		if t.status.State == StateExited && now.Sub(t.status.Since) > keepExited {
+			delete(s.trackers, id)
+			continue
+		}
+		if t.resolved {
+			s.evaluateLocked(t, now)
+		}
+	}
+	s.unlockAndPublish(ctx)
 }
 
 // resolve works out, outside the lock, which manifest recognises each
@@ -259,8 +265,8 @@ func (s *Service) resolve(ctx context.Context) {
 	s.mu.Unlock()
 
 	for _, j := range jobs {
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		p, err := s.procs.Get(ctx, j.id)
+		lookup, cancel := context.WithTimeout(ctx, 2*time.Second)
+		p, err := s.procs.Get(lookup, j.id)
 		if j.ended {
 			cancel()
 			s.mu.Lock()
@@ -272,7 +278,7 @@ func (s *Service) resolve(ctx context.Context) {
 					delete(s.trackers, j.id) // still running: the daemon let go of its shim
 				}
 			}
-			s.unlockAndPublish()
+			s.unlockAndPublish(ctx)
 			continue
 		}
 		var args []string
@@ -284,7 +290,7 @@ func (s *Service) resolve(ctx context.Context) {
 			}
 		}
 		if m == nil {
-			args = s.foreground(ctx, j.id)
+			args = s.foreground(lookup, j.id)
 			if len(args) == 0 && err == nil {
 				args = append([]string{p.Command}, p.Args...)
 			}
@@ -307,7 +313,7 @@ func (s *Service) resolve(ctx context.Context) {
 			}
 			s.evaluateLocked(t, s.now())
 		}
-		s.unlockAndPublish()
+		s.unlockAndPublish(ctx)
 	}
 }
 
@@ -387,7 +393,7 @@ func (s *Service) setLocked(t *tracker, st Status, now time.Time) {
 
 // unlockAndPublish releases mu, then publishes the state changes queued
 // while it was held, in order, with their panes looked up once.
-func (s *Service) unlockAndPublish() {
+func (s *Service) unlockAndPublish(ctx context.Context) {
 	if len(s.pending) == 0 {
 		s.mu.Unlock() // the common case: a frame that changed no state
 		return
@@ -400,7 +406,7 @@ func (s *Service) unlockAndPublish() {
 	if len(batch) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	loc, _ := s.locate.Locate(ctx)
 	for _, a := range batch {
@@ -520,7 +526,7 @@ func (s *Service) Report(ctx context.Context, id string, r Report) (Agent, error
 	if t.resolved {
 		s.evaluateLocked(t, now)
 	}
-	s.unlockAndPublish()
+	s.unlockAndPublish(ctx)
 	return s.Get(ctx, procID)
 }
 
@@ -539,7 +545,7 @@ func (s *Service) Seen(ctx context.Context, id string) error {
 		}
 		s.evaluateLocked(t, s.now())
 	}
-	s.unlockAndPublish()
+	s.unlockAndPublish(ctx)
 	return nil
 }
 
@@ -674,6 +680,7 @@ type tracker struct {
 	lastFrame       time.Time // the screen last changed
 	lastOutputEvent time.Time
 	output          bool // the screen ever changed after the first keyframe
+	blank           bool // the screen shows nothing
 	worked          bool // it worked since it was last seen: quiet means done
 	report          *report
 	ended           bool
@@ -698,6 +705,9 @@ func (t *tracker) apply(f *vt.Frame, now time.Time) bool {
 	}
 	t.screen.Apply(f)
 	changed := len(f.Lines) > 0 || titleChanged
+	if changed || first {
+		t.blank = blank(&t.screen)
+	}
 	if !first && changed {
 		t.output = true
 		t.status.LastOutput = now
@@ -706,6 +716,18 @@ func (t *tracker) apply(f *vt.Frame, now time.Time) bool {
 		t.classify()
 	}
 	return changed && !first
+}
+
+// blank reports whether a screen shows no text.
+func blank(s *vt.Screen) bool {
+	for _, l := range s.Lines {
+		for _, c := range l {
+			if c.Content != "" && c.Content != " " {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (t *tracker) classify() {
@@ -752,7 +774,7 @@ func (t *tracker) evidence(now time.Time) Status {
 		return Status{State: t.verdict.State, Source: SourceManifest, Reason: reason}
 	}
 	if t.manifest != nil && !t.manifest.Activity {
-		if !t.output && t.screen.Text() == "" {
+		if !t.output && t.blank {
 			return Status{State: StateUnknown}
 		}
 		return Status{State: StateIdle, Source: SourceManifest, Reason: "no rule matched"}

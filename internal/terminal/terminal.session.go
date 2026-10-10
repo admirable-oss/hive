@@ -63,4 +63,3 @@ type Foreground struct {
 type ForegroundReader interface {
 	Foreground(ctx context.Context) (Foreground, error)
 }
-

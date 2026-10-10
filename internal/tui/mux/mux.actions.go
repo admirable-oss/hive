@@ -31,6 +31,10 @@ func (a *App) do(act keymap.Action) {
 		a.selectTab(n - 1)
 		return
 	}
+	if n, ok := act.AgentNumber(); ok {
+		a.focusAgent(n)
+		return
+	}
 	if act.IsCopy() {
 		return
 	}
@@ -53,6 +57,10 @@ func (a *App) do(act keymap.Action) {
 		a.openPicker()
 	case keymap.Overview:
 		a.toggleOverview()
+	case keymap.NextAgent:
+		a.nextAgent()
+	case keymap.OpenNotification:
+		a.openNotificationTarget()
 	case keymap.ToggleSidebar:
 		a.ui.sidebar = !a.ui.sidebar
 		a.ui.sidebarAt = 0

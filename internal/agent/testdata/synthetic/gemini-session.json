@@ -1,0 +1,42 @@
+{
+  "cols": 100,
+  "rows": 30,
+  "argv": [
+    "node",
+    "/usr/local/bin/gemini"
+  ],
+  "synthetic": true,
+  "agent": "gemini",
+  "checkpoints": [
+    {
+      "offset": 1086,
+      "label": "idle",
+      "state": "idle"
+    },
+    {
+      "offset": 2172,
+      "label": "typing",
+      "state": "idle"
+    },
+    {
+      "offset": 3369,
+      "label": "working",
+      "state": "working"
+    },
+    {
+      "offset": 4388,
+      "label": "shell-permission",
+      "state": "blocked"
+    },
+    {
+      "offset": 5384,
+      "label": "edit-permission",
+      "state": "blocked"
+    },
+    {
+      "offset": 6557,
+      "label": "answered",
+      "state": "idle"
+    }
+  ]
+}

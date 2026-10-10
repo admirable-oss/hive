@@ -6,3 +6,28 @@ process = ["claude"]
 
 [start]
 command = ["claude"]
+
+# Claude Code marks its own work: the status line under the prompt box
+# says "esc to interrupt" while it works, so typing is not activity.
+
+[[rules]]
+state = "blocked"
+priority = 20
+description = "a permission or trust dialog"
+[rules.match]
+any = [
+  { line_regex = '^\s*Esc to cancel · Tab to amend' },
+  { line_regex = '^\s*Enter to confirm · Esc to cancel' },
+  { all = [
+    { line_regex = '^\s*Do you want to .+\?\s*$' },
+    { line_regex = '^\s*❯ 1\. Yes' },
+  ] },
+]
+
+[[rules]]
+state = "working"
+priority = 10
+region = "bottom:6"
+description = "the status line says esc to interrupt"
+[rules.match]
+contains = "esc to interrupt"

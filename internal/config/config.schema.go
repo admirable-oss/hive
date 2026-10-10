@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/logging"
+	"github.com/admirable-oss/hive/internal/notify"
 )
 
 // setter validates one raw TOML value and stores it.
@@ -73,6 +74,38 @@ func (c *Config) schema() map[string]map[string]setter {
 			"custom": stringTable(&c.Theme.Custom),
 		},
 		"keys": c.keysSchema(),
+		"notify": {
+			"on":     stateList(&c.Notify.On),
+			"toast":  boolean(&c.Notify.Toast),
+			"system": boolean(&c.Notify.System),
+			"sound":  boolean(&c.Notify.Sound),
+			"terminal": func(raw any) error {
+				return setString(raw, func(s string) error {
+					s = strings.ToLower(strings.TrimSpace(s))
+					if !slices.Contains(notify.TerminalModes, s) {
+						return fmt.Errorf("%q is not one of %s", s, strings.Join(notify.TerminalModes, ", "))
+					}
+					c.Notify.Terminal = s
+					return nil
+				})
+			},
+			"agents": func(raw any) error {
+				table, ok := raw.(map[string]any)
+				if !ok {
+					return typeError("a table of agent = [states]", raw)
+				}
+				out := map[string][]string{}
+				for _, id := range slices.Sorted(maps.Keys(table)) {
+					var states []string
+					if err := stateList(&states)(table[id]); err != nil {
+						return fmt.Errorf("%s %w", id, err)
+					}
+					out[id] = states
+				}
+				c.Notify.Agents = out
+				return nil
+			},
+		},
 		"worktrees": {
 			"directory": func(raw any) error {
 				return setString(raw, func(s string) error {
@@ -154,6 +187,29 @@ func keyList(raw any) ([]string, error) {
 		return out, nil
 	}
 	return nil, typeError("a key or a list of keys", raw)
+}
+
+// notifyStates are the agent states a notification may be raised for.
+var notifyStates = []string{"blocked", "done", "working", "idle"}
+
+// stateList reads a list of agent states; [] is an empty, non-nil list.
+func stateList(dst *[]string) setter {
+	return func(raw any) error {
+		list, ok := raw.([]any)
+		if !ok {
+			return typeError("a list of states", raw)
+		}
+		out := []string{}
+		for _, item := range list {
+			s, ok := item.(string)
+			if !ok || !slices.Contains(notifyStates, s) {
+				return fmt.Errorf("%v is not one of %s", item, strings.Join(notifyStates, ", "))
+			}
+			out = append(out, s)
+		}
+		*dst = out
+		return nil
+	}
 }
 
 // stringTable reads a table of strings.

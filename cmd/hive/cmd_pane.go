@@ -65,6 +65,7 @@ a pane can drive its own pane (hive pane split, hive pane read).`,
 		newPaneRunCmd(a),
 		newPaneReadCmd(a),
 		newPaneWaitCmd(a),
+		newPaneReportAgentCmd(a),
 	)
 	return cmd
 }

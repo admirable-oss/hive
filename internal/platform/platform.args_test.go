@@ -74,7 +74,7 @@ func TestForegroundGroupFollowsTheJob(t *testing.T) {
 	shPgid, _ := syscall.Getpgid(sh.Process.Pid)
 	waitFor("the shell in the foreground", func() bool { return fg() == shPgid })
 
-	_, _ = ptmx.Write([]byte("sleep 30\r"))
+	_, _ = ptmx.WriteString("sleep 30\r")
 	waitFor("sleep in the foreground", func() bool {
 		pg := fg()
 		if pg == shPgid {

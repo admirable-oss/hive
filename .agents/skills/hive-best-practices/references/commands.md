@@ -1,4 +1,4 @@
-# Hive command reference (v0.5)
+# Hive command reference (v0.6)
 
 Every command takes `--json` (machine-readable output) and `--session <name>`. Commands that need the daemon start it on demand. Aliases: `env` for `environment`, `ps` for `process`, `tui` for `ui`. Confirm details with `hive <command> --help`.
 
@@ -37,6 +37,17 @@ Every command takes `--json` (machine-readable output) and `--session <name>`. C
 | `hive layout export [env…] > f.json`, `hive layout apply f.json` | Save and recreate workspaces |
 
 `[pane]` defaults to `$HIVE_PANE_ID`, the pane the command runs in.
+
+## Agents
+
+| Command | Does |
+|---|---|
+| `hive agent list [--all]` | Agents and their states: working, blocked, done, idle, exited (`--all`: every terminal) |
+| `hive agent get [pane]`, `hive agent explain [pane]` | One agent; `explain` shows the rule that matched, reports and the screen |
+| `hive agent manifests` | The manifests that recognise agents (built in, or in `agent-detection/` beside the config) |
+| `hive server reload-agent-manifests` | Read edited manifests again |
+| `hive pane report-agent [pane] --state working\|blocked\|idle\|done [--ttl d] [--session-id s] [--message m]` | An agent reports its own state; `--hook` for agent hooks (never fails) |
+| `hive integration install\|uninstall\|status [claude\|codex]` | Hooks in the agent's settings that report its state (reversible) |
 
 ## Processes and terminals
 

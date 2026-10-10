@@ -9,6 +9,7 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 
+	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/tui/bee"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
@@ -87,12 +88,21 @@ func (a *App) beeTick() {
 	switch {
 	case a.ws.err != nil || !a.ws.live:
 		state = bee.StateDisconnected
-	case a.ws.snap != nil && slices.ContainsFunc(a.ws.snap.procs, func(p process.Process) bool { return p.Status == process.StatusRunning }):
+	case a.ws.snap != nil && slices.ContainsFunc(a.ws.snap.procs, func(p process.Process) bool { return a.busy(&p) }):
 		state = bee.StateActive
 	}
 	o.bee.SetState(state)
 	o.bee.Tick()
 	o.animate(a)
+}
+
+// busy reports whether a process is working: a recognised agent by its
+// state, anything else while it runs.
+func (a *App) busy(p *process.Process) bool {
+	if x, ok := a.ws.snap.agentOf(p.ID); ok && p.Active() {
+		return x.State == agent.StateWorking
+	}
+	return p.Status == process.StatusRunning
 }
 
 // header is how many lines precede the agent rows: the bee (when there is
@@ -286,7 +296,7 @@ func (o *overview) view(a *App) compositor.Overlay {
 	s := a.ws.snap
 	muted := uv.Style{Fg: a.theme.Muted}
 	nameW, envW := 22, 14
-	running, ended := 0, 0
+	var n counts
 	var lines []compositor.Spans
 	if o.header(a) > 1 {
 		for _, l := range o.bee.Lines() {
@@ -300,23 +310,23 @@ func (o *overview) view(a *App) compositor.Overlay {
 		if p == nil {
 			continue
 		}
-		if p.Active() {
-			running++
-		} else {
-			ended++
-		}
+		n.add(s, p)
 		glyph, c := a.statusGlyph(p)
 		lines = append(lines, compositor.Spans{
 			{Text: glyph + " ", Style: uv.Style{Fg: c}},
 			{Text: fmt.Sprintf("%-*s ", nameW, compositor.Truncate(a.agentName(p), nameW))},
 			{Text: fmt.Sprintf("%-*s ", envW, compositor.Truncate(p.EnvironmentID, envW)), Style: muted},
-			{Text: statusText(p) + " " + age(p, a.now()), Style: uv.Style{Fg: c}},
+			{Text: a.agentStatusText(p) + " " + age(p, a.now()), Style: uv.Style{Fg: c}},
 		})
 	}
 	if len(o.rows) == 0 {
 		lines = append(lines, compositor.Spans{{Text: "  no agents yet", Style: muted}})
 	}
-	title := fmt.Sprintf("Overview · %d running · %d ended", running, ended)
+	title := fmt.Sprintf("Overview · %d running · %d awaiting · %d complete", n.running, n.awaiting, n.complete)
+	if n.idle > 0 {
+		title += fmt.Sprintf(" · %d idle", n.idle)
+	}
+	title += fmt.Sprintf(" · %d ended", n.ended)
 	ov := compositor.Overlay{
 		Title: title, Width: a.width, Height: a.height,
 		Lines: lines, Selected: o.index() + o.header(a), ListWidth: nameW + envW + 20,

@@ -1,0 +1,29 @@
+id = "opencode"
+name = "OpenCode"
+# The rules were written from OpenCode's documentation and screenshots, not
+# recorded from it.
+synthetic = true
+
+[detect]
+process = ["opencode"]
+
+[start]
+command = ["opencode"]
+
+[[rules]]
+state = "blocked"
+priority = 20
+description = "a permission request"
+[rules.match]
+any = [
+  { contains = "Permission required" },
+  { line_regex = 'Allow once\s+Allow always\s+Reject' },
+]
+
+[[rules]]
+state = "working"
+priority = 10
+region = "bottom:4"
+description = "the footer says esc interrupt"
+[rules.match]
+contains = "esc interrupt"

@@ -1,0 +1,31 @@
+id = "aider"
+name = "Aider"
+# The rules were written from Aider's documentation, not recorded from it.
+synthetic = true
+# Aider prints its answers as a plain scrolling transcript with no status
+# line that marks work, so a screen that keeps changing is working.
+activity = true
+
+[detect]
+# pip installs a script run by python: argv[1] is …/bin/aider.
+process = ["aider"]
+
+[start]
+command = ["aider"]
+
+# Aider writes at the cursor, not at the bottom of the screen, so the rules
+# read the whole screen; an answered question ends in the answer, not ":".
+
+[[rules]]
+state = "blocked"
+priority = 20
+description = "an unanswered yes/no question"
+[rules.match]
+line_regex = '\(Y\)es/\(N\)o.*\[(Yes|No)\]:\s*$'
+
+[[rules]]
+state = "working"
+priority = 10
+description = "the spinner waits for the model"
+[rules.match]
+line_regex = 'Waiting for \S+'

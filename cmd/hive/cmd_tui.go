@@ -89,5 +89,6 @@ func uiOptions(cfg config.Config) (mux.Options, []string) {
 		SidebarWidth: cfg.UI.SidebarWidth,
 		NoMouse:      !cfg.UI.Mouse,
 		Clipboard:    clip,
+		Notify:       cfg.Notify,
 	}, warnings
 }

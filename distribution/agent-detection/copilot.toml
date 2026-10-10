@@ -1,0 +1,32 @@
+id = "copilot"
+name = "Copilot CLI"
+# The rules were written from GitHub Copilot CLI's documentation and
+# screenshots, not recorded from it.
+synthetic = true
+
+[detect]
+process = ["copilot"]
+
+[start]
+command = ["copilot"]
+
+[[rules]]
+state = "blocked"
+priority = 20
+description = "a permission prompt"
+[rules.match]
+any = [
+  { contains = "Confirm with number keys" },
+  { all = [
+    { line_regex = '^\s*Do you want to .+\?\s*$' },
+    { line_regex = '^\s*❯ 1\. Yes' },
+  ] },
+]
+
+[[rules]]
+state = "working"
+priority = 10
+region = "bottom:12"
+description = "it says Esc to cancel"
+[rules.match]
+line_regex = '\(Esc to cancel'

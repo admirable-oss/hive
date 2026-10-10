@@ -1,0 +1,29 @@
+id = "amp"
+name = "Amp"
+# The rules were written from Amp's documentation and screenshots, not
+# recorded from it.
+synthetic = true
+
+[detect]
+process = ["amp"]
+
+[start]
+command = ["amp"]
+
+[[rules]]
+state = "blocked"
+priority = 20
+description = "a tool approval"
+[rules.match]
+any = [
+  { line_regex = '(?i)^\s*waiting for (your )?approval' },
+  { line_regex = '^\s*▸? ?Approve\s+Allow All' },
+]
+
+[[rules]]
+state = "working"
+priority = 10
+region = "bottom:12"
+description = "it says Esc to cancel"
+[rules.match]
+contains = "Esc to cancel"

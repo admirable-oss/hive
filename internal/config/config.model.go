@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/logging"
+	"github.com/admirable-oss/hive/internal/notify"
 )
 
 // Config is the effective configuration. Zero values are never meaningful;
@@ -17,6 +18,7 @@ type Config struct {
 	Terminal  Terminal
 	Git       Git
 	Worktrees Worktrees
+	Notify    notify.Config
 	UI        UI
 	Theme     Theme
 	Keys      Keys
@@ -112,6 +114,7 @@ func Defaults() Config {
 		Process:  Process{StopGrace: 3 * time.Second},
 		Terminal: Terminal{DefaultWidth: 220, DefaultHeight: 50, ScrollbackMB: 10},
 		Git:      Git{RefreshInterval: 5 * time.Second},
+		Notify:   notify.Defaults(),
 		UI:       UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},
 		Theme:    Theme{Name: "auto"},
 		Keys:     Keys{Prefix: []string{DefaultPrefix}},

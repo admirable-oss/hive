@@ -1,0 +1,31 @@
+{
+  "cols": 100,
+  "rows": 30,
+  "argv": [
+    "cursor-agent"
+  ],
+  "synthetic": true,
+  "agent": "cursor-agent",
+  "checkpoints": [
+    {
+      "offset": 841,
+      "label": "idle",
+      "state": "idle"
+    },
+    {
+      "offset": 1746,
+      "label": "working",
+      "state": "working"
+    },
+    {
+      "offset": 2446,
+      "label": "command-approval",
+      "state": "blocked"
+    },
+    {
+      "offset": 3378,
+      "label": "answered",
+      "state": "idle"
+    }
+  ]
+}

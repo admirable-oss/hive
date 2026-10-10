@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -21,6 +23,7 @@ var dump = flag.Bool("dump", false, "print every fixture checkpoint's screen")
 type fixture struct {
 	Name        string
 	Agent       string       `json:"agent"`
+	Argv        []string     `json:"argv"`
 	Cols        int          `json:"cols"`
 	Rows        int          `json:"rows"`
 	Synthetic   bool         `json:"synthetic"`
@@ -87,5 +90,60 @@ func TestFixtureScreens(t *testing.T) {
 		for _, cp := range fx.Checkpoints {
 			dumpScreen(fmt.Sprintf("%s @%d %s (want %s)", fx.Name, cp.Offset, cp.Label, cp.State), screenAt(t, fx, cp.Offset))
 		}
+	}
+}
+
+// TestFixtureClassification replays every fixture and checks that its
+// manifest reads each checkpoint's state, as the service would on a quiet
+// screen: no rule matching means idle.
+func TestFixtureClassification(t *testing.T) {
+	ms, warnings, err := agent.LoadManifests("")
+	if err != nil || len(warnings) > 0 {
+		t.Fatalf("LoadManifests: %v %v", err, warnings)
+	}
+	type tally struct{ right, total int }
+	scores := map[string]*tally{}
+	for _, fx := range loadFixtures(t) {
+		i := slices.IndexFunc(ms, func(m *agent.Manifest) bool { return m.ID == fx.Agent })
+		if i < 0 {
+			t.Errorf("%s: no manifest %q", fx.Name, fx.Agent)
+			continue
+		}
+		m := ms[i]
+		if fx.Synthetic && !m.Synthetic {
+			t.Errorf("%s: a synthetic fixture for %s, whose manifest does not say synthetic = true", fx.Name, m.ID)
+		}
+		if len(fx.Argv) > 0 {
+			if got := agent.Recognise(ms, fx.Argv); got != m {
+				t.Errorf("%s: %q recognised as %v, want %s", fx.Name, fx.Argv, got, m.ID)
+			}
+		}
+		sc := scores[m.ID]
+		if sc == nil {
+			sc = &tally{}
+			scores[m.ID] = sc
+		}
+		for _, cp := range fx.Checkpoints {
+			s := screenAt(t, fx, cp.Offset)
+			v := m.Classify(s)
+			got := v.State
+			if got == agent.StateUnknown {
+				got = agent.StateIdle
+			}
+			sc.total++
+			if got == cp.State {
+				sc.right++
+				continue
+			}
+			t.Errorf("%s @%d %s: classified %s (rule %d %q matched %q), want %s",
+				fx.Name, cp.Offset, cp.Label, got, v.Rule, v.Description, v.Text, cp.State)
+			if testing.Verbose() {
+				dumpScreen(cp.Label, s)
+			}
+		}
+	}
+	for _, id := range slices.Sorted(maps.Keys(scores)) {
+		sc := scores[id]
+		t.Logf("%-8s %d/%d checkpoints", id, sc.right, sc.total)
 	}
 }

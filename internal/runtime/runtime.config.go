@@ -51,6 +51,10 @@ type Config struct {
 	// GitInterval is how often environments' git status is refreshed
 	// besides filesystem notifications. Zero means 5s.
 	GitInterval time.Duration
+	// AgentManifestDir holds the user's agent manifests, which add to or
+	// replace the built-in ones (~/.config/hive/agent-detection). Empty
+	// means only the built-in ones.
+	AgentManifestDir string
 	// InheritEnv lets agents inherit the daemon's environment unfiltered,
 	// without the HIVE_* variables. Only tests set it.
 	InheritEnv bool

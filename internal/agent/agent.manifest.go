@@ -207,7 +207,8 @@ func (m *Manifest) Matches(args []string) bool {
 func isInterpreter(name string) bool {
 	name = strings.TrimRight(name, "0123456789.")
 	switch name {
-	case "node", "nodejs", "bun", "deno", "python", "python3", "ruby":
+	case "node", "nodejs", "bun", "deno", "python", "python3", "ruby",
+		"sh", "bash", "zsh", "dash": // shell-script launchers (version managers' shims)
 		return true
 	}
 	return false
@@ -215,7 +216,7 @@ func isInterpreter(name string) bool {
 
 // region is a parsed rule region.
 type region struct {
-	kind   string // screen, bottom, top, lines, title
+	kind    string // screen, bottom, top, lines, title
 	n, a, b int
 }
 
