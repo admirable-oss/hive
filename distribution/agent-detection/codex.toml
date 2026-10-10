@@ -11,12 +11,13 @@ command = ["codex"]
 [[rules]]
 state = "blocked"
 priority = 20
-description = "an approval or update prompt"
+description = "an approval, trust or update prompt"
 [rules.match]
 any = [
   { line_regex = '^\s*Press enter to confirm or esc to cancel' },
   { line_regex = '^\s*Would you like to (run|make|apply|allow|grant) ' },
-  { line_regex = '^\s*enter continue · esc skip' },
+  { line_regex = '^\s*enter (continue|confirm) · esc ' },
+  { line_regex = '^\s*Trust this folder\?' },
 ]
 
 [[rules]]

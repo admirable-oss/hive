@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
+	"reflect"
 	"slices"
 )
 
@@ -67,7 +68,7 @@ func (r *Router) Handle(ctx context.Context, req Request) Response {
 // params leave P zero), the result is encoded as JSON, and errors become error
 // responses. Handlers then read like ordinary Go functions.
 func Method[P, R any](fn func(context.Context, P) (R, error)) Handler {
-	return HandlerFunc(func(ctx context.Context, req Request) Response {
+	return typed[P, R](false, func(ctx context.Context, req Request) Response {
 		var params P
 		if err := DecodeParams(req, &params); err != nil {
 			return Fail(req, err)
@@ -78,6 +79,18 @@ func Method[P, R any](fn func(context.Context, P) (R, error)) Handler {
 		}
 		return Reply(req, result)
 	})
+}
+
+// typedHandler is a Handler that knows its params and result types, for
+// the schema.
+type typedHandler struct {
+	HandlerFunc
+	params, result reflect.Type
+	pipe           bool
+}
+
+func typed[P, R any](pipe bool, f HandlerFunc) Handler {
+	return typedHandler{HandlerFunc: f, params: reflect.TypeFor[P](), result: reflect.TypeFor[R](), pipe: pipe}
 }
 
 // DecodeParams decodes req.Params into v for handlers that cannot use Method
@@ -96,7 +109,7 @@ func DecodeParams(req Request, v any) error {
 // into P, the result R is sent as the response, then the returned PipeFunc
 // serves the pipe. An error means no pipe is opened.
 func PipeMethod[P, R any](fn func(context.Context, P) (R, PipeFunc, error)) Handler {
-	return HandlerFunc(func(ctx context.Context, req Request) Response {
+	return typed[P, R](true, func(ctx context.Context, req Request) Response {
 		var params P
 		if err := DecodeParams(req, &params); err != nil {
 			return Fail(req, err)

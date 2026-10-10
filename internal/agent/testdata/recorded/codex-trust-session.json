@@ -1,0 +1,45 @@
+{
+  "cols": 220,
+  "rows": 50,
+  "argv": [
+    "codex"
+  ],
+  "agent": "codex",
+  "checkpoints": [
+    {
+      "offset": 11942,
+      "label": "trust-prompt",
+      "state": "blocked"
+    },
+    {
+      "offset": 21013,
+      "label": "idle",
+      "state": "idle"
+    },
+    {
+      "offset": 24072,
+      "label": "typing",
+      "state": "idle"
+    },
+    {
+      "offset": 24437,
+      "label": "working",
+      "state": "working"
+    },
+    {
+      "offset": 33478,
+      "label": "answered",
+      "state": "idle"
+    },
+    {
+      "offset": 33775,
+      "label": "working-mkdir",
+      "state": "working"
+    },
+    {
+      "offset": 41489,
+      "label": "mkdir-done",
+      "state": "idle"
+    }
+  ]
+}

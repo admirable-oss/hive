@@ -60,8 +60,8 @@ func newPingCmd(a *app) *cobra.Command {
 			if err := a.client.Ping(ctx); err != nil {
 				return &codedError{code: exitNotRunning, msg: err.Error()}
 			}
-			fmt.Fprintf(a.out, "pong (%s)\n", time.Since(start).Round(time.Microsecond))
-			return nil
+			rtt := time.Since(start).Round(time.Microsecond)
+			return a.done(map[string]any{"rtt_us": rtt.Microseconds()}, "pong (%s)", rtt)
 		}),
 	}
 }

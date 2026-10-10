@@ -42,10 +42,10 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 | Event stream (`hive events`): processes and environments as they change | ✅ working |
 | Multiplexer UI: tabs and split panes of live agents, sidebar, Overview, copy mode, mouse, themes, configurable keys | ✅ working |
 | Crash recovery: stale records closed out, orphaned agents stopped (PID and start time verified) | ✅ working |
-| Agent state detection (*blocked*, *waiting for input*) | 🚧 next |
-| Agent-facing API (agents managing agents) | 🗺 planned |
+| Agent state detection (working, blocked, done, idle) for Claude Code, Codex and six more; hooks; notifications | ✅ working |
+| Agents operating agents: `hive agent start/prompt/wait/read`, MCP server (`hive mcp`), Go SDK (`pkg/hiveapi`) | ✅ working |
+| Workspace isolation per agent (git worktrees) | ✅ working |
 | Reconnect from another machine | 🗺 planned |
-| Workspace isolation per agent (git worktrees), log rotation | 🗺 planned |
 | Windows support | 🗺 planned |
 
 ## Quick start
@@ -94,6 +94,13 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive terminal attach <id>` | Attach to an agent's terminal; **Ctrl+]** detaches and the agent keeps running |
 | `hive terminal snapshot <id> [--ansi] [--scrollback N]` | Print an agent's current screen, optionally with its last N lines of history |
 | `hive terminal input <id> <text>` · `resize <id> <w> <h>` | Type into / resize an agent's terminal |
+| `hive agent list \| get \| explain [agent]` | Agents and their states (working, blocked, done, idle, exited), and why |
+| `hive agent start --kind <k> --env <env> [--worktree <branch>]` | Start an agent in a new tab; `--worktree` gives it its own checkout |
+| `hive agent prompt [agent] <text> [--wait] [--read N]` · `wait [agent] --until idle\|done` | Prompt an agent and wait for it (exit 4 timed out, 5 blocked/stalled/exited) |
+| `hive agent read \| send-keys \| rename \| focus \| stop \| attach` | Read and drive an agent |
+| `hive mcp` | Serve the agent, pane and environment tools over MCP: `claude mcp add hive -- hive mcp` |
+| `hive --skill` | Print the skill that teaches agents to drive other agents through Hive |
+| `hive api schema \| snapshot` | The API's methods and JSON Schemas; the whole workspace at once. Every command takes `--json` |
 | `hive events [type-prefix…]` | Stream daemon events as JSON lines |
 | `hive status` · `hive ping` · `hive version` | Inspect the runtime (exit code 3 when the daemon is not running) |
 | `hive stop` | Stop the runtime **and every agent it runs** |

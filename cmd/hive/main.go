@@ -29,7 +29,8 @@ const (
 	exitError       = 1
 	exitUsage       = 2 // bad command line
 	exitNotRunning  = 3 // the daemon is not running (status, ping)
-	exitTimeout     = 4 // a wait ran out of time (pane wait-output)
+	exitTimeout     = 4 // a wait ran out of time (pane wait-output, agent prompt/wait)
+	exitAgent       = 5 // an agent prompted or waited for blocked, stalled or exited
 	exitInterrupted = 130
 )
 

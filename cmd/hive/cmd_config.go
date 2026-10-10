@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/admirable-oss/hive/internal/config"
@@ -27,11 +28,15 @@ reported and ignored; HIVE_LOG overrides log.level.`,
 			Short: "Print the configuration file's location",
 			Args:  noArgs,
 			RunE: func(*cobra.Command, []string) error {
-				fmt.Fprintln(a.out, a.configPath)
-				if _, err := os.Stat(a.configPath); errors.Is(err, fs.ErrNotExist) {
-					fmt.Fprintln(a.errOut, "(the file does not exist; defaults apply — create it with `hive config init`)")
-				}
-				return nil
+				_, err := os.Stat(a.configPath)
+				exists := !errors.Is(err, fs.ErrNotExist)
+				return a.emit(map[string]any{"path": a.configPath, "exists": exists}, func() error {
+					fmt.Fprintln(a.out, a.configPath)
+					if !exists {
+						fmt.Fprintln(a.errOut, "(the file does not exist; defaults apply — create it with `hive config init`)")
+					}
+					return nil
+				})
 			},
 		},
 		&cobra.Command{
@@ -39,8 +44,7 @@ reported and ignored; HIVE_LOG overrides log.level.`,
 			Short: "Print the effective configuration",
 			Args:  noArgs,
 			RunE: func(*cobra.Command, []string) error {
-				_, err := a.out.Write(config.Render(a.cfg))
-				return err
+				return a.printConfig(a.cfg)
 			},
 		},
 		&cobra.Command{
@@ -48,8 +52,7 @@ reported and ignored; HIVE_LOG overrides log.level.`,
 			Short: "Print the default configuration",
 			Args:  noArgs,
 			RunE: func(*cobra.Command, []string) error {
-				_, err := a.out.Write(config.Render(config.Defaults()))
-				return err
+				return a.printConfig(config.Defaults())
 			},
 		},
 		newConfigInitCmd(a),
@@ -72,11 +75,20 @@ reported and ignored; HIVE_LOG overrides log.level.`,
 				}
 				_, uiWarnings := uiOptions(cfg)
 				warnings = append(warnings, uiWarnings...)
-				for _, w := range warnings {
-					fmt.Fprintf(a.out, "%s: %s\n", path, w)
+				if a.json {
+					if err := a.printJSON(map[string]any{"path": path, "valid": len(warnings) == 0, "problems": nonNilStrings(warnings)}); err != nil {
+						return err
+					}
+				} else {
+					for _, w := range warnings {
+						fmt.Fprintf(a.out, "%s: %s\n", path, w)
+					}
 				}
 				if len(warnings) > 0 {
 					return &codedError{code: exitError, msg: fmt.Sprintf("%d problem(s) in %s", len(warnings), path)}
+				}
+				if a.json {
+					return nil
 				}
 				fmt.Fprintf(a.out, "%s is valid\n", path)
 				return nil
@@ -102,8 +114,7 @@ func newConfigInitCmd(a *app) *cobra.Command {
 			if err := os.WriteFile(a.configPath, config.Render(config.Defaults()), 0o644); err != nil {
 				return err
 			}
-			fmt.Fprintf(a.out, "wrote %s\n", a.configPath)
-			return nil
+			return a.done(map[string]any{"path": a.configPath}, "wrote %s", a.configPath)
 		},
 	}
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing file")
@@ -122,8 +133,7 @@ comments included, is kept; the previous file is saved next to it as .bak.`,
 			path := a.configPath
 			info, err := os.Stat(path)
 			if errors.Is(err, fs.ErrNotExist) {
-				fmt.Fprintln(a.out, "there is no configuration file; the default key bindings apply")
-				return nil
+				return a.done(map[string]any{"changed": false}, "there is no configuration file; the default key bindings apply")
 			}
 			if err != nil {
 				return err
@@ -136,8 +146,7 @@ comments included, is kept; the previous file is saved next to it as .bak.`,
 			// replace the backup of the user's own bindings.
 			out, found := config.ResetKeys(data)
 			if cur, _, err := config.Parse(data); !found || (err == nil && reflect.DeepEqual(cur.Keys, config.Defaults().Keys)) {
-				fmt.Fprintf(a.out, "%s already uses the default key bindings\n", path)
-				return nil
+				return a.done(map[string]any{"changed": false, "path": path}, "%s already uses the default key bindings", path)
 			}
 			if _, _, err := config.Parse(out); err != nil {
 				return fmt.Errorf("resetting the keys would break %s (%w); edit it by hand", path, err)
@@ -154,8 +163,23 @@ comments included, is kept; the previous file is saved next to it as .bak.`,
 				_ = os.Remove(tmp)
 				return err
 			}
-			fmt.Fprintf(a.out, "reset the key bindings in %s (the previous file is %s)\n", path, backup)
-			return nil
+			return a.done(map[string]any{"changed": true, "path": path, "backup": backup},
+				"reset the key bindings in %s (the previous file is %s)", path, backup)
 		},
 	}
+}
+
+// printConfig prints a configuration as the file would hold it: TOML, or
+// with --json the same keys as JSON.
+func (a *app) printConfig(cfg config.Config) error {
+	data := config.Render(cfg)
+	if !a.json {
+		_, err := a.out.Write(data)
+		return err
+	}
+	var doc map[string]any
+	if err := toml.Unmarshal(data, &doc); err != nil {
+		return err
+	}
+	return a.printJSON(doc)
 }

@@ -133,8 +133,7 @@ are never touched. The default session cannot be removed.`,
 			if err := os.RemoveAll(b.root); err != nil {
 				return err
 			}
-			fmt.Fprintf(a.out, "removed session %q\n", name)
-			return nil
+			return a.done(map[string]any{"session": name}, "removed session %q", name)
 		},
 	}
 }
