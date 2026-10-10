@@ -7,7 +7,7 @@ description: Use Hive well, for people and for agents. How Hive is organised (da
 
 Hive runs coding agents (Claude Code, Codex, OpenCode, anything) under a background daemon, so they keep working when terminals close, SSH drops or the UI is closed. The `hive` command is both the multiplexer you work in and the CLI that scripts and agents use.
 
-Check the installed build before advising: `hive version` and `hive <command> --help` are the authority. This guide describes v0.5 (milestone M3); [`references/commands.md`](references/commands.md) is a compact command reference.
+Check the installed build before advising: `hive version` and `hive <command> --help` are the authority. This guide describes v0.6 (milestone M4); [`references/commands.md`](references/commands.md) is a compact command reference.
 
 ## The model
 
@@ -39,9 +39,10 @@ cd ~/src/api && hive env create api     # an environment for this directory
 hive                                    # open the multiplexer on it
 hive demo                               # or: a tab of four demo agents to explore
 hive daemon install                     # optional: start the daemon at login
+hive integration install claude codex   # optional: agents report their state through hooks
 ```
 
-In the multiplexer, press the prefix `ctrl+b`, then a key: `%` and `"` split, arrows or `h j k l` move, `z` zooms, `c` opens a tab, `w` finds any agent or pane, `O` opens the Overview of every agent, `[` enters copy mode, `?` lists every binding, and `d` detaches. The mouse works too. See `docs/keybindings.md`.
+In the multiplexer, press the prefix `ctrl+b`, then a key: `%` and `"` split, arrows or `h j k l` move, `z` zooms, `c` opens a tab, `w` finds any agent or pane, `O` opens the Overview of every agent, `a` goes to the next blocked or done agent, `[` enters copy mode, `?` lists every binding, and `d` detaches. The mouse works too. See `docs/keybindings.md`.
 
 ## Organising agents
 
@@ -67,7 +68,8 @@ Every pane's process gets `HIVE_PANE_ID`, `HIVE_TAB_ID`, `HIVE_ENV_ID`, `HIVE_PR
   ```
   `wait-output` matches only output that appears after it starts unless `--anywhere` is given, and it exits with status 4 on timeout. Print a unique marker rather than matching a prompt.
 - **Send keys by name:** `hive pane send-keys "$P" C-c`, or `Escape : w q Enter`. Use `send-text` for text without Enter, and `run` for a command line plus Enter.
-- **React to events instead of polling:** `hive events pane. process.` streams JSON lines (`process.exited`, `pane.created`, `process.output` at most once a second per agent, …).
+- **React to events instead of polling:** `hive events pane. process. agent.` streams JSON lines (`process.exited`, `pane.created`, `agent.state`, `process.output` at most once a second per agent, …).
+- **Know what agents are doing:** `hive --json agent list` gives each agent's state: `working`, `blocked` (waiting for a decision), `done` (finished, not looked at), `idle` or `exited`. Wait for an agent by watching `agent.state` events, or poll `hive --json agent get <pane>`. When a state looks wrong, `hive agent explain <pane>` shows why.
 - **Exit codes:** 0 success, 1 error, 2 bad command line, 3 daemon not running, 4 `wait-output` timed out.
 - **Agents without a pane:** `hive ps start -t api -- codex …` runs a terminal agent you can find in the Overview, read with `hive terminal snapshot <id>`, or attach to with `hive terminal attach <id>` (`ctrl+]` detaches).
 
@@ -118,4 +120,4 @@ The daemon reports its API level (`hive status --json`, `api_level`). A newer `h
 
 ## Not there yet
 
-Planned, not shipped (see `ROADMAP.md`): agent state detection (blocked, waiting for input), `hive agent` commands and an MCP server for agents operating agents (M5), restore after reboot (M6), SSH and remote machines (M7), plugins (M8). Do not promise these; suggest the shipped equivalent instead (panes, `pane wait-output`, `events`, layouts).
+Planned, not shipped (see `ROADMAP.md`): `hive agent start|prompt|wait` and an MCP server for agents operating agents (M5), restore after reboot (M6), SSH and remote machines (M7), plugins (M8). Do not promise these; suggest the shipped equivalent instead (panes, `pane wait-output`, `events`, layouts).

@@ -1,0 +1,27 @@
+{
+  "cols": 120,
+  "rows": 40,
+  "argv": [
+    "claude",
+    "--model",
+    "haiku"
+  ],
+  "checkpoints": [
+    {
+      "offset": 6379,
+      "label": "working",
+      "state": "working"
+    },
+    {
+      "offset": 9335,
+      "label": "bash-permission",
+      "state": "blocked"
+    },
+    {
+      "offset": 10687,
+      "label": "bash-rejected",
+      "state": "idle"
+    }
+  ],
+  "agent": "claude"
+}

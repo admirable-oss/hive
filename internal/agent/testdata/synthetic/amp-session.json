@@ -1,0 +1,32 @@
+{
+  "cols": 100,
+  "rows": 30,
+  "argv": [
+    "node",
+    "/usr/local/bin/amp"
+  ],
+  "synthetic": true,
+  "agent": "amp",
+  "checkpoints": [
+    {
+      "offset": 832,
+      "label": "idle",
+      "state": "idle"
+    },
+    {
+      "offset": 1736,
+      "label": "working",
+      "state": "working"
+    },
+    {
+      "offset": 1982,
+      "label": "command-approval",
+      "state": "blocked"
+    },
+    {
+      "offset": 2905,
+      "label": "answered",
+      "state": "idle"
+    }
+  ]
+}

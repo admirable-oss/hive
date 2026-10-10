@@ -39,6 +39,9 @@ func TestRenderRoundTripsCustomValues(t *testing.T) {
 	want.Terminal.Shell = "/bin/zsh -l"
 	want.Git.RefreshInterval = 30 * time.Second
 	want.Worktrees.Directory = "~/src/worktrees"
+	want.Notify.On = []string{"blocked"}
+	want.Notify.Terminal, want.Notify.System, want.Notify.Sound = "osc777", true, true
+	want.Notify.Agents = map[string][]string{"codex": {"done"}, "aider": {}}
 	cfg, warnings, err := config.Parse(config.Render(want))
 	if err != nil || len(warnings) != 0 {
 		t.Fatalf("parse: %v, warnings %v", err, warnings)
@@ -88,6 +91,10 @@ default_width = 1.5
 
 [worktrees]
 directory = "relative/dir"
+
+[notify]
+on = ["finished"]
+terminal = "growl"
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -102,6 +109,8 @@ directory = "relative/dir"
 		"unknown key daemon.unknown",
 		"log.level: unknown log level",
 		"log.max_size_mb: 0 is outside 1..1024",
+		"notify.on: finished is not one of",
+		"notify.terminal: \"growl\" is not one of",
 		"process.stop_grace: 1h0m0s is outside",
 		"terminal.default_width: must be an integer",
 		"worktrees.directory: \"relative/dir\" must be absolute",

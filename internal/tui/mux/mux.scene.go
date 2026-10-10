@@ -9,6 +9,7 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 
+	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/git"
@@ -251,12 +252,16 @@ func (a *App) envAgents() []process.Process {
 	return out
 }
 
-// envGlyph marks an environment by its agents: running, failed, idle.
+// envGlyph marks an environment by its agents: one blocked, running,
+// failed, idle.
 func (a *App) envGlyph(s *snapshot, e environment.Environment) (string, color.Color) {
 	running, failed := 0, 0
 	for _, p := range s.procs {
 		if p.EnvironmentID != e.ID {
 			continue
+		}
+		if x, ok := s.agentOf(p.ID); ok && p.Active() && x.State == agent.StateBlocked {
+			return "◆", a.theme.Warning
 		}
 		switch {
 		case p.Active():
@@ -278,8 +283,14 @@ func failedStatus(p *process.Process) bool {
 	return p.Status == process.StatusFailed || p.Status == process.StatusKilled || (p.ExitCode != nil && *p.ExitCode != 0)
 }
 
-// statusGlyph is an agent's dot and colour.
+// statusGlyph is an agent's dot and colour: its state for a recognised
+// agent that runs, else its process status.
 func (a *App) statusGlyph(p *process.Process) (string, color.Color) {
+	if x, ok := a.ws.snap.agentOf(p.ID); ok && p.Active() {
+		if g, c, ok := a.agentGlyph(x); ok {
+			return g, c
+		}
+	}
 	switch {
 	case p.Status == process.StatusStarting:
 		return "◐", a.theme.Info
@@ -291,7 +302,16 @@ func (a *App) statusGlyph(p *process.Process) (string, color.Color) {
 	return "○", a.theme.Muted
 }
 
-// statusText describes an agent's state: "running", "exited 1".
+// agentStatusText describes an agent's state: "blocked" for a recognised
+// agent that runs, else its process status ("running", "exited 1").
+func (a *App) agentStatusText(p *process.Process) string {
+	if x, ok := a.ws.snap.agentOf(p.ID); ok && p.Active() && x.State != agent.StateUnknown {
+		return string(x.State)
+	}
+	return statusText(p)
+}
+
+// statusText describes a process's status: "running", "exited 1".
 func statusText(p *process.Process) string {
 	if p.Active() || p.ExitCode == nil {
 		return string(p.Status)

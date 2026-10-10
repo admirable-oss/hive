@@ -94,6 +94,12 @@ func (a *app) sessionArgs() []string {
 	return []string{"--session", a.session}
 }
 
+// agentManifestDir holds the user's agent manifests, beside the config
+// file.
+func (a *app) agentManifestDir() string {
+	return filepath.Join(filepath.Dir(a.configPath), "agent-detection")
+}
+
 func (a *app) daemonLog() string    { return filepath.Join(a.logDir, "daemon.log") }
 func (a *app) daemonStderr() string { return filepath.Join(a.logDir, "daemon.stderr") }
 

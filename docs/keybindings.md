@@ -52,6 +52,15 @@ One key after the prefix, then back to terminal mode.
 | `&` | `close_tab` | close the tab (asks first) |
 | `d` | `detach` | leave the UI (agents keep running) |
 | `e` | `edit_scrollback` | open the pane's scrollback in $EDITOR |
+| `alt+1` | `focus_agent_1` | agent 1 in the sidebar |
+| `alt+2` | `focus_agent_2` | agent 2 in the sidebar |
+| `alt+3` | `focus_agent_3` | agent 3 in the sidebar |
+| `alt+4` | `focus_agent_4` | agent 4 in the sidebar |
+| `alt+5` | `focus_agent_5` | agent 5 in the sidebar |
+| `alt+6` | `focus_agent_6` | agent 6 in the sidebar |
+| `alt+7` | `focus_agent_7` | agent 7 in the sidebar |
+| `alt+8` | `focus_agent_8` | agent 8 in the sidebar |
+| `alt+9` | `focus_agent_9` | agent 9 in the sidebar |
 | `j` `down` | `focus_down` | focus the pane below |
 | `h` `left` | `focus_left` | focus the pane to the left |
 | `o` | `focus_next` | focus the next pane |
@@ -65,8 +74,10 @@ One key after the prefix, then back to terminal mode.
 | `r` | `mode_resize` | resize mode (sticky) |
 | `esc` | `mode_terminal` | back to terminal mode |
 | `c` | `new_tab` | new tab |
+| `a` | `next_agent` | go to the next agent that is blocked or done |
 | `)` | `next_env` | next environment |
 | `n` | `next_tab` | next tab |
+| `N` | `open_notification_target` | go to the agent of the latest notification |
 | `O` | `overview` | Overview dashboard (toggle) |
 | `]` | `paste` | paste the last copied text |
 | `f` | `popup` | open a shell in a popup |
@@ -112,6 +123,7 @@ Sticky: keys move between panes and tabs until `esc`.
 | `r` | `mode_resize` | resize mode (sticky) |
 | `esc` `q` `enter` `i` | `mode_terminal` | back to terminal mode |
 | `c` | `new_tab` | new tab |
+| `a` | `next_agent` | go to the next agent that is blocked or done |
 | `)` | `next_env` | next environment |
 | `n` `tab` | `next_tab` | next tab |
 | `(` | `prev_env` | previous environment |

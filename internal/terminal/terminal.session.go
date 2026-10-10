@@ -49,3 +49,17 @@ type Factory interface {
 type Adopter interface {
 	Adopt(ctx context.Context, id string) (Session, error)
 }
+
+// Foreground is the program in the foreground of a terminal: its process
+// group leader and that process's arguments.
+type Foreground struct {
+	PID  int      `json:"pid"`
+	Args []string `json:"args"`
+}
+
+// ForegroundReader is implemented by sessions that can tell which program
+// runs in their terminal's foreground: the shell at its prompt, or the job
+// it started (an agent launched from the shell). Agent detection uses it.
+type ForegroundReader interface {
+	Foreground(ctx context.Context) (Foreground, error)
+}

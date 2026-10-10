@@ -1,0 +1,39 @@
+{
+  "cols": 100,
+  "rows": 30,
+  "argv": [
+    "/usr/bin/python3",
+    "/home/u/.local/bin/aider",
+    "--model",
+    "sonnet"
+  ],
+  "synthetic": true,
+  "agent": "aider",
+  "checkpoints": [
+    {
+      "offset": 182,
+      "label": "idle",
+      "state": "idle"
+    },
+    {
+      "offset": 444,
+      "label": "working",
+      "state": "working"
+    },
+    {
+      "offset": 725,
+      "label": "add-file",
+      "state": "blocked"
+    },
+    {
+      "offset": 1007,
+      "label": "run-command",
+      "state": "blocked"
+    },
+    {
+      "offset": 1331,
+      "label": "answered",
+      "state": "idle"
+    }
+  ]
+}

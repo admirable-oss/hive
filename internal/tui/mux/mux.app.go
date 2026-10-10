@@ -69,6 +69,7 @@ type uiState struct {
 	overview  *overview
 	toasts    []toast
 	clip      string // the last copied text, for paste
+	lastNote  string // the process of the latest notification
 
 	sidebar   bool
 	sidebarW  int

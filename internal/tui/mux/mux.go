@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/notify"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
 	"github.com/admirable-oss/hive/internal/tui/keymap"
 	"github.com/admirable-oss/hive/internal/tui/theme"
@@ -47,6 +48,9 @@ type Options struct {
 	NoMouse bool
 	// Clipboard says where copied text goes.
 	Clipboard Clipboard
+	// Notify says when and how to tell the user an agent wants them; the
+	// zero value is notify.Defaults().
+	Notify notify.Config
 	// Warnings are shown as toasts when the UI opens (config problems).
 	Warnings []string
 }
@@ -60,6 +64,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.SidebarWidth <= 0 {
 		o.SidebarWidth = DefaultSidebarWidth
+	}
+	if o.Notify.On == nil && o.Notify.Terminal == "" {
+		o.Notify = notify.Defaults()
 	}
 	if o.Clipboard == "" {
 		o.Clipboard = ClipboardAuto

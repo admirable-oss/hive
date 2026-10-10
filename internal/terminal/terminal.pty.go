@@ -12,6 +12,7 @@ import (
 
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/pgroup"
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/vt"
 )
 
@@ -166,6 +167,35 @@ func (s *ptySession) Close() error {
 	s.closing = true
 	s.mu.Unlock()
 	return pgroup.TerminateAfter(s.Pid(), s.grace)
+}
+
+var _ ForegroundReader = (*ptySession)(nil)
+
+// Foreground asks the PTY which process group is in its foreground.
+func (s *ptySession) Foreground(context.Context) (Foreground, error) {
+	s.mu.Lock()
+	ended := s.ended
+	s.mu.Unlock()
+	if ended {
+		return Foreground{}, ErrEnded
+	}
+	raw, err := s.ptmx.SyscallConn() // unlike Fd, keeps the file non-blocking
+	if err != nil {
+		return Foreground{}, err
+	}
+	var pgid int
+	var ferr error
+	if err := raw.Control(func(fd uintptr) { pgid, ferr = platform.ForegroundGroup(fd) }); err != nil {
+		return Foreground{}, err
+	}
+	if ferr != nil {
+		return Foreground{}, ferr
+	}
+	args, err := platform.ProcessArgs(pgid)
+	if err != nil {
+		return Foreground{}, err
+	}
+	return Foreground{PID: pgid, Args: args}, nil
 }
 
 func (s *ptySession) Snapshot(context.Context) (*vt.Screen, error) {

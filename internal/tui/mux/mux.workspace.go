@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
@@ -34,6 +35,9 @@ type snapshot struct {
 	procs []process.Process // every agent, oldest first
 	tabs  []pane.Tab        // every tab, grouped by environment
 	panes []pane.Pane       // every pane, with its process
+	// agents is every terminal's agent state, by process ID; nil from a
+	// daemon without agent detection.
+	agents map[string]agent.Agent
 }
 
 type size struct{ w, h int }
@@ -129,7 +133,7 @@ type loadedMsg struct {
 	err  error
 }
 
-// load reads the whole workspace: four calls, whatever its size.
+// load reads the whole workspace: five calls, whatever its size.
 func load(ctx context.Context, c client.Client, api client.Workspace) (*snapshot, error) {
 	ctx, cancel := context.WithTimeout(ctx, loadTimeout)
 	defer cancel()
@@ -147,6 +151,7 @@ func load(ctx context.Context, c client.Client, api client.Workspace) (*snapshot
 	if s.panes, err = api.PaneList(ctx, "", ""); err != nil {
 		return nil, err
 	}
+	s.agents = loadAgents(ctx, c)
 	slices.SortStableFunc(s.procs, func(a, b process.Process) int { return a.StartedAt.Compare(b.StartedAt) })
 	return &s, nil
 }
@@ -393,7 +398,7 @@ type eventsMsg struct {
 }
 
 // eventTypes are the events the UI follows.
-var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", event.Lost}
+var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", event.Lost}
 
 // subscribe opens the event stream and reads it until it ends.
 func (a *App) subscribe() {
@@ -460,6 +465,9 @@ func (a *App) apply(ev event.Event) {
 		a.ws.stale = true
 	}
 	switch ev.Type {
+	case agent.EventState:
+		a.applyAgentState(ev)
+		return
 	case "pane.focused":
 		var p pane.Pane
 		if json.Unmarshal(ev.Data, &p) != nil {

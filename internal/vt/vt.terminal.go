@@ -48,6 +48,8 @@ type Terminal struct {
 
 	cursor Cursor // hidden/shape/blink, tracked from callbacks
 	title  string
+	titles titleFilter // takes titles out of the output (see vt.title.go)
+	parsed []byte      // reused buffer of filtered output
 	modes  Modes
 	bells  uint32
 
@@ -128,6 +130,8 @@ func (t *Terminal) Write(p []byte) (int, error) {
 		return 0, ErrClosed
 	}
 	total := len(p)
+	t.parsed = t.titles.filter(t.parsed[:0], p, func(s string) { t.title = s })
+	p = t.parsed
 	for len(p) > 0 {
 		n := min(len(p), maxWriteChunk)
 		_, _ = t.emu.Write(p[:n])

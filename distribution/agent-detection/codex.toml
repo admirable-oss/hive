@@ -1,0 +1,36 @@
+id = "codex"
+name = "Codex"
+
+[detect]
+# The npm package runs as `node …/bin/codex.js`, the native build as codex.
+process = ["codex"]
+
+[start]
+command = ["codex"]
+
+[[rules]]
+state = "blocked"
+priority = 20
+description = "an approval or update prompt"
+[rules.match]
+any = [
+  { line_regex = '^\s*Press enter to confirm or esc to cancel' },
+  { line_regex = '^\s*Would you like to (run|make|apply|allow|grant) ' },
+  { line_regex = '^\s*enter continue · esc skip' },
+]
+
+[[rules]]
+state = "blocked"
+priority = 19
+region = "title"
+description = "the title says action required"
+[rules.match]
+contains = "Action Required"
+
+[[rules]]
+state = "working"
+priority = 10
+region = "bottom:12"
+description = "the status says esc to interrupt"
+[rules.match]
+contains = "esc to interrupt"

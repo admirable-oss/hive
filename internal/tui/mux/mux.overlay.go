@@ -364,7 +364,7 @@ func (p *picker) reload(a *App) {
 				seen[pp.ProcessID] = true
 				it := pickItem{paneID: pp.ID, procID: pp.ProcessID, label: e.ID + " / " + t.Name + " / " + a.paneTitle(&pp, nil)}
 				if pp.Process != nil {
-					it.active, it.failed, it.detail = pp.Process.Active(), failedStatus(pp.Process), statusText(pp.Process)
+					it.active, it.failed, it.detail = pp.Process.Active(), failedStatus(pp.Process), a.agentStatusText(pp.Process)
 				}
 				p.items = append(p.items, it)
 			}
@@ -376,7 +376,7 @@ func (p *picker) reload(a *App) {
 		}
 		p.items = append(p.items, pickItem{
 			procID: pr.ID, label: pr.EnvironmentID + " / " + commandName(&pr),
-			detail: statusText(&pr) + " · no pane", active: pr.Active(), failed: failedStatus(&pr),
+			detail: a.agentStatusText(&pr) + " · no pane", active: pr.Active(), failed: failedStatus(&pr),
 		})
 	}
 	p.rank()

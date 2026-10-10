@@ -1,0 +1,28 @@
+id = "cursor-agent"
+name = "Cursor Agent"
+# The rules were written from Cursor Agent's documentation and screenshots,
+# not recorded from it.
+synthetic = true
+
+[detect]
+process = ["cursor-agent"]
+
+[start]
+command = ["cursor-agent"]
+
+[[rules]]
+state = "blocked"
+priority = 20
+description = "a command or edit approval"
+[rules.match]
+any = [
+  { line_regex = '^\s*Run this command\?' },
+  { line_regex = '^\s*Skip \(esc or n\)' },
+]
+
+[[rules]]
+state = "working"
+priority = 10
+description = "it says ctrl+c to stop"
+[rules.match]
+contains = "ctrl+c to stop"

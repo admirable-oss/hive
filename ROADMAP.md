@@ -111,16 +111,20 @@ The fun part: a full multiplexer UI you'll enjoy living in — soon your daily t
 
 ---
 
-### M4 · Agent intelligence (v0.6) ← **START HERE**
+## M4 · Agent Intelligence — `v0.6`
 
-1. `agent` engine: process detection, the `manifest` engine (regions and matchers), report overrides with TTL, the state machine, rollup, and seq counters.
-2. Manifests for Claude Code, Codex, OpenCode, Gemini, Cursor Agent, Copilot CLI, Amp and Aider, each with recorded-screen fixtures in tests.
-3. `hive agent explain`, `hive server reload-agent-manifests`, and signed remote manifest updates through `update`.
-4. `integration install|uninstall|status <agent>`: Claude `settings.json` hooks and Codex `hooks.json` call `hive pane report-agent` to report state and session ID. Writes are idempotent, back up the original file, and are fully reversible.
-5. `notify`: toast, terminal (OSC 9/777, which works over SSH), system notifications (osascript or notify-send), and sounds for done and blocked, configurable per agent. Notifications are suppressed for the focused pane.
-6. Sidebar state icons, the Overview's RUNNING/AWAITING/COMPLETE counts driven by real states, and `next_agent`/`focus_agent N`/`open_notification_target`.
+Hive learns what your agents are doing, so you only look when one needs you.
 
-**Accept:** on the fixture corpus, classification is at least 98 % correct for the top 4 agents. A blocked prompt raises a notification within 500 ms. 100 agents at idle use under 1 % CPU.
+1. **`agent` engine** — process detection, the manifest engine (regions and matchers), report overrides with TTL, the state machine (working ⇄ blocked → done → idle), rollups and seq counters.
+2. **Manifests** — Claude Code, Codex, OpenCode, Gemini, Cursor Agent, Copilot CLI, Amp and Aider, each with recorded-screen fixtures in tests.
+3. **Tooling** — `hive agent list | get | explain | manifests`, `hive server reload-agent-manifests`, user manifests in `~/.config/hive/agent-detection/`.
+4. **Integrations** — `hive integration install | uninstall | status <agent>`: Claude `settings.json` and Codex `hooks.json` hooks call `hive pane report-agent`. Writes are idempotent, back up the original file, and are fully reversible.
+5. **`notify`** — toasts, terminal notifications (OSC 9/777, which work over SSH), system notifications (osascript or notify-send) and sounds for done and blocked, configurable per agent and never for the focused pane.
+6. **UI** — sidebar state icons, the Overview's running/awaiting/complete counts from real states, and `next_agent`, `focus_agent_N`, `open_notification_target`.
+
+**✅ Acceptance:** on the fixture corpus, classification is at least 98 % correct for the top 4 agents. A blocked prompt raises a notification within 500 ms. 100 agents at idle use under 1 % CPU.
+
+---
 
 ## M5 · Agents Operating Agents — `v0.7`
 

@@ -394,3 +394,21 @@ func TestShim_HyperlinksCrossTheShim(t *testing.T) {
 	}
 	stop(t, l, r)
 }
+
+func TestShim_ForegroundCrossesTheShim(t *testing.T) {
+	l := newLauncher(t)
+	r := openAgent(t, l, "fg", `echo up; exec sleep 30`) // sh -c has no job control: exec puts sleep in front
+	waitScreen(t, r, "up")
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		fg, err := r.Foreground(context.Background())
+		if err == nil && len(fg.Args) > 0 && fg.Args[0] == "sleep" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("foreground = %+v, %v; want sleep", fg, err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	stop(t, l, r)
+}

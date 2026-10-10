@@ -21,10 +21,12 @@ func Render(cfg Config) []byte {
 }
 
 var renderTmpl = template.Must(template.New("config").Funcs(template.FuncMap{
-	"dur":   func(d time.Duration) string { return tomlString(d.String()) },
-	"q":     tomlString,
-	"theme": renderCustomTheme,
-	"keys":  RenderKeys,
+	"dur":          func(d time.Duration) string { return tomlString(d.String()) },
+	"q":            tomlString,
+	"theme":        renderCustomTheme,
+	"keys":         RenderKeys,
+	"list":         tomlList,
+	"notifyAgents": renderNotifyAgents,
 }).Parse(`# Hive configuration. Every key is optional; omitted keys use the defaults.
 # Unknown keys and invalid values are reported as warnings and ignored.
 
@@ -66,6 +68,20 @@ refresh_interval = {{dur .Git.RefreshInterval}}
 # ("" means ~/.hive/worktrees, or $HIVE_HOME/worktrees).
 directory = {{q .Worktrees.Directory}}
 
+[notify]
+# When an agent wants you: blocked (waiting for your decision) or done
+# (finished, and you have not looked yet). Never for the pane you are in.
+on = {{list .Notify.On}}
+# A toast in the UI.
+toast = {{.Notify.Toast}}
+# Ask your terminal to notify: auto (OSC 9 where supported) | osc9 | osc777 |
+# off. This works over SSH.
+terminal = {{q .Notify.Terminal}}
+# The desktop's notifications (osascript, notify-send); never over SSH.
+system = {{.Notify.System}}
+# A sound with each notification.
+sound = {{.Notify.Sound}}
+{{notifyAgents .Notify.Agents}}
 [ui]
 # Show the sidebar (environments and agents) when ` + "`hive ui`" + ` opens; prefix b
 # toggles it. Screens 64 columns wide or less always open without it.
@@ -150,6 +166,22 @@ func renderCustomTheme(custom map[string]string) string {
 	b.WriteString("\n[theme.custom]\n")
 	for _, k := range slices.Sorted(maps.Keys(custom)) {
 		fmt.Fprintf(&b, "%s = %s\n", tomlKey(k), tomlString(custom[k]))
+	}
+	return b.String()
+}
+
+func renderNotifyAgents(agents map[string][]string) string {
+	if len(agents) == 0 {
+		return `# Per agent (by manifest ID, see ` + "`hive agent manifests`" + `), which states notify:
+# [notify.agents]
+# codex = ["blocked"]
+# aider = []
+`
+	}
+	var b strings.Builder
+	b.WriteString("\n[notify.agents]\n")
+	for _, id := range slices.Sorted(maps.Keys(agents)) {
+		fmt.Fprintf(&b, "%s = %s\n", tomlKey(id), tomlList(agents[id]))
 	}
 	return b.String()
 }

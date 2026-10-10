@@ -42,8 +42,8 @@ type Service interface {
 type service struct {
 	factory Factory
 
-	activity         func(processID string)
-	activityInterval time.Duration
+	watcher       Watcher
+	watchInterval time.Duration
 
 	mu       sync.RWMutex
 	sessions map[string]*entry
@@ -59,23 +59,33 @@ type entry struct {
 // Option configures a Service.
 type Option func(*service)
 
-// DefaultActivityInterval is how often a busy session is reported.
-const DefaultActivityInterval = time.Second
+// DefaultWatchInterval is how often a busy session's screen is passed to
+// the watcher.
+const DefaultWatchInterval = 200 * time.Millisecond
 
-// WithActivity reports sessions whose screen changes: fn is called at most
-// once per interval (0: DefaultActivityInterval) per session while its
-// output keeps coming. Clients use it to mark tabs with news they are not
-// showing.
+// Watcher follows what every session's screen shows: the daemon's agent
+// detection. Its methods are called from one goroutine per session and
+// must not block.
+type Watcher interface {
+	// Frame passes a session's screen: a keyframe first, then changes.
+	Frame(processID string, f *vt.Frame)
+	// Ended says the session's output ended (its process exited, or the
+	// daemon let go of its shim).
+	Ended(processID string)
+}
+
+// WithWatcher passes every session's frames to w, at most one per
+// interval (0: DefaultWatchInterval) per session.
 //
 // It watches each session as a viewer whose frames are taken slowly: a
 // slow viewer gets one frame for everything that changed meanwhile, so a
 // busy agent costs one frame per interval, and an idle one nothing.
-func WithActivity(fn func(processID string), interval time.Duration) Option {
+func WithWatcher(w Watcher, interval time.Duration) Option {
 	return func(s *service) {
 		if interval <= 0 {
-			interval = DefaultActivityInterval
+			interval = DefaultWatchInterval
 		}
-		s.activity, s.activityInterval = fn, interval
+		s.watcher, s.watchInterval = w, interval
 	}
 }
 
@@ -142,22 +152,18 @@ func (s *service) register(processID string, session Session) error {
 		}
 		s.mu.Unlock()
 	}()
-	if s.activity != nil {
+	if s.watcher != nil {
 		go s.watch(ended, processID, session)
 	}
 	return nil
 }
 
-// watch reports processID's activity until the session ends.
+// watch passes processID's frames to the watcher until the session ends.
 func (s *service) watch(ctx context.Context, processID string, session Session) {
-	first := true
-	_ = session.Frames(ctx, func(*vt.Frame) error {
-		if first {
-			first = false // the screen as it is, not news
-			return nil
-		}
-		s.activity(processID)
-		t := time.NewTimer(s.activityInterval)
+	defer s.watcher.Ended(processID)
+	_ = session.Frames(ctx, func(f *vt.Frame) error {
+		s.watcher.Frame(processID, f)
+		t := time.NewTimer(s.watchInterval)
 		defer t.Stop()
 		select {
 		case <-t.C:

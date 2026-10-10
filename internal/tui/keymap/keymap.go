@@ -81,6 +81,11 @@ const (
 	EnterResize   Action = "mode-resize"
 	EnterCopy     Action = "mode-copy"
 	ExitMode      Action = "mode-terminal"
+	// NextAgent goes to the next agent that wants you: blocked ones first,
+	// then those done and not looked at.
+	NextAgent Action = "next-agent"
+	// OpenNotification goes to the agent of the latest notification.
+	OpenNotification Action = "open-notification-target"
 )
 
 // Tab1 … Tab9 select a tab by its number.
@@ -90,6 +95,19 @@ func TabAction(n int) Action { return Action(fmt.Sprintf("tab-%d", n)) }
 func (a Action) TabNumber() (int, bool) {
 	var n int
 	if _, err := fmt.Sscanf(string(a), "tab-%d", &n); err != nil || n < 1 || n > 9 {
+		return 0, false
+	}
+	return n, true
+}
+
+// AgentAction(n) focuses the environment's nth agent, as the sidebar lists
+// them.
+func AgentAction(n int) Action { return Action(fmt.Sprintf("focus-agent-%d", n)) }
+
+// AgentNumber returns n for AgentAction(n).
+func (a Action) AgentNumber() (int, bool) {
+	var n int
+	if _, err := fmt.Sscanf(string(a), "focus-agent-%d", &n); err != nil || n < 1 || n > 9 {
 		return 0, false
 	}
 	return n, true
@@ -148,6 +166,8 @@ var descriptions = map[Action]string{
 	SendPrefix:    "send the prefix key to the pane",
 	EnterNavigate: "navigate mode (sticky)", EnterResize: "resize mode (sticky)",
 	EnterCopy: "copy mode", ExitMode: "back to terminal mode",
+	NextAgent:        "go to the next agent that is blocked or done",
+	OpenNotification: "go to the agent of the latest notification",
 
 	CopyLeft: "left", CopyRight: "right", CopyUp: "up", CopyDown: "down",
 	CopyWordNext: "next word", CopyWordPrev: "previous word", CopyWordEnd: "end of word",
@@ -165,6 +185,7 @@ var descriptions = map[Action]string{
 func init() {
 	for n := 1; n <= 9; n++ {
 		descriptions[TabAction(n)] = fmt.Sprintf("tab %d", n)
+		descriptions[AgentAction(n)] = fmt.Sprintf("agent %d in the sidebar", n)
 	}
 }
 
@@ -204,17 +225,19 @@ func defaults() map[Mode]map[Action][]string {
 		Popup: {"f"}, Goto: {"w", "s"}, Help: {"?"}, Overview: {"O"},
 		ToggleSidebar: {"b"}, EditScroll: {"e"}, Paste: {"]"}, Detach: {"d"},
 		EnterNavigate: {"space"}, EnterResize: {"r"}, EnterCopy: {"[", "v"},
-		ExitMode: {"esc"},
+		ExitMode:  {"esc"},
+		NextAgent: {"a"}, OpenNotification: {"N"},
 	}
 	maps.Copy(prefix, focus)
 	for n := 1; n <= 9; n++ {
 		prefix[TabAction(n)] = []string{fmt.Sprint(n)}
+		prefix[AgentAction(n)] = []string{fmt.Sprintf("alt+%d", n)}
 	}
 	navigate := map[Action][]string{
 		NextTab: {"n", "tab"}, PrevTab: {"p", "shift+tab"}, NextEnv: {")"}, PrevEnv: {"("},
 		Zoom: {"z"}, ClosePane: {"x"}, SplitRight: {"%", "|"}, SplitDown: {`"`, "-"},
 		SwapNext: {"}"}, SwapPrev: {"{"}, FocusNext: {"o"}, NewTab: {"c"},
-		Goto: {"w", "/"}, EnterResize: {"r"}, EnterCopy: {"["},
+		Goto: {"w", "/"}, EnterResize: {"r"}, EnterCopy: {"["}, NextAgent: {"a"},
 		ExitMode: {"esc", "q", "enter", "i"},
 	}
 	maps.Copy(navigate, focus)

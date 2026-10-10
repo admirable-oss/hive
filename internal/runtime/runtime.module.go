@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
@@ -27,21 +28,31 @@ type Module struct {
 	Terminals    terminal.Service
 	Panes        *pane.Service
 	Events       *event.Bus
+	Agents       *agent.Service
 }
 
 // NewModule assembles the daemon. Dependencies flow strictly downward:
-// runtime → pane → process → (environment, terminal → shim) → protocol/jsonfile.
+// runtime → (agent, pane) → process → (environment, terminal → shim) →
+// protocol/jsonfile.
 func NewModule(cfg Config) *Module {
 	root := cfg.root()
 	log := logging.OrDiscard(cfg.Logger)
 	cfg.Logger = log
 	bus := event.NewBus(log.With("module", "event"))
 
+	procsRef, termsRef, locator := &lateProcesses{}, &lateTerminals{}, &paneLocator{}
+	agentLog := log.With("module", "agent")
+	agents, warnings, err := agent.NewService(agent.Config{UserDir: cfg.AgentManifestDir, Logger: agentLog}, procsRef, termsRef, locator, bus)
+	if err != nil {
+		panic(err) // the built-in manifests are broken: a bug the tests catch
+	}
+	for _, w := range warnings {
+		agentLog.Warn("agent manifest", "warning", w)
+	}
+
 	termCfg := cfg.Terminal
 	termCfg.Logger = log.With("module", "terminal")
-	termCfg.Activity = func(processID string) {
-		bus.Publish(event.ProcessOutput, map[string]string{"id": processID})
-	}
+	termCfg.Watcher = agents
 	procCfg := process.Config{
 		BaseDir:   root,
 		StopGrace: cfg.StopGrace,
@@ -79,11 +90,14 @@ func NewModule(cfg Config) *Module {
 		Logger:  log.With("module", "pane"),
 	}, procs, terms, guardedEnvs, bus).Service
 	guardedEnvs.panes = panes
+	procsRef.Service, termsRef.Service, locator.panes = procs, terms, panes
 
 	router := protocol.NewRouter()
 	server := NewServer(cfg, router, procs)
 	server.Go(tracker.run)
 	server.Go(func(ctx context.Context) { closeFinishedPopups(ctx, bus, panes, log) })
+	server.Go(agents.Run)
+	server.Go(func(ctx context.Context) { markSeen(ctx, bus, agents, agentLog) })
 
 	Register(router, server)
 	environment.Register(router, guardedEnvs)
@@ -91,6 +105,7 @@ func NewModule(cfg Config) *Module {
 	terminal.Register(router, terms)
 	event.Register(router, bus)
 	pane.Register(router, panes)
+	agent.Register(router, agents)
 	registerWorktrees(router, &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir()})
 
 	return &Module{
@@ -100,6 +115,7 @@ func NewModule(cfg Config) *Module {
 		Terminals:    terms,
 		Panes:        panes,
 		Events:       bus,
+		Agents:       agents,
 	}
 }
 

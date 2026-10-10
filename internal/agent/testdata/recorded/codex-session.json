@@ -1,0 +1,51 @@
+{
+  "cols": 120,
+  "rows": 40,
+  "argv": [
+    "codex",
+    "-s",
+    "read-only",
+    "-a",
+    "on-request",
+    "-c",
+    "model_reasoning_effort=\"low\""
+  ],
+  "checkpoints": [
+    {
+      "offset": 3362,
+      "label": "update-prompt",
+      "state": "blocked"
+    },
+    {
+      "offset": 9211,
+      "label": "idle",
+      "state": "idle"
+    },
+    {
+      "offset": 12363,
+      "label": "typing",
+      "state": "idle"
+    },
+    {
+      "offset": 13989,
+      "label": "working",
+      "state": "working"
+    },
+    {
+      "offset": 19781,
+      "label": "answered",
+      "state": "idle"
+    },
+    {
+      "offset": 49052,
+      "label": "command-approval",
+      "state": "blocked"
+    },
+    {
+      "offset": 55291,
+      "label": "command-rejected",
+      "state": "idle"
+    }
+  ],
+  "agent": "codex"
+}

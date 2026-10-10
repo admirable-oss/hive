@@ -1,4 +1,4 @@
-╭─ Overview · 2 running · 0 ended ─────────────────────────────────────────────────────────────────╮
+╭─ Overview · 2 running · 0 awaiting · 0 complete · 0 ended ───────────────────────────────────────╮
 │   AGENT                  ENVIRONMENT    STATUS           │preview me                             │
 │ ● cat                    api            running 0s       │preview me                             │
 │ ● cat                    api            running 0s       │                                       │

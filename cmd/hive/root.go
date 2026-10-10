@@ -63,6 +63,8 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 	}
 	add("agents",
 		newUICmd(a),
+		newAgentCmd(a),
+		newIntegrationCmd(a),
 		newProcessCmd(a),
 		newTerminalCmd(a),
 		newEventsCmd(a),

@@ -22,8 +22,9 @@ import (
 
 func newDaemonCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "daemon",
-		Short: "Run the Hive runtime in the foreground, or manage it",
+		Use:     "daemon",
+		Aliases: []string{"server"},
+		Short:   "Run the Hive runtime in the foreground, or manage it",
 		Long: `Without a subcommand, run the runtime in the foreground until Ctrl+C,
 SIGTERM or ` + "`hive stop`" + `. This is what service managers run.
 
@@ -60,6 +61,7 @@ it after a crash, use ` + "`hive daemon install`" + `.`,
 			RunE:  withTimeout(5*time.Second, func(ctx context.Context, _ *cobra.Command, _ []string) error { return showStatus(ctx, a) }),
 		},
 		newDaemonLogsCmd(a),
+		newReloadManifestsCmd(a),
 		newDaemonInstallCmd(a),
 		&cobra.Command{
 			Use:   "uninstall",
@@ -167,6 +169,8 @@ func runDaemon(ctx context.Context, a *app) error {
 		Shell:       a.cfg.ShellArgv(),
 		WorktreeDir: a.cfg.WorktreeDir(a.home, a.base),
 		GitInterval: a.cfg.Git.RefreshInterval,
+
+		AgentManifestDir: a.agentManifestDir(),
 	})
 	if err := mod.Service.Start(ctx); err != nil {
 		if errors.Is(err, runtime.ErrAlreadyRunning) {

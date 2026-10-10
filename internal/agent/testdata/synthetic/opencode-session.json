@@ -1,0 +1,31 @@
+{
+  "cols": 100,
+  "rows": 30,
+  "argv": [
+    "opencode"
+  ],
+  "synthetic": true,
+  "agent": "opencode",
+  "checkpoints": [
+    {
+      "offset": 230,
+      "label": "idle",
+      "state": "idle"
+    },
+    {
+      "offset": 421,
+      "label": "working",
+      "state": "working"
+    },
+    {
+      "offset": 651,
+      "label": "permission",
+      "state": "blocked"
+    },
+    {
+      "offset": 909,
+      "label": "answered",
+      "state": "idle"
+    }
+  ]
+}
