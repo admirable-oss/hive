@@ -50,7 +50,13 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 
 ## Quick start
 
-Requires Go 1.26+ on macOS or Linux.
+Install the latest macOS or Linux release with:
+
+```sh
+curl -fsSL https://hive.admir-saheta.com/install.sh | sh
+```
+
+The installer places `hive` in `~/.local/bin` by default. Set `HIVE_INSTALL_DIR` to choose another directory. To build from source, Go 1.26+ is required.
 
 ```sh
 make build          # or: go build -o hive ./cmd/hive
