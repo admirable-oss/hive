@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/config"
 	"github.com/admirable-oss/hive/internal/tui/keymap"
 	"github.com/admirable-oss/hive/internal/tui/mux"
@@ -46,7 +47,34 @@ func runUI(ctx context.Context, a *app, env string) error {
 	}
 	opts.Env = env
 	opts.Cwd, _ = os.Getwd()
+	opts.Machine = a.remoteName
+	opts.Machines = a.otherMachines()
+	defer func() {
+		for _, m := range opts.Machines {
+			_ = m.Client.Close()
+		}
+	}()
 	return mux.Run(ctx, a.client, opts)
+}
+
+// otherMachines are the machines the UI lists beside the one it shows:
+// every enabled saved machine, and this one when another is shown.
+func (a *app) otherMachines() []mux.Machine {
+	var out []mux.Machine
+	if a.remote != nil {
+		out = append(out, mux.Machine{Name: "", Client: client.NewService(client.Config{SocketPath: a.socket, Name: "tui"})})
+	}
+	saved, err := a.machines().List()
+	if err != nil {
+		fmt.Fprintf(a.errOut, "hive: warning: %v\n", err)
+	}
+	for _, m := range saved {
+		if m.Disabled || m.Name == a.remoteName {
+			continue
+		}
+		out = append(out, mux.Machine{Name: m.Name, Client: a.remoteClient(a.target(m.Target("")), "tui")})
+	}
+	return out
 }
 
 // uiOptions builds the multiplexer's options from the configuration, with a

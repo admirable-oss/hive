@@ -131,6 +131,7 @@ func (s *snapshot) process(id string) *process.Process {
 type loadedMsg struct {
 	snap *snapshot
 	err  error
+	gen  int // the machine it was read from (App.gen)
 }
 
 // load reads the whole workspace: five calls, whatever its size.
@@ -164,10 +165,10 @@ func (a *App) refresh() {
 		return
 	}
 	a.ws.loading = true
-	c, api := a.c, a.api
+	c, api, gen := a.c, a.api, a.gen
 	a.spawn(func(ctx context.Context) Msg {
 		s, err := load(ctx, c, api)
-		return loadedMsg{snap: s, err: err}
+		return loadedMsg{snap: s, err: err, gen: gen}
 	})
 }
 
@@ -188,6 +189,7 @@ func (a *App) loaded(m loadedMsg) {
 		}
 		a.pickEnv()
 		a.afterChange()
+		a.focusAfterSwitch()
 	}
 	if a.ws.stale {
 		a.ws.stale = false
@@ -395,6 +397,7 @@ func (a *App) claimSize(force bool) {
 type eventsMsg struct {
 	ev  *event.Event
 	err error
+	gen int
 }
 
 // eventTypes are the events the UI follows.
@@ -402,28 +405,28 @@ var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment."
 
 // subscribe opens the event stream and reads it until it ends.
 func (a *App) subscribe() {
-	c := a.c
+	c, gen, conn := a.c, a.gen, a.connCtx
 	a.bg.Add(1)
 	go func() {
 		defer a.bg.Done()
-		ctx, cancel := context.WithTimeout(a.ctx, callTimeout)
+		ctx, cancel := context.WithTimeout(conn, callTimeout)
 		es, err := c.Events(ctx, eventTypes...)
 		cancel()
 		if err != nil {
-			a.post(eventsMsg{err: err})
+			a.post(eventsMsg{err: err, gen: gen})
 			return
 		}
 		defer es.Close()
-		stop := context.AfterFunc(a.ctx, func() { _ = es.Close() })
+		stop := context.AfterFunc(conn, func() { _ = es.Close() })
 		defer stop()
-		a.post(eventsMsg{})
+		a.post(eventsMsg{gen: gen})
 		for {
 			ev, err := es.Next()
 			if err != nil {
-				a.post(eventsMsg{err: err})
+				a.post(eventsMsg{err: err, gen: gen})
 				return
 			}
-			a.post(eventsMsg{ev: &ev})
+			a.post(eventsMsg{ev: &ev, gen: gen})
 		}
 	}()
 }
@@ -436,7 +439,12 @@ func (a *App) handleEvents(m eventsMsg) {
 		// stream again shortly.
 		a.refresh()
 		a.ws.retry = min(max(a.ws.retry*2, resubscribeFirst), resubscribeMax)
-		a.after(a.ws.retry, func() { a.subscribe() })
+		gen := a.gen
+		a.after(a.ws.retry, func() {
+			if gen == a.gen {
+				a.subscribe()
+			}
+		})
 	case m.ev == nil:
 		a.ws.live, a.ws.retry, a.dirty = true, 0, true
 		a.refresh() // changes made before the stream opened

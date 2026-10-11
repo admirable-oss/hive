@@ -58,6 +58,14 @@ type App struct {
 	urgent        bool      // the next frame answers input: draw it now
 	lastInput     time.Time // the last key, paste or click
 	quit          bool
+
+	// conn is the connection's lifetime: it ends when the UI switches to
+	// another machine, and gen counts switches, so news from the previous
+	// machine is recognised and dropped.
+	connCtx    context.Context
+	connCancel context.CancelFunc
+	gen        int
+	mach       machinesState
 }
 
 // uiState is what the user is doing: mode, overlays, selections.
@@ -102,6 +110,8 @@ func New(ctx context.Context, c client.Client, opts Options) *App {
 		dirty:  true,
 	}
 	a.open = a.openURL
+	a.connCtx, a.connCancel = context.WithCancel(ctx)
+	a.mach = newMachinesState(opts)
 	a.theme = opts.resolveTheme(true)
 	a.ui.mode = keymap.ModeTerminal
 	a.ui.sidebar = !opts.HideSidebar
@@ -121,6 +131,7 @@ func New(ctx context.Context, c client.Client, opts Options) *App {
 func (a *App) Start() {
 	a.subscribe()
 	a.refresh()
+	a.watchMachines()
 }
 
 // Close stops background work and every pane stream, and waits for them.
@@ -222,9 +233,15 @@ func (a *App) Handle(m Msg) {
 		}
 		a.refresh()
 	case loadedMsg:
-		a.loaded(m)
+		if m.gen == a.gen {
+			a.loaded(m)
+		}
 	case eventsMsg:
-		a.handleEvents(m)
+		if m.gen == a.gen {
+			a.handleEvents(m)
+		}
+	case machineAgentsMsg:
+		a.machineAgents(m)
 	case claimedMsg:
 		delete(a.ws.claiming, m.tab)
 		if m.err != nil {
@@ -274,6 +291,7 @@ func (a *App) Settle(timeout time.Duration) bool {
 
 // TakeOutput returns raw sequences queued for the outer terminal.
 func (a *App) TakeOutput() []string {
+	a.passOnCopies()
 	out := a.out
 	a.out = nil
 	return out

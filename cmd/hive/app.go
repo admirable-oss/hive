@@ -16,6 +16,7 @@ import (
 	"github.com/admirable-oss/hive/internal/daemonctl"
 	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/protocol"
+	"github.com/admirable-oss/hive/internal/remote"
 	"github.com/admirable-oss/hive/internal/session"
 )
 
@@ -36,6 +37,13 @@ type app struct {
 
 	getenv func(string) string
 	client client.Client
+	// remote is the other machine commands go to (--remote, --machine);
+	// nil for this one. remoteName names it in messages; yes answers its
+	// install prompts.
+	remote     *remote.Target
+	remoteName string
+	yes        bool
+
 	out    io.Writer
 	errOut io.Writer
 	json   bool // --json: machine-readable output
@@ -117,6 +125,9 @@ func (a *app) reportConfig() {
 // ensureDaemon makes sure a daemon answers, starting one when autostart is
 // enabled. Commands that only make sense against a running daemon use it.
 func (a *app) ensureDaemon(ctx context.Context) error {
+	if a.remote != nil {
+		return a.ensureRemote(ctx)
+	}
 	err := a.client.Ping(ctx)
 	if err == nil {
 		return a.ensureCurrentDaemon(ctx)
@@ -212,7 +223,11 @@ func (a *app) spawnDaemon(ctx context.Context, exe string) error {
 
 // daemonRunning reports whether a daemon answers right now, without starting one.
 func (a *app) daemonRunning(ctx context.Context) (client.Status, bool) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	wait := 2 * time.Second
+	if a.remote != nil {
+		wait = 15 * time.Second // an ssh connection first
+	}
+	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	st, err := a.client.Status(ctx)
 	return st, err == nil

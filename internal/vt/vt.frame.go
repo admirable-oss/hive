@@ -12,6 +12,18 @@ type Frame struct {
 	Modes      Modes
 	Bells      uint32
 	Lines      []LineUpdate
+	// Clipboard is set when a program copied text since the viewer's
+	// previous frame (OSC 52); it is not part of the screen.
+	Clipboard *Clipboard
+}
+
+// Clipboard is text a program asked the terminal to copy (OSC 52).
+type Clipboard struct {
+	// Selection names where it goes, as the program said: "c" is the
+	// clipboard, "p" the primary selection; empty means the clipboard.
+	Selection string
+	// Data is the text, base64-encoded as the program sent it.
+	Data string
 }
 
 // LineUpdate replaces line Y. Cells may be shorter than the screen width;
@@ -29,6 +41,7 @@ type View struct {
 	at      uint64 // terminal version covered by the last frame
 	resized uint64
 	meta    Screen // cursor, title, modes and bells last sent (no lines)
+	clips   uint64 // clipboard sets already passed on
 }
 
 // NeedsKeyframe makes the view's next frame a keyframe, for a viewer whose
@@ -42,7 +55,9 @@ func (t *Terminal) Frame(v *View) *Frame {
 	snapMeta := Screen{Cols: t.screen.Cols, Rows: t.screen.Rows}
 	t.fillMeta(&snapMeta)
 	key := !v.started || v.resized != t.resized
-	if !key && v.at == t.version && sameMeta(&v.meta, &snapMeta) {
+	// A viewer gets the clipboard sets made while it watched, not earlier.
+	clip := v.started && t.clips > v.clips
+	if !key && !clip && v.at == t.version && sameMeta(&v.meta, &snapMeta) {
 		return nil
 	}
 	f := &Frame{
@@ -54,6 +69,11 @@ func (t *Terminal) Frame(v *View) *Frame {
 		Modes:    snapMeta.Modes,
 		Bells:    snapMeta.Bells,
 	}
+	if clip {
+		c := t.clip
+		f.Clipboard = &c
+	}
+	v.clips = t.clips
 	for y, ver := range t.versions {
 		if key || ver > v.at {
 			f.Lines = append(f.Lines, LineUpdate{Y: y, Cells: append([]Cell(nil), trimBlank(t.screen.Lines[y])...)})
@@ -106,6 +126,7 @@ type Coalescer struct {
 	key    bool   // a keyframe or a resize since the last Take
 	n      int    // frames added since the last Take
 	last   *Frame // the latest of them
+	clip   *Clipboard
 }
 
 // Add records a frame.
@@ -123,6 +144,9 @@ func (c *Coalescer) Add(f *Frame) {
 			c.dirty[l.Y] = true
 		}
 	}
+	if f.Clipboard != nil {
+		c.clip = f.Clipboard
+	}
 	c.n++
 	c.last = f
 }
@@ -130,21 +154,24 @@ func (c *Coalescer) Add(f *Frame) {
 // Take returns the merged frame and starts over, or nil when no frame was
 // added since the previous Take.
 func (c *Coalescer) Take() *Frame {
-	defer func() { c.n, c.last, c.key = 0, nil, false; clear(c.dirty) }()
+	defer func() { c.n, c.last, c.key, c.clip = 0, nil, false, nil; clear(c.dirty) }()
+	var f *Frame
 	switch {
 	case c.n == 0:
 		return nil
 	case c.n == 1:
 		return c.last
 	case c.key:
-		return c.screen.Keyframe()
-	}
-	s := &c.screen
-	f := &Frame{Cols: s.Cols, Rows: s.Rows, Cursor: s.Cursor, Title: s.Title, Modes: s.Modes, Bells: s.Bells}
-	for y := range s.Lines {
-		if c.dirty[y] {
-			f.Lines = append(f.Lines, LineUpdate{Y: y, Cells: append([]Cell(nil), trimBlank(s.Lines[y])...)})
+		f = c.screen.Keyframe()
+	default:
+		s := &c.screen
+		f = &Frame{Cols: s.Cols, Rows: s.Rows, Cursor: s.Cursor, Title: s.Title, Modes: s.Modes, Bells: s.Bells}
+		for y := range s.Lines {
+			if c.dirty[y] {
+				f.Lines = append(f.Lines, LineUpdate{Y: y, Cells: append([]Cell(nil), trimBlank(s.Lines[y])...)})
+			}
 		}
 	}
+	f.Clipboard = c.clip // the latest copy wins, as on a terminal
 	return f
 }

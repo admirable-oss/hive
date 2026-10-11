@@ -1,16 +1,19 @@
 package client
 
 import (
+	"compress/flate"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/admirable-oss/hive/internal/buildinfo"
 	"github.com/admirable-oss/hive/internal/environment"
@@ -157,16 +160,24 @@ func (s *service) TerminalAttach(ctx context.Context, req ViewRequest) (*Attachm
 }
 
 func (s *service) TerminalFrames(ctx context.Context, req ViewRequest) (*FrameStream, error) {
-	if err := s.requireMux(ctx); err != nil {
-		return nil, err
+	mux, err := s.conn(ctx)
+	if errors.Is(err, errLegacy) {
+		return nil, ErrDaemonTooOld
 	}
-	var view View
-	p, err := s.openPipe(ctx, "terminal.frames", req, &view)
 	if err != nil {
 		return nil, err
 	}
+	var view View
+	p, err := mux.OpenPipe(ctx, "terminal.frames", req, &view)
+	if err != nil {
+		return nil, fmt.Errorf("terminal.frames: %w", err)
+	}
 	a := &Attachment{pipe: p, View: view, processID: req.ProcessID, client: s}
-	return &FrameStream{Attachment: a, reader: vt.NewFrameReader(p)}, nil
+	var r io.Reader = p
+	if s.deflated(mux) {
+		r = flate.NewReader(p)
+	}
+	return &FrameStream{Attachment: a, reader: vt.NewFrameReader(r)}, nil
 }
 
 func (s *service) TerminalSnapshot(ctx context.Context, req SnapshotRequest) (Snapshot, error) {
@@ -223,7 +234,10 @@ func (s *service) conn(ctx context.Context) (*protocol.MuxClient, error) {
 	}
 	caps := s.config.Capabilities
 	if caps == nil {
-		caps = []string{vt.FrameCapability, vt.FrameLinksCapability}
+		caps = []string{vt.FrameCapability, vt.FrameLinksCapability, vt.FrameClipboardCapability}
+		if s.config.Remote {
+			caps = append(caps, vt.FrameDeflateCapability)
+		}
 	}
 	mux, err := protocol.Handshake(ctx, raw, protocol.Hello{
 		Client: s.config.Name, ClientVersion: buildinfo.Get().Version, Capabilities: caps,
@@ -236,7 +250,41 @@ func (s *service) conn(ctx context.Context) (*protocol.MuxClient, error) {
 		return nil, fmt.Errorf("connect to runtime: %w", err)
 	}
 	s.mux = mux
+	if s.config.Remote {
+		go s.reportLink(mux) //nolint:contextcheck,gosec // lives as long as the connection, not the call that opened it
+	}
 	return mux, nil
+}
+
+// linkReportEvery is how often a remote client measures and reports its
+// round trip.
+const linkReportEvery = 10 * time.Second
+
+// reportLink tells the daemon, now and then, the client's round trip and
+// frame budget (client.report), until the connection ends.
+func (s *service) reportLink(mux *protocol.MuxClient) {
+	t := time.NewTicker(linkReportEvery)
+	defer t.Stop()
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), linkReportEvery)
+		start := time.Now()
+		if err := mux.Call(ctx, "runtime.ping", nil, nil); err == nil {
+			rtt := time.Since(start)
+			_ = mux.Call(ctx, "client.report", protocol.LinkReport{RTTMicros: rtt.Microseconds(), Budget: s.config.FrameBudget}, nil)
+		}
+		cancel()
+		select {
+		case <-mux.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// deflated reports whether frames on mux come compressed.
+func (s *service) deflated(mux *protocol.MuxClient) bool {
+	return s.config.Remote && slices.Contains(mux.Welcome().Capabilities, vt.FrameDeflateCapability) &&
+		(s.config.Capabilities == nil || slices.Contains(s.config.Capabilities, vt.FrameDeflateCapability))
 }
 
 func (s *service) requireMux(ctx context.Context) error {
@@ -248,6 +296,13 @@ func (s *service) requireMux(ctx context.Context) error {
 }
 
 func (s *service) dial(ctx context.Context) (net.Conn, error) {
+	if s.config.Dial != nil {
+		conn, err := s.config.Dial(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("connect to runtime: %w", err)
+		}
+		return conn, nil
+	}
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "unix", s.config.SocketPath)
 	if err != nil {

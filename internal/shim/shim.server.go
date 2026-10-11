@@ -286,7 +286,7 @@ func (s *server) snapshotState() State {
 
 func (s *server) accept(ctx context.Context, ln net.Listener, conns *connSet) {
 	router := s.router()
-	info := protocol.ServerInfo{Version: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability, vt.FrameLinksCapability}}
+	info := protocol.ServerInfo{Version: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability, vt.FrameLinksCapability, vt.FrameClipboardCapability}}
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -395,14 +395,18 @@ func (s *server) router() *protocol.Router {
 		if err != nil {
 			return protocol.Empty{}, nil, err
 		}
-		// A daemon older than this shim may not read hyperlinks.
-		links := protocol.PeerHas(ctx, vt.FrameLinksCapability)
+		// A daemon older than this shim may not read hyperlinks or
+		// clipboard sets.
+		opts := vt.FrameOptions{
+			Links:     protocol.PeerHas(ctx, vt.FrameLinksCapability),
+			Clipboard: protocol.PeerHas(ctx, vt.FrameClipboardCapability),
+		}
 		return protocol.Empty{}, func(ctx context.Context, p protocol.Pipe) error {
 			ctx, stop := protocol.UntilClosed(ctx, p)
 			defer stop()
 			var buf []byte
 			return sess.Frames(ctx, func(f *vt.Frame) error {
-				buf = vt.AppendFrameWith(buf[:0], f, links)
+				buf = vt.AppendFrameOpts(buf[:0], f, opts)
 				_, err := p.Write(buf)
 				return err
 			})

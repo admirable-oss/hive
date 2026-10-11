@@ -47,7 +47,7 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 | Workspace isolation per agent (git worktrees) | ✅ working |
 | Survives reboots: session snapshots, panes restored where they were working, agents resume their conversations ([docs](docs/persistence.md)) | ✅ working |
 | Housekeeping (`hive gc`, retention, output log rotation) and self-update (`hive update`, agents keep running) | ✅ working |
-| Reconnect from another machine | 🗺 planned |
+| Remote machines over SSH: `--remote`, saved machines, every machine's agents in the sidebar, compressed and paced screens, clipboard back to you ([docs](docs/remote.md)) | ✅ working |
 | Windows support | 🗺 planned |
 
 ## Quick start
@@ -111,6 +111,8 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive daemon start \| stop [--keep-agents] \| status \| logs [-f]` | Manage the background daemon |
 | `hive daemon install \| uninstall` | Run the daemon as a launchd agent (macOS) or systemd user service (Linux) |
 | `hive session save \| restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again (the daemon does both by itself) |
+| `hive --remote <host> …` · `hive --machine <name> …` | Run any command (or the multiplexer) against Hive on another machine over SSH; installs it there after asking |
+| `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip and agents |
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
 | `hive update [--check] [--version v] [--from file]` | Update hive to the latest release and restart the daemon; agents keep running |
 | `hive config path \| show \| default \| init \| validate \| reset-keys` | Inspect and create the configuration file; put the default key bindings back |
@@ -149,6 +151,10 @@ replay_history = false      # show panes' earlier text again (keeps screen text 
 [retention]
 exited_processes = "168h"   # keep ended processes' records and logs this long
 process_log_mb = 50         # rotate each agent's output log at this size
+
+[remote]
+ssh = "ssh"                 # how other machines are reached (~/.ssh/config applies)
+frame_budget_kb = 48        # screen updates a remote daemon sends this client, KiB/s
 
 [ui]
 sidebar = true              # show environments and agents beside the panes
@@ -232,6 +238,8 @@ hive ps start -t dev -- claude
   session.json                               the latest workspace snapshot (restore after a reboot)
   snapshots/session-<time>.json              the 48 before it
   history/<pane>.txt                         panes' recent text, only with session.replay_history
+  machines.json                              saved machines (hive machine), shared by every session
+  ssh/                                       shared SSH connections' sockets (ControlMaster)
   run/<process-id>/                          one shim per live agent (0700)
     spec.json  state.json                    what it runs; running / exited + exit code
     shim.sock  shim.log  shim.stderr         its socket (0600) and its own logs

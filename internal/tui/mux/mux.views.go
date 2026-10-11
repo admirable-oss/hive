@@ -2,6 +2,7 @@ package mux
 
 import (
 	"context"
+	"encoding/base64"
 	"sync"
 
 	"github.com/admirable-oss/hive/internal/client"
@@ -22,6 +23,7 @@ type view struct {
 	ended  bool       // the stream ended: the agent exited or the daemon went away
 	failed bool       // the stream could not be opened
 	frames uint64     // frames applied so far
+	copies []string   // text programs in the agent copied (OSC 52), not yet passed on
 
 	ops    chan viewOp
 	cancel context.CancelFunc
@@ -46,7 +48,7 @@ type screenCache struct {
 // openView starts streaming procID's terminal at the given size (zero: the
 // terminal's own size, for previews that must not resize it).
 func (a *App) openView(procID string, sz size, cached *vt.Screen) *view {
-	ctx, cancel := context.WithCancel(a.ctx)
+	ctx, cancel := context.WithCancel(a.connCtx)
 	v := &view{
 		procID: procID,
 		screen: cached,
@@ -99,6 +101,11 @@ func (v *view) run(ctx context.Context, c client.Client, wake func(), sz size) {
 			}
 			v.screen.Apply(f)
 			v.frames++
+			if c := f.Clipboard; c != nil {
+				if text, err := base64.StdEncoding.DecodeString(c.Data); err == nil {
+					v.copies = append(v.copies, string(text))
+				}
+			}
 			v.mu.Unlock()
 			wake()
 		}

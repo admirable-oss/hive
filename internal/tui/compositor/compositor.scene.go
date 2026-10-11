@@ -203,6 +203,7 @@ const (
 	HitOverlayLine   // a line of the top overlay
 	HitNewTab        // the "+" after the tabs
 	HitSidebarHeader // a sidebar panel's header (collapses it)
+	HitMachine       // a machine, or an agent on it (ID "machine" or "machine\x00agent")
 )
 
 // Hit is a clickable area.

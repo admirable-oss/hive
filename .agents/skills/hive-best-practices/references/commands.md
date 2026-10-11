@@ -1,6 +1,6 @@
-# Hive command reference (v0.8)
+# Hive command reference (v0.9)
 
-Every command takes `--json` (machine-readable output) and `--session <name>`. Commands that need the daemon start it on demand. Aliases: `env` for `environment`, `ps` for `process`, `tui` for `ui`. Confirm details with `hive <command> --help`.
+Every command takes `--json` (machine-readable output), `--session <name>`, and `--remote <ssh-host>` or `--machine <name>` to act on another machine. Commands that need the daemon start it on demand. Aliases: `env` for `environment`, `ps` for `process`, `tui` for `ui`. Confirm details with `hive <command> --help`.
 
 ## Multiplexer
 
@@ -77,6 +77,8 @@ Every command takes `--json` (machine-readable output) and `--session <name>`. C
 | `hive daemon install`, `uninstall` | Start the daemon at login (launchd / systemd) |
 | `hive session list`, `stop <name>`, `remove <name>` | Separate daemons with their own environments |
 | `hive session save`, `restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again, agents resuming their conversations |
+| `hive machine add <name> <host>`, `list`, `rename`, `enable`, `disable`, `remove`, `status`, `reconnect` | Saved remote machines (see `docs/remote.md`) |
+| `hive proxy` | Bridge stdin/stdout to the daemon (what `--remote` runs over ssh) |
 | `hive gc [--dry-run] [--older-than d]` | Remove old ended processes' records and logs, and leftovers |
 | `hive update [--check] [--version v] [--from file]` | Install a release and restart the daemon; agents keep running |
 | `hive config path`, `show`, `default`, `init`, `validate`, `reset-keys` | The configuration file |

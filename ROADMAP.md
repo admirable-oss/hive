@@ -111,7 +111,7 @@ The fun part: a full multiplexer UI you'll enjoy living in — soon your daily t
 
 ---
 
-## M4 · Agent Intelligence — `v0.6`
+## M4 · Agent Intelligence — `v0.6` - **LIVE**
 
 Hive learns what your agents are doing, so you only look when one needs you.
 
@@ -126,7 +126,7 @@ Hive learns what your agents are doing, so you only look when one needs you.
 
 ---
 
-## M5 · Agents Operating Agents — `v0.7`
+## M5 · Agents Operating Agents — `v0.7` - **LIVE**
 
 Now it gets really cool: agents driving other agents, through a clean CLI, a Go SDK, and MCP.
 
@@ -157,7 +157,7 @@ Reboots happen. Hive should shrug them off and pick up right where you left off.
 
 ---
 
-## M7 · Remote & Multi-Machine — `v0.9`
+## M7 · Remote & Multi-Machine — `v0.9` - **LIVE**
 
 Go beyond one machine: SSH in and manage a whole fleet of agents from wherever you are.
 

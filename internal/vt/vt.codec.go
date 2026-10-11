@@ -34,16 +34,30 @@ const MaxFrameSize = 32 << 20
 
 // FrameCapability names this encoding in protocol negotiation;
 // FrameLinksCapability names the encoding with hyperlinks.
+// FrameDeflateCapability, offered by a client and by the server, makes
+// frame streams deflate-compressed (each frame flushed whole), for clients
+// on a slow link.
 const (
-	FrameCapability      = "frames/1"
-	FrameLinksCapability = "frames/2"
+	FrameCapability        = "frames/1"
+	FrameLinksCapability   = "frames/2"
+	FrameDeflateCapability = "frames/deflate"
+	// FrameClipboardCapability names the encoding with clipboard sets.
+	FrameClipboardCapability = "frames/clipboard"
 )
+
+// FrameOptions selects what an encoded frame carries, by what the peer
+// can read.
+type FrameOptions struct {
+	Links     bool // hyperlinks (frames/2)
+	Clipboard bool // clipboard sets (frames/clipboard)
+}
 
 var errCorrupt = errors.New("vt: corrupt frame")
 
 const (
 	flagKeyframe = 1 << iota
 	flagLinks
+	flagClipboard
 )
 
 const (
@@ -58,6 +72,13 @@ func AppendFrame(dst []byte, f *Frame) []byte { return AppendFrameWith(dst, f, f
 // AppendFrameWith appends f, with its hyperlinks when links is set (for
 // peers that offered frames/2).
 func AppendFrameWith(dst []byte, f *Frame, links bool) []byte {
+	return AppendFrameOpts(dst, f, FrameOptions{Links: links})
+}
+
+// AppendFrameOpts appends f with what opts allow.
+func AppendFrameOpts(dst []byte, f *Frame, opts FrameOptions) []byte {
+	links := opts.Links
+	clip := opts.Clipboard && f.Clipboard != nil
 	start := len(dst)
 	dst = append(dst, 0, 0, 0, 0)
 	var flags byte
@@ -66,6 +87,9 @@ func AppendFrameWith(dst []byte, f *Frame, links bool) []byte {
 	}
 	if links {
 		flags |= flagLinks
+	}
+	if clip {
+		flags |= flagClipboard
 	}
 	dst = append(dst, flags)
 	dst = binary.AppendUvarint(dst, uint64(f.Cols))
@@ -83,6 +107,10 @@ func AppendFrameWith(dst []byte, f *Frame, links bool) []byte {
 	dst = binary.AppendUvarint(dst, uint64(f.Modes))
 	dst = binary.AppendUvarint(dst, uint64(f.Bells))
 	dst = appendString(dst, f.Title)
+	if clip {
+		dst = appendString(dst, f.Clipboard.Selection)
+		dst = appendString(dst, f.Clipboard.Data)
+	}
 	dst = binary.AppendUvarint(dst, uint64(len(f.Lines)))
 	for _, l := range f.Lines {
 		dst = binary.AppendUvarint(dst, uint64(l.Y))
@@ -106,6 +134,13 @@ func DecodeFrame(b []byte) (*Frame, error) {
 	f.Modes = Modes(d.uvarint())
 	f.Bells = uint32(d.uvarint())
 	f.Title = d.string()
+	if flags&flagClipboard != 0 {
+		c, ok := cleanClipboard(d.string(), d.string())
+		if !ok && d.err == nil {
+			return nil, errCorrupt
+		}
+		f.Clipboard = &c
+	}
 	n := d.int()
 	if d.err == nil && (f.Cols < 1 || f.Rows < 1 || f.Cols > MaxCols || f.Rows > MaxRows || n > f.Rows) {
 		return nil, errCorrupt

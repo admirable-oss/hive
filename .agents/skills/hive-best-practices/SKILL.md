@@ -7,7 +7,7 @@ description: Use Hive well, for people and for agents. How Hive is organised (da
 
 Hive runs coding agents (Claude Code, Codex, OpenCode, anything) under a background daemon, so they keep working when terminals close, SSH drops or the UI is closed. The `hive` command is both the multiplexer you work in and the CLI that scripts and agents use.
 
-Check the installed build before advising: `hive version` and `hive <command> --help` are the authority. This guide describes v0.8 (milestone M6); [`references/commands.md`](references/commands.md) is a compact command reference.
+Check the installed build before advising: `hive version` and `hive <command> --help` are the authority. This guide describes v0.9 (milestone M7); [`references/commands.md`](references/commands.md) is a compact command reference.
 
 ## The model
 
@@ -103,6 +103,10 @@ hive config reset-keys    # put the default [keys] back (keeps a .bak)
 
 Useful sections: `[session]` (`restore`, `resume_agents_on_restore`, `replay_history`, which is off because it keeps screen text on disk), `[retention]` (`exited_processes`, `process_log_mb`, `gc_interval`), `[ui]` (`sidebar`, `sidebar_width`, `mouse`, `clipboard = auto | osc52 | local | off`), `[theme]` (`name = auto | catppuccin | catppuccin-latte | tokyo-night | gruvbox | nord | terminal | custom`, plus `[theme.custom]`), `[keys]` (`prefix_keys`, plus `[keys.<mode>]` tables where `[]` unbinds), `[terminal]` (`shell`, `scrollback_mb`), `[daemon] autostart`. `HIVE_LOG=debug` raises the daemon's log level.
 
+## Other machines
+
+`hive --remote <ssh-host> <command>` (or `--machine <name>` after `hive machine add <name> <host>`) runs any command against Hive on another machine over the user's own ssh; with no command it opens the multiplexer showing that machine. Daemon commands run locally against the remote daemon; `daemon`, `config`, `integration`, `update` and the like run on the remote machine. Paths are remote paths and must be absolute. A missing or older hive there is installed after a yes/no question (`--yes` for scripts). The multiplexer's sidebar lists every enabled machine's agents; picking one switches to that machine. See `docs/remote.md`.
+
 ## Upgrades and versions
 
 The daemon reports its API level (`hive status --json`, `api_level`). A newer `hive` that finds an older daemon replaces it on its next command when no agent can be lost (agents run under shims, or none run); otherwise it explains and leaves it alone. `hive update` installs the latest release (checksum-verified) and restarts every daemon on it, with agents running throughout. Homebrew and Nix installs update through their package manager. After installing a new version some other way, `hive daemon restart` does the same explicitly. Running from source with `go run ./cmd/hive` works: the daemon is started from a copy in `<HIVE_HOME>/bin`.
@@ -121,4 +125,4 @@ The daemon reports its API level (`hive status --json`, `api_level`). A newer `h
 
 ## Not there yet
 
-Planned, not shipped (see `ROADMAP.md`): SSH and remote machines (M7), plugins (M8). Do not promise these; suggest the shipped equivalent instead (panes, `pane wait-output`, `events`, layouts).
+Planned, not shipped (see `ROADMAP.md`): plugins (M8). Do not promise these; suggest the shipped equivalent instead (panes, `pane wait-output`, `events`, layouts).

@@ -33,7 +33,7 @@ environment rooted in it. Hive puts them in ~/.hive/worktrees/<repo>/<branch>
 		Short:   "List a repository's worktrees and their environments",
 		Args:    noArgs,
 		RunE: withTimeout(paneTimeout, func(ctx context.Context, _ *cobra.Command, _ []string) error {
-			dir, err := absDir(repo)
+			dir, err := a.dirArg(repo)
 			if err != nil {
 				return err
 			}
@@ -83,7 +83,7 @@ exist yet is created from --base, or from the repository's HEAD.`,
   hive worktree create feature/search --base origin/main --id search`,
 		Args: exactArgs(1),
 		RunE: withTimeout(worktreeTimeout, func(ctx context.Context, _ *cobra.Command, args []string) error {
-			dir, err := absDir(repo)
+			dir, err := a.dirArg(repo)
 			if err != nil {
 				return err
 			}
@@ -117,7 +117,7 @@ func newWorktreeOpenCmd(a *app) *cobra.Command {
 		Short: "Create an environment for an existing worktree (or show its environment)",
 		Args:  exactArgs(1),
 		RunE: withTimeout(paneTimeout, func(ctx context.Context, _ *cobra.Command, args []string) error {
-			dir, err := absDir(args[0])
+			dir, err := a.dirArg(args[0])
 			if err != nil {
 				return err
 			}
@@ -152,7 +152,7 @@ unless --force. The branch is kept.`,
 			req := client.WorktreeRemoveRequest{ID: args[0], Force: force}
 			if strings.ContainsRune(args[0], filepath.Separator) || args[0] == "." || args[0] == ".." {
 				if fi, err := os.Stat(args[0]); err == nil && fi.IsDir() {
-					dir, err := absDir(args[0])
+					dir, err := a.dirArg(args[0])
 					if err != nil {
 						return err
 					}

@@ -135,7 +135,7 @@ workspace for it instead (deleted with the environment).`,
 				return &usageError{fmt.Errorf("--managed and --cwd exclude each other")}
 			}
 			if !managed {
-				root, err := absDir(cwd)
+				root, err := a.dirArg(cwd)
 				if err != nil {
 					return err
 				}
@@ -231,6 +231,19 @@ func parseVars(args []string) (map[string]string, error) {
 
 // absDir resolves a directory argument against the current directory and
 // checks it exists.
+// dirArg resolves a directory argument. With --remote it names a directory
+// on the remote machine, which cannot be checked from here, so it must be
+// absolute.
+func (a *app) dirArg(dir string) (string, error) {
+	if a.remote == nil {
+		return absDir(dir)
+	}
+	if !filepath.IsAbs(dir) {
+		return "", &usageError{fmt.Errorf("%q: with --remote or --machine, give an absolute path on %s", dir, a.remoteName)}
+	}
+	return filepath.Clean(dir), nil
+}
+
 func absDir(dir string) (string, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {

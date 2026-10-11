@@ -53,6 +53,17 @@ type Options struct {
 	Notify notify.Config
 	// Warnings are shown as toasts when the UI opens (config problems).
 	Warnings []string
+	// Machine names the machine the client talks to ("" is this one), and
+	// Machines are the others: the sidebar lists their agents, and picking
+	// one shows its workspace instead.
+	Machine  string
+	Machines []Machine
+}
+
+// Machine is another machine running Hive, and a client of its daemon.
+type Machine struct {
+	Name   string
+	Client client.Client
 }
 
 // DefaultSidebarWidth is the sidebar's width unless configured.
@@ -154,7 +165,7 @@ func Run(ctx context.Context, c client.Client, opts Options) error {
 			}
 			continue
 		}
-		out.frame(a)
+		out.frame(a) //nolint:contextcheck // as above
 		lastFrame = now
 	}
 	return nil
