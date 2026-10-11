@@ -14,6 +14,7 @@ import (
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/logging"
+	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
@@ -115,6 +116,12 @@ func NewModule(cfg Config) *Module {
 	server.Go(keep.runGC)
 	server.OnShutdown(keep.save)
 
+	meta := metadata.NewStore(nil)
+	server.Go(func(ctx context.Context) { expireMetadata(ctx, meta, bus, log) })
+	plugins := newPluginHost(cfg, log.With("module", "plugin"))
+	server.Go(plugins.Run)
+	server.Go(func(ctx context.Context) { forwardEvents(ctx, bus, plugins) })
+
 	Register(router, server)
 	environment.Register(router, guardedEnvs)
 	process.Register(router, procs)
@@ -122,10 +129,12 @@ func NewModule(cfg Config) *Module {
 	event.Register(router, bus)
 	pane.Register(router, panes)
 	agent.Register(router, agents)
-	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir()}
+	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir(), events: bus}
 	registerWorktrees(router, wts)
 	registerAgentOps(router, &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs})
 	registerSession(router, keep)
+	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)
+	registerPlugins(router, plugins)
 	registerAPI(router, server, guardedEnvs, panes, procs, agents) // last: it describes the others
 
 	return &Module{

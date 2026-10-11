@@ -80,3 +80,7 @@ func (l LaunchEnv) build(layers ...map[string]string) []string {
 	}
 	return out
 }
+
+// Build returns the environment of a process that is not one of this
+// service's (a plugin's command): Base, then layers, then Vars.
+func (l LaunchEnv) Build(layers ...map[string]string) []string { return l.build(layers...) }

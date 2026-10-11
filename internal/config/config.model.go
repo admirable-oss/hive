@@ -128,6 +128,8 @@ type UI struct {
 	Mouse bool
 	// Clipboard is where copied text goes: auto | osc52 | local | off.
 	Clipboard string
+	// StatusRight is shown on the right of the tab bar ([[ui.status_right]]).
+	StatusRight []StatusSegment
 }
 
 // Clipboard modes.
@@ -149,7 +151,47 @@ type Keys struct {
 	// Modes holds [keys.<mode>] tables: action → keys. An empty list
 	// unbinds the action.
 	Modes map[string]map[string][]string
+	// Commands are the user's own commands ([[keys.command]]).
+	Commands []KeyCommand
 }
+
+// KeyCommand binds keys to a command of the user's.
+type KeyCommand struct {
+	Keys []string
+	// Mode is where the keys work: prefix (default), terminal or navigate.
+	Mode string
+	// Type is what runs: popup (a command in a popup over the tab), pane
+	// (a command in a new pane beside the focused one), shell (a command
+	// in the background, its last line shown) or plugin_action.
+	Type string
+	// Command is the command line (popup, pane, shell), run by sh -c.
+	Command string
+	// Plugin and Action name a plugin's action (plugin_action).
+	Plugin, Action string
+	// Title names it in the help and in messages.
+	Title string
+}
+
+// Key command types.
+var KeyCommandTypes = []string{"popup", "pane", "shell", "plugin_action"}
+
+// StatusSegment is one item on the right of the tab bar.
+type StatusSegment struct {
+	// Type is text, datetime, hostname or command.
+	Type string
+	// Text is shown as is (text).
+	Text string
+	// Format is the datetime's layout in strftime style (%H:%M, the
+	// default).
+	Format string
+	// Command runs by sh -c every Interval (default 30s); its output's
+	// first line is shown.
+	Command  string
+	Interval time.Duration
+}
+
+// StatusTypes are the kinds of status segment.
+var StatusTypes = []string{"text", "datetime", "hostname", "command"}
 
 // KeyModes are the input modes a [keys.<mode>] table may name.
 var KeyModes = []string{"terminal", "prefix", "navigate", "resize", "copy"}

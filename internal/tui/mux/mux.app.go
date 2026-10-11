@@ -66,6 +66,7 @@ type App struct {
 	connCancel context.CancelFunc
 	gen        int
 	mach       machinesState
+	status     []string // command segments' latest output
 }
 
 // uiState is what the user is doing: mode, overlays, selections.
@@ -132,6 +133,7 @@ func (a *App) Start() {
 	a.subscribe()
 	a.refresh()
 	a.watchMachines()
+	a.startStatus()
 }
 
 // Close stops background work and every pane stream, and waits for them.
@@ -242,6 +244,14 @@ func (a *App) Handle(m Msg) {
 		}
 	case machineAgentsMsg:
 		a.machineAgents(m)
+	case commandDoneMsg:
+		a.commandDone(m)
+	case statusMsg:
+		if m.index < len(a.status) {
+			a.status[m.index] = m.text
+		}
+	case statusTickMsg:
+		a.after(time.Second, statusTickMsg{})
 	case claimedMsg:
 		delete(a.ws.claiming, m.tab)
 		if m.err != nil {

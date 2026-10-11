@@ -276,6 +276,28 @@ func defaults() map[Mode]map[Action][]string {
 type Overrides struct {
 	Prefix []string
 	Modes  map[Mode]map[Action][]string
+	// Commands are the user's own commands ([[keys.command]]); the nth
+	// is bound as CommandAction(n).
+	Commands []Command
+}
+
+// Command binds keys in a mode to one of the user's commands.
+type Command struct {
+	Mode  Mode
+	Keys  []string
+	Title string
+}
+
+// CommandAction(n) runs the user's nth command.
+func CommandAction(n int) Action { return Action(fmt.Sprintf("command-%d", n)) }
+
+// CommandNumber returns n for CommandAction(n).
+func (a Action) CommandNumber() (int, bool) {
+	var n int
+	if _, err := fmt.Sscanf(string(a), "command-%d", &n); err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
 }
 
 // Keymap resolves keys in each mode.
@@ -283,6 +305,7 @@ type Keymap struct {
 	prefixes []string
 	keys     map[Mode]map[string]Action // mode → normalized key → action
 	actions  map[Mode]map[Action][]string
+	titles   map[Action]string // the user's commands
 }
 
 // Default returns the built-in key map.
@@ -376,6 +399,37 @@ func New(o Overrides) (*Keymap, []string) {
 			}
 		}
 	}
+	km.titles = map[Action]string{}
+	for i, c := range o.Commands {
+		a := CommandAction(i)
+		if c.Mode == ModeCopy || km.keys[c.Mode] == nil {
+			warnings = append(warnings, fmt.Sprintf("keys.command[%d]: mode %q cannot run commands", i, c.Mode))
+			continue
+		}
+		km.titles[a] = c.Title
+		for _, raw := range c.Keys {
+			k, err := Normalize(raw)
+			if err != nil {
+				warnings = append(warnings, fmt.Sprintf("keys.command[%d]: %v", i, err))
+				continue
+			}
+			if c.Mode == ModeTerminal && slices.Contains(km.prefixes, k) {
+				warnings = append(warnings, fmt.Sprintf("keys.command[%d]: %q is a prefix key", i, k))
+				continue
+			}
+			if prev, taken := km.keys[c.Mode][k]; taken {
+				// A built-in binding gives the key up; the user's own
+				// bindings and earlier commands keep it.
+				if _, mine := o.Modes[c.Mode][prev]; mine || strings.HasPrefix(string(prev), "command-") {
+					warnings = append(warnings, fmt.Sprintf("keys.command[%d]: %q is already bound to %s", i, k, underscore(prev)))
+					continue
+				}
+				km.actions[c.Mode][prev] = slices.DeleteFunc(km.actions[c.Mode][prev], func(x string) bool { return x == k })
+			}
+			km.keys[c.Mode][k] = a
+			km.actions[c.Mode][a] = append(km.actions[c.Mode][a], k)
+		}
+	}
 	// In prefix mode, a prefix key pressed again sends it to the pane.
 	for _, p := range km.prefixes {
 		if _, taken := km.keys[ModePrefix][p]; !taken {
@@ -441,7 +495,14 @@ func (km *Keymap) Entries() []Entry {
 	var out []Entry
 	for _, m := range Modes {
 		for _, a := range slices.Sorted(maps.Keys(km.actions[m])) {
-			out = append(out, Entry{Mode: m, Action: a, Keys: slices.Clone(km.actions[m][a]), Description: descriptions[a]})
+			if len(km.actions[m][a]) == 0 {
+				continue // a built-in binding a command took over
+			}
+			desc := descriptions[a]
+			if t, ok := km.titles[a]; ok {
+				desc = "run " + t
+			}
+			out = append(out, Entry{Mode: m, Action: a, Keys: slices.Clone(km.actions[m][a]), Description: desc})
 		}
 	}
 	return out

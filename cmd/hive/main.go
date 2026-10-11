@@ -61,13 +61,15 @@ func execute(args []string, stdout, stderr io.Writer, getenv func(string) string
 			return exitUsage
 		}
 	}
-	if r, ok := parseRemoteArgs(args); ok {
+	r, remote := parseRemoteArgs(args)
+	if remote {
 		if err := a.useRemote(r); err != nil {
 			fmt.Fprintln(stderr, "hive:", err)
 			return exitUsage
 		}
 	}
 	root := newRootCmd(a)
+	a.yes = r.yes // flags are parsed later; a pass-through needs it before
 	if a.remote != nil {
 		if code, done := a.passThrough(ctx, root, args, stdout, stderr); done {
 			return code

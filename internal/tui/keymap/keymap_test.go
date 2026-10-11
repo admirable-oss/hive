@@ -164,3 +164,43 @@ func TestEntriesAndFilter(t *testing.T) {
 		t.Fatalf("ParseAction = %q, %v", a, err)
 	}
 }
+
+func TestUserCommands(t *testing.T) {
+	km, warnings := keymap.New(keymap.Overrides{
+		Modes: map[keymap.Mode]map[keymap.Action][]string{keymap.ModePrefix: {keymap.Zoom: {"Z"}}},
+		Commands: []keymap.Command{
+			{Mode: keymap.ModePrefix, Keys: []string{"g"}, Title: "lazygit"},
+			{Mode: keymap.ModePrefix, Keys: []string{"c"}, Title: "takes a built-in key"},
+			{Mode: keymap.ModePrefix, Keys: []string{"Z"}, Title: "the user's zoom keeps it"},
+			{Mode: keymap.ModeTerminal, Keys: []string{"alt+p"}, Title: "no prefix"},
+			{Mode: keymap.ModeCopy, Keys: []string{"x"}},
+		},
+	})
+	if len(warnings) != 2 || !strings.Contains(warnings[0], "already bound to zoom") || !strings.Contains(warnings[1], "cannot run commands") {
+		t.Fatalf("warnings = %q", warnings)
+	}
+	for _, tt := range []struct {
+		mode keymap.Mode
+		key  string
+		want keymap.Action
+	}{{keymap.ModePrefix, "g", keymap.CommandAction(0)}, {keymap.ModePrefix, "c", keymap.CommandAction(1)}, {keymap.ModePrefix, "Z", keymap.Zoom}, {keymap.ModeTerminal, "alt+p", keymap.CommandAction(3)}} {
+		if got, ok := km.LookupName(tt.mode, tt.key); !ok || got != tt.want {
+			t.Errorf("%s %s = %q", tt.mode, tt.key, got)
+		}
+	}
+	if n, ok := keymap.CommandAction(3).CommandNumber(); !ok || n != 3 {
+		t.Fatal("CommandNumber")
+	}
+	found := false
+	for _, e := range km.Entries() {
+		if e.Action == keymap.CommandAction(0) && e.Description == "run lazygit" {
+			found = true
+		}
+		if e.Mode == keymap.ModePrefix && slices.Contains(e.Keys, "c") && e.Action != keymap.CommandAction(1) {
+			t.Errorf("c still listed for %s", e.Action)
+		}
+	}
+	if !found {
+		t.Fatal("the command is not in the help")
+	}
+}

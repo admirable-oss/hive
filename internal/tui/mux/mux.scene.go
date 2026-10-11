@@ -13,6 +13,7 @@ import (
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/git"
+	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
@@ -81,7 +82,7 @@ func (a *App) tabBar() compositor.TabBar {
 			})
 		}
 	}
-	tb.Right = a.modeIndicator()
+	tb.Right = append(a.statusSpans(), a.modeIndicator()...)
 	return tb
 }
 
@@ -205,6 +206,7 @@ func (a *App) sidebarRows() []compositor.SidebarRow {
 			if g := gitSummary(e.Git); g != "" {
 				spans = append(spans, compositor.Span{Text: "  " + g, Style: muted})
 			}
+			spans = append(spans, a.metaSpans(metadata.Target{Environment: e.ID})...)
 			rows = append(rows, compositor.SidebarRow{ID: e.ID, Kind: compositor.HitEnvironment, Selected: e.ID == a.ws.envID, Spans: spans})
 		}
 	}
@@ -218,10 +220,11 @@ func (a *App) sidebarRows() []compositor.SidebarRow {
 		}
 		for _, p := range agents {
 			glyph, c := a.statusGlyph(&p)
-			rows = append(rows, compositor.SidebarRow{
-				ID: p.ID, Kind: compositor.HitAgent, Selected: p.ID == focused,
-				Spans: []compositor.Span{{Text: glyph + " ", Style: uv.Style{Fg: c}}, {Text: a.agentName(&p)}},
-			})
+			spans := []compositor.Span{{Text: glyph + " ", Style: uv.Style{Fg: c}}, {Text: a.agentName(&p)}}
+			if pp := s.paneOfProcess(p.ID); pp != nil {
+				spans = append(spans, a.metaSpans(metadata.Target{Pane: pp.ID})...)
+			}
+			rows = append(rows, compositor.SidebarRow{ID: p.ID, Kind: compositor.HitAgent, Selected: p.ID == focused, Spans: spans})
 		}
 		if len(agents) == 0 {
 			rows = append(rows, compositor.SidebarRow{Spans: []compositor.Span{{Text: "  none yet", Style: muted}}})
@@ -322,8 +325,13 @@ func statusText(p *process.Process) string {
 // agentName is what the UI calls an agent: its pane's name, else its
 // command.
 func (a *App) agentName(p *process.Process) string {
-	if pp := a.ws.snap.paneOfProcess(p.ID); pp != nil && pp.Name != "" {
-		return pp.Name
+	if pp := a.ws.snap.paneOfProcess(p.ID); pp != nil {
+		if pp.Name != "" {
+			return pp.Name
+		}
+		if t := a.metaTitle(metadata.Target{Pane: pp.ID}); t != "" {
+			return t
+		}
 	}
 	return commandName(p)
 }
@@ -454,6 +462,8 @@ func (a *App) paneTitle(p *pane.Pane, scr *vt.Screen) string {
 	switch {
 	case p.Name != "":
 		return p.Name
+	case a.metaTitle(metadata.Target{Pane: p.ID}) != "":
+		return a.metaTitle(metadata.Target{Pane: p.ID})
 	case scr != nil && strings.TrimSpace(scr.Title) != "":
 		return strings.TrimSpace(scr.Title)
 	case p.Process != nil:

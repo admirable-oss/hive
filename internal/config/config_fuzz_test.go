@@ -17,6 +17,7 @@ func FuzzParse(f *testing.F) {
 	f.Add([]byte("[[daemon]]\n"))
 	f.Add([]byte("[notify]\nagents = {}\non = []\n[notify.agents]\n"))
 	f.Add([]byte("[keys]\nprefix_keys = \"ctrl+a\"\n[keys.prefix]\nzoom = []\nsplit_right = [\"|\", 3]\n[theme.custom]\nbase = \"nord\"\n"))
+	f.Add([]byte("[[keys.command]]\nkeys = \"g\"\ntype = \"popup\"\ncommand = \"lazygit\"\n[[keys.command]]\nkeys = [\"P\"]\nmode = \"terminal\"\ntype = \"plugin_action\"\nplugin = \"p\"\naction = \"a\"\n[[ui.status_right]]\ntype = \"command\"\ncommand = \"date\"\n[[ui.status_right]]\ntype = \"datetime\"\nformat = \"%H\"\n"))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		cfg, _, err := config.Parse(data)
 		if err != nil {

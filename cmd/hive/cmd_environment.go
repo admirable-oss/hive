@@ -24,6 +24,7 @@ func newEnvironmentCmd(a *app) *cobra.Command {
 	}
 	const timeout = 15 * time.Second
 	cmd.AddCommand(
+		newReportMetadataCmd(a, true),
 		needsDaemon(&cobra.Command{
 			Use:     "list",
 			Aliases: []string{"ls"},

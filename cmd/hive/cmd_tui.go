@@ -93,7 +93,24 @@ func uiOptions(cfg config.Config) (mux.Options, []string) {
 		}
 		modes[keymap.Mode(mode)] = actions
 	}
-	km, warnings := keymap.New(keymap.Overrides{Prefix: cfg.Keys.Prefix, Modes: modes})
+	var bound []keymap.Command
+	var commands []mux.Command
+	for _, c := range cfg.Keys.Commands {
+		title := c.Title
+		if title == "" {
+			title = c.Command
+			if c.Type == "plugin_action" {
+				title = c.Plugin + " " + c.Action
+			}
+		}
+		bound = append(bound, keymap.Command{Mode: keymap.Mode(c.Mode), Keys: c.Keys, Title: title})
+		commands = append(commands, mux.Command{Type: c.Type, Command: c.Command, Plugin: c.Plugin, Action: c.Action, Title: title})
+	}
+	km, warnings := keymap.New(keymap.Overrides{Prefix: cfg.Keys.Prefix, Modes: modes, Commands: bound})
+	var status []mux.StatusSegment
+	for _, s := range cfg.UI.StatusRight {
+		status = append(status, mux.StatusSegment{Type: s.Type, Text: s.Text, Format: s.Format, Command: s.Command, Interval: s.Interval})
+	}
 
 	var custom *theme.Theme
 	if len(cfg.Theme.Custom) > 0 {
@@ -118,5 +135,7 @@ func uiOptions(cfg config.Config) (mux.Options, []string) {
 		NoMouse:      !cfg.UI.Mouse,
 		Clipboard:    clip,
 		Notify:       cfg.Notify,
+		Commands:     commands,
+		StatusRight:  status,
 	}, warnings
 }

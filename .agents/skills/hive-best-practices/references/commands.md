@@ -1,6 +1,6 @@
-# Hive command reference (v0.9)
+# Hive command reference (v0.10)
 
-Every command takes `--json` (machine-readable output), `--session <name>`, and `--remote <ssh-host>` or `--machine <name>` to act on another machine. Commands that need the daemon start it on demand. Aliases: `env` for `environment`, `ps` for `process`, `tui` for `ui`. Confirm details with `hive <command> --help`.
+Every command takes `--json` (machine-readable output), `--template '<Go template>'` (fields by their JSON names), `--session <name>`, and `--remote <ssh-host>` or `--machine <name>` to act on another machine. Commands that need the daemon start it on demand. Aliases: `env` for `environment`, `ps` for `process`, `tui` for `ui`. Confirm details with `hive <command> --help`.
 
 ## Multiplexer
 
@@ -78,6 +78,8 @@ Every command takes `--json` (machine-readable output), `--session <name>`, and 
 | `hive session list`, `stop <name>`, `remove <name>` | Separate daemons with their own environments |
 | `hive session save`, `restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again, agents resuming their conversations |
 | `hive machine add <name> <host>`, `list`, `rename`, `enable`, `disable`, `remove`, `status`, `reconnect` | Saved remote machines (see `docs/remote.md`) |
+| `hive plugin install <git-url> [--ref r]`, `link <dir>`, `list`, `info`, `enable`, `disable`, `uninstall`, `run <id> <action>`, `logs <id>` | Plugins (see `docs/plugins.md`) |
+| `hive pane report-metadata [pane] --token k=v --title t --ttl d`, `hive env report-metadata [env] …`, `hive metadata` | Tokens and titles in the sidebar |
 | `hive proxy` | Bridge stdin/stdout to the daemon (what `--remote` runs over ssh) |
 | `hive gc [--dry-run] [--older-than d]` | Remove old ended processes' records and logs, and leftovers |
 | `hive update [--check] [--version v] [--from file]` | Install a release and restart the daemon; agents keep running |

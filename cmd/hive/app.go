@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"text/tabwriter"
+	"text/template"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/client"
@@ -47,6 +48,8 @@ type app struct {
 	out    io.Writer
 	errOut io.Writer
 	json   bool // --json: machine-readable output
+	// template formats a command's JSON output (--template), as in gh.
+	template string
 }
 
 func newApp(getenv func(string) string, stdout, stderr io.Writer) (*app, error) {
@@ -266,10 +269,32 @@ func nonNilStrings(s []string) []string {
 
 // emit prints v as JSON under --json, and calls human otherwise.
 func (a *app) emit(v any, human func() error) error {
+	if a.template != "" {
+		return a.printTemplate(v)
+	}
 	if a.json {
 		return a.printJSON(v)
 	}
 	return human()
+}
+
+// printTemplate formats v's JSON form with a Go template (--template):
+// fields have their JSON names, so `hive env list --template
+// '{{range .}}{{.id}} {{.path}}{{"\n"}}{{end}}'` lists IDs and paths.
+func (a *app) printTemplate(v any) error {
+	t, err := template.New("output").Option("missingkey=zero").Parse(a.template)
+	if err != nil {
+		return &usageError{fmt.Errorf("--template: %w", err)}
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	var generic any
+	if err := json.Unmarshal(data, &generic); err != nil {
+		return err
+	}
+	return t.Execute(a.out, generic)
 }
 
 func formatTime(t time.Time) string {

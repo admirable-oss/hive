@@ -171,7 +171,7 @@ Go beyond one machine: SSH in and manage a whole fleet of agents from wherever y
 
 ---
 
-## M8 · Extensibility — `v0.10`
+## M8 · Extensibility — `v0.10` - **LIVE**
 
 Make Hive yours: plugins, custom commands, and hooks for whatever your workflow needs.
 

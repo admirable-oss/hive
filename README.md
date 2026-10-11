@@ -48,6 +48,7 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 | Survives reboots: session snapshots, panes restored where they were working, agents resume their conversations ([docs](docs/persistence.md)) | ✅ working |
 | Housekeeping (`hive gc`, retention, output log rotation) and self-update (`hive update`, agents keep running) | ✅ working |
 | Remote machines over SSH: `--remote`, saved machines, every machine's agents in the sidebar, compressed and paced screens, clipboard back to you ([docs](docs/remote.md)) | ✅ working |
+| Plugins (startup, events, actions; install from git with a trust preview), key commands, sidebar tokens, status bar ([docs](docs/plugins.md)) | ✅ working |
 | Windows support | 🗺 planned |
 
 ## Quick start
@@ -112,13 +113,15 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive daemon install \| uninstall` | Run the daemon as a launchd agent (macOS) or systemd user service (Linux) |
 | `hive session save \| restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again (the daemon does both by itself) |
 | `hive --remote <host> …` · `hive --machine <name> …` | Run any command (or the multiplexer) against Hive on another machine over SSH; installs it there after asking |
+| `hive plugin install \| link \| list \| info \| enable \| disable \| uninstall \| run \| logs` | Plugins: programs Hive runs at start, on events and on demand |
+| `hive pane report-metadata` · `hive env report-metadata` · `hive metadata` | Tokens and titles in the sidebar, with a TTL |
 | `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip and agents |
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
 | `hive update [--check] [--version v] [--from file]` | Update hive to the latest release and restart the daemon; agents keep running |
 | `hive config path \| show \| default \| init \| validate \| reset-keys` | Inspect and create the configuration file; put the default key bindings back |
 | `hive completion bash\|zsh\|fish\|powershell` | Shell completion, including environment and process IDs |
 
-Every command that talks to the daemon starts it if it is not running (turn this off with `daemon.autostart = false`). Add `--json` to any command for machine-readable output. Exit codes: `0` success, `1` error, `2` bad command line, `3` daemon not running.
+Add `--template '<Go template>'` to format a command's JSON output for scripts (`hive env list --template '{{range .}}{{.id}}{{"\n"}}{{end}}'`). Every command that talks to the daemon starts it if it is not running (turn this off with `daemon.autostart = false`). Add `--json` to any command for machine-readable output. Exit codes: `0` success, `1` error, `2` bad command line, `3` daemon not running.
 
 ### Configuration
 
@@ -239,6 +242,8 @@ hive ps start -t dev -- claude
   snapshots/session-<time>.json              the 48 before it
   history/<pane>.txt                         panes' recent text, only with session.replay_history
   machines.json                              saved machines (hive machine), shared by every session
+  plugins/<id>/  plugins/registry.json       installed plugins (shared by every session); plugins/.data/<id>/ their data
+  logs/plugins/<id>.log                      what each plugin's commands printed
   ssh/                                       shared SSH connections' sockets (ControlMaster)
   run/<process-id>/                          one shim per live agent (0700)
     spec.json  state.json                    what it runs; running / exited + exit code
