@@ -19,9 +19,30 @@ import (
 // agents working on different branches never share a working tree. It
 // spans git and environments, which is why it lives in the runtime.
 type worktrees struct {
-	git  *git.Git
-	envs environment.Service // the guarded service: deletes stop agents
-	dir  string
+	git    *git.Git
+	envs   environment.Service // the guarded service: deletes stop agents
+	dir    string
+	events interface{ Publish(typ string, data any) }
+}
+
+// Worktree events: data is a WorktreeEvent.
+const (
+	EventWorktreeCreated = "worktree.created"
+	EventWorktreeRemoved = "worktree.removed"
+)
+
+// WorktreeEvent says which worktree, and its environment when it has one.
+type WorktreeEvent struct {
+	Path        string                   `json:"path"`
+	Repo        string                   `json:"repo"`
+	Branch      string                   `json:"branch,omitempty"`
+	Environment *environment.Environment `json:"environment,omitempty"`
+}
+
+func (w *worktrees) publish(typ string, ev WorktreeEvent) {
+	if w.events != nil {
+		w.events.Publish(typ, ev)
+	}
 }
 
 // WorktreeInfo is one worktree of a repository and the environments rooted
@@ -143,6 +164,7 @@ func (w *worktrees) Create(ctx context.Context, req WorktreeCreateRequest) (envi
 		_ = w.git.RemoveWorktree(context.WithoutCancel(ctx), main.Path, path, true)
 		return environment.Environment{}, err
 	}
+	w.publish(EventWorktreeCreated, WorktreeEvent{Path: path, Repo: main.Path, Branch: req.Branch, Environment: &env})
 	return env, nil
 }
 
@@ -233,7 +255,11 @@ func (w *worktrees) Remove(ctx context.Context, req WorktreeRemoveRequest) error
 			}
 		}
 	}
-	return w.git.RemoveWorktree(ctx, main.Path, path, req.Force)
+	if err := w.git.RemoveWorktree(ctx, main.Path, path, req.Force); err != nil {
+		return err
+	}
+	w.publish(EventWorktreeRemoved, WorktreeEvent{Path: path, Repo: main.Path})
+	return nil
 }
 
 // samePath compares directories, resolving symlinks (on macOS /tmp and

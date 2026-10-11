@@ -52,6 +52,9 @@ func TestEveryCommandSpeaksJSON(t *testing.T) {
 		{"gc", "--dry-run"},
 		{"machine", "list"},
 		{"machine", "status"},
+		{"plugin", "list"},
+		{"metadata"},
+		{"env", "report-metadata", "dev", "--token", "k=v"},
 	}
 	for _, args := range steps {
 		out, errOut, code := c.run(append([]string{"--json"}, args...)...)

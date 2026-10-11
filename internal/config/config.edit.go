@@ -7,14 +7,15 @@ import (
 
 // ResetKeys removes the [keys] table and every [keys.<mode>] table from a
 // config document, keeping everything else (comments included) as it was,
-// and appends the default, documented [keys] section. found reports whether
-// the document had key settings to remove.
+// and appends the default, documented [keys] section. The user's own
+// commands ([[keys.command]]) are kept: they are not bindings to restore.
+// found reports whether the document had key settings to remove.
 func ResetKeys(data []byte) (out []byte, found bool) {
 	var b bytes.Buffer
 	inKeys := false
 	for _, line := range bytes.SplitAfter(data, []byte("\n")) {
 		if name, ok := tableHeader(string(line)); ok {
-			inKeys = name == "keys" || strings.HasPrefix(name, "keys.")
+			inKeys = (name == "keys" || strings.HasPrefix(name, "keys.")) && name != "keys.command"
 			found = found || inKeys
 		}
 		if !inKeys {

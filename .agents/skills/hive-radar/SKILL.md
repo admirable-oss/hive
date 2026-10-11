@@ -23,7 +23,7 @@ Use this skill only inside the Hive repository.
 
 ## 0. Know What Hive Ships
 
-Read `ROADMAP.md` before judging issues. It lists the milestones in order, what each one delivered, and what is still planned. As of v0.5 (M3) Hive ships the daemon and shims (agents survive daemon restarts), sessions, environments, tabs, split layouts, the pane API, git worktrees and the multiplexer UI. Agent state detection (M4), the agents-operating-agents CLI and MCP (M5), and host-reboot persistence, `hive gc` and `hive update` (M6) and SSH remote machines (M7) have shipped since; plugins (M8) are planned, not shipped.
+Read `ROADMAP.md` before judging issues. It lists the milestones in order, what each one delivered, and what is still planned. As of v0.5 (M3) Hive ships the daemon and shims (agents survive daemon restarts), sessions, environments, tabs, split layouts, the pane API, git worktrees and the multiplexer UI. Agent state detection (M4), the agents-operating-agents CLI and MCP (M5), and host-reboot persistence, `hive gc` and `hive update` (M6) SSH remote machines (M7) and plugins, key commands, sidebar tokens and the status bar (M8) have shipped since; the v1.0 hardening (M9) is planned.
 
 - An issue about a planned capability is a feature request or roadmap input, not a regression: weigh it against that milestone rather than marking it 🔴.
 - An issue about shipped behaviour is weighed against the relevant ADR in `docs/adr/` when one exists. A report that contradicts an accepted decision is a `needs owner decision`, not a bug.

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -86,6 +87,7 @@ func (c *Config) schema() map[string]map[string]setter {
 					return nil
 				})
 			},
+			"status_right": c.statusSchema,
 		},
 		"theme": {
 			"name": func(raw any) error {
@@ -152,6 +154,7 @@ func (c *Config) schema() map[string]map[string]setter {
 // keysSchema reads [keys]: prefix_keys, and a table per mode.
 func (c *Config) keysSchema() map[string]setter {
 	keys := map[string]setter{
+		"command": c.keyCommandsSchema,
 		"prefix_keys": func(raw any) error {
 			list, err := keyList(raw)
 			if err != nil {
@@ -383,4 +386,183 @@ func setFormat(dst *string, s string) error {
 
 func typeError(want string, raw any) error {
 	return fmt.Errorf("must be %s, got %T", want, raw)
+}
+
+// tables reads an array of tables ([[x]]).
+func tables(raw any) ([]map[string]any, error) {
+	switch v := raw.(type) {
+	case []map[string]any:
+		return v, nil
+	case []any:
+		out := make([]map[string]any, 0, len(v))
+		for _, item := range v {
+			t, ok := item.(map[string]any)
+			if !ok {
+				return nil, typeError("an array of tables", item)
+			}
+			out = append(out, t)
+		}
+		return out, nil
+	}
+	return nil, typeError("an array of tables", raw)
+}
+
+// field reads one string field of a table entry; unknown fields are
+// reported.
+func stringField(t map[string]any, name string) (string, error) {
+	raw, ok := t[name]
+	if !ok {
+		return "", nil
+	}
+	s, ok := raw.(string)
+	if !ok {
+		return "", fmt.Errorf("%s %w", name, typeError("a string", raw))
+	}
+	return s, nil
+}
+
+func unknownFields(t map[string]any, known ...string) error {
+	for _, k := range slices.Sorted(maps.Keys(t)) {
+		if !slices.Contains(known, k) {
+			return fmt.Errorf("unknown field %q", k)
+		}
+	}
+	return nil
+}
+
+// keyCommandsSchema reads [[keys.command]]; a broken entry is skipped with
+// a warning, the rest apply.
+func (c *Config) keyCommandsSchema(raw any) error {
+	list, err := tables(raw)
+	if err != nil {
+		return err
+	}
+	var cmds []KeyCommand
+	var bad []string
+	for i, t := range list {
+		kc, err := keyCommand(t)
+		if err != nil {
+			bad = append(bad, fmt.Sprintf("[%d]: %v", i, err))
+			continue
+		}
+		cmds = append(cmds, kc)
+	}
+	c.Keys.Commands = cmds
+	if len(bad) > 0 {
+		return fmt.Errorf("%s (ignored)", strings.Join(bad, "; "))
+	}
+	return nil
+}
+
+func keyCommand(t map[string]any) (KeyCommand, error) {
+	if err := unknownFields(t, "keys", "mode", "type", "command", "plugin", "action", "title"); err != nil {
+		return KeyCommand{}, err
+	}
+	var kc KeyCommand
+	raw, ok := t["keys"]
+	if !ok {
+		return kc, errors.New("keys is required")
+	}
+	keys, err := keyList(raw)
+	if err != nil || len(keys) == 0 {
+		return kc, errors.New("keys: a key or a list of keys")
+	}
+	kc.Keys = keys
+	fields := map[string]*string{"mode": &kc.Mode, "type": &kc.Type, "command": &kc.Command, "plugin": &kc.Plugin, "action": &kc.Action, "title": &kc.Title}
+	for _, name := range slices.Sorted(maps.Keys(fields)) {
+		if *fields[name], err = stringField(t, name); err != nil {
+			return kc, err
+		}
+	}
+	kc.Mode = strings.ToLower(strings.TrimSpace(kc.Mode))
+	if kc.Mode == "" {
+		kc.Mode = "prefix"
+	}
+	if !slices.Contains([]string{"prefix", "terminal", "navigate"}, kc.Mode) {
+		return kc, fmt.Errorf("mode %q (want prefix, terminal or navigate)", kc.Mode)
+	}
+	kc.Type = strings.ToLower(strings.TrimSpace(kc.Type))
+	switch kc.Type {
+	case "popup", "pane", "shell":
+		if strings.TrimSpace(kc.Command) == "" {
+			return kc, fmt.Errorf("type %s needs a command", kc.Type)
+		}
+		if kc.Plugin != "" || kc.Action != "" {
+			return kc, fmt.Errorf("plugin and action are for type plugin_action")
+		}
+	case "plugin_action":
+		if kc.Plugin == "" || kc.Action == "" {
+			return kc, errors.New("type plugin_action needs plugin and action")
+		}
+		if kc.Command != "" {
+			return kc, errors.New("command is not for type plugin_action")
+		}
+	default:
+		return kc, fmt.Errorf("type %q (want %s)", kc.Type, strings.Join(KeyCommandTypes, ", "))
+	}
+	return kc, nil
+}
+
+// statusSchema reads [[ui.status_right]].
+func (c *Config) statusSchema(raw any) error {
+	list, err := tables(raw)
+	if err != nil {
+		return err
+	}
+	var segs []StatusSegment
+	var bad []string
+	for i, t := range list {
+		s, err := statusSegment(t)
+		if err != nil {
+			bad = append(bad, fmt.Sprintf("[%d]: %v", i, err))
+			continue
+		}
+		segs = append(segs, s)
+	}
+	c.UI.StatusRight = segs
+	if len(bad) > 0 {
+		return fmt.Errorf("%s (ignored)", strings.Join(bad, "; "))
+	}
+	return nil
+}
+
+func statusSegment(t map[string]any) (StatusSegment, error) {
+	if err := unknownFields(t, "type", "text", "format", "command", "interval"); err != nil {
+		return StatusSegment{}, err
+	}
+	var s StatusSegment
+	var interval string
+	var err error
+	fields := map[string]*string{"type": &s.Type, "text": &s.Text, "format": &s.Format, "command": &s.Command, "interval": &interval}
+	for _, name := range slices.Sorted(maps.Keys(fields)) {
+		if *fields[name], err = stringField(t, name); err != nil {
+			return s, err
+		}
+	}
+	s.Type = strings.ToLower(strings.TrimSpace(s.Type))
+	switch s.Type {
+	case "text":
+		if s.Text == "" {
+			return s, errors.New("type text needs text")
+		}
+	case "datetime", "hostname":
+	case "command":
+		if strings.TrimSpace(s.Command) == "" {
+			return s, errors.New("type command needs a command")
+		}
+		s.Interval = 30 * time.Second
+		if interval != "" {
+			d, err := time.ParseDuration(interval)
+			if err != nil || d < time.Second || d > 24*time.Hour {
+				return s, fmt.Errorf("interval %q: a duration from 1s to 24h", interval)
+			}
+			s.Interval = d
+		}
+	default:
+		return s, fmt.Errorf("type %q (want %s)", s.Type, strings.Join(StatusTypes, ", "))
+	}
+	if s.Type != "command" && interval != "" {
+		return s, errors.New("interval is for type command")
+	}
+	return s, nil
 }

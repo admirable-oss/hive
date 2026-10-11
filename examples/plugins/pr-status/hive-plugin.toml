@@ -1,0 +1,22 @@
+# Shows each environment's pull request (state and checks) beside it in
+# the sidebar. Needs the GitHub CLI (gh), signed in.
+id = "pr-status"
+name = "PR status"
+version = "0.1.0"
+description = "Shows each environment's pull request and its checks as a sidebar token (needs gh)."
+min_hive_version = "0.10.0"
+platforms = ["darwin", "linux"]
+
+[[startup]]
+command = ["./pr-status.sh", "watch"]
+restart = true
+
+[[actions]]
+id = "refresh"
+title = "Refresh the PR tokens now"
+command = ["./pr-status.sh", "once"]
+
+[[actions]]
+id = "open"
+title = "Open this environment's PR in the browser"
+command = ["./pr-status.sh", "open"]

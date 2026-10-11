@@ -16,6 +16,7 @@ import (
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/layout"
+	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
@@ -38,6 +39,8 @@ type snapshot struct {
 	// agents is every terminal's agent state, by process ID; nil from a
 	// daemon without agent detection.
 	agents map[string]agent.Agent
+	// meta is the tokens and titles reported on panes and environments.
+	meta map[metadata.Target]metadata.Entry
 }
 
 type size struct{ w, h int }
@@ -153,6 +156,7 @@ func load(ctx context.Context, c client.Client, api client.Workspace) (*snapshot
 		return nil, err
 	}
 	s.agents = loadAgents(ctx, c)
+	s.meta = loadMetadata(ctx, c)
 	slices.SortStableFunc(s.procs, func(a, b process.Process) int { return a.StartedAt.Compare(b.StartedAt) })
 	return &s, nil
 }
@@ -401,7 +405,7 @@ type eventsMsg struct {
 }
 
 // eventTypes are the events the UI follows.
-var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", event.Lost}
+var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", "metadata.", event.Lost}
 
 // subscribe opens the event stream and reads it until it ends.
 func (a *App) subscribe() {
@@ -475,6 +479,9 @@ func (a *App) apply(ev event.Event) {
 	switch ev.Type {
 	case agent.EventState:
 		a.applyAgentState(ev)
+		return
+	case metadata.EventChange:
+		a.applyMetadata(ev)
 		return
 	case "pane.focused":
 		var p pane.Pane

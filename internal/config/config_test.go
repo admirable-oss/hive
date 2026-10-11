@@ -320,7 +320,7 @@ x = "y"
 			t.Errorf("missing warning %q in:\n%s", want, joined)
 		}
 	}
-	if cfg.UI != config.Defaults().UI || !reflect.DeepEqual(cfg.Keys.Prefix, []string{config.DefaultPrefix}) {
+	if !reflect.DeepEqual(cfg.UI, config.Defaults().UI) || !reflect.DeepEqual(cfg.Keys.Prefix, []string{config.DefaultPrefix}) {
 		t.Errorf("bad values keep the defaults: %+v %+v", cfg.UI, cfg.Keys.Prefix)
 	}
 	if got := cfg.Keys.Modes["copy"]; !reflect.DeepEqual(got, map[string][]string{"copy_exit": {"q"}}) {
@@ -399,5 +399,62 @@ gc_interval = "0s"
 	}
 	if d := config.Defaults(); !d.Session.Restore || !d.Session.ResumeAgentsOnRestore || d.Session.ReplayHistory {
 		t.Errorf("defaults: restore and resume on, history replay off: %+v", d.Session)
+	}
+}
+
+func TestKeyCommandsAndStatus(t *testing.T) {
+	cfg, warnings, err := config.Parse([]byte(`
+[[keys.command]]
+keys = "g"
+type = "popup"
+command = "lazygit"
+title = "git"
+
+[[keys.command]]
+keys = ["alt+p"]
+mode = "terminal"
+type = "plugin_action"
+plugin = "pr-status"
+action = "open"
+
+[[keys.command]]
+keys = "x"
+type = "popup"
+
+[[ui.status_right]]
+type = "hostname"
+
+[[ui.status_right]]
+type = "command"
+command = "date +%s"
+interval = "5s"
+
+[[ui.status_right]]
+type = "weather"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 2 || !strings.Contains(warnings[0], "type popup needs a command") || !strings.Contains(warnings[1], `type "weather"`) {
+		t.Fatalf("warnings = %q", warnings)
+	}
+	want := []config.KeyCommand{
+		{Keys: []string{"g"}, Mode: "prefix", Type: "popup", Command: "lazygit", Title: "git"},
+		{Keys: []string{"alt+p"}, Mode: "terminal", Type: "plugin_action", Plugin: "pr-status", Action: "open"},
+	}
+	if !reflect.DeepEqual(cfg.Keys.Commands, want) {
+		t.Fatalf("commands = %+v", cfg.Keys.Commands)
+	}
+	if len(cfg.UI.StatusRight) != 2 || cfg.UI.StatusRight[1].Interval != 5*time.Second {
+		t.Fatalf("status = %+v", cfg.UI.StatusRight)
+	}
+	again, w, err := config.Parse(config.Render(cfg))
+	if err != nil || len(w) != 0 || !reflect.DeepEqual(again, cfg) {
+		t.Fatalf("round trip: %v %v\n%+v", err, w, again)
+	}
+	// Resetting the keys keeps the user's commands.
+	out, _ := config.ResetKeys(config.Render(cfg))
+	if reset, _, _ := config.Parse(out); len(reset.Keys.Commands) != 2 {
+		t.Fatalf("reset-keys dropped commands:\n%s", out)
 	}
 }

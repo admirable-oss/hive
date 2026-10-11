@@ -11,11 +11,12 @@ import (
 	"go.uber.org/goleak"
 )
 
-// TestMain doubles as the hive binary: with HIVE_CLI_TEST_EXEC=1 the test
-// executable runs the CLI instead of tests. End-to-end tests exec it, and the
-// CLI in turn spawns `hive daemon` the way a user's shell would.
+// TestMain doubles as the hive binary: with HIVE_CLI_TEST_EXEC=1, or when a
+// copy of it is called hive, the test executable runs the CLI instead of
+// tests. End-to-end tests exec it, and the CLI in turn spawns `hive daemon`
+// the way a user's shell would; plugins and agents call it as $HIVE_BIN.
 func TestMain(m *testing.M) {
-	if os.Getenv("HIVE_CLI_TEST_EXEC") == "1" {
+	if os.Getenv("HIVE_CLI_TEST_EXEC") == "1" || filepath.Base(os.Args[0]) == "hive" {
 		os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 	}
 	goleak.VerifyTestMain(m)

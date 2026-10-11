@@ -41,7 +41,8 @@ const Version2 = "2"
 //	5 operating agents: agent.start/prompt/wait/…, api.schema/snapshot (M5)
 //	6 persistence: session.save/restore, runtime.gc, session.restored (M6)
 //	7 remote clients: client.report, frames/deflate, clipboard in frames (M7)
-const APILevel = 7
+//	8 extensibility: plugin.*, metadata.*, worktree.created/removed (M8)
+const APILevel = 8
 
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.

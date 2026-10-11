@@ -55,13 +55,14 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		},
 	}
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "print machine-readable JSON")
+	root.PersistentFlags().StringVar(&a.template, "template", "", "format the JSON output with a Go template, fields by their JSON names (e.g. '{{range .}}{{.id}}{{\"\\n\"}}{{end}}')")
 	root.Flags().BoolVar(&skill, "skill", false, "print the skill that teaches agents to drive other agents through Hive (SKILL.md)")
 	// Read in execute before parsing; declared so cobra accepts and
 	// documents it.
 	root.PersistentFlags().String("session", "", "the session to use (default $HIVE_SESSION, else \"default\")")
 	root.PersistentFlags().String("remote", "", "run the command against Hive on the ssh `host` (installed there after confirmation)")
 	root.PersistentFlags().String("machine", "", "run the command against the saved machine `name` (see hive machine)")
-	root.PersistentFlags().Bool("yes", false, "with --remote or --machine: install or update hive there without asking")
+	root.PersistentFlags().BoolVar(&a.yes, "yes", false, "answer yes to installing: hive on another machine (--remote, --machine), a plugin")
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return &usageError{err} })
 	root.CompletionOptions.HiddenDefaultCmd = false
 
@@ -80,6 +81,7 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newUICmd(a),
 		newAgentCmd(a),
 		newIntegrationCmd(a),
+		newPluginCmd(a),
 		newMCPCmd(a),
 		newProcessCmd(a),
 		newTerminalCmd(a),
@@ -91,6 +93,7 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newTabCmd(a),
 		newPaneCmd(a),
 		newLayoutCmd(a),
+		newMetadataCmd(a),
 		newWorktreeCmd(a),
 	)
 	add("runtime",

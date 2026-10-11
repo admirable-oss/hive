@@ -58,6 +58,11 @@ type Options struct {
 	// one shows its workspace instead.
 	Machine  string
 	Machines []Machine
+	// Commands are the user's own commands, as the keymap binds them
+	// (keymap.CommandAction(n) runs Commands[n]).
+	Commands []Command
+	// StatusRight is shown on the right of the tab bar.
+	StatusRight []StatusSegment
 }
 
 // Machine is another machine running Hive, and a client of its daemon.

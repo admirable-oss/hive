@@ -35,6 +35,10 @@ func (a *App) do(act keymap.Action) {
 		a.focusAgent(n)
 		return
 	}
+	if n, ok := act.CommandNumber(); ok {
+		a.runCommand(n)
+		return
+	}
 	if act.IsCopy() {
 		return
 	}

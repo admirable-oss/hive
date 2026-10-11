@@ -27,6 +27,8 @@ var renderTmpl = template.Must(template.New("config").Funcs(template.FuncMap{
 	"keys":         RenderKeys,
 	"list":         tomlList,
 	"notifyAgents": renderNotifyAgents,
+	"keyCommands":  renderKeyCommands,
+	"status":       renderStatus,
 }).Parse(`# Hive configuration. Every key is optional; omitted keys use the defaults.
 # Unknown keys and invalid values are reported as warnings and ignored.
 
@@ -130,6 +132,7 @@ mouse = {{.UI.Mouse}}
 # Where copied text goes: auto (the terminal through OSC 52, and the system
 # clipboard when not over SSH) | osc52 | local | off
 clipboard = {{q .UI.Clipboard}}
+{{status .UI.StatusRight}}
 
 [theme]
 # auto (dark or light, from the terminal's background) | catppuccin |
@@ -137,7 +140,7 @@ clipboard = {{q .UI.Clipboard}}
 # colours) | custom
 name = {{q .Theme.Name}}
 {{theme .Theme.Custom}}
-{{keys .Keys}}`))
+{{keys .Keys}}{{keyCommands .Keys.Commands}}`))
 
 // tomlString quotes s as a TOML basic string.
 func tomlString(s string) string {
@@ -252,6 +255,63 @@ prefix_keys = ` + tomlList(k.Prefix) + `
 		fmt.Fprintf(&b, "\n[keys.%s]\n", mode)
 		for _, a := range slices.Sorted(maps.Keys(actions)) {
 			fmt.Fprintf(&b, "%s = %s\n", tomlKey(a), tomlList(actions[a]))
+		}
+	}
+	return b.String()
+}
+
+func renderStatus(segs []StatusSegment) string {
+	if len(segs) == 0 {
+		return `# The right of the tab bar: text, datetime (format in strftime style, %H:%M by
+# default), hostname, or a command's first line every interval.
+# [[ui.status_right]]
+# type = "command"
+# command = "git -C ~/src/app branch --show-current"
+# interval = "30s"
+# [[ui.status_right]]
+# type = "datetime"
+# format = "%a %H:%M"
+`
+	}
+	var b strings.Builder
+	for _, s := range segs {
+		fmt.Fprintf(&b, "\n[[ui.status_right]]\ntype = %s\n", tomlString(s.Type))
+		if s.Text != "" {
+			fmt.Fprintf(&b, "text = %s\n", tomlString(s.Text))
+		}
+		if s.Format != "" {
+			fmt.Fprintf(&b, "format = %s\n", tomlString(s.Format))
+		}
+		if s.Type == "command" {
+			fmt.Fprintf(&b, "command = %s\ninterval = %s\n", tomlString(s.Command), tomlString(s.Interval.String()))
+		}
+	}
+	return b.String()
+}
+
+func renderKeyCommands(cmds []KeyCommand) string {
+	if len(cmds) == 0 {
+		return `
+# Your own commands on keys: a popup or a new pane running a command, a
+# command in the background (its last line shown), or a plugin's action.
+# [[keys.command]]
+# keys = "g"            # after the prefix (mode = "terminal" binds without it)
+# type = "popup"        # popup | pane | shell | plugin_action
+# command = "lazygit"
+# [[keys.command]]
+# keys = "P"
+# type = "plugin_action"
+# plugin = "pr-status"
+# action = "open"
+`
+	}
+	var b strings.Builder
+	for _, c := range cmds {
+		fmt.Fprintf(&b, "\n[[keys.command]]\nkeys = %s\nmode = %s\ntype = %s\n", tomlList(c.Keys), tomlString(c.Mode), tomlString(c.Type))
+		for _, f := range []struct{ k, v string }{{"command", c.Command}, {"plugin", c.Plugin}, {"action", c.Action}, {"title", c.Title}} {
+			if f.v != "" {
+				fmt.Fprintf(&b, "%s = %s\n", f.k, tomlString(f.v))
+			}
 		}
 	}
 	return b.String()
