@@ -118,3 +118,18 @@ func homeDir() string {
 	h, _ := os.UserHomeDir()
 	return h
 }
+
+// passOnCopies puts text that programs in visible panes copied (OSC 52)
+// on the clipboard, as configured: a copy in an agent on another machine
+// lands on the clipboard of the one the user sits at.
+func (a *App) passOnCopies() {
+	for _, v := range a.views {
+		v.mu.Lock()
+		copies := v.copies
+		v.copies = nil
+		v.mu.Unlock()
+		for _, text := range copies {
+			a.clipboard(text)
+		}
+	}
+}

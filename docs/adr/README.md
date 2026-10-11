@@ -13,6 +13,7 @@ an earlier one, and a factual correction is added as a dated amendment. New depe
 | [0005](0005-orphan-reaping.md) | Recovery stops orphaned agents only when PID and start time match | Accepted |
 | [0006](0006-shims-protocol-2-and-frames.md) | Agents run under shims; protocol 2; screens travel as frames; events | Accepted |
 | [0007](0007-session-persistence.md) | Session snapshots, restore after a reboot by "lost" processes, resume from manifests; godbus for logind | Accepted |
+| [0008](0008-remote-over-system-ssh.md) | Remote machines over the system's ssh and `hive proxy`; install with consent; server-side pacing | Accepted |
 
 Spike code that produced the measurements lives in [`spikes/`](spikes/). Each
 spike is its own Go module and is not part of the main build.

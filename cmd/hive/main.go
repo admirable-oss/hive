@@ -61,7 +61,18 @@ func execute(args []string, stdout, stderr io.Writer, getenv func(string) string
 			return exitUsage
 		}
 	}
+	if r, ok := parseRemoteArgs(args); ok {
+		if err := a.useRemote(r); err != nil {
+			fmt.Fprintln(stderr, "hive:", err)
+			return exitUsage
+		}
+	}
 	root := newRootCmd(a)
+	if a.remote != nil {
+		if code, done := a.passThrough(ctx, root, args, stdout, stderr); done {
+			return code
+		}
+	}
 	root.SetArgs(args)
 	root.SetOut(stdout)
 	root.SetErr(stderr)

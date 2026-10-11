@@ -92,6 +92,14 @@ process_log_mb = {{.Retention.ProcessLogMB}}
 # How often the daemon cleans up by itself ("0s": never).
 gc_interval = {{dur .Retention.GCInterval}}
 
+[remote]
+# The ssh command that reaches other machines (` + "`hive --remote`" + `, ` + "`hive machine`" + `);
+# ~/.ssh/config applies. HIVE_SSH overrides it.
+ssh = {{q .Remote.SSH}}
+# How much of agents' screens a remote daemon sends this client, in KiB per
+# second (0: no limit). Screens update less often when it is reached.
+frame_budget_kb = {{.Remote.FrameBudgetKB}}
+
 [worktrees]
 # Where ` + "`hive worktree create`" + ` puts checkouts, as <directory>/<repo>/<branch>
 # ("" means ~/.hive/worktrees, or $HIVE_HOME/worktrees).

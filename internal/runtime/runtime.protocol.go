@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/admirable-oss/hive/internal/persist"
 
@@ -15,6 +17,16 @@ func Register(r *protocol.Router, s *Server) {
 	}))
 	r.MustRegister("runtime.status", protocol.Method(func(context.Context, struct{}) (Snapshot, error) {
 		return s.Snapshot(), nil
+	}))
+	// client.report: a client on a slow link (over SSH) says what its link
+	// takes; terminal frames to it are paced accordingly.
+	r.MustRegister("client.report", protocol.Method(func(ctx context.Context, p protocol.LinkReport) (protocol.Empty, error) {
+		peer := protocol.PeerOf(ctx)
+		if peer == nil {
+			return protocol.Empty{}, protocol.NewError(protocol.ErrorCodeUnsupported, errors.New("client.report needs protocol 2"))
+		}
+		peer.Report(time.Duration(p.RTTMicros)*time.Microsecond, p.Budget)
+		return protocol.Empty{}, nil
 	}))
 	r.MustRegister("runtime.shutdown", protocol.HandlerFunc(func(ctx context.Context, req protocol.Request) protocol.Response {
 		ctx, cancel := context.WithTimeout(ctx, stopTimeout)

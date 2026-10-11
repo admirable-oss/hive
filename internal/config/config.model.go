@@ -20,6 +20,7 @@ type Config struct {
 	Worktrees Worktrees
 	Session   Session
 	Retention Retention
+	Remote    Remote
 	Notify    notify.Config
 	UI        UI
 	Theme     Theme
@@ -105,6 +106,19 @@ type Retention struct {
 	GCInterval time.Duration
 }
 
+// Remote configures connections to Hive on other machines (`hive
+// --remote`, `hive machine`).
+type Remote struct {
+	// SSH is the ssh command line, split on spaces ($HIVE_SSH overrides).
+	SSH string
+	// FrameBudgetKB bounds what a remote daemon sends this client of
+	// agents' screens, in KiB per second (0: no limit).
+	FrameBudgetKB int
+}
+
+// SSHArgv is Remote.SSH as an argv (nil for the default).
+func (c Config) SSHArgv() []string { return strings.Fields(c.Remote.SSH) }
+
 // UI configures the multiplexer (`hive ui`).
 type UI struct {
 	// Sidebar shows the sidebar when the UI opens.
@@ -156,6 +170,7 @@ func Defaults() Config {
 			SnapshotInterval: 30 * time.Second, KeepSnapshots: 48, ReplayLines: 500,
 		},
 		Retention: Retention{ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour},
+		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48},
 		Notify:    notify.Defaults(),
 		UI:        UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},
 		Theme:     Theme{Name: "auto"},

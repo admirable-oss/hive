@@ -1,16 +1,23 @@
 package vt
 
 import (
+	"bytes"
+	"encoding/base64"
 	"strings"
 	"unicode"
 )
 
 // maxTitleOSC bounds the OSC bytes held while looking for a title's end;
-// a longer sequence passes through to the parser untouched.
-const maxTitleOSC = 4096
+// a longer sequence passes through to the parser untouched. A clipboard
+// set (OSC 52) may be up to maxClipboardOSC.
+const (
+	maxTitleOSC     = 4096
+	maxClipboardOSC = 1 << 20
+)
 
-// titleFilter takes window titles (OSC 0 and 2) and icon names (OSC 1) out
-// of the output before x/ansi's parser sees them, and reads them itself.
+// titleFilter takes window titles (OSC 0 and 2), icon names (OSC 1) and
+// clipboard sets (OSC 52) out of the output before x/ansi's parser sees
+// them, and reads them itself.
 //
 // The parser ends a string sequence at byte 0x9c, the 8-bit String
 // Terminator. In UTF-8 output that byte is only ever a continuation byte:
@@ -40,9 +47,15 @@ const (
 	sub = 0x1a
 )
 
+// oscHandler receives the OSC sequences the filter takes.
+type oscHandler interface {
+	title(string)
+	clipboard(Clipboard)
+}
+
 // filter returns the bytes of p that go to the parser, appended to dst,
-// and calls setTitle for each complete title.
-func (f *titleFilter) filter(dst, p []byte, setTitle func(string)) []byte {
+// and passes on each complete title and clipboard set.
+func (f *titleFilter) filter(dst, p []byte, on oscHandler) []byte {
 	for _, b := range p {
 		switch f.state {
 		case titleGround:
@@ -64,7 +77,7 @@ func (f *titleFilter) filter(dst, p []byte, setTitle func(string)) []byte {
 		case titleOSC:
 			switch b {
 			case bel:
-				dst = f.finish(dst, []byte{bel}, setTitle)
+				dst = f.finish(dst, []byte{bel}, on)
 			case esc:
 				f.state = titleOSCEsc
 			case can, sub:
@@ -73,21 +86,21 @@ func (f *titleFilter) filter(dst, p []byte, setTitle func(string)) []byte {
 				f.state = titleGround
 			default:
 				f.osc = append(f.osc, b)
-				if len(f.osc) > maxTitleOSC {
+				if len(f.osc) > maxTitleOSC && (len(f.osc) > maxClipboardOSC || !bytes.HasPrefix(f.osc, []byte("52;"))) {
 					dst = append(append(dst, esc, ']'), f.osc...)
 					f.state = titleGround // the parser takes the rest
 				}
 			}
 		case titleOSCEsc:
 			if b == '\\' {
-				dst = f.finish(dst, []byte{esc, '\\'}, setTitle)
+				dst = f.finish(dst, []byte{esc, '\\'}, on)
 				continue
 			}
 			// ESC ends the string without ST; the parser sees it as it
 			// came, and this byte starts what follows the ESC.
 			dst = append(append(dst, esc, ']'), f.osc...)
 			f.state = titleEsc
-			dst = f.filter(dst, []byte{b}, setTitle)
+			dst = f.filter(dst, []byte{b}, on)
 		}
 	}
 	return dst
@@ -95,7 +108,7 @@ func (f *titleFilter) filter(dst, p []byte, setTitle func(string)) []byte {
 
 // finish handles a complete OSC: a title is taken, anything else is
 // passed on with its terminator.
-func (f *titleFilter) finish(dst, term []byte, setTitle func(string)) []byte {
+func (f *titleFilter) finish(dst, term []byte, on oscHandler) []byte {
 	f.state = titleGround
 	cmd, payload, ok := strings.Cut(string(f.osc), ";")
 	if !ok {
@@ -103,7 +116,16 @@ func (f *titleFilter) finish(dst, term []byte, setTitle func(string)) []byte {
 	}
 	switch cmd {
 	case "0", "2":
-		setTitle(cleanTitle(payload))
+		on.title(cleanTitle(payload))
+		return dst
+	case "52":
+		// A program copies text: set the clipboard (where the user's
+		// terminal allows it). Queries ("?") are not answered: a program
+		// must not read what the user copied.
+		sel, data, _ := strings.Cut(payload, ";")
+		if c, ok := cleanClipboard(sel, data); ok {
+			on.clipboard(c)
+		}
 		return dst
 	case "1":
 		return dst // the icon name: not shown anywhere
@@ -121,4 +143,17 @@ func cleanTitle(s string) string {
 		}
 		return r
 	}, s)
+}
+
+// cleanClipboard checks an OSC 52 set: the selections are letters and
+// digits (c, p, s, 0-7; empty means the clipboard), and the data is base64.
+func cleanClipboard(sel, data string) (Clipboard, bool) {
+	selection := func(r rune) bool { return r >= 'a' && r <= 'z' || r >= '0' && r <= '9' }
+	if data == "?" || len(sel) > 16 || strings.ContainsFunc(sel, func(r rune) bool { return !selection(r) }) {
+		return Clipboard{}, false
+	}
+	if _, err := base64.StdEncoding.DecodeString(data); err != nil {
+		return Clipboard{}, false
+	}
+	return Clipboard{Selection: sel, Data: data}, true
 }

@@ -82,14 +82,19 @@ func newVersionCmd(a *app) *cobra.Command {
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			info := buildinfo.Get()
-			ctx, cancel := context.WithTimeout(cmd.Context(), 500*time.Millisecond)
+			wait := 500 * time.Millisecond
+			if a.remote != nil {
+				wait = 15 * time.Second // an ssh connection first
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), wait)
 			defer cancel()
 			st, running := a.daemonRunning(ctx)
 			out := struct {
 				buildinfo.Info
 				Protocol string         `json:"protocol_version"`
+				APILevel int            `json:"api_level"`
 				Daemon   *client.Status `json:"daemon,omitempty"`
-			}{Info: info, Protocol: protocol.Version}
+			}{Info: info, Protocol: protocol.Version, APILevel: protocol.APILevel}
 			if running {
 				out.Daemon = &st
 			}

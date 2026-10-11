@@ -59,6 +59,9 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 	// Read in execute before parsing; declared so cobra accepts and
 	// documents it.
 	root.PersistentFlags().String("session", "", "the session to use (default $HIVE_SESSION, else \"default\")")
+	root.PersistentFlags().String("remote", "", "run the command against Hive on the ssh `host` (installed there after confirmation)")
+	root.PersistentFlags().String("machine", "", "run the command against the saved machine `name` (see hive machine)")
+	root.PersistentFlags().Bool("yes", false, "with --remote or --machine: install or update hive there without asking")
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return &usageError{err} })
 	root.CompletionOptions.HiddenDefaultCmd = false
 
@@ -96,6 +99,8 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newStatusCmd(a),
 		newPingCmd(a),
 		newStopCmd(a),
+		newMachineCmd(a),
+		newProxyCmd(a),
 		newGCCmd(a),
 		newUpdateCmd(a),
 		newConfigCmd(a),

@@ -215,6 +215,8 @@ func (a *App) sidebarSelect(kind compositor.HitKind, id string) {
 		a.gotoProcess(id)
 	case compositor.HitSidebarHeader:
 		a.ui.collapsed[id] = !a.ui.collapsed[id]
+	case compositor.HitMachine:
+		a.pickMachine(id)
 	}
 	a.afterResize()
 }

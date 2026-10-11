@@ -49,6 +49,8 @@ type Terminal struct {
 	cursor Cursor // hidden/shape/blink, tracked from callbacks
 	title  string
 	titles titleFilter // takes titles out of the output (see vt.title.go)
+	clip   Clipboard   // the last clipboard set (OSC 52)
+	clips  uint64      // counts clipboard sets
 	parsed []byte      // reused buffer of filtered output
 	modes  Modes
 	bells  uint32
@@ -130,7 +132,7 @@ func (t *Terminal) Write(p []byte) (int, error) {
 		return 0, ErrClosed
 	}
 	total := len(p)
-	t.parsed = t.titles.filter(t.parsed[:0], p, func(s string) { t.title = s })
+	t.parsed = t.titles.filter(t.parsed[:0], p, terminalOSC{t})
 	p = t.parsed
 	for len(p) > 0 {
 		n := min(len(p), maxWriteChunk)
@@ -251,4 +253,14 @@ func (t *Terminal) ChangedLines(since uint64) []string {
 		}
 	}
 	return out
+}
+
+// terminalOSC records the OSC sequences the title filter takes.
+type terminalOSC struct{ t *Terminal }
+
+func (o terminalOSC) title(s string) { o.t.title = s }
+
+func (o terminalOSC) clipboard(c Clipboard) {
+	o.t.clip = c
+	o.t.clips++
 }

@@ -1,6 +1,10 @@
 package client
 
-import "errors"
+import (
+	"context"
+	"errors"
+	"net"
+)
 
 var (
 	ErrInvalidSocketPath = errors.New("client: socket path is required")
@@ -19,10 +23,18 @@ type Config struct {
 	// Capabilities are offered to the daemon in the hello; nil offers all
 	// this build supports. Tests set fewer to act as an older client.
 	Capabilities []string
+	// Dial connects to the daemon instead of SocketPath (a remote daemon,
+	// through SSH).
+	Dial func(ctx context.Context) (net.Conn, error)
+	// Remote marks a slow link: frames come compressed, and the client
+	// reports its round trip (and FrameBudget, bytes per second, 0 for
+	// none) so the daemon paces what it sends.
+	Remote      bool
+	FrameBudget int
 }
 
 func (c Config) Validate() error {
-	if c.SocketPath == "" {
+	if c.SocketPath == "" && c.Dial == nil {
 		return ErrInvalidSocketPath
 	}
 	return nil

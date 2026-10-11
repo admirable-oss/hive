@@ -55,6 +55,18 @@ func (c *Config) schema() map[string]map[string]setter {
 			"replay_history":           boolean(&c.Session.ReplayHistory),
 			"replay_lines":             integer(&c.Session.ReplayLines, 1, 100000),
 		},
+		"remote": {
+			"ssh": func(raw any) error {
+				return setString(raw, func(v string) error {
+					if strings.TrimSpace(v) == "" {
+						return fmt.Errorf("is empty")
+					}
+					c.Remote.SSH = strings.TrimSpace(v)
+					return nil
+				})
+			},
+			"frame_budget_kb": integer(&c.Remote.FrameBudgetKB, 0, 1<<20),
+		},
 		"retention": {
 			"exited_processes": duration(&c.Retention.ExitedProcesses, time.Hour, 10*365*24*time.Hour),
 			"process_log_mb":   integer(&c.Retention.ProcessLogMB, 0, 100000),

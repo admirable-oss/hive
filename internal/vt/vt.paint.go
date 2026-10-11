@@ -57,6 +57,11 @@ func (p *Painter) Paint(f *Frame) error {
 	if p.screen.Bells != prev.Bells {
 		b.WriteByte('\a')
 	}
+	if c := f.Clipboard; c != nil {
+		// A program in the agent copied text: pass it on, so it reaches
+		// the clipboard of the machine the user sits at.
+		b.WriteString("\x1b]52;" + c.Selection + ";" + c.Data + "\x07")
+	}
 	c := p.screen.Cursor
 	b.WriteString("\x1b[" + strconv.Itoa(c.Y+1) + ";" + strconv.Itoa(c.X+1) + "H")
 	if !p.started || c.Shape != prev.Cursor.Shape || c.Blink != prev.Cursor.Blink {

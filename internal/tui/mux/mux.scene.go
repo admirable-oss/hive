@@ -227,7 +227,7 @@ func (a *App) sidebarRows() []compositor.SidebarRow {
 			rows = append(rows, compositor.SidebarRow{Spans: []compositor.Span{{Text: "  none yet", Style: muted}}})
 		}
 	}
-	return rows
+	return append(rows, a.machineRows(header)...)
 }
 
 // envAgents are the current environment's agents: panes in tab order,
@@ -476,6 +476,9 @@ func (a *App) keyHint(act keymap.Action) string {
 // WindowTitle is the outer terminal's title.
 func (a *App) WindowTitle() string {
 	parts := []string{"hive"}
+	if a.mach.name != "" {
+		parts = append(parts, a.mach.name)
+	}
 	if e := a.env(); e != nil {
 		parts = append(parts, e.ID)
 	}

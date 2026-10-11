@@ -101,3 +101,42 @@ func isASCII(b []byte) bool {
 	}
 	return true
 }
+
+func TestClipboardSetsReachViewersOnce(t *testing.T) {
+	term := newTerm(t, 20, 4, vt.Options{})
+	var watching vt.View
+	if f := term.Frame(&watching); f == nil || f.Clipboard != nil {
+		t.Fatalf("first frame = %+v", f)
+	}
+	// BEL and ST terminators, a query (never answered), and junk.
+	_, _ = term.Write([]byte("\x1b]52;c;aGVsbG8=\x07\x1b]52;c;?\x07\x1b]52;c;not base64!\x07"))
+	f := term.Frame(&watching)
+	if f == nil || f.Clipboard == nil || *f.Clipboard != (vt.Clipboard{Selection: "c", Data: "aGVsbG8="}) {
+		t.Fatalf("frame after a copy = %+v", f)
+	}
+	if strings.Contains(term.Snapshot().Text(), "52") {
+		t.Fatal("the sequence leaked onto the screen")
+	}
+	if f := term.Frame(&watching); f != nil {
+		t.Fatalf("the copy was passed on twice: %+v", f)
+	}
+	// It survives encoding for peers that read it, and is left out for the rest.
+	got, err := vt.DecodeFrame(vt.AppendFrameOpts(nil, f, vt.FrameOptions{Clipboard: true})[4:])
+	if err != nil || got.Clipboard == nil || got.Clipboard.Data != "aGVsbG8=" {
+		t.Fatalf("decoded = %+v, %v", got, err)
+	}
+	if got, _ := vt.DecodeFrame(vt.AppendFrame(nil, f)[4:]); got.Clipboard != nil {
+		t.Fatal("frames/1 peers must not get clipboard sets")
+	}
+	// A viewer that arrives later does not get an old copy.
+	var late vt.View
+	if f := term.Frame(&late); f.Clipboard != nil {
+		t.Fatal("a new viewer got an earlier copy")
+	}
+	// A large copy (beyond the title limit) still arrives whole.
+	big := strings.Repeat("QUJD", 4000)
+	_, _ = term.Write([]byte("\x1b]52;;" + big + "\x1b\\"))
+	if f := term.Frame(&watching); f == nil || f.Clipboard == nil || f.Clipboard.Data != big {
+		t.Fatal("a large copy was lost")
+	}
+}

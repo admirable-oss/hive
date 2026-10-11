@@ -1,9 +1,11 @@
 package terminal
 
 import (
+	"compress/flate"
 	"context"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/vt"
@@ -68,21 +70,35 @@ func Register(r *protocol.Router, svc Service) {
 	// terminal.attach: a pipe carrying the screen painted as ANSI for a real
 	// terminal, and keystrokes back. It takes over the terminal size.
 	r.MustRegister("terminal.attach", protocol.PipeMethod(func(_ context.Context, p viewParams) (viewResult, protocol.PipeFunc, error) {
-		return openView(svc, p, true, func(w io.Writer) func(*vt.Frame) error {
+		return openView(svc, p, true, func(_ context.Context, w io.Writer) func(*vt.Frame) error {
 			return vt.NewPainter(w).Paint
 		})
 	}))
 	// terminal.frames: a pipe carrying the screen as binary frames (see
 	// vt.AppendFrame), and keystrokes back. For clients that draw the screen
 	// themselves; it only takes over the size once the client types.
+	//
+	// A client on a slow link (see protocol.Peer.Report) is sent frames no
+	// more often than its round trip and within its byte budget; changes
+	// meanwhile merge into the next frame. One that offered frames/deflate
+	// gets the stream compressed.
 	r.MustRegister("terminal.frames", protocol.PipeMethod(func(ctx context.Context, p viewParams) (viewResult, protocol.PipeFunc, error) {
-		links := protocol.PeerHas(ctx, vt.FrameLinksCapability)
-		return openView(svc, p, false, func(w io.Writer) func(*vt.Frame) error {
+		opts := vt.FrameOptions{
+			Links:     protocol.PeerHas(ctx, vt.FrameLinksCapability),
+			Clipboard: protocol.PeerHas(ctx, vt.FrameClipboardCapability),
+		}
+		deflate := protocol.PeerHas(ctx, vt.FrameDeflateCapability)
+		peer := protocol.PeerOf(ctx)
+		return openView(svc, p, false, func(ctx context.Context, w io.Writer) func(*vt.Frame) error {
+			out := newFrameWriter(w, deflate)
 			var buf []byte
 			return func(f *vt.Frame) error {
-				buf = vt.AppendFrameWith(buf[:0], f, links)
-				_, err := w.Write(buf)
-				return err
+				buf = vt.AppendFrameOpts(buf[:0], f, opts)
+				n, err := out.write(buf)
+				if err != nil {
+					return err
+				}
+				return pace(ctx, peer, n)
 			}
 		})
 	}))
@@ -142,7 +158,7 @@ func Register(r *protocol.Router, svc Service) {
 
 // openView joins a view and returns the pipe that serves it: frames out
 // through the encoder made by newEmit, keystrokes in.
-func openView(svc Service, p viewParams, interactive bool, newEmit func(io.Writer) func(*vt.Frame) error) (viewResult, protocol.PipeFunc, error) {
+func openView(svc Service, p viewParams, interactive bool, newEmit func(context.Context, io.Writer) func(*vt.Frame) error) (viewResult, protocol.PipeFunc, error) {
 	sess, err := lookup(svc, p.ProcessID)
 	if err != nil {
 		return viewResult{}, nil, err
@@ -179,7 +195,7 @@ func openView(svc Service, p viewParams, interactive bool, newEmit func(io.Write
 				}
 			}
 		}()
-		err := sess.Frames(ctx, newEmit(pipe))
+		err := sess.Frames(ctx, newEmit(ctx, pipe))
 		cancel()
 		if c, ok := pipe.(io.Closer); ok {
 			_ = c.Close() // ends the input reader
@@ -203,4 +219,71 @@ func wireError(err error) error {
 		return protocol.NewError(protocol.ErrorCodeNotFound, err)
 	}
 	return err
+}
+
+// MaxFrameWait bounds how long a client on a slow link waits between
+// frames because of its round trip.
+const MaxFrameWait = 250 * time.Millisecond
+
+// frameWriter writes frames to a client, deflated when it asked, and says
+// how many bytes each took on the wire.
+type frameWriter struct {
+	w   *countingWriter
+	zip *flate.Writer
+}
+
+func newFrameWriter(w io.Writer, deflate bool) *frameWriter {
+	fw := &frameWriter{w: &countingWriter{w: w}}
+	if deflate {
+		fw.zip, _ = flate.NewWriter(fw.w, flate.BestSpeed) // the level is valid
+	}
+	return fw
+}
+
+func (fw *frameWriter) write(frame []byte) (int, error) {
+	before := fw.w.n
+	if fw.zip == nil {
+		_, err := fw.w.Write(frame)
+		return fw.w.n - before, err
+	}
+	if _, err := fw.zip.Write(frame); err != nil {
+		return 0, err
+	}
+	// A sync flush sends the whole frame now; the compressor keeps its
+	// history, so later frames compress against earlier ones.
+	err := fw.zip.Flush()
+	return fw.w.n - before, err
+}
+
+type countingWriter struct {
+	w io.Writer
+	n int
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += n
+	return n, err
+}
+
+// pace holds the next frame back for a client on a slow link, after one
+// of n bytes was sent: for its round trip (between FrameInterval and
+// MaxFrameWait), and until its budget allows more. Changes meanwhile merge
+// into the next frame. A local client (no report) is not held back.
+func pace(ctx context.Context, peer *protocol.Peer, n int) error {
+	wait := peer.Spend(n)
+	if rtt, _ := peer.Link(); rtt > 0 {
+		wait = max(wait, min(max(rtt, FrameInterval), MaxFrameWait))
+	}
+	if wait <= 0 {
+		return nil
+	}
+	t := time.NewTimer(wait)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }

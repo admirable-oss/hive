@@ -148,7 +148,7 @@ func (l *Launcher) dial(ctx context.Context, dir, id string) (*Remote, error) {
 	if err != nil {
 		return nil, err
 	}
-	mux, err := protocol.Handshake(ctx, conn, protocol.Hello{Client: "hived", ClientVersion: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability, vt.FrameLinksCapability}}, 0)
+	mux, err := protocol.Handshake(ctx, conn, protocol.Hello{Client: "hived", ClientVersion: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability, vt.FrameLinksCapability, vt.FrameClipboardCapability}}, 0)
 	if err != nil {
 		return nil, err
 	}
