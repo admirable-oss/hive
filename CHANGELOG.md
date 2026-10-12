@@ -4,7 +4,7 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](docs/compatibility.md).
 
-## v1.0.0-rc.1 (unreleased)
+## v1.0.0-rc.1 (2026-10-12)
 
 The first release candidate of 1.0: the APIs are frozen, and the remaining
 work is hardening. Release candidates follow until two weeks pass with no
@@ -41,6 +41,9 @@ P0 or P1 bug; then v1.0.0.
   nothing leaks. It runs nightly, with 25 hours of fuzzing over five targets
   (two new: agent and plugin manifests) and the multi-machine soak.
 - Leak checks: goroutines and open files across many client connections.
+- Fixed: an agent's session ID reported by its start hook before its first
+  screen reached the daemon was lost, so the agent could not be resumed
+  after a reboot.
 
 ### Distribution
 
