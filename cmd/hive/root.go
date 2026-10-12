@@ -108,6 +108,7 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newUpdateCmd(a),
 		newConfigCmd(a),
 		newAPICmd(a),
+		newDebugCmd(a),
 		newVersionCmd(a),
 	)
 	root.SetHelpCommandGroupID("runtime")

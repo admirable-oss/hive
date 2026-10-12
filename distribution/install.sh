@@ -2,7 +2,17 @@
 set -eu
 
 REPOSITORY="admirable-oss/hive"
+# HIVE_VERSION=v1.0.0 installs that release; HIVE_CHANNEL=preview installs
+# the newest release, release candidates included.
 API_URL="https://api.github.com/repos/${REPOSITORY}/releases/latest"
+case "${HIVE_CHANNEL:-stable}" in
+    stable) ;;
+    preview) API_URL="https://api.github.com/repos/${REPOSITORY}/releases?per_page=1" ;;
+    *) printf '  ! HIVE_CHANNEL must be stable or preview\n' >&2; exit 1 ;;
+esac
+if [ -n "${HIVE_VERSION:-}" ]; then
+    API_URL="https://api.github.com/repos/${REPOSITORY}/releases/tags/${HIVE_VERSION}"
+fi
 INSTALL_DIR="${HIVE_INSTALL_DIR:-${HOME}/.local/bin}"
 
 log() { printf '  > %s\n' "$1"; }
@@ -26,7 +36,7 @@ main() {
         *) err "unsupported architecture: $(uname -m)" ;;
     esac
 
-    log "detecting latest Hive release for ${os}/${arch}"
+    log "detecting the Hive release for ${os}/${arch}"
     release="$(curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
         -H 'Accept: application/vnd.github+json' \
         -H 'User-Agent: hive-installer' "$API_URL")" \

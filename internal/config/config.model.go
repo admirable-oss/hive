@@ -21,6 +21,7 @@ type Config struct {
 	Session   Session
 	Retention Retention
 	Remote    Remote
+	Update    Update
 	Notify    notify.Config
 	UI        UI
 	Theme     Theme
@@ -104,6 +105,12 @@ type Retention struct {
 	ProcessLogMB int
 	// GCInterval is how often the daemon cleans up by itself; 0 never.
 	GCInterval time.Duration
+}
+
+// Update configures `hive update`.
+type Update struct {
+	// Channel is stable (releases) or preview (pre-releases too).
+	Channel string
 }
 
 // Remote configures connections to Hive on other machines (`hive
@@ -213,6 +220,7 @@ func Defaults() Config {
 		},
 		Retention: Retention{ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour},
 		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48},
+		Update:    Update{Channel: "stable"},
 		Notify:    notify.Defaults(),
 		UI:        UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},
 		Theme:     Theme{Name: "auto"},

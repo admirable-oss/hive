@@ -11,7 +11,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -40,6 +42,32 @@ type Source struct {
 	// release asset URLs. Empty means github.com's.
 	API, Download string
 	HTTP          *http.Client
+	// PublicKey verifies the release's checksums.txt.sig (an ed25519
+	// signature of checksums.txt). Nil skips the check: builds from source
+	// carry no key.
+	PublicKey ed25519.PublicKey
+}
+
+// ErrUnsigned means a release's checksums are not signed by the release
+// key this hive trusts.
+var ErrUnsigned = errors.New("the release is not signed by the hive release key")
+
+// ParseKey reads a base64 ed25519 public key.
+func ParseKey(s string) (ed25519.PublicKey, error) {
+	b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(s))
+	if err != nil || len(b) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("invalid release key %q", s)
+	}
+	return ed25519.PublicKey(b), nil
+}
+
+// Verify checks a signature file (base64) of data against key.
+func Verify(key ed25519.PublicKey, data, sig []byte) error {
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(sig)))
+	if err != nil || !ed25519.Verify(key, data, raw) {
+		return ErrUnsigned
+	}
+	return nil
 }
 
 func (s Source) api() string {
@@ -84,6 +112,45 @@ func (s Source) Latest(ctx context.Context) (string, error) {
 	return rel.Tag, nil
 }
 
+// Channels: stable follows releases; preview also takes pre-releases
+// (v1.0.0-rc.1), whichever is newest.
+const (
+	ChannelStable  = "stable"
+	ChannelPreview = "preview"
+)
+
+// LatestOn returns the newest release tag on a channel.
+func (s Source) LatestOn(ctx context.Context, channel string) (string, error) {
+	switch channel {
+	case "", ChannelStable:
+		return s.Latest(ctx)
+	case ChannelPreview:
+	default:
+		return "", fmt.Errorf("unknown channel %q (want %s or %s)", channel, ChannelStable, ChannelPreview)
+	}
+	body, err := s.get(ctx, s.api()+"/releases?per_page=30", 4<<20)
+	if err != nil {
+		return "", fmt.Errorf("list releases: %w", err)
+	}
+	var rels []struct {
+		Tag   string `json:"tag_name"`
+		Draft bool   `json:"draft"`
+	}
+	if err := json.Unmarshal(body, &rels); err != nil {
+		return "", fmt.Errorf("list releases: %w", err)
+	}
+	best := ""
+	for _, r := range rels {
+		if !r.Draft && r.Tag != "" && (best == "" || Newer(r.Tag, best)) {
+			best = r.Tag
+		}
+	}
+	if best == "" {
+		return "", fmt.Errorf("no release of %s is published yet", Repository)
+	}
+	return best, nil
+}
+
 // Archive is the name of a release's archive for an OS and architecture.
 func Archive(tag, goos, goarch string) string {
 	return fmt.Sprintf("hive_%s_%s_%s.tar.gz", strings.TrimPrefix(tag, "v"), goos, goarch)
@@ -97,6 +164,15 @@ func (s Source) Fetch(ctx context.Context, tag, goos, goarch string) ([]byte, er
 	sums, err := s.get(ctx, base+"checksums.txt", 1<<20)
 	if err != nil {
 		return nil, fmt.Errorf("download the release's checksums: %w", err)
+	}
+	if s.PublicKey != nil {
+		sig, err := s.get(ctx, base+"checksums.txt.sig", 4<<10)
+		if err != nil {
+			return nil, fmt.Errorf("%w (no checksums.txt.sig: %w); not installing it", ErrUnsigned, err)
+		}
+		if err := Verify(s.PublicKey, sums, sig); err != nil {
+			return nil, fmt.Errorf("%w; not installing it", err)
+		}
 	}
 	want, err := checksumOf(sums, name)
 	if err != nil {

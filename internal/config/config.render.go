@@ -82,6 +82,7 @@ keep_snapshots = {{.Session.KeepSnapshots}}
 # The text is whatever programs printed, secrets included; it is kept in
 # history/ (private to you) only while this is on.
 replay_history = {{.Session.ReplayHistory}}
+# How many recent lines of each pane are kept for that.
 replay_lines = {{.Session.ReplayLines}}
 
 [retention]
@@ -93,6 +94,10 @@ exited_processes = {{dur .Retention.ExitedProcesses}}
 process_log_mb = {{.Retention.ProcessLogMB}}
 # How often the daemon cleans up by itself ("0s": never).
 gc_interval = {{dur .Retention.GCInterval}}
+
+[update]
+# The releases ` + "`hive update`" + ` installs: stable, or preview (release candidates too).
+channel = {{q .Update.Channel}}
 
 [remote]
 # The ssh command that reaches other machines (` + "`hive --remote`" + `, ` + "`hive machine`" + `);
@@ -125,6 +130,7 @@ sound = {{.Notify.Sound}}
 # Show the sidebar (environments and agents) when ` + "`hive ui`" + ` opens; prefix b
 # toggles it. Screens 64 columns wide or less always open without it.
 sidebar = {{.UI.Sidebar}}
+# The sidebar's width, in columns.
 sidebar_width = {{.UI.SidebarWidth}}
 # Let the UI use the mouse: click to focus, drag borders, select to copy, scroll
 # into history. Hold shift to select with the terminal's own mouse instead.

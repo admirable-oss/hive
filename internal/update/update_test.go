@@ -5,8 +5,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -40,8 +44,11 @@ func archive(t *testing.T, files map[string]string) []byte {
 	return buf.Bytes()
 }
 
-// release serves a fake GitHub release v0.8.0 for linux/arm64.
-func release(t *testing.T, tamper bool) update.Source {
+// release serves a fake GitHub release v0.8.0 for linux/arm64, its
+// checksums signed by key (unsigned when key is nil).
+func release(t *testing.T, tamper bool) update.Source { return signedRelease(t, tamper, nil) }
+
+func signedRelease(t *testing.T, tamper bool, key ed25519.PrivateKey) update.Source {
 	t.Helper()
 	arc := archive(t, map[string]string{"LICENSE": "MIT", "hive": "#!new-hive"})
 	sum := sha256.Sum256(arc)
@@ -53,9 +60,13 @@ func release(t *testing.T, tamper bool) update.Source {
 	mux.HandleFunc("/api/releases/latest", func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, `{"tag_name": "v0.8.0"}`)
 	})
-	mux.HandleFunc("/dl/v0.8.0/checksums.txt", func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprintf(w, "%s  hive_0.8.0_darwin_arm64.tar.gz\n%s  %s\n", strings.Repeat("0", 64), hex.EncodeToString(sum[:]), name)
-	})
+	sums := fmt.Sprintf("%s  hive_0.8.0_darwin_arm64.tar.gz\n%s  %s\n", strings.Repeat("0", 64), hex.EncodeToString(sum[:]), name)
+	mux.HandleFunc("/dl/v0.8.0/checksums.txt", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, sums) })
+	if key != nil {
+		mux.HandleFunc("/dl/v0.8.0/checksums.txt.sig", func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprint(w, base64.StdEncoding.EncodeToString(ed25519.Sign(key, []byte(sums))))
+		})
+	}
 	mux.HandleFunc("/dl/v0.8.0/"+name, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(arc) })
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -137,5 +148,54 @@ func TestNewer(t *testing.T) {
 func TestManaged(t *testing.T) {
 	if update.Managed("/opt/homebrew/Cellar/hive/0.7.0/bin/hive") != "Homebrew" || update.Managed("/nix/store/abc-hive/bin/hive") != "Nix" || update.Managed("/home/me/.local/bin/hive") != "" {
 		t.Fatal("package managers not recognised")
+	}
+}
+
+func TestFetchVerifiesTheReleaseSignature(t *testing.T) {
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	_, other, _ := ed25519.GenerateKey(rand.Reader)
+	ctx := context.Background()
+
+	src := signedRelease(t, false, priv)
+	src.PublicKey = pub
+	if bin, err := src.Fetch(ctx, "v0.8.0", "linux", "arm64"); err != nil || string(bin) != "#!new-hive" {
+		t.Fatalf("signed release: %q, %v", bin, err)
+	}
+	forged := signedRelease(t, false, other)
+	forged.PublicKey = pub
+	if _, err := forged.Fetch(ctx, "v0.8.0", "linux", "arm64"); !errors.Is(err, update.ErrUnsigned) {
+		t.Fatalf("signed by another key: %v", err)
+	}
+	unsigned := release(t, false)
+	unsigned.PublicKey = pub
+	if _, err := unsigned.Fetch(ctx, "v0.8.0", "linux", "arm64"); !errors.Is(err, update.ErrUnsigned) {
+		t.Fatalf("unsigned release: %v", err)
+	}
+	if _, err := update.ParseKey(base64.StdEncoding.EncodeToString(pub)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := update.ParseKey("not a key"); err == nil {
+		t.Fatal("parsed a bad key")
+	}
+}
+
+func TestPreviewChannelTakesPreReleases(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/releases/latest", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, `{"tag_name":"v0.9.0"}`) })
+	mux.HandleFunc("/api/releases", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[{"tag_name":"v1.1.0","draft":true},{"tag_name":"v1.0.0-rc.2"},{"tag_name":"v0.9.0"},{"tag_name":"v1.0.0-rc.1"}]`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	src := update.Source{API: srv.URL + "/api"}
+	ctx := context.Background()
+	if tag, err := src.LatestOn(ctx, "stable"); err != nil || tag != "v0.9.0" {
+		t.Fatalf("stable = %q, %v", tag, err)
+	}
+	if tag, err := src.LatestOn(ctx, "preview"); err != nil || tag != "v1.0.0-rc.2" {
+		t.Fatalf("preview = %q, %v", tag, err)
+	}
+	if _, err := src.LatestOn(ctx, "nightly"); err == nil {
+		t.Fatal("unknown channel accepted")
 	}
 }

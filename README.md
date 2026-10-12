@@ -10,7 +10,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/License-Apache%202.0-%23F5B942" />
   <img src="https://img.shields.io/github/last-commit/admirable-oss/hive" />
-  <img src="https://img.shields.io/badge/Release-v0-%23F5B942" />
+  <img src="https://img.shields.io/badge/Release-v1.0.0--rc.1-%23F5B942" />
 </p>
 
 https://github.com/user-attachments/assets/bd7b9d6e-d0f5-43d7-9889-34c1a3fb0c9e
@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/bd7b9d6e-d0f5-43d7-9889-34c1a3fb0c9e
 
 ## Status
 
-Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk layout may still change.
+Hive is at **v1.0 release candidates** and built in public. The wire API, the CLI, the configuration keys and the Go SDK are frozen: 1.x only adds to them ([compatibility policy](docs/compatibility.md)). Documentation lives in [docs/](docs/README.md); start with the [quick start](docs/quickstart.md), or the [migration guide](docs/migrating-from-herdr.md) if you come from herdr.
 
 | Area | State |
 |------|-------|
@@ -49,6 +49,7 @@ Hive is **pre-release (v0)** and built in public. The wire protocol and on-disk 
 | Housekeeping (`hive gc`, retention, output log rotation) and self-update (`hive update`, agents keep running) | ✅ working |
 | Remote machines over SSH: `--remote`, saved machines, every machine's agents in the sidebar, compressed and paced screens, clipboard back to you ([docs](docs/remote.md)) | ✅ working |
 | Plugins (startup, events, actions; install from git with a trust preview), key commands, sidebar tokens, status bar ([docs](docs/plugins.md)) | ✅ working |
+| Hardening: frozen APIs, peer-credential checks on every socket, signed releases, 100 panes at under 16 ms a frame and under 1 % CPU idle, nightly fuzzing and chaos soaks ([security](SECURITY.md)) | ✅ working |
 | Windows support | 🗺 planned |
 
 ## Quick start
@@ -59,7 +60,15 @@ Install the latest macOS or Linux release with:
 curl -fsSL https://hive.admir-saheta.com/install.sh | sh
 ```
 
-The installer places `hive` in `~/.local/bin` by default. Set `HIVE_INSTALL_DIR` to choose another directory. To build from source, Go 1.26+ is required.
+The installer places `hive` in `~/.local/bin` by default. Set `HIVE_INSTALL_DIR` to choose another directory, `HIVE_CHANNEL=preview` for release candidates, or `HIVE_VERSION` for a given release. Or:
+
+```sh
+brew install --cask admirable-oss/tap/hive     # Homebrew
+nix run github:admirable-oss/hive              # Nix (or nix profile install)
+go install github.com/admirable-oss/hive/cmd/hive@latest
+```
+
+Release binaries are signed, and `hive update` checks the signature ([SECURITY.md](SECURITY.md)). To build from source, Go 1.26+ is required.
 
 ```sh
 make build          # or: go build -o hive ./cmd/hive
@@ -117,8 +126,10 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive pane report-metadata` · `hive env report-metadata` · `hive metadata` | Tokens and titles in the sidebar, with a TTL |
 | `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip and agents |
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
-| `hive update [--check] [--version v] [--from file]` | Update hive to the latest release and restart the daemon; agents keep running |
+| `hive update [--check] [--version v] [--channel stable\|preview] [--from file]` | Update hive to the latest signed release and restart the daemon; agents keep running |
 | `hive config path \| show \| default \| init \| validate \| reset-keys` | Inspect and create the configuration file; put the default key bindings back |
+| `hive config import-herdr [--herdr-keys] [--write]` | Bring over herdr's settings and key bindings ([guide](docs/migrating-from-herdr.md)) |
+| `hive debug pprof [--profile p] [--seconds n] [-o file]` · `hive debug stats` | Profile the daemon; its goroutines, open files and memory |
 | `hive completion bash\|zsh\|fish\|powershell` | Shell completion, including environment and process IDs |
 
 Add `--template '<Go template>'` to format a command's JSON output for scripts (`hive env list --template '{{range .}}{{.id}}{{"\n"}}{{end}}'`). Every command that talks to the daemon starts it if it is not running (turn this off with `daemon.autostart = false`). Add `--json` to any command for machine-readable output. Exit codes: `0` success, `1` error, `2` bad command line, `3` daemon not running.
@@ -170,7 +181,12 @@ name = "auto"               # auto | catppuccin | catppuccin-latte | tokyo-night
 
 [keys]
 prefix_keys = ["ctrl+b"]    # bindings per mode in [keys.<mode>]; see docs/keybindings.md
+
+[update]
+channel = "stable"          # stable | preview (release candidates too)
 ```
+
+[docs/config.md](docs/config.md) describes every key.
 
 Unknown keys and invalid values are reported as warnings and fall back to the defaults, so a typo never stops the daemon that keeps your agents alive. A file that is not valid TOML is an error, and the daemon refuses to start with it. `hive config validate` checks a file and exits non-zero on any problem.
 

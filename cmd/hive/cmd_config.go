@@ -23,6 +23,7 @@ or $HIVE_CONFIG). Every key is optional. Unknown keys and invalid values are
 reported and ignored; HIVE_LOG overrides log.level.`,
 	}
 	cmd.AddCommand(
+		newConfigImportHerdrCmd(a),
 		&cobra.Command{
 			Use:   "path",
 			Short: "Print the configuration file's location",

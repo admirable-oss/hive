@@ -56,6 +56,18 @@ func (c *Config) schema() map[string]map[string]setter {
 			"replay_history":           boolean(&c.Session.ReplayHistory),
 			"replay_lines":             integer(&c.Session.ReplayLines, 1, 100000),
 		},
+		"update": {
+			"channel": func(raw any) error {
+				return setString(raw, func(v string) error {
+					v = strings.ToLower(strings.TrimSpace(v))
+					if v != "stable" && v != "preview" {
+						return fmt.Errorf("%q is not stable or preview", v)
+					}
+					c.Update.Channel = v
+					return nil
+				})
+			},
+		},
 		"remote": {
 			"ssh": func(raw any) error {
 				return setString(raw, func(v string) error {
@@ -565,4 +577,18 @@ func statusSegment(t map[string]any) (StatusSegment, error) {
 		return s, errors.New("interval is for type command")
 	}
 	return s, nil
+}
+
+// KeyNames lists every accepted key as section.key (keys.<mode> tables and
+// [[arrays]] by their names), sorted: the configuration's public surface.
+func KeyNames() []string {
+	var c Config
+	var out []string
+	for section, keys := range c.schema() {
+		for key := range keys {
+			out = append(out, section+"."+key)
+		}
+	}
+	slices.Sort(out)
+	return out
 }

@@ -135,6 +135,7 @@ func NewModule(cfg Config) *Module {
 	registerSession(router, keep)
 	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)
 	registerPlugins(router, plugins)
+	registerDebug(router, server)
 	registerAPI(router, server, guardedEnvs, panes, procs, agents) // last: it describes the others
 
 	return &Module{

@@ -1,0 +1,107 @@
+name: nightly
+
+# The long checks: fuzzing (five targets for 5 h each, 25 h a night), the
+# multi-machine soak, the chaos soak and the performance budgets. Hosted
+# runners stop a job at 6 h; run the 72 h chaos gate by hand on a
+# self-hosted runner (workflow_dispatch with runner and chaos set).
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      fuzz_time:
+        description: how long each fuzz target runs
+        default: 5h
+      soak:
+        description: the 5-machine, 40-agent soak (TestM7Soak)
+        default: 5h
+      chaos:
+        description: the chaos soak (TestChaos); the release gate is 72h
+        default: 5h
+      runner:
+        description: runner label for the soaks (self-hosted for runs over 6h)
+        default: ubuntu-latest
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - ./internal/protocol/tests:FuzzStreamReceive
+          - ./internal/config:FuzzParse
+          - ./internal/vt:FuzzDecodeFrame
+          - ./internal/plugin:FuzzParseManifest
+          - ./internal/agent:FuzzParseManifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: fuzz
+        env:
+          TARGET: ${{ matrix.target }}
+          FUZZTIME: ${{ inputs.fuzz_time || '5h' }}
+        run: go test -run='^$' -fuzz="^${TARGET##*:}$" -fuzztime="$FUZZTIME" "${TARGET%%:*}"
+      - name: keep the failing input
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-failure-${{ strategy.job-index }}
+          path: '**/testdata/fuzz/**'
+
+  soak:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 4320
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: 5 machines, 40 agents
+        env:
+          HIVE_SOAK: ${{ inputs.soak || '5h' }}
+        run: go test -count=1 -timeout 80h -run '^TestM7Soak$' -v ./cmd/hive
+
+  chaos:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ inputs.runner != 'ubuntu-latest' && inputs.runner || matrix.os }}
+    timeout-minutes: 4320
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: chaos soak
+        env:
+          HIVE_CHAOS: ${{ inputs.chaos || '5h' }}
+        run: go test -count=1 -timeout 80h -run '^TestChaos$' -v ./cmd/hive
+
+  perf:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: budgets (frame time with 100 panes, idle CPU, input latency)
+        run: go test -count=1 -run 'TestFrameTime100Panes|TestRuntime_IdleCPUWith100Panes|TestInputLatency16Panes' -v ./internal/tui/mux ./internal/runtime/tests
+      - name: benchmarks
+        run: go test -run='^$' -bench=. -benchmem -count=5 ./... | tee bench.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ matrix.os }}
+          path: bench.txt

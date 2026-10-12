@@ -55,6 +55,14 @@ jobs:
           go-version-file: go.mod
       - run: make fuzz FUZZTIME=45s
 
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      - name: build the flake
+        run: nix build .#hive --print-build-logs && ./result/bin/hive version
+
   release-snapshot:
     runs-on: ubuntu-latest
     steps:
@@ -67,7 +75,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: v2.18.2
-          args: release --snapshot --clean
+          args: release --snapshot --clean --skip=sign
       - uses: actions/upload-artifact@v4
         with:
           name: hive-snapshot
