@@ -15,6 +15,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: refuse to publish an unsigned release
+        run: |
+          test -n "$HIVE_RELEASE_SIGNING_KEY" || { echo "::error::set the HIVE_RELEASE_SIGNING_KEY secret (go run ./tools/release-sign keygen)"; exit 1; }
+          test -n "$HIVE_RELEASE_PUBLIC_KEY" || { echo "::error::set the HIVE_RELEASE_PUBLIC_KEY variable"; exit 1; }
+        env:
+          HIVE_RELEASE_SIGNING_KEY: ${{ secrets.HIVE_RELEASE_SIGNING_KEY }}
+          HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
@@ -27,3 +34,8 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # tools/release-sign: the private key signs checksums.txt; the
+          # public key is built into every binary for `hive update`.
+          HIVE_RELEASE_SIGNING_KEY: ${{ secrets.HIVE_RELEASE_SIGNING_KEY }}
+          HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

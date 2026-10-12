@@ -1,5 +1,7 @@
 # Release builds. `make snapshot` builds them locally; CI builds a snapshot
-# on every push. Nothing here publishes until a release workflow is added.
+# on every push; pushing a v* tag releases (.github/workflows/release.yml).
+# Tags with a pre-release part (v1.0.0-rc.1) are published as pre-releases:
+# the preview channel of `hive update`.
 version: 2
 project_name: hive
 
@@ -22,6 +24,7 @@ builds:
       - -X github.com/admirable-oss/hive/internal/buildinfo.version={{ .Version }}
       - -X github.com/admirable-oss/hive/internal/buildinfo.commit={{ .FullCommit }}
       - -X github.com/admirable-oss/hive/internal/buildinfo.date={{ .CommitDate }}
+      - -X github.com/admirable-oss/hive/internal/buildinfo.releaseKey={{ envOrDefault "HIVE_RELEASE_PUBLIC_KEY" "" }}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
@@ -34,13 +37,41 @@ archives:
 checksum:
   name_template: checksums.txt
 
-snapshot:
-  version_template: "{{ incpatch .Version }}-next"
+# checksums.txt.sig: an ed25519 signature of checksums.txt, which `hive
+# update` checks against the public key built in above (tools/release-sign).
+signs:
+  - id: release-key
+    artifacts: checksum
+    cmd: go
+    args: ["run", "./tools/release-sign", "sign", "${artifact}"]
+    signature: "${artifact}.sig"
 
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^chore:"
+release:
+  prerelease: auto
+  footer: |
+    `hive update` installs this release after checking `checksums.txt.sig` with the release key built into hive. To check a download by hand:
+
+    ```sh
+    go run github.com/admirable-oss/hive/tools/release-sign@{{ .Tag }} verify {{ envOrDefault "HIVE_RELEASE_PUBLIC_KEY" "" }} checksums.txt
+    ```
+
+# The Homebrew tap: `brew install --cask admirable-oss/tap/hive`. Its token
+# (HOMEBREW_TAP_TOKEN) may write to admirable-oss/homebrew-tap only.
+homebrew_casks:
+  - name: hive
+    repository:
+      owner: admirable-oss
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: https://hive.admir-saheta.com
+    description: Coding agents that keep working when you close the terminal
+    license: MIT
+    skip_upload: auto # pre-releases stay out of the tap
+    hooks:
+      post:
+        # The binary is not notarized: let macOS run it.
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/hive"]
+          end

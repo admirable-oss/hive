@@ -150,6 +150,21 @@ func (s *service) ProcessLogsStream(ctx context.Context, req process.LogsRequest
 	return err
 }
 
+func (s *service) Stream(ctx context.Context, method string, params any, out io.Writer) error {
+	p, err := s.openPipe(ctx, method, params, nil)
+	if err != nil {
+		return err
+	}
+	defer p.Close()
+	stop := context.AfterFunc(ctx, func() { _ = p.Close() })
+	defer stop()
+	_, err = io.Copy(out, p)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
+}
+
 func (s *service) TerminalAttach(ctx context.Context, req ViewRequest) (*Attachment, error) {
 	var view View
 	p, err := s.openPipe(ctx, "terminal.attach", req, &view)

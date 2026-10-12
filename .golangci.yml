@@ -143,6 +143,10 @@ linters:
     rules:
       - path: _test\.go
         linters: [gosec, noctx, contextcheck]
+      # Release and maintenance tools run by developers and CI on paths
+      # they name.
+      - path: ^tools/
+        linters: [gosec, noctx]
 
 formatters:
   enable:

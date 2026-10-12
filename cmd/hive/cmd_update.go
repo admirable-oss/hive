@@ -22,7 +22,7 @@ import (
 func newUpdateCmd(a *app) *cobra.Command {
 	var (
 		check, force, noRestart bool
-		tag, from               string
+		tag, from, channel      string
 	)
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -69,8 +69,20 @@ A hive installed by Homebrew or Nix is updated by them instead.`,
 				}
 			} else {
 				src := update.Source{}
+				if k := buildinfo.ReleaseKey(); k != "" {
+					key, err := update.ParseKey(k)
+					if err != nil {
+						return err
+					}
+					src.PublicKey = key
+				} else if !check {
+					fmt.Fprintln(a.errOut, "hive: this hive was built from source and has no release key: the download's checksum is checked, its signature is not")
+				}
 				if tag == "" {
-					if tag, err = src.Latest(ctx); err != nil {
+					if channel == "" {
+						channel = a.cfg.Update.Channel
+					}
+					if tag, err = src.LatestOn(ctx, channel); err != nil {
 						return err
 					}
 				}
@@ -125,6 +137,7 @@ A hive installed by Homebrew or Nix is updated by them instead.`,
 	}
 	cmd.Flags().BoolVar(&check, "check", false, "only report whether a newer release exists")
 	cmd.Flags().StringVar(&tag, "version", "", "install this release (a tag, e.g. v0.8.0) instead of the latest")
+	cmd.Flags().StringVar(&channel, "channel", "", "stable, or preview for release candidates too (default update.channel)")
 	cmd.Flags().StringVar(&from, "from", "", "install this binary or release archive (.tar.gz) instead of downloading one")
 	cmd.Flags().BoolVar(&force, "force", false, "install even when the release is not newer")
 	cmd.Flags().BoolVar(&noRestart, "no-restart", false, "leave running daemons on the old binary")

@@ -1,0 +1,287 @@
+command hive
+command hive agent
+command hive agent attach
+command hive agent explain
+command hive agent focus
+command hive agent get
+command hive agent list
+command hive agent list (alias ls)
+command hive agent manifests
+command hive agent prompt
+command hive agent read
+command hive agent rename
+command hive agent send-keys
+command hive agent start
+command hive agent stop
+command hive agent wait
+command hive api
+command hive api schema
+command hive api snapshot
+command hive config
+command hive config default
+command hive config import-herdr
+command hive config init
+command hive config path
+command hive config reset-keys
+command hive config show
+command hive config validate
+command hive daemon
+command hive daemon (alias server)
+command hive daemon install
+command hive daemon logs
+command hive daemon reload-agent-manifests
+command hive daemon restart
+command hive daemon start
+command hive daemon status
+command hive daemon stop
+command hive daemon uninstall
+command hive debug
+command hive debug pprof
+command hive debug stats
+command hive demo
+command hive environment
+command hive environment (alias env)
+command hive environment create
+command hive environment get
+command hive environment list
+command hive environment list (alias ls)
+command hive environment remove
+command hive environment remove (alias rm)
+command hive environment report-metadata
+command hive environment set
+command hive environment unset
+command hive events
+command hive gc
+command hive integration
+command hive integration install
+command hive integration status
+command hive integration uninstall
+command hive layout
+command hive layout apply
+command hive layout export
+command hive machine
+command hive machine (alias machines)
+command hive machine add
+command hive machine disable
+command hive machine enable
+command hive machine list
+command hive machine list (alias ls)
+command hive machine reconnect
+command hive machine remove
+command hive machine remove (alias rm)
+command hive machine rename
+command hive machine status
+command hive mcp
+command hive metadata
+command hive pane
+command hive pane close
+command hive pane focus
+command hive pane get
+command hive pane input
+command hive pane list
+command hive pane list (alias ls)
+command hive pane move
+command hive pane popup
+command hive pane read
+command hive pane rename
+command hive pane report-agent
+command hive pane report-metadata
+command hive pane resize
+command hive pane run
+command hive pane send-keys
+command hive pane send-text
+command hive pane split
+command hive pane swap
+command hive pane wait-output
+command hive pane zoom
+command hive ping
+command hive plugin
+command hive plugin (alias plugins)
+command hive plugin disable
+command hive plugin enable
+command hive plugin info
+command hive plugin install
+command hive plugin link
+command hive plugin list
+command hive plugin list (alias ls)
+command hive plugin logs
+command hive plugin run
+command hive plugin uninstall
+command hive plugin uninstall (alias remove)
+command hive plugin uninstall (alias rm)
+command hive process
+command hive process (alias ps)
+command hive process get
+command hive process list
+command hive process list (alias ls)
+command hive process logs
+command hive process start
+command hive process stop
+command hive proxy
+command hive session
+command hive session list
+command hive session list (alias ls)
+command hive session remove
+command hive session remove (alias rm)
+command hive session restore
+command hive session save
+command hive session stop
+command hive status
+command hive stop
+command hive tab
+command hive tab close
+command hive tab create
+command hive tab create (alias new)
+command hive tab focus
+command hive tab list
+command hive tab list (alias ls)
+command hive tab rename
+command hive terminal
+command hive terminal attach
+command hive terminal input
+command hive terminal resize
+command hive terminal snapshot
+command hive ui
+command hive ui (alias tui)
+command hive update
+command hive version
+command hive worktree
+command hive worktree (alias wt)
+command hive worktree create
+command hive worktree list
+command hive worktree list (alias ls)
+command hive worktree open
+command hive worktree remove
+command hive worktree remove (alias rm)
+exit code 0 ok
+exit code 1 error
+exit code 2 usage
+exit code 3 not running
+exit code 4 timeout
+exit code 5 agent
+flag hive --json bool
+flag hive --machine string
+flag hive --remote string
+flag hive --session string
+flag hive --skill bool
+flag hive --template string
+flag hive --yes bool
+flag hive agent list --all bool -a
+flag hive agent prompt --read int
+flag hive agent prompt --stall-timeout duration
+flag hive agent prompt --start-timeout duration
+flag hive agent prompt --timeout duration
+flag hive agent prompt --until string
+flag hive agent prompt --wait bool
+flag hive agent read --ansi bool
+flag hive agent read --lines int -n
+flag hive agent read --source string -s
+flag hive agent start --base string
+flag hive agent start --env string
+flag hive agent start --kind string -k
+flag hive agent start --name string
+flag hive agent start --var stringArray -e
+flag hive agent start --worktree string -w
+flag hive agent wait --after int64
+flag hive agent wait --stall duration
+flag hive agent wait --timeout duration
+flag hive agent wait --until string
+flag hive config import-herdr --from string
+flag hive config import-herdr --herdr-keys bool
+flag hive config import-herdr --write bool
+flag hive config init --force bool
+flag hive daemon install --executable string
+flag hive daemon install --print bool
+flag hive daemon logs --follow bool -f
+flag hive daemon logs --lines int -n
+flag hive daemon restart --stop-agents bool
+flag hive daemon stop --keep-agents bool
+flag hive debug pprof --output string -o
+flag hive debug pprof --profile string
+flag hive debug pprof --seconds int
+flag hive environment create --cwd string
+flag hive environment create --env stringArray -e
+flag hive environment create --managed bool
+flag hive environment report-metadata --clear bool
+flag hive environment report-metadata --title string
+flag hive environment report-metadata --token stringArray
+flag hive environment report-metadata --ttl duration
+flag hive gc --dry-run bool -n
+flag hive gc --older-than duration
+flag hive layout export --output string -o
+flag hive machine add --hive-path string
+flag hive machine add --no-check bool
+flag hive machine add --session string
+flag hive pane focus --direction string -d
+flag hive pane list --env string
+flag hive pane list --tab string
+flag hive pane move --direction string -d
+flag hive pane move --env string
+flag hive pane move --next-to string
+flag hive pane move --tab string
+flag hive pane popup --cwd string
+flag hive pane popup --env stringArray -e
+flag hive pane popup --height int
+flag hive pane popup --name string
+flag hive pane popup --tab string
+flag hive pane popup --width int
+flag hive pane read --ansi bool
+flag hive pane read --lines int -n
+flag hive pane read --source string -s
+flag hive pane report-agent --hook bool
+flag hive pane report-agent --message string
+flag hive pane report-agent --session-id string
+flag hive pane report-agent --state string
+flag hive pane report-agent --ttl duration
+flag hive pane report-metadata --clear bool
+flag hive pane report-metadata --title string
+flag hive pane report-metadata --token stringArray
+flag hive pane report-metadata --ttl duration
+flag hive pane resize --cells int -n
+flag hive pane resize --direction string -d
+flag hive pane send-text --paste bool
+flag hive pane split --cwd string
+flag hive pane split --direction string -d
+flag hive pane split --env stringArray -e
+flag hive pane split --name string
+flag hive pane split --no-focus bool
+flag hive pane split --ratio float64 -r
+flag hive pane wait-output --anywhere bool
+flag hive pane wait-output --regex string
+flag hive pane wait-output --text string
+flag hive pane wait-output --timeout duration
+flag hive pane zoom --off bool
+flag hive pane zoom --on bool
+flag hive plugin install --ref string
+flag hive plugin logs --follow bool -f
+flag hive plugin logs --lines int -n
+flag hive plugin run --env string
+flag hive plugin run --pane string
+flag hive process logs --follow bool -f
+flag hive process logs --lines int -n
+flag hive process logs --stderr bool
+flag hive process start --height uint16
+flag hive process start --terminal bool -t
+flag hive process start --width uint16
+flag hive session restore --fresh bool
+flag hive session stop --keep-agents bool
+flag hive tab create --cwd string
+flag hive tab create --env stringArray -e
+flag hive tab create --name string
+flag hive tab create --pane-name string
+flag hive terminal snapshot --ansi bool
+flag hive terminal snapshot --scrollback int
+flag hive ui --env string
+flag hive update --channel string
+flag hive update --check bool
+flag hive update --force bool
+flag hive update --from string
+flag hive update --no-restart bool
+flag hive update --version string
+flag hive worktree create --base string
+flag hive worktree create --env stringArray -e
+flag hive worktree create --id string
+flag hive worktree create --repo string
+flag hive worktree list --repo string
+flag hive worktree open --id string
+flag hive worktree remove --force bool -f

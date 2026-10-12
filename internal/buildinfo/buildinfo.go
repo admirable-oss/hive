@@ -14,11 +14,18 @@ import (
 //	-X github.com/admirable-oss/hive/internal/buildinfo.version=v0.2.0
 //	-X github.com/admirable-oss/hive/internal/buildinfo.commit=<sha>
 //	-X github.com/admirable-oss/hive/internal/buildinfo.date=<RFC 3339>
+//	-X github.com/admirable-oss/hive/internal/buildinfo.releaseKey=<base64 ed25519 public key>
 var (
-	version = ""
-	commit  = ""
-	date    = ""
+	version    = ""
+	commit     = ""
+	date       = ""
+	releaseKey = ""
 )
+
+// ReleaseKey is the public key release checksums are signed with (base64
+// ed25519), which `hive update` verifies; "" in builds from source, which
+// cannot check signatures.
+func ReleaseKey() string { return releaseKey }
 
 // Info identifies a build.
 type Info struct {

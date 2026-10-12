@@ -184,7 +184,7 @@ Make Hive yours: plugins, custom commands, and hooks for whatever your workflow 
 
 ---
 
-## M9 · Hardening → `v1.0.0`
+## M9 · Hardening → `v1.0.0` - **LIVE**
 
 The final stretch: freeze the APIs, polish the rough edges, and ship a 1.0 we can all be proud of. 🎉
 

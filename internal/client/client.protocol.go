@@ -54,4 +54,7 @@ type Client interface {
 	// Call performs any request and decodes its result into result (which
 	// may be nil). Workspace wraps it with typed methods.
 	Call(ctx context.Context, method string, params, result any) error
+	// Stream performs a request that answers with a pipe (debug.pprof) and
+	// copies what it sends to out until it closes.
+	Stream(ctx context.Context, method string, params any, out io.Writer) error
 }

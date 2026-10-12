@@ -290,6 +290,11 @@ func (s *Server) accept(ctx context.Context, ln net.Listener) {
 			}
 			return // listener closed
 		}
+		if err := platform.CheckPeer(conn); err != nil {
+			s.log.Warn("refused a connection", "err", err)
+			_ = conn.Close()
+			continue
+		}
 		if !s.track(conn) {
 			_ = conn.Close()
 			return

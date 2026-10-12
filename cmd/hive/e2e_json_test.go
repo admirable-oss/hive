@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -53,6 +54,7 @@ func TestEveryCommandSpeaksJSON(t *testing.T) {
 		{"machine", "list"},
 		{"machine", "status"},
 		{"plugin", "list"},
+		{"debug", "stats"},
 		{"metadata"},
 		{"env", "report-metadata", "dev", "--token", "k=v"},
 	}
@@ -88,5 +90,25 @@ func TestEveryCommandSpeaksJSON(t *testing.T) {
 		if err := json.Unmarshal([]byte(out), &v); code != 0 || err != nil {
 			t.Errorf("hive --json %s: exit %d, %v\nstdout: %s\nstderr: %s", strings.Join(args, " "), code, err, out, errOut)
 		}
+	}
+}
+
+// TestDebugProfiles takes a heap profile and a short CPU profile of a real
+// daemon: pprof's format is gzip-compressed protobuf.
+func TestDebugProfiles(t *testing.T) {
+	c := newCLI(t)
+	dir := t.TempDir()
+	for _, args := range [][]string{
+		{"debug", "pprof", "--profile", "heap", "-o", filepath.Join(dir, "heap.pprof")},
+		{"debug", "pprof", "--profile", "cpu", "--seconds", "1", "-o", filepath.Join(dir, "cpu.pprof")},
+	} {
+		c.must(args...)
+		data, err := os.ReadFile(args[len(args)-1])
+		if err != nil || len(data) < 2 || data[0] != 0x1f || data[1] != 0x8b {
+			t.Fatalf("%v: %d bytes, %v", args, len(data), err)
+		}
+	}
+	if _, errOut, code := c.run("debug", "pprof", "--profile", "nope"); code != exitUsage || !strings.Contains(errOut, "one of") {
+		t.Fatalf("bad profile: exit %d: %s", code, errOut)
 	}
 }

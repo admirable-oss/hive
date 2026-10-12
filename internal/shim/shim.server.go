@@ -292,6 +292,11 @@ func (s *server) accept(ctx context.Context, ln net.Listener, conns *connSet) {
 		if err != nil {
 			return
 		}
+		if err := platform.CheckPeer(conn); err != nil {
+			s.log.Warn("refused a connection", "err", err)
+			_ = conn.Close()
+			continue
+		}
 		conns.add(conn)
 		go func() {
 			defer conns.done(conn)

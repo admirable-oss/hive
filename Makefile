@@ -26,7 +26,9 @@ LDFLAGS := -s -w \
 FUZZ_TARGETS := \
 	./internal/protocol/tests:FuzzStreamReceive \
 	./internal/config:FuzzParse \
-	./internal/vt:FuzzDecodeFrame
+	./internal/vt:FuzzDecodeFrame \
+	./internal/plugin:FuzzParseManifest \
+	./internal/agent:FuzzParseManifest
 
 .DEFAULT_GOAL := help
 
@@ -68,8 +70,25 @@ fuzz: ## Run every fuzz target for FUZZTIME (default 30s)
 	done
 
 .PHONY: bench
-bench: ## Run the benchmarks
-	$(GO) test -run='^$$' -bench=. -benchmem ./...
+bench: ## Run the benchmarks (BENCH_OUT=file keeps them for bench-compare)
+	$(GO) test -run='^$$' -bench=. -benchmem -count=5 ./... | tee $(or $(BENCH_OUT),/dev/null)
+
+.PHONY: bench-compare
+bench-compare: ## Compare benchmarks with main: make bench-compare
+	@tmp=$$(mktemp -d); \
+	git worktree add -q $$tmp/main main && \
+	(cd $$tmp/main && $(GO) test -run='^$$' -bench=. -benchmem -count=5 ./... > $$tmp/old.txt); \
+	$(GO) test -run='^$$' -bench=. -benchmem -count=5 ./... > $$tmp/new.txt; \
+	$(GO) run golang.org/x/perf/cmd/benchstat@latest $$tmp/old.txt $$tmp/new.txt; \
+	git worktree remove --force $$tmp/main; rm -rf $$tmp
+
+.PHONY: perf
+perf: ## Check the performance budgets (frame time, idle CPU, input latency)
+	$(GO) test -count=1 -run 'TestFrameTime100Panes|TestRuntime_IdleCPUWith100Panes|TestInputLatency16Panes' -v ./internal/tui/mux ./internal/runtime/tests
+
+.PHONY: chaos
+chaos: ## Run the chaos soak for HIVE_CHAOS (default 20s)
+	$(GO) test -count=1 -timeout 80h -run '^TestChaos$$' -v ./cmd/hive
 
 .PHONY: vet
 vet: ## Run go vet
@@ -92,8 +111,8 @@ check: vet lint race ## Everything CI checks: vet, lint, race tests
 	$(GO) mod tidy -diff
 
 .PHONY: snapshot
-snapshot: $(GORELEASER) ## Build release archives locally into ./dist (no publishing)
-	$(GORELEASER) release --snapshot --clean
+snapshot: $(GORELEASER) ## Build release archives locally into ./dist (no publishing, unsigned)
+	$(GORELEASER) release --snapshot --clean --skip=sign
 
 .PHONY: clean
 clean: ## Remove build output
