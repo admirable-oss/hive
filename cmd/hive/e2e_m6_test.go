@@ -59,12 +59,14 @@ func (c *cli) tabs() []pane.Tab {
 }
 
 // powerCut kills the daemon, every shim and every agent at once, leaving
-// their records as they were: what a host reboot does.
+// their records as they were: what a host reboot does. The daemon and the
+// shims go first: a shim that outlived its agent would record how it
+// ended, and an agent that ended on its own is not restored.
 func (c *cli) powerCut() {
 	c.t.Helper()
-	var pids []int
+	var keepers, agents []int
 	if pid := c.pid(); pid > 0 {
-		pids = append(pids, pid)
+		keepers = append(keepers, pid)
 	}
 	entries, _ := os.ReadDir(filepath.Join(c.home, "run"))
 	for _, e := range entries {
@@ -76,18 +78,24 @@ func (c *cli) powerCut() {
 		if err != nil || json.Unmarshal(data, &st) != nil {
 			continue
 		}
-		if st.PID > 0 {
-			_ = syscall.Kill(-st.PID, syscall.SIGKILL) // the agent's process group
-			pids = append(pids, st.PID)
-		}
 		if st.ShimPID > 0 {
-			pids = append(pids, st.ShimPID)
+			keepers = append(keepers, st.ShimPID)
+		}
+		if st.PID > 0 {
+			agents = append(agents, st.PID)
 		}
 	}
-	for _, pid := range pids {
+	for _, pid := range keepers {
 		_ = syscall.Kill(pid, syscall.SIGKILL)
 	}
-	for _, pid := range pids {
+	for _, pid := range keepers {
+		c.waitFor(fmt.Sprintf("pid %d to die", pid), func() bool { return syscall.Kill(pid, 0) != nil })
+	}
+	for _, pid := range agents {
+		_ = syscall.Kill(-pid, syscall.SIGKILL) // the agent's process group
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+	}
+	for _, pid := range agents {
 		c.waitFor(fmt.Sprintf("pid %d to die", pid), func() bool { return syscall.Kill(pid, 0) != nil })
 	}
 }
