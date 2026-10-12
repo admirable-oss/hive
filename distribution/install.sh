@@ -4,20 +4,26 @@ set -eu
 REPOSITORY="admirable-oss/hive"
 # HIVE_VERSION=v1.0.0 installs that release; HIVE_CHANNEL=preview installs
 # the newest release, release candidates included.
-API_URL="https://api.github.com/repos/${REPOSITORY}/releases/latest"
+RELEASES_URL="https://api.github.com/repos/${REPOSITORY}/releases"
+API_URL="${RELEASES_URL}/latest"
 case "${HIVE_CHANNEL:-stable}" in
     stable) ;;
-    preview) API_URL="https://api.github.com/repos/${REPOSITORY}/releases?per_page=1" ;;
+    preview) API_URL="${RELEASES_URL}?per_page=1" ;;
     *) printf '  ! HIVE_CHANNEL must be stable or preview\n' >&2; exit 1 ;;
 esac
 if [ -n "${HIVE_VERSION:-}" ]; then
-    API_URL="https://api.github.com/repos/${REPOSITORY}/releases/tags/${HIVE_VERSION}"
+    API_URL="${RELEASES_URL}/tags/${HIVE_VERSION}"
 fi
 INSTALL_DIR="${HIVE_INSTALL_DIR:-${HOME}/.local/bin}"
 
 log() { printf '  > %s\n' "$1"; }
 err() { printf '  ! %s\n' "$1" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || err "required command not found: $1"; }
+fetch() {
+    curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
+        -H 'Accept: application/vnd.github+json' \
+        -H 'User-Agent: hive-installer' "$1"
+}
 
 main() {
     need curl
@@ -37,11 +43,16 @@ main() {
     esac
 
     log "detecting the Hive release for ${os}/${arch}"
-    release="$(curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
-        -H 'Accept: application/vnd.github+json' \
-        -H 'User-Agent: hive-installer' "$API_URL")" \
-        || err "could not fetch the latest Hive release from GitHub"
-    tag="$(printf '%s\n' "$release" | awk -F '"' '/"tag_name"[[:space:]]*:/ { print $4; exit }')"
+    if [ -n "${HIVE_CHANNEL:-}${HIVE_VERSION:-}" ]; then
+        release="$(fetch "$API_URL")" || err "could not fetch the Hive release from GitHub"
+    elif ! release="$(fetch "$API_URL" 2>/dev/null)"; then
+        # Until the first stable release there is no latest one: take the
+        # newest release candidate, unless a channel or version was asked for.
+        release="$(fetch "${RELEASES_URL}?per_page=1")" || err "could not fetch the Hive release from GitHub"
+        log "no stable release yet: installing the newest release candidate"
+    fi
+    # One field per line, whether GitHub sent the JSON indented or not.
+    tag="$(printf '%s\n' "$release" | tr ',' '\n' | awk -F '"' '/"tag_name"[[:space:]]*:/ { print $4; exit }')"
     [ -n "$tag" ] || err "GitHub did not return a latest release tag"
     version="${tag#v}"
     archive="hive_${version}_${os}_${arch}.tar.gz"
