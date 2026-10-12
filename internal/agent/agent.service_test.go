@@ -295,6 +295,30 @@ func TestReportWinsUntilItExpires(t *testing.T) {
 	}
 }
 
+// TestReportBeforeTheFirstScreen: an agent's start hook can report before
+// its terminal's first screen arrives; the session ID must not be lost.
+func TestReportBeforeTheFirstScreen(t *testing.T) {
+	h := newHarness(t)
+	h.procs.set(process.Process{
+		ID: "p1", EnvironmentID: "env", Command: "claude",
+		Status: process.StatusRunning, Terminal: true, PID: 100, StartedAt: h.clock(),
+	})
+	h.mu.Lock()
+	h.terms["p1"] = &term{vt: vt.New(80, 20, vt.Options{})}
+	h.mu.Unlock()
+	ctx := context.Background()
+
+	if _, err := h.svc.Report(ctx, "pane-1", Report{State: StateIdle, SessionID: "abc"}); err != nil {
+		t.Fatal(err)
+	}
+	h.show("p1", claudeIdle)
+	h.svc.step(ctx)
+	a := h.want("p1", StateIdle)
+	if a.Kind != "claude" || a.SessionID != "abc" {
+		t.Fatalf("agent = %+v", a)
+	}
+}
+
 func TestDoneReportIsAnsweredBySeeing(t *testing.T) {
 	h := newHarness(t)
 	h.start("p1", []string{"claude"}, nil, claudeIdle)

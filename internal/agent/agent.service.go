@@ -195,10 +195,8 @@ func (s *Service) poke() {
 func (s *Service) Frame(processID string, f *vt.Frame) {
 	now := s.now()
 	s.mu.Lock()
-	t := s.trackers[processID]
-	if t == nil {
-		t = &tracker{id: processID, started: now, status: Status{State: StateUnknown, Since: now}}
-		s.trackers[processID] = t
+	t, created := s.trackLocked(processID, now)
+	if created {
 		defer s.poke()
 	}
 	changed := t.apply(f, now)
@@ -218,6 +216,17 @@ func (s *Service) Frame(processID string, f *vt.Frame) {
 	if publishOutput {
 		s.events.Publish(EventOutput, map[string]string{"id": processID})
 	}
+}
+
+// trackLocked returns a terminal's tracker, starting one for a terminal
+// seen for the first time (whose kind the next step resolves).
+func (s *Service) trackLocked(processID string, now time.Time) (*tracker, bool) {
+	if t := s.trackers[processID]; t != nil {
+		return t, false
+	}
+	t := &tracker{id: processID, started: now, status: Status{State: StateUnknown, Since: now}}
+	s.trackers[processID] = t
+	return t, true
 }
 
 // Ended notes that a terminal's output ended (terminal.Watcher). Whether
@@ -540,12 +549,17 @@ func (s *Service) Report(ctx context.Context, id string, r Report) (Agent, error
 	if err != nil {
 		return Agent{}, err
 	}
+	// An agent's start hook races its own output: its report can come
+	// before the terminal's first screen does. Follow the terminal from the
+	// report then, or the session ID it carries is lost.
+	if _, err := s.terms.Get(procID); err != nil {
+		return Agent{}, fmt.Errorf("%w: %q has no terminal", ErrNotFound, id)
+	}
 	now := s.now()
 	s.mu.Lock()
-	t := s.trackers[procID]
-	if t == nil {
-		s.mu.Unlock()
-		return Agent{}, fmt.Errorf("%w: %q has no terminal", ErrNotFound, id)
+	t, created := s.trackLocked(procID, now)
+	if created {
+		defer s.poke()
 	}
 	t.report = &report{Report: r, until: now.Add(r.TTL)}
 	if r.SessionID != "" {
