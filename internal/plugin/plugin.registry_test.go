@@ -105,3 +105,24 @@ func TestLandingPublishedRegistry(t *testing.T) {
 		}
 	}
 }
+
+func TestIsHex(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{name: "digits", in: "0123456789", want: true},
+		{name: "lowercase", in: "abcdef", want: true},
+		{name: "uppercase", in: "ABCDEF", want: true},
+		{name: "mixed", in: "a0B1f9", want: true},
+		{name: "invalid", in: "a0g1", want: false},
+		{name: "empty", in: "", want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isHex(tc.in); got != tc.want {
+				t.Fatalf("isHex(%q) = %t, want %t", tc.in, got, tc.want)
+			}
+		})
+	}
+}
