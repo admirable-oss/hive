@@ -41,7 +41,7 @@ func Check(t *testing.T, path string, current []string) {
 	frozen := sortUnique(strings.Split(strings.TrimSpace(string(data)), "\n"))
 	breaking, added := Compare(frozen, current)
 	if len(breaking) > 0 {
-		t.Errorf("breaking changes to %s (see docs/compatibility.md):\n  %s", path, strings.Join(breaking, "\n  "))
+		t.Errorf("breaking changes to %s (see the compatibility policy):\n  %s", path, strings.Join(breaking, "\n  "))
 	}
 	if len(added) > 0 {
 		t.Errorf("%s does not have these additions yet; review them and run HIVE_UPDATE_SURFACE=1 go test ./... -run Frozen:\n  %s", path, strings.Join(added, "\n  "))

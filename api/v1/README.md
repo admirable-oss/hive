@@ -1,7 +1,7 @@
 # api/v1: Hive's frozen public surface
 
 These files are what Hive 1.x promises not to break (see
-[docs/compatibility.md](../../docs/compatibility.md)). Tests compare the code
+[the compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/)). Tests compare the code
 with them on every run:
 
 | File | Surface | Checked by |

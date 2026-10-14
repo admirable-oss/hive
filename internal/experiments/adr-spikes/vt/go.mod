@@ -1,4 +1,4 @@
-module github.com/admirable-oss/hive/docs/adr/spikes/vt
+module github.com/admirable-oss/hive/internal/experiments/adr-spikes/vt
 
 go 1.26.6
 

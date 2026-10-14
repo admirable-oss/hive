@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/bd7b9d6e-d0f5-43d7-9889-34c1a3fb0c9e
 
 ## Status
 
-Hive is at **v1.0 release candidates** and built in public. The wire API, the CLI, the configuration keys and the Go SDK are frozen: 1.x only adds to them ([compatibility policy](docs/compatibility.md)). Documentation lives in [docs/](docs/README.md); start with the [quick start](docs/quickstart.md), or the [migration guide](docs/migrating-from-herdr.md) if you come from herdr.
+Hive is at **v1.0 release candidates** and built in public. The wire API, the CLI, the configuration keys and the Go SDK are frozen: 1.x only adds to them ([compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/)). Documentation lives at [hive.admir-saheta.com/docs](https://hive.admir-saheta.com/docs/); start with the [quick start](https://hive.admir-saheta.com/docs/getting-started/quick-start/), or the [migration guide](https://hive.admir-saheta.com/docs/getting-started/migrating-from-herdr/) if you come from herdr.
 
 | Area | State |
 |------|-------|
@@ -45,10 +45,10 @@ Hive is at **v1.0 release candidates** and built in public. The wire API, the CL
 | Agent state detection (working, blocked, done, idle) for Claude Code, Codex and six more; hooks; notifications | ✅ working |
 | Agents operating agents: `hive agent start/prompt/wait/read`, MCP server (`hive mcp`), Go SDK (`pkg/hiveapi`) | ✅ working |
 | Workspace isolation per agent (git worktrees) | ✅ working |
-| Survives reboots: session snapshots, panes restored where they were working, agents resume their conversations ([docs](docs/persistence.md)) | ✅ working |
+| Survives reboots: session snapshots, panes restored where they were working, agents resume their conversations ([docs](https://hive.admir-saheta.com/docs/use/persistence/)) | ✅ working |
 | Housekeeping (`hive gc`, retention, output log rotation) and self-update (`hive update`, agents keep running) | ✅ working |
-| Remote machines over SSH: `--remote`, saved machines, every machine's agents in the sidebar, compressed and paced screens, clipboard back to you ([docs](docs/remote.md)) | ✅ working |
-| Plugins (startup, events, actions; install from git with a trust preview), key commands, sidebar tokens, status bar ([docs](docs/plugins.md)) | ✅ working |
+| Remote machines over SSH: `--remote`, saved machines, every machine's agents in the sidebar, compressed and paced screens, clipboard back to you ([docs](https://hive.admir-saheta.com/docs/use/rc-ra/)) | ✅ working |
+| Plugins (startup, events, actions; install from git with a trust preview), key commands, sidebar tokens, status bar ([docs](https://hive.admir-saheta.com/docs/config/plugins/)) | ✅ working |
 | Hardening: frozen APIs, peer-credential checks on every socket, signed releases, 100 panes at under 16 ms a frame and under 1 % CPU idle, nightly fuzzing and chaos soaks ([security](SECURITY.md)) | ✅ working |
 | Windows support | 🗺 planned |
 
@@ -93,7 +93,7 @@ The multiplexer works like tmux: press the prefix, `Ctrl+B`, then a key.
 | `?` | every binding, with a filter |
 | `d` | detach; agents keep running |
 
-A split or popup starts in the directory its pane is working in (after a `cd`, too); a new tab starts at the environment's root. The mouse works too: click to focus, drag borders, select to copy, scroll into history. [docs/keybindings.md](docs/keybindings.md) lists every binding and how to change them.
+A split or popup starts in the directory its pane is working in (after a `cd`, too); a new tab starts at the environment's root. The mouse works too: click to focus, drag borders, select to copy, scroll into history. The [keystrokes guide](https://hive.admir-saheta.com/docs/getting-started/keystrokes/) lists every binding and how to change them.
 
 ### CLI
 
@@ -129,7 +129,7 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
 | `hive update [--check] [--version v] [--channel stable\|preview] [--from file]` | Update hive to the latest signed release and restart the daemon; agents keep running |
 | `hive config path \| show \| default \| init \| validate \| reset-keys` | Inspect and create the configuration file; put the default key bindings back |
-| `hive config import-herdr [--herdr-keys] [--write]` | Bring over herdr's settings and key bindings ([guide](docs/migrating-from-herdr.md)) |
+| `hive config import-herdr [--herdr-keys] [--write]` | Bring over herdr's settings and key bindings ([guide](https://hive.admir-saheta.com/docs/getting-started/migrating-from-herdr/)) |
 | `hive debug pprof [--profile p] [--seconds n] [-o file]` · `hive debug stats` | Profile the daemon; its goroutines, open files and memory |
 | `hive completion bash\|zsh\|fish\|powershell` | Shell completion, including environment and process IDs |
 
@@ -161,7 +161,7 @@ scrollback_mb = 10          # history kept per agent (lines that scrolled off it
 [session]
 restore = true              # after a reboot, start panes again where they were working…
 resume_agents_on_restore = true  # …and resume agents' conversations (claude --resume <id>)
-replay_history = false      # show panes' earlier text again (keeps screen text on disk; see docs/persistence.md)
+replay_history = false      # show panes' earlier text again (keeps screen text on disk; see the persistence guide)
 
 [retention]
 exited_processes = "168h"   # keep ended processes' records and logs this long
@@ -181,13 +181,13 @@ clipboard = "auto"          # auto | osc52 | local | off
 name = "auto"               # auto | catppuccin | catppuccin-latte | tokyo-night | gruvbox | nord | terminal | custom
 
 [keys]
-prefix_keys = ["ctrl+b"]    # bindings per mode in [keys.<mode>]; see docs/keybindings.md
+prefix_keys = ["ctrl+b"]    # bindings per mode in [keys.<mode>]; see the keystrokes guide
 
 [update]
 channel = "stable"          # stable | preview (release candidates too)
 ```
 
-[docs/config.md](docs/config.md) describes every key.
+The [configuration reference](https://hive.admir-saheta.com/docs/config/config-reference/) describes every key.
 
 Unknown keys and invalid values are reported as warnings and fall back to the defaults, so a typo never stops the daemon that keeps your agents alive. A file that is not valid TOML is an error, and the daemon refuses to start with it. `hive config validate` checks a file and exits non-zero on any problem.
 
@@ -201,7 +201,7 @@ Hive is a single binary with three roles:
 - a **daemon** that owns environments and supervises agents through their shims;
 - **clients** (the CLI and the multiplexer UI) that talk to the daemon over a unix socket.
 
-Closing a client never touches an agent. Stopping, crashing or upgrading the daemon doesn't either: the next daemon re-attaches to the shims ([ADR 0006](docs/adr/0006-shims-protocol-2-and-frames.md)).
+Closing a client never touches an agent. Stopping, crashing or upgrading the daemon doesn't either: the next daemon re-attaches to the shims ([ADR 0006](https://hive.admir-saheta.com/docs/ref/architecture/0006-shims-protocol-2-and-frames/)).
 
 ```
 cmd/hive ──────────── CLI composition root: builds one `app` (paths, config, client); cobra commands
@@ -317,7 +317,7 @@ Hive is designed **contracts first**. Each layer depends on a small interface (a
 
 - **One file per role:** `pkg.model.go` (types), `pkg.service.go` (contract and implementation), `pkg.store.go` (port), `pkg.filesystem_store.go` (adapter), `pkg.protocol.go` (wire handlers), `pkg.module.go` (wiring and package doc), `pkg.error.go`.
 - **Comments explain why, not what.** Each package starts with a short doc comment, and non-obvious decisions are commented where they happen.
-- **Minimal dependencies.** Bubble Tea and Lip Gloss (UI), `creack/pty` (terminals), cobra (CLI), go-toml (config), `x/sys`, godbus (the logind shutdown notice on Linux), and two small `charmbracelet/x` helpers. Everything else is the standard library. A new dependency needs an [ADR](docs/adr/).
+- **Minimal dependencies.** Bubble Tea and Lip Gloss (UI), `creack/pty` (terminals), cobra (CLI), go-toml (config), `x/sys`, godbus (the logind shutdown notice on Linux), and two small `charmbracelet/x` helpers. Everything else is the standard library. A new dependency needs an [ADR](https://hive.admir-saheta.com/docs/ref/architecture/README/).
 
 ## Contributing
 
@@ -329,7 +329,7 @@ make snapshot   # build release archives into ./dist
 
 Tests sit next to the code or in a package's `tests/` directory. Fakes for `Store`, `Runner`, `Factory` and `client.Client` let most tests run without real processes. Integration tests start a real daemon on a temporary socket, and the CLI's end-to-end tests run the real binary path, autostarting a daemon in a scratch `HIVE_HOME`. Every package checks for leaked goroutines.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards and [docs/adr](docs/adr/) for design decisions. Issues and pull requests are welcome. Please keep changes small, follow the file conventions above, and include a test with each bug fix.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards and [architecture decisions](https://hive.admir-saheta.com/docs/ref/architecture/README/) for design decisions. Issues and pull requests are welcome. Please keep changes small, follow the file conventions above, and include a test with each bug fix.
 
 Found a security issue? Please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 

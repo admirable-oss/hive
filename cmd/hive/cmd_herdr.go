@@ -43,7 +43,7 @@ Hive equivalent is listed, with why.
 With --herdr-keys, herdr's whole default keymap applies first, so the keys
 you know from herdr work in Hive. Without --write, the resulting
 configuration is printed; with it, it replaces Hive's config file (the old
-one is kept beside it). See docs/migrating-from-herdr.md.`,
+one is kept beside it). See https://hive.admir-saheta.com/docs/getting-started/migrating-from-herdr/.`,
 		Example: `  hive config import-herdr                  # print what it would write
   hive config import-herdr --herdr-keys --write`,
 		Args: noArgs,

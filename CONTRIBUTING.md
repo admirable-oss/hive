@@ -3,7 +3,7 @@
 Thanks for helping. This page covers how to build, test and lint Hive, and
 the conventions the code follows. The architecture overview is in the
 [README](README.md#architecture), and design decisions are recorded in
-[docs/adr](docs/adr/).
+[architecture decisions](https://hive.admir-saheta.com/docs/ref/architecture/).
 
 ## Setup
 
@@ -31,7 +31,7 @@ export HIVE_HOME=$(mktemp -d /tmp/hv.XXXX) HIVE_CONFIG=/dev/null HIVE_LOG=debug
   (`feat(process): …`, `fix(tui): …`).
 - Every bug fix comes with a test that fails without it.
 - `make check` passes. CI also runs the fuzz targets and a snapshot release build.
-- A new dependency needs an ADR (`docs/adr/NNNN-title.md`) saying why
+- A new dependency needs an ADR in the architecture decisions section explaining why
   writing the code ourselves is worse.
 
 ## Code layout

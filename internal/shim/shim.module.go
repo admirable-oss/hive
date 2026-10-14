@@ -5,7 +5,7 @@
 // its terminal emulator and its logs, and serves them on a unix socket using
 // protocol 2. The daemon is just a client: when it stops, crashes or is
 // upgraded, the shims and their agents keep running, and the next daemon
-// adopts them by connecting to their sockets again (see docs/adr/0006).
+// adopts them by connecting to their sockets again (see ADR 0006).
 //
 // Layout, one directory per agent under the daemon's run directory:
 //

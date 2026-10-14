@@ -11,12 +11,12 @@ import (
 	"github.com/admirable-oss/hive/internal/tui/keymap"
 )
 
-var update = flag.Bool("update", false, "rewrite docs/keybindings.md")
+var update = flag.Bool("update", false, "rewrite testdata/keybindings.md")
 
 // docPath is the generated key reference.
-var docPath = filepath.Join("..", "..", "..", "docs", "keybindings.md")
+var docPath = filepath.Join("testdata", "keybindings.md")
 
-// TestKeybindingsDocIsCurrent keeps docs/keybindings.md in step with the
+// TestKeybindingsDocIsCurrent keeps the generated keybindings reference in step with the
 // built-in bindings; go test -update rewrites it.
 func TestKeybindingsDocIsCurrent(t *testing.T) {
 	got := keybindingsDoc(keymap.Default())

@@ -98,7 +98,7 @@ onboard() {
     esac
 
     printf '\n  Setup complete. Open Hive with: %bhive%b\n' "$c_gold" "$c_reset"
-    printf '  Learn the basics: https://hive.admir-saheta.com/docs/quickstart\n\n'
+    printf '  Learn the basics: https://hive.admir-saheta.com/docs/getting-started/quick-start/\n\n'
 }
 
 main() {

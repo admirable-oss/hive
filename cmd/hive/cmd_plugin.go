@@ -40,7 +40,7 @@ func newPluginCmd(a *app) *cobra.Command {
 says what to run: [[startup]] commands while the daemon runs, [[events]]
 commands when something happens (worktree.created, agent.state, …), and
 [[actions]] you run by name or bind to keys. Plugins run as you; installing
-one shows everything it will run and asks first. See docs/plugins.md.`,
+one shows everything it will run and asks first. See https://hive.admir-saheta.com/docs/config/plugins/.`,
 		Example: `  hive plugin install https://github.com/you/hive-pr-status
   hive plugin link ./my-plugin
   hive plugin run pr-status refresh`,

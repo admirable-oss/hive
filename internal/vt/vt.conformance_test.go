@@ -17,7 +17,7 @@ func newTerm(t *testing.T, cols, rows int, opts vt.Options) *vt.Terminal {
 
 const initial = "1\r\n2\r\n3\r\n4\r\n5"
 
-// conformance is the corpus from docs/adr/spikes/vt: each input must leave
+// conformance is the corpus from internal/experiments/adr-spikes/vt: each input must leave
 // the screen showing want (the remaining lines blank).
 var conformance = []struct {
 	name, input string

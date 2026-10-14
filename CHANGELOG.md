@@ -2,7 +2,7 @@
 
 All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
-[compatibility policy](docs/compatibility.md).
+[compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
 ## v1.0.0-rc.1 (2026-10-12)
 
@@ -14,7 +14,7 @@ P0 or P1 bug; then v1.0.0.
 
 - The wire API, the CLI, the configuration keys and the Go SDK are frozen
   in `api/v1/`. Tests fail on a breaking change, and additions must be
-  reviewed into the frozen copies. See docs/compatibility.md for what 1.x
+  reviewed into the frozen copies. See the compatibility policy for what 1.x
   promises.
 
 ### Security
@@ -59,7 +59,7 @@ P0 or P1 bug; then v1.0.0.
   reference and API reference generated from the code (tests keep them
   current).
 - `hive config import-herdr` brings herdr's settings and key bindings
-  (`--herdr-keys` for its whole keymap). See docs/migrating-from-herdr.md.
+  (`--herdr-keys` for its whole keymap). See the migration guide.
 
 ## v0.10: Extensibility (M8)
 

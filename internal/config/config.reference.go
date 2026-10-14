@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Reference is docs/config.md: every key with its default and what it does,
+// Reference is the generated configuration reference: every key with its default and what it does,
 // generated from the documented default file (Render), so the reference
 // and `hive config default` never disagree.
 func Reference() string {

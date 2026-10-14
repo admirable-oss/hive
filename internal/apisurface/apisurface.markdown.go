@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// Markdown is docs/api.md: the wire API reference, generated from an
+// Markdown is the wire API reference, generated from an
 // api.schema document.
 func Markdown(schemaJSON []byte) (string, error) {
 	var s struct {
@@ -38,7 +38,7 @@ sends requests such as
 `+"`"+`{"version":"2","type":"request","id":"1","method":"agent.list","params":{"all":true}}`+"`"+`,
 each answered by a `+"`response`"+` with the same `+"`id`"+` and a `+"`result`"+` or an `+"`error`"+`
 (`+"`code`"+`, `+"`message`"+`). Pipe methods answer, then carry a byte stream on the
-connection. Every name below is stable within 1.x (docs/compatibility.md).
+connection. Every name below is stable within 1.x (the compatibility policy).
 `, s.APILevel)
 
 	groups := map[string][]int{}

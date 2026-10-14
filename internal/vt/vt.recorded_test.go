@@ -13,7 +13,7 @@ import (
 var update = flag.Bool("update", false, "rewrite the golden screens in testdata/recorded")
 
 // TestRecordedSessions replays real programs (vim, less, a colour script),
-// recorded in an 80x24 PTY by docs/adr/spikes/vt (`go run . dump`), and
+// recorded in an 80x24 PTY by internal/experiments/adr-spikes/vt (`go run . dump`), and
 // compares the final screen with a reviewed golden file. Run with -update
 // after an intentional change in emulation, and review the diff.
 func TestRecordedSessions(t *testing.T) {

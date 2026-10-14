@@ -10,7 +10,7 @@ import (
 	"github.com/admirable-oss/hive/internal/client"
 )
 
-// TestAPIFrozen holds the wire API to api/v1 (docs/compatibility.md):
+// TestAPIFrozen holds the wire API to api/v1 (the compatibility policy):
 // methods, their params and results, and the types they use.
 func TestAPIFrozen(t *testing.T) {
 	path := shortSock(t)
@@ -39,7 +39,7 @@ func TestAPIFrozen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const docPath = "../../../docs/api.md"
+	const docPath = "testdata/api-reference.md"
 	if os.Getenv(apisurface.UpdateEnv) == "1" {
 		if err := os.WriteFile(docPath, []byte(doc), 0o644); err != nil {
 			t.Fatal(err)
@@ -47,6 +47,6 @@ func TestAPIFrozen(t *testing.T) {
 		return
 	}
 	if got, err := os.ReadFile(docPath); err != nil || string(got) != doc {
-		t.Errorf("docs/api.md is out of date: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen (%v)", err)
+		t.Errorf("testdata/api-reference.md is out of date: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen (%v)", err)
 	}
 }
