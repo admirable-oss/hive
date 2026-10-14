@@ -106,6 +106,7 @@ command hive plugin list
 command hive plugin list (alias ls)
 command hive plugin logs
 command hive plugin run
+command hive plugin search
 command hive plugin uninstall
 command hive plugin uninstall (alias remove)
 command hive plugin uninstall (alias rm)
@@ -257,6 +258,8 @@ flag hive plugin logs --follow bool -f
 flag hive plugin logs --lines int -n
 flag hive plugin run --env string
 flag hive plugin run --pane string
+flag hive plugin search --category string
+flag hive plugin uninstall --delete-data bool
 flag hive process logs --follow bool -f
 flag hive process logs --lines int -n
 flag hive process logs --stderr bool

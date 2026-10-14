@@ -94,6 +94,9 @@ var (
 	eventPattern   = regexp.MustCompile(`^[a-z_]+(\.[a-z_]+)*\.?$`)
 )
 
+// ValidID reports whether s can be used as a plugin identifier.
+func ValidID(s string) bool { return idPattern.MatchString(s) }
+
 // ErrInvalidManifest wraps every problem with a manifest.
 var ErrInvalidManifest = errors.New("invalid plugin manifest")
 

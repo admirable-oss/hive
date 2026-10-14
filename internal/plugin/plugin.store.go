@@ -3,8 +3,11 @@ package plugin
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -139,6 +142,54 @@ type Fetched struct {
 	dir      string // the clone
 }
 
+const maxPluginArchiveBytes = 64 << 20
+
+// VerifyArchiveChecksum compares a published SHA-256 digest against the
+// deterministic tar stream produced by git archive for the fetched commit.
+func (f *Fetched) VerifyArchiveChecksum(ctx context.Context, want string) error {
+	want = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(want)), "sha256:")
+	if len(want) != sha256.Size*2 || !isHex(want) {
+		return fmt.Errorf("invalid plugin archive checksum %q", want)
+	}
+	h := sha256.New()
+	w := &boundedHashWriter{h: h, limit: maxPluginArchiveBytes}
+	cmd := exec.CommandContext(ctx, "git", "-C", f.dir, "archive", "--format=tar", f.Commit)
+	cmd.Stdout = w
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if w.tooLarge {
+			return fmt.Errorf("plugin source archive exceeds %d MiB", maxPluginArchiveBytes>>20)
+		}
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return fmt.Errorf("calculate plugin source checksum: %s: %w", msg, err)
+		}
+		return fmt.Errorf("calculate plugin source checksum: %w", err)
+	}
+	got := hex.EncodeToString(h.Sum(nil))
+	if got != want {
+		return fmt.Errorf("plugin source checksum mismatch: expected sha256:%s, got sha256:%s", want, got)
+	}
+	return nil
+}
+
+type boundedHashWriter struct {
+	h        io.Writer
+	written  int64
+	limit    int64
+	tooLarge bool
+}
+
+func (w *boundedHashWriter) Write(p []byte) (int, error) {
+	if w.written+int64(len(p)) > w.limit {
+		w.tooLarge = true
+		return 0, fmt.Errorf("archive exceeds size limit")
+	}
+	n, err := w.h.Write(p)
+	w.written += int64(n)
+	return n, err
+}
+
 // Fetch clones a plugin from git (anything git clone accepts: a URL or a
 // path to a repository) and reads its manifest, for the user to review
 // with Preview before Install. Discard it if not installing.
@@ -209,7 +260,13 @@ func (s *Store) Install(f *Fetched, hiveVersion string) (Installed, error) {
 		return Installed{}, err
 	}
 	in := Installed{ID: id, Source: f.Source, Ref: f.Ref, Commit: f.Commit, Enabled: true, InstalledAt: time.Now()}
-	return in, s.saveLocked(append(list, in))
+	if err := s.saveLocked(append(list, in)); err != nil {
+		if rollbackErr := os.Rename(s.Dir(id), f.dir); rollbackErr != nil {
+			return Installed{}, fmt.Errorf("record plugin install: %w (also failed to roll back installed files: %v)", err, rollbackErr)
+		}
+		return Installed{}, err
+	}
+	return in, nil
 }
 
 // Link installs the plugin in dir as it is, by a symlink: changes there
@@ -261,9 +318,9 @@ func (s *Store) SetEnabled(id string, on bool) (Installed, error) {
 	return list[i], s.saveLocked(list)
 }
 
-// Uninstall removes a plugin: its files (only the link, when linked) and
-// its data.
-func (s *Store) Uninstall(id string) error {
+// Uninstall removes a plugin's installed files (only the link, when linked).
+// Plugin data is preserved unless deleteData is explicitly true.
+func (s *Store) Uninstall(id string, deleteData ...bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	list, err := s.loadLocked()
@@ -277,8 +334,10 @@ func (s *Store) Uninstall(id string) error {
 	if err := os.RemoveAll(s.Dir(id)); err != nil { // a symlink is removed, not followed
 		return err
 	}
-	if err := os.RemoveAll(s.DataDir(id)); err != nil {
-		return err
+	if len(deleteData) > 0 && deleteData[0] {
+		if err := os.RemoveAll(s.DataDir(id)); err != nil {
+			return err
+		}
 	}
 	return s.saveLocked(slices.Delete(list, i, i+1))
 }
