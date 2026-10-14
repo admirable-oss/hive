@@ -60,6 +60,7 @@ func TestOpenFDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fd := f.Fd()
 	n1, err := platform.OpenFDs()
 	// Keep f live until after the descriptor count. The compiler may otherwise
 	// make it unreachable during OpenFDs, allowing its finalizer to close it.
@@ -69,6 +70,6 @@ func TestOpenFDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n1 != n0+1 {
-		t.Fatalf("one more file: %d → %d", n0, n1)
+		t.Fatalf("one more file: %d → %d (new file descriptor %d)", n0, n1, fd)
 	}
 }

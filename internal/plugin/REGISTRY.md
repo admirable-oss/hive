@@ -90,9 +90,71 @@ The current package transport uses Git's archive stream rather than extracting
 an arbitrary downloaded archive. Registry responses are capped at 4 MiB and
 the generated source archive is capped at 64 MiB. These caps apply before
 install approval; incomplete fetches are discarded and never become active.
-The current manifest has no structured per-plugin settings schema or
-user-config directory declaration. Plugins receive a persistent
-`HIVE_PLUGIN_DATA` directory and can declare required executables. Structured
-configuration, data-location declarations, and version-to-version migrations
-remain future contract work, so plugins must perform their own backwards
-compatible data handling today.
+
+## Manifest configuration and migration contract
+
+Manifests may bound compatibility with both `min_hive_version` and
+`max_hive_version`. The range is inclusive; a reversed range is invalid.
+`data_directory` selects a relative subdirectory beneath Hive's persistent
+per-plugin data root. Empty or `.` keeps the existing root unchanged. Absolute
+paths, parent traversal, and backslashes are rejected.
+
+`[configuration]` declares a versioned settings file, stored outside the
+plugin package and separate from plugin data. Hive exposes it to every plugin
+command as `HIVE_PLUGIN_CONFIG`, with its containing directory in
+`HIVE_PLUGIN_CONFIG_DIR`. The file uses this shape:
+
+```json
+{
+  "schema_version": 1,
+  "values": { "endpoint": "https://example.test" }
+}
+```
+
+Settings support `string`, `boolean`, `integer`, and `number`, with optional
+defaults and required values. Hive writes default settings with private file
+permissions and validates types, required values, and undeclared keys before
+running plugin commands. Settings are plaintext; credentials and secrets must
+be stored with an external secret manager instead.
+
+```toml
+data_directory = "state"
+
+[configuration]
+version = 2
+directory = "profile"
+
+[[configuration.settings]]
+name = "endpoint"
+type = "string"
+description = "Service base URL"
+default = "https://example.test"
+required = true
+
+[[configuration.settings]]
+name = "enabled"
+type = "boolean"
+default = true
+
+[[migrations]]
+from = 1
+to = 2
+command = ["./migrate-settings.sh"]
+```
+
+Each migration advances exactly one schema version, and every version step
+after version 1 must be declared. Hive stages the settings file, runs the hook
+with `HIVE_PLUGIN_CONFIG` pointing at the staged file, and commits it only
+after the command succeeds and leaves valid JSON. The hook must leave
+`schema_version` unchanged; Hive advances it after success. Hooks also receive
+`HIVE_PLUGIN_CONFIG_FROM_VERSION` and `HIVE_PLUGIN_CONFIG_TO_VERSION`. A failed
+hook leaves the prior settings file intact and prevents that plugin from
+starting. Hooks should be idempotent because an interrupted process may be
+retried. Keep previous-version setting keys readable while a rollback release
+is retained; the older release ignores unknown keys from a newer schema.
+
+`HIVE_PLUGIN_DATA` remains a separate persistent directory and is never
+automatically deleted or moved during updates or rollback. Migration hooks
+must not destructively rewrite plugin data: the current transactional guarantee
+covers the settings file, not arbitrary plugin-owned data. Plugins should keep
+data formats backward-compatible across the retained rollback window.

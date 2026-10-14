@@ -1381,6 +1381,14 @@ Result: [protocol.Empty](#protocolempty)
 | `timeout` | `string` |  |
 | `title` | `string` |  |
 
+### plugin.Configuration
+
+| Field | Type | |
+|---|---|---|
+| `directory` | `string` |  |
+| `settings` | [\[\]plugin.Setting](#pluginsetting) |  |
+| `version` | `integer` |  |
+
 ### plugin.Event
 
 | Field | Type | |
@@ -1394,15 +1402,27 @@ Result: [protocol.Empty](#protocolempty)
 | Field | Type | |
 |---|---|---|
 | `actions` | [\[\]plugin.Action](#pluginaction) |  |
+| `configuration` | [plugin.Configuration](#pluginconfiguration) |  |
+| `data_directory` | `string` |  |
 | `description` | `string` |  |
 | `events` | [\[\]plugin.Event](#pluginevent) |  |
 | `id` | `string` |  |
+| `max_hive_version` | `string` |  |
+| `migrations` | [\[\]plugin.Migration](#pluginmigration) |  |
 | `min_hive_version` | `string` |  |
 | `name` | `string` |  |
 | `platforms` | `[]string` |  |
 | `runtime` | [\[\]plugin.Runtime](#pluginruntime) |  |
 | `startup` | [\[\]plugin.Startup](#pluginstartup) |  |
 | `version` | `string` |  |
+
+### plugin.Migration
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `from` | `integer` |  |
+| `to` | `integer` |  |
 
 ### plugin.Result
 
@@ -1418,6 +1438,16 @@ Result: [protocol.Empty](#protocolempty)
 | `command` | `string` |  |
 | `min_version` | `string` |  |
 
+### plugin.Setting
+
+| Field | Type | |
+|---|---|---|
+| `default` | `any` |  |
+| `description` | `string` |  |
+| `name` | `string` |  |
+| `required` | `boolean` |  |
+| `type` | `string` |  |
+
 ### plugin.Startup
 
 | Field | Type | |
@@ -1429,6 +1459,7 @@ Result: [protocol.Empty](#protocolempty)
 
 | Field | Type | |
 |---|---|---|
+| `checksum` | `string` |  |
 | `commit` | `string` |  |
 | `dir` | `string` |  |
 | `enabled` | `boolean` |  |
@@ -1437,10 +1468,16 @@ Result: [protocol.Empty](#protocolempty)
 | `last_error` | `string` |  |
 | `linked` | `boolean` |  |
 | `manifest` | [plugin.Manifest](#pluginmanifest) |  |
+| `previous_checksum` | `string` |  |
+| `previous_commit` | `string` |  |
+| `previous_ref` | `string` |  |
+| `previous_version` | `string` |  |
 | `problem` | `string` |  |
 | `ref` | `string` |  |
+| `registry` | `boolean` |  |
 | `running` | `integer` |  |
 | `source` | `string` |  |
+| `version` | `string` |  |
 
 ### process.LogsRequest
 

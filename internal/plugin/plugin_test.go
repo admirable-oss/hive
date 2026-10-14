@@ -82,6 +82,143 @@ func TestManifest(t *testing.T) {
 	}
 }
 
+func TestManifestConfigurationAndMigrationValidation(t *testing.T) {
+	valid := `id = "config-demo"
+version = "1.0.0"
+max_hive_version = "2.0.0"
+data_directory = "state"
+[configuration]
+version = 2
+directory = "profile"
+[[configuration.settings]]
+name = "endpoint"
+type = "string"
+required = true
+default = "https://example.test"
+[[migrations]]
+from = 1
+to = 2
+command = ["./migrate.sh"]
+[[actions]]
+id = "run"
+command = ["./run.sh"]
+`
+	m, err := ParseManifest([]byte(valid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.MaxHiveVersion != "2.0.0" || m.Configuration.Version != 2 || m.Migrations[0].From != 1 {
+		t.Fatalf("manifest contract = %+v", m)
+	}
+	if err := m.Supported(context.Background(), "2.1.0"); err == nil || !strings.Contains(err.Error(), "supports hive through") {
+		t.Fatalf("max version was not enforced: %v", err)
+	}
+	for _, bad := range []string{
+		strings.Replace(valid, `data_directory = "state"`, `data_directory = "../outside"`, 1),
+		strings.Replace(valid, `directory = "profile"`, `directory = "../../outside"`, 1),
+		strings.Replace(valid, `type = "string"`, `type = "secret"`, 1),
+		strings.Replace(valid, "to = 2", "to = 3", 1),
+	} {
+		if _, err := ParseManifest([]byte(bad)); !errors.Is(err, ErrInvalidManifest) {
+			t.Errorf("accepted invalid declaration:\n%s\n%v", bad, err)
+		}
+	}
+}
+
+func TestPrepareConfigurationDefaultsAndMigration(t *testing.T) {
+	manifest := `id = "settings"
+version = "1.0.0"
+[configuration]
+version = 2
+[[configuration.settings]]
+name = "endpoint"
+type = "string"
+required = true
+[[migrations]]
+from = 1
+to = 2
+command = ["./migrate.sh"]
+[[actions]]
+id = "run"
+command = ["./run.sh"]
+`
+	dir := writePlugin(t, manifest, map[string]string{
+		"migrate.sh": "#!/bin/sh\nprintf '{\"schema_version\":1,\"values\":{\"endpoint\":\"https://migrated.test\"}}' > \"$HIVE_PLUGIN_CONFIG\"\n",
+	}, false)
+	store := NewStore(filepath.Join(t.TempDir(), "plugins"))
+	if _, _, err := store.Link(context.Background(), dir, "1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(store.ConfigDir("settings"), pluginConfigFile)
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte(`{"schema_version":1,"values":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := NewHost(HostConfig{Store: store, Version: "1.0.0"})
+	loaded := &loaded{Plugin: Plugin{Installed: Installed{ID: "settings"}, Dir: dir, Manifest: m}}
+	if err := host.prepareConfiguration(context.Background(), loaded); err != nil {
+		t.Fatal(err)
+	}
+	var got ConfigurationFile
+	if err := jsonfile.Read(configPath, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.SchemaVersion != 2 || got.Values["endpoint"] != "https://migrated.test" {
+		t.Fatalf("migrated settings = %+v", got)
+	}
+}
+
+func TestPrepareConfigurationWritesTypedDefaults(t *testing.T) {
+	manifest := `id = "defaults"
+version = "1.0.0"
+[configuration]
+version = 1
+[[configuration.settings]]
+name = "enabled"
+type = "boolean"
+default = true
+[[configuration.settings]]
+name = "endpoint"
+type = "string"
+default = "https://example.test"
+required = true
+[[actions]]
+id = "run"
+command = ["./run.sh"]
+`
+	dir := writePlugin(t, manifest, map[string]string{}, false)
+	store := NewStore(filepath.Join(t.TempDir(), "plugins"))
+	if _, _, err := store.Link(context.Background(), dir, "1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	m, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := NewHost(HostConfig{Store: store, Version: "1.0.0"})
+	l := &loaded{Plugin: Plugin{Installed: Installed{ID: "defaults"}, Dir: dir, Manifest: m}}
+	if err := host.prepareConfiguration(context.Background(), l); err != nil {
+		t.Fatal(err)
+	}
+	var got ConfigurationFile
+	if err := jsonfile.Read(filepath.Join(store.ConfigDir("defaults"), pluginConfigFile), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.SchemaVersion != 1 || got.Values["enabled"] != true || got.Values["endpoint"] != "https://example.test" {
+		t.Fatalf("default settings = %+v", got)
+	}
+	info, err := os.Stat(filepath.Join(store.ConfigDir("defaults"), pluginConfigFile))
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("config file permissions = %v, %v", info, err)
+	}
+}
+
 // writePlugin makes a plugin directory; with repo, a git repository.
 func writePlugin(t *testing.T, manifest string, files map[string]string, repo bool) string {
 	t.Helper()
@@ -310,7 +447,7 @@ command = ["./event.sh"]
 `
 	dir := writePlugin(t, manifest, map[string]string{
 		// Startup writes its context and environment, then stays up.
-		"startup.sh": "#!/bin/sh\ncat > \"$HIVE_PLUGIN_DATA/startup.json\"\necho \"$HIVE_PLUGIN_ID $HIVE_PLUGIN_VERSION $X_FROM_HIVE\" > \"$HIVE_PLUGIN_DATA/env\"\nwhile :; do sleep 1; done\n",
+		"startup.sh": "#!/bin/sh\ncat > \"$HIVE_PLUGIN_DATA/startup.json\"\necho \"$HIVE_PLUGIN_ID $HIVE_PLUGIN_VERSION $X_FROM_HIVE\" > \"$HIVE_PLUGIN_DATA/env\"\nprintf '%s\\n%s' \"$HIVE_PLUGIN_CONFIG\" \"$HIVE_PLUGIN_CONFIG_DIR\" > \"$HIVE_PLUGIN_DATA/config-paths\"\nwhile :; do sleep 1; done\n",
 		"action.sh":  "#!/bin/sh\necho \"hello $1 from $(pwd)\"\ncat \"$HIVE_PLUGIN_CONTEXT\"\n",
 		"event.sh":   "#!/bin/sh\ncat > \"$HIVE_PLUGIN_DATA/event.json\"\n",
 	}, false)
@@ -354,6 +491,10 @@ command = ["./event.sh"]
 	}
 	if env := strings.TrimSpace(string(waitFile("env"))); env != "probe 1.0.0 yes" {
 		t.Fatalf("startup env = %q", env)
+	}
+	paths := strings.Split(string(waitFile("config-paths")), "\n")
+	if len(paths) != 2 || paths[0] != filepath.Join(s.ConfigDir("probe"), pluginConfigFile) || paths[1] != s.ConfigDir("probe") {
+		t.Fatalf("plugin configuration paths = %q", paths)
 	}
 	if st := h.Status(); len(st) != 1 || st[0].Running != 1 {
 		t.Fatalf("status = %+v", st)

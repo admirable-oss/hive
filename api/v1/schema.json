@@ -1551,6 +1551,23 @@
       ],
       "type": "object"
     },
+    "plugin.Configuration": {
+      "properties": {
+        "directory": {
+          "type": "string"
+        },
+        "settings": {
+          "items": {
+            "$ref": "#/$defs/plugin.Setting"
+          },
+          "type": "array"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "plugin.Event": {
       "properties": {
         "command": {
@@ -1580,6 +1597,12 @@
           },
           "type": "array"
         },
+        "configuration": {
+          "$ref": "#/$defs/plugin.Configuration"
+        },
+        "data_directory": {
+          "type": "string"
+        },
         "description": {
           "type": "string"
         },
@@ -1591,6 +1614,15 @@
         },
         "id": {
           "type": "string"
+        },
+        "max_hive_version": {
+          "type": "string"
+        },
+        "migrations": {
+          "items": {
+            "$ref": "#/$defs/plugin.Migration"
+          },
+          "type": "array"
         },
         "min_hive_version": {
           "type": "string"
@@ -1626,6 +1658,28 @@
       ],
       "type": "object"
     },
+    "plugin.Migration": {
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "from": {
+          "type": "integer"
+        },
+        "to": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "command"
+      ],
+      "type": "object"
+    },
     "plugin.Result": {
       "properties": {
         "exit_code": {
@@ -1655,6 +1709,28 @@
       ],
       "type": "object"
     },
+    "plugin.Setting": {
+      "properties": {
+        "default": {},
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "type": "object"
+    },
     "plugin.Startup": {
       "properties": {
         "command": {
@@ -1674,6 +1750,9 @@
     },
     "plugin.Status": {
       "properties": {
+        "checksum": {
+          "type": "string"
+        },
         "commit": {
           "type": "string"
         },
@@ -1699,16 +1778,34 @@
         "manifest": {
           "$ref": "#/$defs/plugin.Manifest"
         },
+        "previous_checksum": {
+          "type": "string"
+        },
+        "previous_commit": {
+          "type": "string"
+        },
+        "previous_ref": {
+          "type": "string"
+        },
+        "previous_version": {
+          "type": "string"
+        },
         "problem": {
           "type": "string"
         },
         "ref": {
           "type": "string"
         },
+        "registry": {
+          "type": "boolean"
+        },
         "running": {
           "type": "integer"
         },
         "source": {
+          "type": "string"
+        },
+        "version": {
           "type": "string"
         }
       },

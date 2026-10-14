@@ -320,8 +320,10 @@ installed plugins or Git-based installation.
   review history, moderation, reporting, appeals, and withdrawal workflows.
 - [x] Add publication-side registry validation and an automated submission
   workflow; require human approval for official and verified listings.
-- [ ] Complete manifest configuration/data-directory declarations and
+- [x] Complete manifest configuration/data-directory declarations and
   compatibility/migration rules; document download and extraction limits.
+  Settings use a versioned JSON file, sequential staged migrations, separate
+  persistent config/data paths, and declared Hive version bounds.
 - [x] Add `hive plugin validate [dir]` as a local manifest/runtime validation
   entry point for contributors and CI.
 - [x] Add `hive plugin init`, expand validation fixtures, and finish

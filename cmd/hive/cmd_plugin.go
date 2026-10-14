@@ -38,6 +38,26 @@ func (a *app) reloadPlugins(ctx context.Context) error {
 	return nil
 }
 
+func (a *app) checkPluginReady(ctx context.Context, id string) error {
+	if _, ok := a.daemonRunning(ctx); !ok {
+		return nil
+	}
+	statuses, err := client.NewPlugins(a.client).List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, status := range statuses {
+		if status.ID != id {
+			continue
+		}
+		if status.LastError != "" {
+			return fmt.Errorf("plugin %s did not load: %s", id, status.LastError)
+		}
+		return nil
+	}
+	return fmt.Errorf("plugin %s was not loaded by the daemon", id)
+}
+
 func newPluginCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "plugin",
@@ -293,7 +313,11 @@ func newPluginUpdateCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if reloadErr := a.reloadPlugins(ctx); reloadErr != nil {
+			reloadErr := a.reloadPlugins(ctx)
+			if reloadErr == nil && in.Enabled {
+				reloadErr = a.checkPluginReady(ctx, in.ID)
+			}
+			if reloadErr != nil {
 				if _, rollbackErr := store.Rollback(in.ID); rollbackErr != nil {
 					return fmt.Errorf("plugin %s@%s reload failed: %w; automatic rollback failed: %w", in.ID, in.Version, reloadErr, rollbackErr)
 				}

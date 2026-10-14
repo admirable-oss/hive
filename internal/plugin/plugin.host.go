@@ -96,6 +96,7 @@ type loaded struct {
 	closer  io.Closer
 	running int
 	lastErr string
+	problem string        // a load-time problem that prevents actions and events
 	sem     chan struct{} // bounds its concurrent event commands
 	logMu   sync.Mutex    // its commands write their output to log
 }
@@ -163,6 +164,13 @@ func (h *Host) Reload() []Status {
 			continue
 		}
 		l := &loaded{Plugin: p, log: io.Discard, sem: make(chan struct{}, maxEventCommands)}
+		if err := h.prepareConfiguration(load, l); err != nil {
+			h.log.Error("plugin configuration is not ready; plugin not loaded", "plugin", p.ID, "err", err)
+			l.lastErr = "configuration: " + err.Error()
+			l.problem = l.lastErr
+			h.plugins[p.ID] = l
+			continue
+		}
 		if h.cfg.LogDir != "" {
 			if f, err := logging.OpenRotating(filepath.Join(h.cfg.LogDir, p.ID+".log"), 1<<20, 2); err == nil {
 				l.log, l.closer = f, f
@@ -257,6 +265,9 @@ func (h *Host) Event(typ string, data json.RawMessage) {
 		return
 	}
 	for _, l := range h.plugins {
+		if l.problem != "" {
+			continue
+		}
 		for _, e := range l.Manifest.Events {
 			if !e.Matches(typ) {
 				continue
@@ -311,6 +322,9 @@ func (h *Host) Action(ctx context.Context, id, action string, c Context) (Result
 	if l == nil {
 		return Result{}, fmt.Errorf("%w %q (or it is disabled; see `hive plugin list`)", ErrNotFound, id)
 	}
+	if l.problem != "" {
+		return Result{}, fmt.Errorf("plugin %s is not ready: %s", id, l.lastErr)
+	}
 	a, ok := l.Manifest.Action(action)
 	if !ok {
 		var ids []string
@@ -334,9 +348,23 @@ func (h *Host) Action(ctx context.Context, id, action string, c Context) (Result
 // run runs one plugin command to its end and returns its exit code. Its
 // output goes to the plugin's log (and to also, when set).
 func (h *Host) run(ctx context.Context, l *loaded, argv []string, c Context, also io.Writer) (int, error) {
+	return h.runWithEnvironment(ctx, l, argv, c, also, nil)
+}
+
+func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string, c Context, also io.Writer, extra map[string]string) (int, error) {
 	c.Plugin, c.Session = l.ID, h.cfg.Session
 	data := h.cfg.Store.DataDir(l.ID)
+	if l.Manifest.DataDirectory != "" && l.Manifest.DataDirectory != "." {
+		data = filepath.Join(data, filepath.FromSlash(l.Manifest.DataDirectory))
+	}
 	if err := os.MkdirAll(data, 0o700); err != nil {
+		return 0, err
+	}
+	configDir := h.cfg.Store.ConfigDir(l.ID)
+	if l.Manifest.Configuration.Directory != "" && l.Manifest.Configuration.Directory != "." {
+		configDir = filepath.Join(configDir, filepath.FromSlash(l.Manifest.Configuration.Directory))
+	}
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		return 0, err
 	}
 	ctxJSON, _ := json.Marshal(c)
@@ -352,13 +380,19 @@ func (h *Host) run(ctx context.Context, l *loaded, argv []string, c Context, als
 	}
 	cmd := exec.CommandContext(ctx, path, argv[1:]...)
 	cmd.Dir = l.Dir
-	cmd.Env = h.cfg.Env(map[string]string{
-		"HIVE_PLUGIN_ID":      l.ID,
-		"HIVE_PLUGIN_DIR":     l.Dir,
-		"HIVE_PLUGIN_DATA":    data,
-		"HIVE_PLUGIN_VERSION": l.Manifest.Version,
-		"HIVE_PLUGIN_CONTEXT": ctxFile,
-	})
+	vars := map[string]string{
+		"HIVE_PLUGIN_ID":         l.ID,
+		"HIVE_PLUGIN_DIR":        l.Dir,
+		"HIVE_PLUGIN_DATA":       data,
+		"HIVE_PLUGIN_CONFIG_DIR": configDir,
+		"HIVE_PLUGIN_CONFIG":     filepath.Join(configDir, pluginConfigFile),
+		"HIVE_PLUGIN_VERSION":    l.Manifest.Version,
+		"HIVE_PLUGIN_CONTEXT":    ctxFile,
+	}
+	for key, value := range extra {
+		vars[key] = value
+	}
+	cmd.Env = h.cfg.Env(vars)
 	cmd.Stdin = bytes.NewReader(ctxJSON)
 	var w io.Writer = pluginLog{l}
 	if also != nil {
