@@ -262,7 +262,7 @@ func (s *Store) Install(f *Fetched, hiveVersion string) (Installed, error) {
 	in := Installed{ID: id, Source: f.Source, Ref: f.Ref, Commit: f.Commit, Enabled: true, InstalledAt: time.Now()}
 	if err := s.saveLocked(append(list, in)); err != nil {
 		if rollbackErr := os.Rename(s.Dir(id), f.dir); rollbackErr != nil {
-			return Installed{}, fmt.Errorf("record plugin install: %w (also failed to roll back installed files: %v)", err, rollbackErr)
+			return Installed{}, fmt.Errorf("record plugin install: %w (also failed to roll back installed files: %w)", err, rollbackErr)
 		}
 		return Installed{}, err
 	}

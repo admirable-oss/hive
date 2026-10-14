@@ -131,7 +131,7 @@ func (a *app) installFetchedPlugin(ctx context.Context, store *plugin.Store, f *
 }
 
 func isPluginID(s string) bool {
-	return strings.Contains(s, "://") == false && plugin.ValidID(s)
+	return !strings.Contains(s, "://") && plugin.ValidID(s)
 }
 
 func newPluginSearchCmd(a *app) *cobra.Command {
@@ -325,17 +325,17 @@ func newPluginInfoCmd(a *app) *cobra.Command {
 	}
 }
 
-func hiveRange(min, max string) string {
-	if min == "" && max == "" {
+func hiveRange(minVersion, maxVersion string) string {
+	if minVersion == "" && maxVersion == "" {
 		return "any"
 	}
-	if max == "" {
-		return ">=" + min
+	if maxVersion == "" {
+		return ">=" + minVersion
 	}
-	if min == "" {
-		return "<=" + max
+	if minVersion == "" {
+		return "<=" + maxVersion
 	}
-	return min + " to " + max
+	return minVersion + " to " + maxVersion
 }
 
 func maintainerNames(maintainers []plugin.Maintainer) string {

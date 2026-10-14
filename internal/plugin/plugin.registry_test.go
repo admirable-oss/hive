@@ -105,4 +105,3 @@ func TestLandingPublishedRegistry(t *testing.T) {
 		}
 	}
 }
-
