@@ -1,0 +1,59 @@
+name: Sync official plugins to the Hive website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "registry/official-releases.json"
+      - "registry/official-listings.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-official-plugin-store
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: hive
+      - name: Create cross-repository pull request token
+        id: pullive-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.PULLIVE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PULLIVE_APP_PRIVATE_KEY }}
+          owner: admirable-oss
+          repositories: hive,hive-landing
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: actions/checkout@v4
+        with:
+          repository: admirable-oss/hive-landing
+          token: ${{ steps.pullive-token.outputs.token }}
+          path: hive-landing
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12"
+      - name: Seed official plugin releases into the website registry
+        run: node hive-landing/.github/scripts/seed-official-registry.mjs hive
+      - name: Create a registry update pull request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.pullive-token.outputs.token }}
+          path: hive-landing
+          branch: automation/sync-official-plugin-registry
+          base: main
+          delete-branch: true
+          add-paths: |
+            public/plugins/registry.json
+            src/data/plugins-registry.json
+          commit-message: "chore(plugins): sync official plugin releases"
+          title: "chore(plugins): sync official plugin releases"
+          body: "Generated from hive/registry/official-releases.json and official-listings.json."
