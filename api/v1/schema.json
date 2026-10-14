@@ -1604,6 +1604,12 @@
           },
           "type": "array"
         },
+        "runtime": {
+          "items": {
+            "$ref": "#/$defs/plugin.Runtime"
+          },
+          "type": "array"
+        },
         "startup": {
           "items": {
             "$ref": "#/$defs/plugin.Startup"
@@ -1632,6 +1638,20 @@
       "required": [
         "exit_code",
         "output"
+      ],
+      "type": "object"
+    },
+    "plugin.Runtime": {
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "min_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command"
       ],
       "type": "object"
     },

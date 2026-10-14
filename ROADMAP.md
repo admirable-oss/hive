@@ -200,6 +200,9 @@ The final stretch: freeze the APIs, polish the rough edges, and ship a 1.0 we ca
 
 ## M10 · Plugin App Store — `v1.0.1`
 
+**Status: in progress.** Registry-backed discovery and initial installation
+exist, but the exit criteria below are not met.
+
 ### Extend Hive. Make it yours.
 
 The Plugin App Store is the first post-1.0 feature. It builds on Hive’s existing
@@ -301,11 +304,35 @@ evaluate, install, update, and remove them.
      and version deprecation.
    - Add a registry contribution guide for community maintainers.
 
-**✅ Acceptance:** a user can discover a plugin on the Hive website, inspect its
+**Exit criteria:** a user can discover a plugin on the Hive website, inspect its
 source and requirements, install it by ID, update or roll it back safely, and
 remove it. An external maintainer can submit an open-source plugin through a
 documented, auditable publishing process. Registry outages do not break locally
 installed plugins or Git-based installation.
+
+### M10 remaining work (implementation audit, 2026-10-14)
+
+- [ ] Add registry-backed `hive plugin update [id]` and explicit rollback while
+  retaining the last known-good release and plugin data.
+- [ ] Make interrupted updates recoverable and verify installed release
+  metadata/checksums against the registry.
+- [ ] Define and implement maintainer ownership transfer, submission states,
+  review history, moderation, reporting, appeals, and withdrawal workflows.
+- [ ] Add publication-side registry validation and an automated submission
+  workflow; require human approval for official and verified listings.
+- [ ] Complete manifest configuration/data-directory declarations and
+  compatibility/migration rules; document download and extraction limits.
+- [x] Add `hive plugin validate [dir]` as a local manifest/runtime validation
+  entry point for contributors and CI.
+- [ ] Add `hive plugin init`, expand validation fixtures, and finish
+  release/submission documentation and automation.
+- [ ] Seed and verify official catalog releases, and align storefront
+  validation and registry records with the CLI contract.
+- [ ] Keep the plugin TUI extension claim gated on a daemon contribution API
+  and TUI consumer; current plugin runtime supports actions and popups, while
+  contributed commands/views/keybindings are not wired through the core.
+- [ ] Verify non-interactive install policy, progress/errors, and registry
+  outage behavior across CLI and storefront.
 
 ---
 

@@ -1400,6 +1400,7 @@ Result: [protocol.Empty](#protocolempty)
 | `min_hive_version` | `string` |  |
 | `name` | `string` |  |
 | `platforms` | `[]string` |  |
+| `runtime` | [\[\]plugin.Runtime](#pluginruntime) |  |
 | `startup` | [\[\]plugin.Startup](#pluginstartup) |  |
 | `version` | `string` |  |
 
@@ -1409,6 +1410,13 @@ Result: [protocol.Empty](#protocolempty)
 |---|---|---|
 | `exit_code` | `integer` |  |
 | `output` | `string` |  |
+
+### plugin.Runtime
+
+| Field | Type | |
+|---|---|---|
+| `command` | `string` |  |
+| `min_version` | `string` |  |
 
 ### plugin.Startup
 

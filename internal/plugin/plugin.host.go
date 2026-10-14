@@ -146,7 +146,7 @@ func (h *Host) Reload() []Status {
 	h.mu.Unlock()
 	h.loads.Wait() // the previous load's commands have stopped
 
-	list, err := h.cfg.Store.List(h.cfg.Version)
+	list, err := h.cfg.Store.List(ctx, h.cfg.Version)
 	if err != nil {
 		h.log.Error("read installed plugins", "err", err)
 	}

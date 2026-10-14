@@ -51,3 +51,6 @@ PLAN.md
 
 node_modules/
 docs/
+!docs/
+!docs/plugins/
+!docs/plugins/typescript-sdk.md

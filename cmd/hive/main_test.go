@@ -87,6 +87,7 @@ func TestCommandNamesAndAliasesResolve(t *testing.T) {
 		"config path":           "path",
 		"config default":        "default",
 		"config reset-keys":     "reset-keys",
+		"plugin validate":       "validate",
 		"daemon start":          "start",
 		"daemon stop":           "stop",
 		"daemon status":         "status",
@@ -102,6 +103,27 @@ func TestCommandNamesAndAliasesResolve(t *testing.T) {
 		if err != nil || cmd.Name() != want {
 			t.Errorf("%q resolved to %v (%v), want %q", path, cmd.Name(), err, want)
 		}
+	}
+}
+
+func TestPluginValidateCommand(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `id = "sample-plugin"
+version = "1.2.3"
+
+[[actions]]
+id = "open"
+command = ["echo", "ready"]
+`
+	if err := os.WriteFile(filepath.Join(dir, "hive-plugin.toml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"plugin", "validate", dir}, &stdout, &stderr, testEnv(t)); code != 0 {
+		t.Fatalf("validate exit=%d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "valid sample-plugin 1.2.3") {
+		t.Fatalf("unexpected validation output: %q", stdout.String())
 	}
 }
 

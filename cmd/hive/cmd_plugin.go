@@ -54,8 +54,36 @@ one shows everything it will run and asks first. See https://hive.admir-saheta.c
 	}
 	cmd.AddCommand(newPluginSearchCmd(a), newPluginInstallCmd(a), newPluginLinkCmd(a), newPluginListCmd(a), newPluginInfoCmd(a),
 		newPluginToggleCmd(a, true), newPluginToggleCmd(a, false), newPluginUninstallCmd(a),
-		newPluginRunCmd(a), newPluginLogsCmd(a))
+		newPluginRunCmd(a), newPluginLogsCmd(a), newPluginValidateCmd(a))
 	return cmd
+}
+
+func newPluginValidateCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "validate [dir]",
+		Short: "Validate a plugin manifest and runtime requirements",
+		Args:  rangeArgs(0, 1),
+		Example: `  hive plugin validate
+  hive plugin validate ./my-plugin`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := "."
+			if len(args) == 1 {
+				dir = args[0]
+			}
+			manifest, err := plugin.LoadManifest(dir)
+			if err != nil {
+				return err
+			}
+			if err := manifest.Supported(cmd.Context(), buildinfo.Get().Version); err != nil {
+				return err
+			}
+			return a.emit(map[string]any{"valid": true, "manifest": manifest}, func() error {
+				fmt.Fprintf(a.out, "valid %s %s\n", manifest.ID, manifest.Version)
+				fmt.Fprint(a.out, manifest.Preview(dir))
+				return nil
+			})
+		},
+	}
 }
 
 func newPluginInstallCmd(a *app) *cobra.Command {
@@ -126,7 +154,7 @@ func (a *app) installFetchedPlugin(ctx context.Context, store *plugin.Store, f *
 		f.Discard()
 		return fmt.Errorf("%w (run again with --yes to install it)", plugin.ErrDeclined)
 	}
-	in, err := store.Install(f, buildinfo.Get().Version)
+	in, err := store.Install(ctx, f, buildinfo.Get().Version)
 	if err != nil {
 		return err
 	}
@@ -176,7 +204,7 @@ func newPluginLinkCmd(a *app) *cobra.Command {
 		Short: "Install a plugin from a directory as it is, for developing it (changes apply on reload)",
 		Args:  exactArgs(1),
 		RunE: withTimeout(time.Minute, func(ctx context.Context, _ *cobra.Command, args []string) error {
-			in, m, err := a.plugins().Link(args[0], buildinfo.Get().Version)
+			in, m, err := a.plugins().Link(ctx, args[0], buildinfo.Get().Version)
 			if err != nil {
 				return err
 			}
@@ -195,7 +223,7 @@ type pluginRow struct {
 }
 
 func (a *app) pluginRows(ctx context.Context) ([]pluginRow, error) {
-	list, err := a.plugins().List(buildinfo.Get().Version)
+	list, err := a.plugins().List(ctx, buildinfo.Get().Version)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +422,7 @@ func newPluginUninstallCmd(a *app) *cobra.Command {
 		Args:    exactArgs(1),
 		RunE: withTimeout(time.Minute, func(ctx context.Context, _ *cobra.Command, args []string) error {
 			store := a.plugins()
-			if _, err := store.Get(args[0], buildinfo.Get().Version); err != nil {
+			if _, err := store.Get(ctx, args[0], buildinfo.Get().Version); err != nil {
 				return err
 			}
 			if deleteData && !a.confirm("Permanently delete this plugin's data too?") {

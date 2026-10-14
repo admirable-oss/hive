@@ -92,7 +92,7 @@ func (s *Store) saveLocked(list []Installed) error {
 }
 
 // List returns every installed plugin with its manifest.
-func (s *Store) List(hiveVersion string) ([]Plugin, error) {
+func (s *Store) List(ctx context.Context, hiveVersion string) ([]Plugin, error) {
 	s.mu.Lock()
 	list, err := s.loadLocked()
 	s.mu.Unlock()
@@ -110,7 +110,7 @@ func (s *Store) List(hiveVersion string) ([]Plugin, error) {
 			p.Problem = fmt.Sprintf("its manifest now says id %q", m.ID)
 		default:
 			p.Manifest = m
-			if err := m.Supported(hiveVersion); err != nil {
+			if err := m.Supported(ctx, hiveVersion); err != nil {
 				p.Problem = err.Error()
 			}
 		}
@@ -120,8 +120,8 @@ func (s *Store) List(hiveVersion string) ([]Plugin, error) {
 }
 
 // Get returns one installed plugin.
-func (s *Store) Get(id, hiveVersion string) (Plugin, error) {
-	list, err := s.List(hiveVersion)
+func (s *Store) Get(ctx context.Context, id, hiveVersion string) (Plugin, error) {
+	list, err := s.List(ctx, hiveVersion)
 	if err != nil {
 		return Plugin{}, err
 	}
@@ -293,9 +293,9 @@ func (f *Fetched) Discard() {
 }
 
 // Install puts a fetched plugin in place, enabled.
-func (s *Store) Install(f *Fetched, hiveVersion string) (Installed, error) {
+func (s *Store) Install(ctx context.Context, f *Fetched, hiveVersion string) (Installed, error) {
 	defer f.Discard()
-	if err := f.Manifest.Supported(hiveVersion); err != nil {
+	if err := f.Manifest.Supported(ctx, hiveVersion); err != nil {
 		return Installed{}, err
 	}
 	s.mu.Lock()
@@ -323,7 +323,7 @@ func (s *Store) Install(f *Fetched, hiveVersion string) (Installed, error) {
 
 // Link installs the plugin in dir as it is, by a symlink: changes there
 // apply at the next reload (for developing a plugin).
-func (s *Store) Link(dir, hiveVersion string) (Installed, *Manifest, error) {
+func (s *Store) Link(ctx context.Context, dir, hiveVersion string) (Installed, *Manifest, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return Installed{}, nil, err
@@ -332,7 +332,7 @@ func (s *Store) Link(dir, hiveVersion string) (Installed, *Manifest, error) {
 	if err != nil {
 		return Installed{}, nil, err
 	}
-	if err := m.Supported(hiveVersion); err != nil {
+	if err := m.Supported(ctx, hiveVersion); err != nil {
 		return Installed{}, nil, err
 	}
 	s.mu.Lock()

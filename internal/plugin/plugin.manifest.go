@@ -233,7 +233,7 @@ func (m *Manifest) Action(id string) (Action, bool) {
 
 // Supported says why the plugin cannot run on this system with hive
 // version (nil when it can).
-func (m *Manifest) Supported(hiveVersion string) error {
+func (m *Manifest) Supported(ctx context.Context, hiveVersion string) error {
 	if len(m.Platforms) > 0 && !slices.Contains(m.Platforms, runtime.GOOS) {
 		return fmt.Errorf("plugin %s runs on %s, not %s", m.ID, strings.Join(m.Platforms, ", "), runtime.GOOS)
 	}
@@ -248,8 +248,8 @@ func (m *Manifest) Supported(hiveVersion string) error {
 		if r.MinVersion == "" {
 			continue
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		out, err := exec.CommandContext(ctx, path, "--version").Output()
+		checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		out, err := exec.CommandContext(checkCtx, path, "--version").Output()
 		cancel()
 		if err != nil {
 			return fmt.Errorf("check %s version for plugin %s: %w", r.Command, m.ID, err)

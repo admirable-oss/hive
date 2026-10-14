@@ -58,11 +58,11 @@ func TestManifest(t *testing.T) {
 			t.Errorf("preview lacks %q:\n%s", want, p)
 		}
 	}
-	if err := m.Supported("v0.9.3"); err == nil || !strings.Contains(err.Error(), "0.10.0") {
+	if err := m.Supported(context.Background(), "v0.9.3"); err == nil || !strings.Contains(err.Error(), "0.10.0") {
 		t.Errorf("too old a hive: %v", err)
 	}
 	for _, v := range []string{"v0.10.0", "v1.2.0", "dev", "v0.0.0-20261010-abc+dirty"} {
-		if err := m.Supported(v); err != nil {
+		if err := m.Supported(context.Background(), v); err != nil {
 			t.Errorf("%s: %v", v, err)
 		}
 	}
@@ -122,11 +122,11 @@ func TestStoreInstallLinkAndUninstall(t *testing.T) {
 	if !strings.Contains(f.Preview(), "from "+src+" @ ") || len(f.Commit) != 40 {
 		t.Fatalf("preview:\n%s", f.Preview())
 	}
-	if _, err := s.Install(f, "v0.9.0"); err == nil {
+	if _, err := s.Install(ctx, f, "v0.9.0"); err == nil {
 		t.Fatal("installed a plugin that needs a newer hive")
 	}
 	f, _ = s.Fetch(ctx, src, "")
-	in, err := s.Install(f, "v0.10.0")
+	in, err := s.Install(ctx, f, "v0.10.0")
 	if err != nil || !in.Enabled || in.Commit == "" {
 		t.Fatalf("install = %+v, %v", in, err)
 	}
@@ -137,7 +137,7 @@ func TestStoreInstallLinkAndUninstall(t *testing.T) {
 		t.Fatalf("clones left behind: %v", entries)
 	}
 	f, _ = s.Fetch(ctx, src, "")
-	if _, err := s.Install(f, "v0.10.0"); !errors.Is(err, ErrExists) {
+	if _, err := s.Install(ctx, f, "v0.10.0"); !errors.Is(err, ErrExists) {
 		t.Fatalf("second install: %v", err)
 	}
 	if _, err := s.Fetch(ctx, t.TempDir(), ""); err == nil {
@@ -145,13 +145,13 @@ func TestStoreInstallLinkAndUninstall(t *testing.T) {
 	}
 
 	dev := writePlugin(t, strings.Replace(sample, `id = "pr-status"`, `id = "dev-tool"`, 1), map[string]string{}, false)
-	if _, _, err := s.Link(dev, "v1.0.0"); err != nil {
+	if _, _, err := s.Link(ctx, dev, "v1.0.0"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.SetEnabled("dev-tool", false); err != nil {
 		t.Fatal(err)
 	}
-	list, err := s.List("v1.0.0")
+	list, err := s.List(ctx, "v1.0.0")
 	if err != nil || len(list) != 2 || list[0].ID != "dev-tool" || list[0].Enabled || !list[0].Linked || list[1].Problem != "" {
 		t.Fatalf("list = %+v, %v", list, err)
 	}
@@ -164,7 +164,7 @@ func TestStoreInstallLinkAndUninstall(t *testing.T) {
 	if err := s.Uninstall("pr-status"); err != nil {
 		t.Fatal(err)
 	}
-	if list, _ := s.List(""); len(list) != 0 {
+	if list, _ := s.List(ctx, ""); len(list) != 0 {
 		t.Fatalf("left after uninstall: %+v", list)
 	}
 }
@@ -197,7 +197,7 @@ command = ["./event.sh"]
 	}, false)
 	root := filepath.Join(t.TempDir(), "plugins")
 	s := NewStore(root)
-	if _, _, err := s.Link(dir, "v1.0.0"); err != nil {
+	if _, _, err := s.Link(context.Background(), dir, "v1.0.0"); err != nil {
 		t.Fatal(err)
 	}
 	h := NewHost(HostConfig{
@@ -286,7 +286,7 @@ func TestReferencePlugins(t *testing.T) {
 			t.Errorf("%s: %v", d, err)
 			continue
 		}
-		if err := m.Supported("v0.10.0"); err != nil {
+		if err := m.Supported(context.Background(), "v0.10.0"); err != nil {
 			t.Errorf("%s: %v", d, err)
 		}
 	}

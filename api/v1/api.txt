@@ -581,12 +581,16 @@ type plugin.Manifest.id: string
 type plugin.Manifest.min_hive_version: string
 type plugin.Manifest.name: string
 type plugin.Manifest.platforms: []string
+type plugin.Manifest.runtime: []plugin.Runtime
 type plugin.Manifest.startup: []plugin.Startup
 type plugin.Manifest.version: string
 type plugin.Manifest: object
 type plugin.Result.exit_code: integer
 type plugin.Result.output: string
 type plugin.Result: object
+type plugin.Runtime.command: string
+type plugin.Runtime.min_version: string
+type plugin.Runtime: object
 type plugin.Startup.command: []string
 type plugin.Startup.restart: boolean
 type plugin.Startup: object

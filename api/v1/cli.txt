@@ -110,6 +110,7 @@ command hive plugin search
 command hive plugin uninstall
 command hive plugin uninstall (alias remove)
 command hive plugin uninstall (alias rm)
+command hive plugin validate
 command hive process
 command hive process (alias ps)
 command hive process get
@@ -254,6 +255,7 @@ flag hive pane wait-output --timeout duration
 flag hive pane zoom --off bool
 flag hive pane zoom --on bool
 flag hive plugin install --ref string
+flag hive plugin install --subdir string
 flag hive plugin logs --follow bool -f
 flag hive plugin logs --lines int -n
 flag hive plugin run --env string
