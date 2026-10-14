@@ -44,7 +44,6 @@ jobs:
           private-key: ${{ secrets.PULLIVE_APP_PRIVATE_KEY }}
           owner: admirable-oss
           repositories: hive
-          permission-actions: write
           permission-contents: write
           permission-pull-requests: write
       - name: Open a pull request for the release records
@@ -61,30 +60,5 @@ jobs:
           body: |
             This pull request records the immutable official plugin tags,
             pinned commits, and full-repository archive checksums published by
-            the official plugin release workflow.
-
-            The CI and plugin-submission checks run on this branch before the
-            records can merge to `main`.
-      - name: Run required CI checks for the release records pull request
-        if: steps.release-records-pr.outputs.pull-request-number != ''
-        env:
-          GH_TOKEN: ${{ steps.pullive-token.outputs.token }}
-          PR_BRANCH: ${{ steps.release-records-pr.outputs.pull-request-branch }}
-          PR_SHA: ${{ steps.release-records-pr.outputs.pull-request-head-sha }}
-        run: |
-          for workflow in ci.yml plugin-submissions.yml; do
-            gh workflow run "$workflow" --ref "$PR_BRANCH"
-            run_id=""
-            for attempt in $(seq 1 30); do
-              run_id="$(gh run list --workflow "$workflow" --branch "$PR_BRANCH" --event workflow_dispatch --limit 10 --json databaseId,headSha --jq ".[] | select(.headSha == \"$PR_SHA\") | .databaseId" | head -n 1)"
-              if [ -n "$run_id" ]; then
-                break
-              fi
-              sleep 2
-            done
-            if [ -z "$run_id" ]; then
-              echo "Could not find the $workflow run for $PR_BRANCH at $PR_SHA" >&2
-              exit 1
-            fi
-            gh run watch "$run_id" --exit-status
-          done
+            the official plugin release workflow. CI and plugin-submission
+            checks run automatically from the pull request event.

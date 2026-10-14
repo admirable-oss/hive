@@ -11,8 +11,8 @@ Use `app-manifest.json` as the registration settings:
 - Homepage URL: `https://hive.admir-saheta.com`
 - Install target: `admirable-oss` only
 - Repository access: `hive` only
-- Repository permissions: Actions **Read and write**, Contents **Read and
-  write**, Pull requests **Read and write**
+- Repository permissions: Contents **Read and write**, Pull requests **Read
+  and write**
 - Subscribe to events: none
 - Webhook: inactive
 - Request user authorization (OAuth): off
@@ -29,6 +29,8 @@ After creating and installing the app, add these GitHub Actions values to the
 - Repository secret `PULLIVE_APP_PRIVATE_KEY`: the complete downloaded PEM
   private key
 
-The workflow requests a short-lived installation token with only the three
-permissions above. It uses that token to create/update the release-record PR
-and dispatch the normal CI and plugin-submissions workflows on the PR branch.
+The workflow requests a short-lived installation token with only those two
+permissions. It uses that token to create/update the release-record PR. The
+normal `pull_request` triggers run CI and plugin-submission validation; the
+trusted-listing review gate can then wait for its configured human approval
+without holding the publisher workflow open.

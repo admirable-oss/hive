@@ -3,7 +3,6 @@
   "url": "https://hive.admir-saheta.com",
   "public": false,
   "default_permissions": {
-    "actions": "write",
     "contents": "write",
     "pull_requests": "write"
   },
