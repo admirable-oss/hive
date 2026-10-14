@@ -198,7 +198,7 @@ The final stretch: freeze the APIs, polish the rough edges, and ship a 1.0 we ca
 
 ---
 
-## M10 · Plugin App Store — `v1.0.1`
+## M10 · Plugin App Store — `v1.0.1` - **LIVE**
 
 **Status: in progress.** Registry-backed discovery and initial installation
 exist, but the exit criteria below are not met.
@@ -310,6 +310,18 @@ remove it. An external maintainer can submit an open-source plugin through a
 documented, auditable publishing process. Registry outages do not break locally
 installed plugins or Git-based installation.
 
+### Performance: Zig over cgo for heavy-duty work
+
+Catalog hot paths (release checksum streaming, archive digests, large
+registry JSON) stay pure Go unless profiling proves a bottleneck. When one
+is proven, implement it as a small Zig module exposed over the C ABI and
+linked into the Go binary with cgo to optimize performance: one narrow
+package owns every `import "C"`, the cgo build stays opt-in
+(`CGO_ENABLED=1`), and the default pure-Go build keeps cross-compiling to a
+single static binary, so the goreleaser matrix, installers, and the
+checksum-verified plugin transport are unaffected. Zig cross-compiles every
+target from one machine, which keeps the release flow reproducible.
+
 ### M10 remaining work (implementation audit, 2026-10-14)
 
 - [x] Add registry-backed `hive plugin update [id]` and explicit rollback while
@@ -340,7 +352,65 @@ installed plugins or Git-based installation.
 
 ---
 
-## M11 · Plugin Runtime Surfaces — `v1.0.2`
+## M11 · Visual Terminal Workflows — `v1.0.3`
+
+Give agents the context they need.
+
+Coding agents increasingly work with screenshots, diagrams, browser captures,
+and other visual inputs. Hive should make these workflows possible without
+compromising terminal rendering, transport reliability, or resource limits.
+
+1. **Image and graphics support**
+   - Evaluate Kitty graphics protocol support against the existing terminal
+     rendering architecture.
+   - Add graphics passthrough where supported by the terminal and agent
+     integration.
+   - Implement an image paste bridge for supported local workflows.
+   - Preserve ordinary terminal behavior when graphics capabilities are
+     unavailable.
+   - Define how graphical sequences interact with scrollback, pane resizing,
+     and screen restoration.
+   - Add explicit feature detection for terminals that support different
+     graphics protocols.
+
+2. **Image transfer and remote sessions**
+   - Support bounded image transfer across remote sessions where the transport
+     permits it.
+   - Avoid forwarding large image payloads through control messages intended
+     for ordinary terminal events.
+   - Introduce configurable image-size and payload limits.
+   - Handle interrupted transfers and temporary transport failures.
+   - Ensure remote image workflows respect the capabilities of the destination
+     terminal and agent.
+   - Document limitations involving SSH, clipboard permissions, and terminal
+     emulators.
+
+3. **Resource and security safeguards**
+   - Validate incoming image metadata and payload sizes.
+   - Reject malformed graphics sequences safely.
+   - Bound memory usage for image buffers and cached assets.
+   - Prevent image transfer from starving ordinary terminal input and control
+     traffic.
+   - Avoid persisting image data in session history unless explicitly
+     configured.
+   - Document sensitive image and clipboard data handling.
+
+4. **Testing and compatibility**
+   - Add fixtures for image paste, graphics sequences, malformed payloads, and
+     interrupted transfers.
+   - Test local and remote workflows independently.
+   - Measure transfer overhead and rendering responsiveness.
+   - Provide text-only fallbacks for unsupported terminals.
+   - Document supported terminal emulators and protocol limitations.
+
+**✅ Acceptance:** a supported local or remote workflow can deliver an image to
+a compatible agent without corrupting terminal state, exceeding configured
+resource limits, or disrupting unrelated panes. Unsupported terminals continue
+to work normally.
+
+---
+
+## M12 · Plugin Runtime Surfaces — `v1.0.2`
 
 Plugins become first-class citizens.
 
@@ -410,64 +480,6 @@ implementation details.
 contextual actions, and workflow integrations using documented interfaces. A
 failed plugin cannot crash the Hive daemon, and users can inspect plugin health,
 configuration, and declared capabilities.
-
----
-
-## M12 · Visual Terminal Workflows — `v1.0.3`
-
-Give agents the context they need.
-
-Coding agents increasingly work with screenshots, diagrams, browser captures,
-and other visual inputs. Hive should make these workflows possible without
-compromising terminal rendering, transport reliability, or resource limits.
-
-1. **Image and graphics support**
-   - Evaluate Kitty graphics protocol support against the existing terminal
-     rendering architecture.
-   - Add graphics passthrough where supported by the terminal and agent
-     integration.
-   - Implement an image paste bridge for supported local workflows.
-   - Preserve ordinary terminal behavior when graphics capabilities are
-     unavailable.
-   - Define how graphical sequences interact with scrollback, pane resizing,
-     and screen restoration.
-   - Add explicit feature detection for terminals that support different
-     graphics protocols.
-
-2. **Image transfer and remote sessions**
-   - Support bounded image transfer across remote sessions where the transport
-     permits it.
-   - Avoid forwarding large image payloads through control messages intended
-     for ordinary terminal events.
-   - Introduce configurable image-size and payload limits.
-   - Handle interrupted transfers and temporary transport failures.
-   - Ensure remote image workflows respect the capabilities of the destination
-     terminal and agent.
-   - Document limitations involving SSH, clipboard permissions, and terminal
-     emulators.
-
-3. **Resource and security safeguards**
-   - Validate incoming image metadata and payload sizes.
-   - Reject malformed graphics sequences safely.
-   - Bound memory usage for image buffers and cached assets.
-   - Prevent image transfer from starving ordinary terminal input and control
-     traffic.
-   - Avoid persisting image data in session history unless explicitly
-     configured.
-   - Document sensitive image and clipboard data handling.
-
-4. **Testing and compatibility**
-   - Add fixtures for image paste, graphics sequences, malformed payloads, and
-     interrupted transfers.
-   - Test local and remote workflows independently.
-   - Measure transfer overhead and rendering responsiveness.
-   - Provide text-only fallbacks for unsupported terminals.
-   - Document supported terminal emulators and protocol limitations.
-
-**✅ Acceptance:** a supported local or remote workflow can deliver an image to
-a compatible agent without corrupting terminal state, exceeding configured
-resource limits, or disrupting unrelated panes. Unsupported terminals continue
-to work normally.
 
 ---
 

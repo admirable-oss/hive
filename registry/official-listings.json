@@ -1,0 +1,37 @@
+{
+  "auto-tab-title": {
+    "id": "auto-tab-title",
+    "name": "Automatic tab titles",
+    "description": "Name tabs after their active agent or terminal foreground title, while preserving explicit user names.",
+    "installation": "Install with `hive plugin install auto-tab-title`.",
+    "categories": ["terminal-enhancements", "developer-tools"],
+    "maintainers": [{"name": "Admirable OSS", "url": "https://github.com/admirable-oss"}],
+    "license": "MIT",
+    "repository": "https://github.com/admirable-oss/hive",
+    "documentation": "https://github.com/admirable-oss/hive/tree/main/plugins/official/auto-tab-title",
+    "issues": "https://github.com/admirable-oss/hive/issues",
+    "platforms": ["darwin", "linux"],
+    "min_hive_version": "1.0.0",
+    "plugin_api": "1",
+    "official": true,
+    "verified": false
+  },
+  "hive-explorer": {
+    "id": "hive-explorer",
+    "name": "Hive Explorer",
+    "description": "Browse, preview, search, and inspect Git status in the current workspace.",
+    "installation": "Install with `hive plugin install hive-explorer`, then bind `open` to a key.",
+    "categories": ["terminal-enhancements", "developer-tools"],
+    "maintainers": [{"name": "Admirable OSS", "url": "https://github.com/admirable-oss"}],
+    "license": "MIT",
+    "repository": "https://github.com/admirable-oss/hive",
+    "documentation": "https://github.com/admirable-oss/hive/tree/main/plugins/official/hive-explorer",
+    "issues": "https://github.com/admirable-oss/hive/issues",
+    "platforms": ["darwin", "linux"],
+    "min_hive_version": "1.0.0",
+    "plugin_api": "1",
+    "featured": true,
+    "official": true,
+    "verified": false
+  }
+}

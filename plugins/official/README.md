@@ -34,3 +34,13 @@ action = "open"
 
 Press `Ctrl+B`, then `P` to open its popup in the focused tab. The explorer
 uses Node.js 24 or newer; the installer checks the declared runtime.
+
+## Published releases
+
+`.github/workflows/publish-official-plugins.yml` publishes the first-party
+plugins on every push to `main` that changes them: it validates their
+manifests, tags the repository state `v<version>` (lightweight and immutable;
+a moved tag fails the build), and records the pinned commit plus the SHA-256
+of the full-repository `git archive` in `registry/official-releases.json`.
+The public catalog is seeded from that record: a listing pins the same commit
+and archive digest, and its `subdir` selects the package directory.

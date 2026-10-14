@@ -1,0 +1,43 @@
+name: Publish official plugin releases
+
+on:
+  push:
+    branches: [main]
+    paths: ["plugins/official/**", ".github/scripts/publish-official-plugins.sh"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-official-plugins
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Validate the official plugin manifests
+        run: |
+          for dir in plugins/official/*/; do
+            go run ./cmd/hive plugin validate "$dir"
+          done
+      - name: Tag releases and record archive checksums
+        run: .github/scripts/publish-official-plugins.sh
+      - name: Commit the release records
+        run: |
+          git config user.name "hive-release-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add registry/official-releases.json
+          if git diff --cached --quiet; then
+            echo "No new official plugin releases to record."
+          else
+            git commit -m "chore(plugin): record official plugin release metadata"
+            git push
+          fi

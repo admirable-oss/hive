@@ -402,8 +402,9 @@ func (s *Store) FetchSubdir(ctx context.Context, source, ref, subdir string) (*F
 		}
 		packageDir = filepath.Join(dir, clean)
 		resolved, evalErr := filepath.EvalSymlinks(packageDir)
-		rel, relErr := filepath.Rel(dir, resolved)
-		if evalErr != nil || relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		resolvedRoot, rootErr := filepath.EvalSymlinks(dir)
+		rel, relErr := filepath.Rel(resolvedRoot, resolved)
+		if evalErr != nil || rootErr != nil || relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			_ = os.RemoveAll(tmp)
 			return nil, fmt.Errorf("plugin subdirectory %q is missing or escapes the repository", subdir)
 		}
