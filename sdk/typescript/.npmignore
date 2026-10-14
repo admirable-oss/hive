@@ -1,0 +1,9 @@
+node_modules/
+test/
+coverage/
+bun.lock
+tsconfig*.json
+*.tsbuildinfo
+.gitignore
+.npmignore
+.npmrc

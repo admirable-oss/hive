@@ -42,6 +42,7 @@ The top-level shape is:
         "ref": "v1.0.0",
         "commit": "0123456789abcdef0123456789abcdef01234567",
         "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "subdir": "plugins/official/pr-status",
         "changelog": "Initial release.",
         "published_at": "2026-10-14T00:00:00Z"
       }]
@@ -52,7 +53,9 @@ The top-level shape is:
 
 The record above is illustrative and is not a published Hive listing. Release
 records are append-only: publishing a new version adds a record rather than
-changing the source revision or timestamp of an existing release. Registry
+changing the source revision or timestamp of an existing release. `subdir` is
+optional and selects a package directory from a monorepo; the checksum still
+covers the full `git archive` at the pinned commit. Registry
 publication and maintainer review workflows are not implemented yet.
 
 `hive plugin search [query] [--category name]` searches IDs, names,

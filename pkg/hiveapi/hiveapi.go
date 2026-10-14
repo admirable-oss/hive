@@ -39,6 +39,7 @@ import (
 // The API's types.
 type (
 	Agent        = agent.Agent
+	AgentList    = agent.ListResult
 	AgentStatus  = agent.Status
 	State        = agent.State
 	Until        = agent.Until

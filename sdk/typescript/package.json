@@ -1,0 +1,31 @@
+{
+  "name": "@hive-oss/plugin-sdk",
+  "version": "0.3.0",
+  "description": "Typed TypeScript SDK for Hive plugins and protocol 2",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": ["dist", "src", "README.md", "PROTOCOL.md", "LICENSE"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.consumer.json",
+    "test": "bun test",
+    "prepare": "bun run build",
+    "prepack": "bun run build",
+    "prepublishOnly": "bun run typecheck && bun test"
+  },
+  "engines": { "node": ">=20" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hive-oss/plugin-sdk.git"
+  },
+  "homepage": "https://github.com/hive-oss/plugin-sdk#readme",
+  "bugs": { "url": "https://github.com/hive-oss/plugin-sdk/issues" },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.0.0"
+  }
+}

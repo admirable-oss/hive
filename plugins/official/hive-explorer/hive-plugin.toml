@@ -1,0 +1,15 @@
+id = "hive-explorer"
+name = "Hive Explorer"
+version = "0.1.0"
+description = "Browse, preview, search, and inspect Git status in the current workspace."
+min_hive_version = "1.0.0"
+
+[[runtime]]
+command = "node"
+min_version = "20.0.0"
+
+[[actions]]
+id = "open"
+title = "Open Hive Explorer"
+command = ["node", "dist/index.mjs"]
+timeout = "15s"

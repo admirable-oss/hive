@@ -1,0 +1,24 @@
+id = "auto-tab-title"
+name = "Automatic tab titles"
+version = "0.1.0"
+description = "Name tabs after their active agent or terminal foreground title."
+min_hive_version = "1.0.0"
+
+[[runtime]]
+command = "node"
+min_version = "20.0.0"
+
+[[events]]
+on = "process.output"
+command = ["node", "dist/index.mjs"]
+timeout = "15s"
+
+[[events]]
+on = "process.started"
+command = ["node", "dist/index.mjs"]
+timeout = "15s"
+
+[[events]]
+on = "agent.state"
+command = ["node", "dist/index.mjs"]
+timeout = "15s"

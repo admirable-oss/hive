@@ -59,7 +59,7 @@ one shows everything it will run and asks first. See https://hive.admir-saheta.c
 }
 
 func newPluginInstallCmd(a *app) *cobra.Command {
-	var ref string
+	var ref, subdir string
 	cmd := &cobra.Command{
 		Use:   "install <id-or-git-url-or-path>",
 		Short: "Install a catalog plugin by ID or a plugin from git",
@@ -72,6 +72,9 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 				if _, statErr := os.Stat(source); errors.Is(statErr, os.ErrNotExist) {
 					if ref != "" {
 						return errors.New("--ref applies to Git installs; catalog releases are already versioned")
+					}
+					if subdir != "" {
+						return errors.New("--subdir applies to Git installs; catalog releases declare their package path")
 					}
 					catalog, err := a.pluginRegistry().Fetch(ctx)
 					if err != nil {
@@ -87,7 +90,7 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 					release := entry.Releases[0]
 					listing = &entry
 					source, ref = entry.Repository, release.Ref
-					f, err := store.Fetch(ctx, source, ref)
+					f, err := store.FetchSubdir(ctx, source, ref, release.Subdir)
 					if err != nil {
 						return err
 					}
@@ -102,7 +105,7 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 					return a.installFetchedPlugin(ctx, store, f, listing)
 				}
 			}
-			f, err := store.Fetch(ctx, source, ref)
+			f, err := store.FetchSubdir(ctx, source, ref, subdir)
 			if err != nil {
 				return err
 			}
@@ -110,6 +113,7 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 		}),
 	}
 	cmd.Flags().StringVar(&ref, "ref", "", "a branch or tag to install (default: the repository's default branch)")
+	cmd.Flags().StringVar(&subdir, "subdir", "", "install a plugin package from a repository subdirectory")
 	return cmd
 }
 

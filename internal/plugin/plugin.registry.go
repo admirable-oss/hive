@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -64,6 +65,7 @@ type Release struct {
 	Ref         string    `json:"ref"`
 	Commit      string    `json:"commit"`
 	Checksum    string    `json:"checksum,omitempty"`
+	Subdir      string    `json:"subdir,omitempty"`
 	Changelog   string    `json:"changelog,omitempty"`
 	PublishedAt time.Time `json:"published_at"`
 }
@@ -172,6 +174,11 @@ func (c *RegistryClient) Fetch(ctx context.Context) (Registry, error) {
 			releases[r.Version] = true
 			if !isHex(r.Commit) {
 				return Registry{}, fmt.Errorf("release %s for plugin %s has invalid commit", r.Version, p.ID)
+			}
+			if r.Subdir != "" {
+				if path.IsAbs(r.Subdir) || path.Clean(r.Subdir) != r.Subdir || strings.Contains(r.Subdir, "\\") || r.Subdir == "." || r.Subdir == ".." || strings.HasPrefix(r.Subdir, "../") {
+					return Registry{}, fmt.Errorf("release %s for plugin %s has invalid subdir %q", r.Version, p.ID, r.Subdir)
+				}
 			}
 		}
 		slices.SortFunc(p.Releases, func(a, b Release) int {

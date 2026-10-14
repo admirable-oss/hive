@@ -139,7 +139,10 @@ type Fetched struct {
 	Source   string
 	Ref      string
 	Commit   string
+	Subdir   string
 	dir      string // the clone
+	repoDir  string // repository root (may differ from the installed package)
+	tmpDir   string // clone parent removed after install or discard
 }
 
 const maxPluginArchiveBytes = 64 << 20
@@ -153,7 +156,11 @@ func (f *Fetched) VerifyArchiveChecksum(ctx context.Context, want string) error 
 	}
 	h := sha256.New()
 	w := &boundedHashWriter{h: h, limit: maxPluginArchiveBytes}
-	cmd := exec.CommandContext(ctx, "git", "-C", f.dir, "archive", "--format=tar", f.Commit)
+	repoDir := f.repoDir
+	if repoDir == "" {
+		repoDir = f.dir
+	}
+	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "archive", "--format=tar", f.Commit)
 	cmd.Stdout = w
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -194,6 +201,13 @@ func (w *boundedHashWriter) Write(p []byte) (int, error) {
 // path to a repository) and reads its manifest, for the user to review
 // with Preview before Install. Discard it if not installing.
 func (s *Store) Fetch(ctx context.Context, source, ref string) (*Fetched, error) {
+	return s.FetchSubdir(ctx, source, ref, "")
+}
+
+// FetchSubdir clones a repository and installs the package rooted at subdir.
+// An empty subdir selects the repository root. Registry checksums continue to
+// cover the immutable full-repository archive.
+func (s *Store) FetchSubdir(ctx context.Context, source, ref, subdir string) (*Fetched, error) {
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -211,14 +225,39 @@ func (s *Store) Fetch(ctx context.Context, source, ref string) (*Fetched, error)
 		_ = os.RemoveAll(tmp)
 		return nil, fmt.Errorf("fetch %s: %w", source, err)
 	}
-	f := &Fetched{Source: source, Ref: ref, dir: dir}
+	packageDir := dir
+	if subdir != "" {
+		clean := filepath.Clean(filepath.FromSlash(subdir))
+		if filepath.ToSlash(clean) != subdir || filepath.IsAbs(clean) || clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+			_ = os.RemoveAll(tmp)
+			return nil, fmt.Errorf("invalid plugin subdirectory %q", subdir)
+		}
+		packageDir = filepath.Join(dir, clean)
+		resolved, evalErr := filepath.EvalSymlinks(packageDir)
+		rel, relErr := filepath.Rel(dir, resolved)
+		if evalErr != nil || relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			_ = os.RemoveAll(tmp)
+			return nil, fmt.Errorf("plugin subdirectory %q is missing or escapes the repository", subdir)
+		}
+		info, statErr := os.Stat(packageDir)
+		if statErr != nil || !info.IsDir() {
+			_ = os.RemoveAll(tmp)
+			return nil, fmt.Errorf("plugin subdirectory %q is not a directory", subdir)
+		}
+		linkInfo, linkErr := os.Lstat(packageDir)
+		if linkErr != nil || linkInfo.Mode()&os.ModeSymlink != 0 {
+			_ = os.RemoveAll(tmp)
+			return nil, fmt.Errorf("plugin subdirectory %q cannot be a symlink", subdir)
+		}
+	}
+	f := &Fetched{Source: source, Ref: ref, Subdir: subdir, dir: packageDir, repoDir: dir, tmpDir: tmp}
 	var out bytes.Buffer
 	cmd := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "HEAD")
 	cmd.Stdout = &out
 	if cmd.Run() == nil {
 		f.Commit = strings.TrimSpace(out.String())
 	}
-	if f.Manifest, err = LoadManifest(dir); err != nil {
+	if f.Manifest, err = LoadManifest(packageDir); err != nil {
 		_ = os.RemoveAll(tmp)
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("%s has no %s at its top", source, ManifestFile)
@@ -234,11 +273,24 @@ func (f *Fetched) Preview() string {
 	if f.Commit != "" {
 		src += " @ " + f.Commit[:min(len(f.Commit), 12)]
 	}
-	return f.Manifest.Preview(src)
+	preview := f.Manifest.Preview(src)
+	if f.Subdir != "" {
+		preview += fmt.Sprintf("\n  package directory: %s", f.Subdir)
+	}
+	for _, r := range f.Manifest.Runtimes {
+		preview += fmt.Sprintf("\n  runtime: %s%s", r.Command, minVersionLabel(r.MinVersion))
+	}
+	return preview
 }
 
 // Discard removes the clone.
-func (f *Fetched) Discard() { _ = os.RemoveAll(filepath.Dir(f.dir)) }
+func (f *Fetched) Discard() {
+	if f.tmpDir != "" {
+		_ = os.RemoveAll(f.tmpDir)
+		return
+	}
+	_ = os.RemoveAll(filepath.Dir(f.dir))
+}
 
 // Install puts a fetched plugin in place, enabled.
 func (s *Store) Install(f *Fetched, hiveVersion string) (Installed, error) {

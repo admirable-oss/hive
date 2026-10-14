@@ -25,7 +25,12 @@ field Options.Home string
 field Options.Name string
 field Options.Session string
 field Options.Socket string
+field PopupOptions.HeightPct int
+field PopupOptions.Spec Spec
+field PopupOptions.TabID string
+field PopupOptions.WidthPct int
 func (c *Client) Agent(ctx context.Context, id string) (Agent, error)
+func (c *Client) AgentDirectory(ctx context.Context, all bool) (AgentList, error)
 func (c *Client) Agents(ctx context.Context, all bool) ([]Agent, error)
 func (c *Client) Call(ctx context.Context, method string, params, result any) error
 func (c *Client) Close() error
@@ -36,16 +41,20 @@ func (c *Client) Explain(ctx context.Context, id string) (Explanation, error)
 func (c *Client) FocusAgent(ctx context.Context, id string) (Agent, error)
 func (c *Client) Manifests(ctx context.Context) ([]Manifest, error)
 func (c *Client) Panes(ctx context.Context, envID, tabID string) ([]Pane, error)
+func (c *Client) Popup(ctx context.Context, options PopupOptions) (Pane, error)
+func (c *Client) Processes(ctx context.Context, environmentID string) ([]Process, error)
 func (c *Client) Prompt(ctx context.Context, id, text string, opts PromptOptions) (PromptResult, error)
 func (c *Client) Read(ctx context.Context, id string, opts ReadOptions) ([]string, error)
 func (c *Client) ReadPane(ctx context.Context, id string, opts ReadOptions) ([]string, error)
 func (c *Client) RenameAgent(ctx context.Context, id, name string) (Agent, error)
+func (c *Client) RenameTab(ctx context.Context, id, name string) (Tab, error)
 func (c *Client) RunInPane(ctx context.Context, id, command string) error
 func (c *Client) Schema(ctx context.Context) (Schema, error)
 func (c *Client) SendKeys(ctx context.Context, id string, keys ...string) error
 func (c *Client) Snapshot(ctx context.Context) (Snapshot, error)
 func (c *Client) StartAgent(ctx context.Context, req StartAgent) (AgentStarted, error)
 func (c *Client) StopAgent(ctx context.Context, id string) (Agent, error)
+func (c *Client) Tabs(ctx context.Context, environmentID string) ([]Tab, error)
 func (c *Client) Wait(ctx context.Context, id string, opts WaitOptions) (WaitResult, error)
 func (o Options) SocketPath() (string, error)
 func Connect(opts Options) (*Client, error)
@@ -53,6 +62,7 @@ func ConnectContext(ctx context.Context, opts Options) (*Client, error)
 func IsCode(err error, code string) bool
 func New(c client.Client) *Client
 type Agent = agent.Agent
+type AgentList = agent.ListResult
 type AgentStarted = client.AgentStarted
 type AgentStatus = agent.Status
 type Client struct
@@ -65,6 +75,7 @@ type Manifest = agent.Manifest
 type Options struct
 type Outcome = agent.Outcome
 type Pane = pane.Pane
+type PopupOptions struct
 type Process = process.Process
 type PromptOptions = client.PromptOptions
 type PromptResult = agent.PromptResult

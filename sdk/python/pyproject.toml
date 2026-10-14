@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hive-plugin-sdk"
+version = "0.1.0"
+description = "Official Python SDK for Hive plugins and daemon protocol 2"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Hive contributors" }]
+keywords = ["hive", "plugins", "sdk", "terminal"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/hive-oss/plugin-sdk"
+Repository = "https://github.com/hive-oss/plugin-sdk"
+Issues = "https://github.com/hive-oss/plugin-sdk/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hive_plugin_sdk*"]
+
+[tool.setuptools.package-data]
+hive_plugin_sdk = ["py.typed"]

@@ -49,7 +49,8 @@ func newPluginHost(cfg Config, log *slog.Logger) *plugin.Host {
 	})
 }
 
-// forwardEvents passes every event to the plugins that handle it.
+// forwardEvents passes every event a plugin handles except the loss marker;
+// plugins can re-read the workspace after their next event.
 func forwardEvents(ctx context.Context, bus *event.Bus, host *plugin.Host) {
 	sub := bus.Subscribe(event.DefaultBuffer)
 	defer sub.Close()
@@ -58,8 +59,8 @@ func forwardEvents(ctx context.Context, bus *event.Bus, host *plugin.Host) {
 		if err != nil {
 			return
 		}
-		if ev.Type == event.Lost || ev.Type == event.ProcessOutput {
-			continue // nothing a plugin could act on (output is too frequent)
+		if ev.Type == event.Lost {
+			continue // plugins can re-read state after their next meaningful event
 		}
 		host.Event(ev.Type, ev.Data) //nolint:contextcheck // commands run in the host's lifetime, not this loop's
 	}

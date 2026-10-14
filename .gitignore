@@ -48,3 +48,6 @@ logs/
 .codegraph/
 
 PLAN.md
+
+node_modules/
+docs/

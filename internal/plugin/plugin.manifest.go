@@ -13,9 +13,11 @@
 package plugin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -39,10 +41,21 @@ type Manifest struct {
 	MinHiveVersion string `toml:"min_hive_version" json:"min_hive_version,omitempty"`
 	// Platforms lists the systems it runs on (darwin, linux); empty: all.
 	Platforms []string `toml:"platforms" json:"platforms,omitempty"`
+	// Runtimes names executables needed to run the published plugin artifact.
+	// Plugin releases should include built output so installation never has to
+	// download packages or invoke a compiler.
+	Runtimes []Runtime `toml:"runtime" json:"runtime,omitempty"`
 
 	Startup []Startup `toml:"startup" json:"startup,omitempty"`
 	Actions []Action  `toml:"actions" json:"actions,omitempty"`
 	Events  []Event   `toml:"events" json:"events,omitempty"`
+}
+
+// Runtime is an executable requirement checked before installation and when
+// loading an installed plugin.
+type Runtime struct {
+	Command    string `toml:"command" json:"command"`
+	MinVersion string `toml:"min_version" json:"min_version,omitempty"`
 }
 
 // Startup is a command that runs while the daemon runs.
@@ -91,6 +104,8 @@ func (e Event) Matches(typ string) bool {
 var (
 	idPattern      = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,47}$`)
 	versionPattern = regexp.MustCompile(`^v?\d+\.\d+\.\d+([-+][0-9A-Za-z.-]+)?$`)
+	runtimeVersion = regexp.MustCompile(`(?i)v?(\d+\.\d+\.\d+)`)
+	runtimeCommand = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 	eventPattern   = regexp.MustCompile(`^[a-z_]+(\.[a-z_]+)*\.?$`)
 )
 
@@ -143,6 +158,14 @@ func (m *Manifest) check() error {
 	for _, p := range m.Platforms {
 		if p != "darwin" && p != "linux" {
 			return fmt.Errorf("platforms: %q (want darwin or linux)", p)
+		}
+	}
+	for i, r := range m.Runtimes {
+		if !runtimeCommand.MatchString(r.Command) {
+			return fmt.Errorf("runtime[%d]: invalid command %q", i, r.Command)
+		}
+		if r.MinVersion != "" && !versionPattern.MatchString(r.MinVersion) {
+			return fmt.Errorf("runtime[%d]: min_version %q: want MAJOR.MINOR.PATCH", i, r.MinVersion)
 		}
 	}
 	for i, s := range m.Startup {
@@ -217,7 +240,36 @@ func (m *Manifest) Supported(hiveVersion string) error {
 	if m.MinHiveVersion != "" && !devBuild(hiveVersion) && newer(m.MinHiveVersion, hiveVersion) {
 		return fmt.Errorf("plugin %s needs hive %s or newer (this is %s; `hive update`)", m.ID, m.MinHiveVersion, hiveVersion)
 	}
+	for _, r := range m.Runtimes {
+		path, err := exec.LookPath(r.Command)
+		if err != nil {
+			return fmt.Errorf("plugin %s needs %s%s on PATH", m.ID, r.Command, minVersionLabel(r.MinVersion))
+		}
+		if r.MinVersion == "" {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		out, err := exec.CommandContext(ctx, path, "--version").Output()
+		cancel()
+		if err != nil {
+			return fmt.Errorf("check %s version for plugin %s: %w", r.Command, m.ID, err)
+		}
+		version := runtimeVersion.FindStringSubmatch(string(out))
+		if len(version) != 2 {
+			return fmt.Errorf("cannot read %s version for plugin %s", r.Command, m.ID)
+		}
+		if newer(r.MinVersion, version[1]) {
+			return fmt.Errorf("plugin %s needs %s %s or newer (found %s)", m.ID, r.Command, r.MinVersion, version[1])
+		}
+	}
 	return nil
+}
+
+func minVersionLabel(version string) string {
+	if version == "" {
+		return ""
+	}
+	return " >= " + version
 }
 
 // devBuild reports a build from source ("dev", or a Go pseudo-version),
