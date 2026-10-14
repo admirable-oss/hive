@@ -100,16 +100,19 @@ command hive plugin (alias plugins)
 command hive plugin disable
 command hive plugin enable
 command hive plugin info
+command hive plugin init
 command hive plugin install
 command hive plugin link
 command hive plugin list
 command hive plugin list (alias ls)
 command hive plugin logs
+command hive plugin rollback
 command hive plugin run
 command hive plugin search
 command hive plugin uninstall
 command hive plugin uninstall (alias remove)
 command hive plugin uninstall (alias rm)
+command hive plugin update
 command hive plugin validate
 command hive process
 command hive process (alias ps)

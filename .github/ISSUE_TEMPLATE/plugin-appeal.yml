@@ -1,0 +1,25 @@
+name: Appeal a plugin moderation decision
+description: Ask for an independent review of a plugin listing decision.
+title: "[Plugin appeal]: "
+labels: ["plugin-appeal", "triage"]
+body:
+  - type: input
+    id: plugin_id
+    attributes:
+      label: Plugin ID
+    validations:
+      required: true
+  - type: input
+    id: decision
+    attributes:
+      label: Decision or review reference
+      description: Link the moderation issue or registry pull request.
+    validations:
+      required: true
+  - type: textarea
+    id: grounds
+    attributes:
+      label: Grounds for appeal
+      description: Explain what evidence or policy interpretation should be reconsidered.
+    validations:
+      required: true

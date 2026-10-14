@@ -35,6 +35,7 @@ func TestRegistryFetchSearchAndValidation(t *testing.T) {
 		"duplicate plugin ID": duplicate,
 		"unknown field":       strings.Replace(document, `"schema":1`, `"schema":1,"unexpected":true`, 1),
 		"insecure source":     strings.Replace(document, "https://github.com", "http://github.com", 1),
+		"reversed Hive range": strings.Replace(document, `"repository":"https://github.com/example/pr-status"`, `"repository":"https://github.com/example/pr-status","min_hive_version":"2.0.0","max_hive_version":"1.0.0"`, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := registryWithBody(invalid).Fetch(context.Background()); err == nil {

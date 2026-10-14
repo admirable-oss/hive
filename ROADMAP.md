@@ -312,23 +312,25 @@ installed plugins or Git-based installation.
 
 ### M10 remaining work (implementation audit, 2026-10-14)
 
-- [ ] Add registry-backed `hive plugin update [id]` and explicit rollback while
+- [x] Add registry-backed `hive plugin update [id]` and explicit rollback while
   retaining the last known-good release and plugin data.
-- [ ] Make interrupted updates recoverable and verify installed release
+- [x] Make interrupted updates recoverable and verify installed release
   metadata/checksums against the registry.
-- [ ] Define and implement maintainer ownership transfer, submission states,
+- [x] Define and implement maintainer ownership transfer, submission states,
   review history, moderation, reporting, appeals, and withdrawal workflows.
-- [ ] Add publication-side registry validation and an automated submission
+- [x] Add publication-side registry validation and an automated submission
   workflow; require human approval for official and verified listings.
 - [ ] Complete manifest configuration/data-directory declarations and
   compatibility/migration rules; document download and extraction limits.
 - [x] Add `hive plugin validate [dir]` as a local manifest/runtime validation
   entry point for contributors and CI.
-- [ ] Add `hive plugin init`, expand validation fixtures, and finish
+- [x] Add `hive plugin init`, expand validation fixtures, and finish
   release/submission documentation and automation.
-- [ ] Seed and verify official catalog releases, and align storefront
-  validation and registry records with the CLI contract.
-- [ ] Keep the plugin TUI extension claim gated on a daemon contribution API
+- [x] Align storefront validation and registry records with the CLI contract;
+  the existing `hive-pulse@0.1.0` tag matches its pinned commit.
+- [ ] Publish and seed official catalog releases. The official examples still
+  need immutable remote release tags before they can be listed as installable.
+- [x] Keep the plugin TUI extension claim gated on a daemon contribution API
   and TUI consumer; current plugin runtime supports actions and popups, while
   contributed commands/views/keybindings are not wired through the core.
 - [ ] Verify non-interactive install policy, progress/errors, and registry

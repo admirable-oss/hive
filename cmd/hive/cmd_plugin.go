@@ -27,13 +27,15 @@ func (a *app) pluginRegistry() *plugin.RegistryClient {
 
 // reloadPlugins tells a running daemon that plugins changed; one that is
 // not running reads them when it starts.
-func (a *app) reloadPlugins(ctx context.Context) {
+func (a *app) reloadPlugins(ctx context.Context) error {
 	if _, ok := a.daemonRunning(ctx); !ok {
-		return
+		return nil
 	}
 	if _, err := client.NewPlugins(a.client).Reload(ctx); err != nil {
 		fmt.Fprintf(a.errOut, "hive: warning: the daemon did not reload its plugins: %v (`hive daemon restart` does)\n", err)
+		return err
 	}
+	return nil
 }
 
 func newPluginCmd(a *app) *cobra.Command {
@@ -54,8 +56,65 @@ one shows everything it will run and asks first. See https://hive.admir-saheta.c
 	}
 	cmd.AddCommand(newPluginSearchCmd(a), newPluginInstallCmd(a), newPluginLinkCmd(a), newPluginListCmd(a), newPluginInfoCmd(a),
 		newPluginToggleCmd(a, true), newPluginToggleCmd(a, false), newPluginUninstallCmd(a),
-		newPluginRunCmd(a), newPluginLogsCmd(a), newPluginValidateCmd(a))
+		newPluginRunCmd(a), newPluginLogsCmd(a), newPluginValidateCmd(a), newPluginInitCmd(a), newPluginUpdateCmd(a), newPluginRollbackCmd(a))
 	return cmd
+}
+
+func newPluginInitCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:     "init <id> [directory]",
+		Short:   "Scaffold a valid shell-based Hive plugin",
+		Args:    rangeArgs(1, 2),
+		Example: "  hive plugin init my-plugin\n  hive plugin init my-plugin ./plugins/my-plugin",
+		RunE: func(_ *cobra.Command, args []string) error {
+			id := args[0]
+			if !plugin.ValidID(id) {
+				return fmt.Errorf("invalid plugin ID %q: use lower-case letters, digits, and dashes", id)
+			}
+			dir := id
+			if len(args) == 2 {
+				dir = args[1]
+			}
+			abs, err := filepath.Abs(dir)
+			if err != nil {
+				return err
+			}
+			if err := os.Mkdir(abs, 0o755); err != nil {
+				if errors.Is(err, os.ErrExist) {
+					return fmt.Errorf("destination %s already exists; choose a new directory", abs)
+				}
+				return err
+			}
+			files := map[string]struct {
+				body string
+				mode os.FileMode
+			}{
+				plugin.ManifestFile: {body: fmt.Sprintf("id = %q\nname = %q\nversion = %q\ndescription = %q\nmin_hive_version = %q\n\n[[actions]]\nid = %q\ntitle = %q\ncommand = [%q, %q]\n", id, id, "0.1.0", "A Hive plugin.", "1.0.0", "hello", "Hello from "+id, "sh", "./hello.sh"), mode: 0o644},
+				"hello.sh":          {body: "#!/bin/sh\nprintf '%s\\n' 'Hello from Hive plugin'\n", mode: 0o755},
+				"README.md":         {body: fmt.Sprintf("# %s\n\nA Hive plugin scaffold.\n\n## Validate\n\n```sh\nhive plugin validate .\n```\n\n## Try it\n\n```sh\nhive plugin link .\nhive plugin run %s hello\n```\n\nEdit `hello.sh` and `hive-plugin.toml` to customize this plugin. Plugins run with your user permissions; review every command before installing them from a registry.\n", id, id), mode: 0o644},
+			}
+			created := make([]string, 0, len(files))
+			for name, file := range files {
+				path := filepath.Join(abs, name)
+				if err := os.WriteFile(path, []byte(file.body), file.mode); err != nil {
+					for _, createdPath := range created {
+						_ = os.Remove(createdPath)
+					}
+					_ = os.Remove(abs)
+					return fmt.Errorf("write plugin scaffold: %w", err)
+				}
+				created = append(created, path)
+			}
+			if _, err := plugin.LoadManifest(abs); err != nil {
+				for _, createdPath := range created {
+					_ = os.Remove(createdPath)
+				}
+				_ = os.Remove(abs)
+				return fmt.Errorf("validate generated plugin scaffold: %w", err)
+			}
+			return a.done(map[string]any{"id": id, "directory": abs}, "created plugin scaffold %s in %s", id, abs)
+		},
+	}
 }
 
 func newPluginValidateCmd(a *app) *cobra.Command {
@@ -118,6 +177,7 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 					release := entry.Releases[0]
 					listing = &entry
 					source, ref = entry.Repository, release.Ref
+					fmt.Fprintf(a.errOut, "Fetching catalog plugin %s@%s…\n", entry.ID, release.Version)
 					f, err := store.FetchSubdir(ctx, source, ref, release.Subdir)
 					if err != nil {
 						return err
@@ -130,9 +190,11 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 						f.Discard()
 						return fmt.Errorf("registry release %s@%s does not match its manifest or pinned source revision", entry.ID, release.Version)
 					}
+					f.Version, f.Checksum, f.Registry = release.Version, release.Checksum, true
 					return a.installFetchedPlugin(ctx, store, f, listing)
 				}
 			}
+			fmt.Fprintln(a.errOut, "Fetching plugin source…")
 			f, err := store.FetchSubdir(ctx, source, ref, subdir)
 			if err != nil {
 				return err
@@ -143,6 +205,132 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&ref, "ref", "", "a branch or tag to install (default: the repository's default branch)")
 	cmd.Flags().StringVar(&subdir, "subdir", "", "install a plugin package from a repository subdirectory")
 	return cmd
+}
+
+func newPluginUpdateCmd(a *app) *cobra.Command {
+	return &cobra.Command{Use: "update [id]", Short: "Update registry-installed plugins", Args: rangeArgs(0, 1), RunE: withTimeout(pluginTimeout, func(ctx context.Context, _ *cobra.Command, args []string) error {
+		store := a.plugins()
+		if err := store.Recover(); err != nil {
+			return err
+		}
+		installed, err := store.List(ctx, buildinfo.Get().Version)
+		if err != nil {
+			return err
+		}
+		wanted := map[string]bool{}
+		if len(args) == 1 {
+			var match *plugin.Plugin
+			for i := range installed {
+				if installed[i].ID == args[0] {
+					match = &installed[i]
+					break
+				}
+			}
+			if match == nil {
+				return fmt.Errorf("%w %q", plugin.ErrNotFound, args[0])
+			}
+			if !match.Registry {
+				return fmt.Errorf("%s is not registry-installed; update is unavailable", match.ID)
+			}
+			wanted[args[0]] = true
+		} else {
+			for _, p := range installed {
+				if p.Registry {
+					wanted[p.ID] = true
+				}
+			}
+		}
+		if len(wanted) == 0 {
+			return a.done(map[string]any{"updated": []plugin.Installed{}}, "no registry-installed plugins")
+		}
+		catalog, err := a.pluginRegistry().Fetch(ctx)
+		if err != nil {
+			return fmt.Errorf("cannot update plugins while the registry is unavailable: %w", err)
+		}
+		updated := make([]plugin.Installed, 0, len(wanted))
+		for _, p := range installed {
+			if !wanted[p.ID] {
+				continue
+			}
+			if !p.Registry {
+				return fmt.Errorf("%s is not registry-installed; update is unavailable", p.ID)
+			}
+			entry, ok := catalog.Get(p.ID)
+			if !ok {
+				return fmt.Errorf("installed plugin %s is no longer listed; refusing an unverified update", p.ID)
+			}
+			if err := entry.SupportsHive(buildinfo.Get().Version); err != nil {
+				return err
+			}
+			if err := verifyInstalledRelease(p.Installed, entry); err != nil {
+				return err
+			}
+			release := entry.Releases[0]
+			if release.Version == p.Version || strings.EqualFold(release.Commit, p.Commit) {
+				fmt.Fprintf(a.errOut, "%s is already current (%s)\n", p.ID, p.Version)
+				continue
+			}
+			fmt.Fprintf(a.errOut, "Fetching %s %s…\n", p.ID, release.Version)
+			f, err := store.FetchSubdir(ctx, entry.Repository, release.Ref, release.Subdir)
+			if err != nil {
+				return err
+			}
+			if err := f.VerifyArchiveChecksum(ctx, release.Checksum); err != nil {
+				f.Discard()
+				return fmt.Errorf("verify plugin %s@%s: %w", p.ID, release.Version, err)
+			}
+			if f.Manifest.ID != p.ID || strings.TrimPrefix(f.Manifest.Version, "v") != strings.TrimPrefix(release.Version, "v") || !strings.EqualFold(f.Commit, release.Commit) {
+				f.Discard()
+				return fmt.Errorf("registry release %s@%s does not match its manifest or pinned source revision", p.ID, release.Version)
+			}
+			f.Version, f.Checksum, f.Registry = release.Version, release.Checksum, true
+			fmt.Fprintf(a.errOut, "Update %s %s → %s\n%s", p.ID, p.Version, release.Version, f.Preview())
+			if !a.confirm("Install this release?") {
+				f.Discard()
+				return fmt.Errorf("%w (run again with --yes to update)", plugin.ErrDeclined)
+			}
+			in, err := store.Update(ctx, f, buildinfo.Get().Version)
+			if err != nil {
+				return err
+			}
+			if reloadErr := a.reloadPlugins(ctx); reloadErr != nil {
+				if _, rollbackErr := store.Rollback(in.ID); rollbackErr != nil {
+					return fmt.Errorf("plugin %s@%s reload failed: %w; automatic rollback failed: %w", in.ID, in.Version, reloadErr, rollbackErr)
+				}
+				_ = a.reloadPlugins(ctx)
+				return fmt.Errorf("plugin %s update was rolled back because the daemon could not load it: %w", in.ID, reloadErr)
+			}
+			updated = append(updated, in)
+		}
+		if len(updated) == 0 {
+			return a.done(map[string]any{"updated": updated}, "no plugin updates available")
+		}
+		return a.done(map[string]any{"updated": updated}, "updated %d plugin(s)", len(updated))
+	})}
+}
+
+func verifyInstalledRelease(installed plugin.Installed, listing plugin.Listing) error {
+	if installed.ID != listing.ID || !installed.Registry || installed.Version == "" || installed.Commit == "" || installed.Checksum == "" {
+		return fmt.Errorf("installed metadata for %s is incomplete or does not identify a registry release; reinstall it from the catalog", installed.ID)
+	}
+	for _, release := range listing.Releases {
+		if release.Version == installed.Version && strings.EqualFold(release.Commit, installed.Commit) && strings.EqualFold(release.Checksum, installed.Checksum) {
+			return nil
+		}
+	}
+	return fmt.Errorf("installed release metadata for %s@%s does not match the registry; refusing to update", installed.ID, installed.Version)
+}
+
+func newPluginRollbackCmd(a *app) *cobra.Command {
+	return &cobra.Command{Use: "rollback <id>", Short: "Restore the last known-good registry release", Args: exactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		store := a.plugins()
+		in, err := store.Rollback(args[0])
+		if err != nil {
+			return err
+		}
+		_ = a.reloadPlugins(cmd.Context())
+		return a.done(map[string]any{"plugin": in}, "rolled back %s to %s", in.ID, in.Version)
+	}}
 }
 
 func (a *app) installFetchedPlugin(ctx context.Context, store *plugin.Store, f *plugin.Fetched, listing *plugin.Listing) error {
@@ -158,7 +346,7 @@ func (a *app) installFetchedPlugin(ctx context.Context, store *plugin.Store, f *
 	if err != nil {
 		return err
 	}
-	a.reloadPlugins(ctx)
+	_ = a.reloadPlugins(ctx)
 	return a.done(map[string]any{"plugin": in}, "installed plugin %s (%s)", in.ID, in.Source)
 }
 
@@ -209,7 +397,7 @@ func newPluginLinkCmd(a *app) *cobra.Command {
 				return err
 			}
 			fmt.Fprint(a.errOut, m.Preview(in.Source))
-			a.reloadPlugins(ctx)
+			_ = a.reloadPlugins(ctx)
 			return a.done(map[string]any{"plugin": in}, "linked plugin %s to %s", in.ID, in.Source)
 		}),
 	}
@@ -407,7 +595,7 @@ func newPluginToggleCmd(a *app, on bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			a.reloadPlugins(ctx)
+			_ = a.reloadPlugins(ctx)
 			return a.done(map[string]any{"plugin": in}, "%s plugin %s", verb, in.ID)
 		}),
 	}
@@ -431,7 +619,7 @@ func newPluginUninstallCmd(a *app) *cobra.Command {
 			if _, err := store.SetEnabled(args[0], false); err != nil {
 				return err
 			}
-			a.reloadPlugins(ctx) // its commands stop before its files go
+			_ = a.reloadPlugins(ctx) // its commands stop before its files go
 			if err := store.Uninstall(args[0], deleteData); err != nil {
 				return err
 			}

@@ -2,13 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/goleak"
+
+	"github.com/admirable-oss/hive/internal/plugin"
 )
 
 // TestMain doubles as the hive binary: with HIVE_CLI_TEST_EXEC=1, or when a
@@ -124,6 +129,139 @@ command = ["echo", "ready"]
 	}
 	if !strings.Contains(stdout.String(), "valid sample-plugin 1.2.3") {
 		t.Fatalf("unexpected validation output: %q", stdout.String())
+	}
+}
+
+func TestPluginInitCommand(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "test-plugin")
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"plugin", "init", "test-plugin", dir}, &stdout, &stderr, testEnv(t)); code != 0 {
+		t.Fatalf("init exit=%d stderr=%q", code, stderr.String())
+	}
+	if _, err := plugin.LoadManifest(dir); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"README.md", "hello.sh"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("scaffold missing %s: %v", name, err)
+		}
+	}
+	if code := execute([]string{"plugin", "init", "test-plugin", dir}, &stdout, &stderr, testEnv(t)); code == 0 {
+		t.Fatal("init overwrote an existing directory")
+	}
+}
+
+func TestPluginUpdateRejectsLocalInstallWithoutRegistry(t *testing.T) {
+	home := t.TempDir()
+	config := filepath.Join(home, "config.toml")
+	if err := os.WriteFile(config, []byte("[daemon]\nautostart = false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	values := map[string]string{
+		"HIVE_HOME":                filepath.Join(home, "hive"),
+		"HIVE_CONFIG":              config,
+		"HIVE_PLUGIN_REGISTRY_URL": "file:///unavailable/registry.json",
+	}
+	getenv := func(key string) string { return values[key] }
+	a, err := newApp(getenv, io.Discard, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pluginDir := t.TempDir()
+	manifest := `id = "local-plugin"
+version = "1.0.0"
+
+[[actions]]
+id = "open"
+command = ["echo", "ready"]
+`
+	if err := os.WriteFile(filepath.Join(pluginDir, plugin.ManifestFile), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := a.plugins().Link(context.Background(), pluginDir, "1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	if code := execute([]string{"plugin", "update", "local-plugin"}, io.Discard, &stderr, getenv); code == 0 || !strings.Contains(stderr.String(), "not registry-installed") {
+		t.Fatalf("local plugin update exit=%d stderr=%q", code, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(a.plugins().Dir("local-plugin"), plugin.ManifestFile)); err != nil {
+		t.Fatalf("plugin changed after refused update: %v", err)
+	}
+}
+
+func TestPluginUpdateRegistryFailureLeavesInstalledReleaseUntouched(t *testing.T) {
+	home := t.TempDir()
+	config := filepath.Join(home, "config.toml")
+	if err := os.WriteFile(config, []byte("[daemon]\nautostart = false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	values := map[string]string{
+		"HIVE_HOME":                filepath.Join(home, "hive"),
+		"HIVE_CONFIG":              config,
+		"HIVE_PLUGIN_REGISTRY_URL": "file:///unavailable/registry.json",
+	}
+	getenv := func(key string) string { return values[key] }
+	a, err := newApp(getenv, io.Discard, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := a.plugins()
+	id := "catalog-plugin"
+	dir := store.Dir(id)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `id = "catalog-plugin"
+version = "1.0.0"
+
+[[actions]]
+id = "open"
+command = ["echo", "ready"]
+`
+	if err := os.WriteFile(filepath.Join(dir, plugin.ManifestFile), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(dir, "marker")
+	if err := os.WriteFile(marker, []byte("known-good"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	installed := plugin.Installed{ID: id, Source: "https://example.test/catalog-plugin", Ref: "v1.0.0", Commit: strings.Repeat("a", 40), Version: "1.0.0", Checksum: "sha256:" + strings.Repeat("b", 64), Registry: true, Enabled: true, InstalledAt: time.Now().UTC()}
+	state, err := json.Marshal(map[string]any{"schema": 1, "plugins": []plugin.Installed{installed}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registryPath := filepath.Join(filepath.Dir(dir), "registry.json")
+	if err := os.WriteFile(registryPath, state, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	if code := execute([]string{"plugin", "update", id}, io.Discard, &stderr, getenv); code == 0 || !strings.Contains(stderr.String(), "invalid plugin registry URL") {
+		t.Fatalf("update exit=%d stderr=%q", code, stderr.String())
+	}
+	if got, err := os.ReadFile(marker); err != nil || string(got) != "known-good" {
+		t.Fatalf("known-good plugin changed: %q (%v)", got, err)
+	}
+	if got, err := os.ReadFile(registryPath); err != nil || !bytes.Equal(got, state) {
+		t.Fatalf("installation record changed: %s (%v)", got, err)
+	}
+}
+
+func TestPluginConfirmationRequiresExplicitYesWithoutTerminal(t *testing.T) {
+	oldStdin := os.Stdin
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdin = reader
+	defer func() { os.Stdin = oldStdin; _ = reader.Close(); _ = writer.Close() }()
+	a := newTestApp(t)
+	if a.confirm("install plugin") {
+		t.Fatal("non-interactive confirmation unexpectedly accepted")
+	}
+	a.yes = true
+	if !a.confirm("install plugin") {
+		t.Fatal("--yes did not accept the non-interactive confirmation")
 	}
 }
 

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"go.uber.org/goleak"
+
+	"github.com/admirable-oss/hive/internal/jsonfile"
 )
 
 func TestMain(m *testing.M) { goleak.VerifyTestMain(m) }
@@ -166,6 +168,123 @@ func TestStoreInstallLinkAndUninstall(t *testing.T) {
 	}
 	if list, _ := s.List(ctx, ""); len(list) != 0 {
 		t.Fatalf("left after uninstall: %+v", list)
+	}
+}
+
+func TestStoreUpdateRollbackAndRecovery(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	ctx := context.Background()
+	root := t.TempDir()
+	s := NewStore(filepath.Join(root, "plugins"))
+	firstSrc := writePlugin(t, strings.Replace(sample, `version = "0.1.0"`, `version = "1.0.0"`, 1), map[string]string{"marker": "one"}, true)
+	f, err := s.Fetch(ctx, firstSrc, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Ref, f.Version, f.Checksum, f.Registry, f.checksumVerified = "v1.0.0", "1.0.0", "sha256:"+strings.Repeat("a", 64), true, true
+	if _, err := s.Install(ctx, f, "v1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	data := s.DataDir("pr-status")
+	if err := os.MkdirAll(data, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(data, "keep"), []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	secondSrc := writePlugin(t, strings.Replace(sample, `version = "0.1.0"`, `version = "2.0.0"`, 1), map[string]string{"marker": "two"}, true)
+	f, err = s.Fetch(ctx, secondSrc, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Ref, f.Version, f.Checksum, f.Registry, f.checksumVerified = "v2.0.0", "2.0.0", "sha256:"+strings.Repeat("b", 64), true, true
+	updated, err := s.Update(ctx, f, "v1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Version != "2.0.0" || updated.PreviousVersion != "1.0.0" {
+		t.Fatalf("updated metadata: %+v", updated)
+	}
+	if got, _ := os.ReadFile(filepath.Join(s.Dir("pr-status"), "marker")); string(got) != "two" {
+		t.Fatalf("active marker = %q", got)
+	}
+	rolled, err := s.Rollback("pr-status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rolled.Version != "1.0.0" || rolled.PreviousVersion != "2.0.0" {
+		t.Fatalf("rollback metadata: %+v", rolled)
+	}
+	if got, _ := os.ReadFile(filepath.Join(s.Dir("pr-status"), "marker")); string(got) != "one" {
+		t.Fatalf("rolled marker = %q", got)
+	}
+	if got, _ := os.ReadFile(filepath.Join(data, "keep")); string(got) != "data" {
+		t.Fatalf("plugin data changed: %q", got)
+	}
+
+	// Simulate a crash after moving the active directory to its release backup.
+	list, err := s.loadLocked()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldDir := s.Dir("pr-status")
+	next := list[0]
+	next.PreviousVersion, next.PreviousCommit = next.Version, next.Commit
+	next.Version, next.Commit = "3.0.0", strings.Repeat("f", 40)
+	backup := filepath.Join(s.VersionsDir("pr-status"), safeReleaseDir(next.PreviousVersion, next.PreviousCommit))
+	if err := os.Rename(oldDir, backup); err != nil {
+		t.Fatal(err)
+	}
+	stage := filepath.Join(s.dir, ".fetch-crash", "src")
+	if err := os.MkdirAll(stage, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stage, "candidate"), []byte("new"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(stage, oldDir); err != nil {
+		t.Fatal(err)
+	}
+	tx := storeTransaction{Schema: 1, PluginID: "pr-status", Operation: "update", Backup: backup, Stage: stage, Next: next}
+	if err := jsonfile.Write(filepath.Join(s.dir, ".transaction.json"), tx); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Recover(); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(s.Dir("pr-status"), "marker")); string(got) != "one" {
+		t.Fatalf("recovery marker = %q", got)
+	}
+
+	// Simulate an interrupted rollback after the outgoing release and target have swapped.
+	list, err = s.loadLocked()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur := list[0]
+	rollbackTarget := filepath.Join(s.VersionsDir(cur.ID), safeReleaseDir(cur.PreviousVersion, cur.PreviousCommit))
+	rollbackStage := filepath.Join(s.VersionsDir(cur.ID), safeReleaseDir(cur.Version, cur.Commit))
+	nextRollback := cur
+	nextRollback.Version, nextRollback.Commit, nextRollback.Checksum = cur.PreviousVersion, cur.PreviousCommit, cur.PreviousChecksum
+	nextRollback.PreviousVersion, nextRollback.PreviousCommit, nextRollback.PreviousChecksum = cur.Version, cur.Commit, cur.Checksum
+	rollbackTx := storeTransaction{Schema: 1, PluginID: cur.ID, Operation: "rollback", Backup: rollbackTarget, Stage: rollbackStage, KeepStage: true, Next: nextRollback}
+	if err := jsonfile.Write(filepath.Join(s.dir, ".transaction.json"), rollbackTx); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(s.Dir(cur.ID), rollbackStage); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(rollbackTarget, s.Dir(cur.ID)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Recover(); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(s.Dir("pr-status"), "marker")); string(got) != "one" {
+		t.Fatalf("rollback recovery marker = %q", got)
 	}
 }
 

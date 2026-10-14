@@ -123,7 +123,7 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive daemon install \| uninstall` | Run the daemon as a launchd agent (macOS) or systemd user service (Linux) |
 | `hive session save \| restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again (the daemon does both by itself) |
 | `hive --remote <host> …` · `hive --machine <name> …` | Run any command (or the multiplexer) against Hive on another machine over SSH; installs it there after asking |
-| `hive plugin search \| install \| link \| list \| info \| enable \| disable \| uninstall \| run \| logs` | Discover catalog plugins or manage Git and local plugins; plugin data is preserved on uninstall |
+| `hive plugin search \| install \| update [id] \| rollback <id> \| init <id> \| link \| list \| info \| enable \| disable \| uninstall \| run \| logs` | Discover catalog plugins or manage Git and local plugins; updates retain a rollback release and plugin data is preserved |
 | `hive pane report-metadata` · `hive env report-metadata` · `hive metadata` | Tokens and titles in the sidebar, with a TTL |
 | `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip and agents |
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |

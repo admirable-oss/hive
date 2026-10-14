@@ -153,6 +153,9 @@ func (c *RegistryClient) Fetch(ctx context.Context) (Registry, error) {
 		if (p.MinHiveVersion != "" && !versionPattern.MatchString(p.MinHiveVersion)) || (p.MaxHiveVersion != "" && !versionPattern.MatchString(p.MaxHiveVersion)) {
 			return Registry{}, fmt.Errorf("plugin %s has an invalid Hive compatibility range", p.ID)
 		}
+		if p.MinHiveVersion != "" && p.MaxHiveVersion != "" && newer(p.MinHiveVersion, p.MaxHiveVersion) {
+			return Registry{}, fmt.Errorf("plugin %s has a reversed Hive compatibility range", p.ID)
+		}
 		for _, maintainer := range p.Maintainers {
 			if strings.TrimSpace(maintainer.Name) == "" {
 				return Registry{}, fmt.Errorf("plugin %s has a maintainer without a name", p.ID)

@@ -1,0 +1,38 @@
+name: Report a plugin listing or behavior
+description: Report misleading metadata, a broken release, or plugin behavior that violates policy.
+title: "[Plugin report]: "
+labels: ["plugin-report", "triage"]
+body:
+  - type: input
+    id: plugin_id
+    attributes:
+      label: Plugin ID
+      placeholder: example-plugin
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Report category
+      options:
+        - Misleading or malicious behavior
+        - Broken or compromised release
+        - License or ownership concern
+        - Incorrect listing information
+        - Other policy concern
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened?
+      description: Include reproducible steps and links. Do not include secrets or private user data.
+    validations:
+      required: true
+  - type: checkboxes
+    id: policy
+    attributes:
+      label: Before submitting
+      options:
+        - label: This report does not contain credentials or private data.
+          required: true

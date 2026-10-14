@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/jsonfile"
@@ -32,12 +33,19 @@ type Installed struct {
 	ID string `json:"id"`
 	// Source is where it came from: a git URL or path, or the linked
 	// directory. Commit is the installed commit (installs from git).
-	Source      string    `json:"source"`
-	Ref         string    `json:"ref,omitempty"`
-	Commit      string    `json:"commit,omitempty"`
-	Linked      bool      `json:"linked,omitempty"`
-	Enabled     bool      `json:"enabled"`
-	InstalledAt time.Time `json:"installed_at"`
+	Source           string    `json:"source"`
+	Ref              string    `json:"ref,omitempty"`
+	Commit           string    `json:"commit,omitempty"`
+	Version          string    `json:"version,omitempty"`
+	Checksum         string    `json:"checksum,omitempty"`
+	Registry         bool      `json:"registry,omitempty"`
+	PreviousVersion  string    `json:"previous_version,omitempty"`
+	PreviousRef      string    `json:"previous_ref,omitempty"`
+	PreviousCommit   string    `json:"previous_commit,omitempty"`
+	PreviousChecksum string    `json:"previous_checksum,omitempty"`
+	Linked           bool      `json:"linked,omitempty"`
+	Enabled          bool      `json:"enabled"`
+	InstalledAt      time.Time `json:"installed_at"`
 }
 
 // Plugin is an installed plugin with its manifest, as found on disk.
@@ -59,7 +67,156 @@ type Store struct {
 }
 
 // NewStore returns the store in dir.
-func NewStore(dir string) *Store { return &Store{dir: dir} }
+func NewStore(dir string) *Store {
+	abs, err := filepath.Abs(dir)
+	if err == nil {
+		dir = abs
+	}
+	return &Store{dir: filepath.Clean(dir)}
+}
+
+// lock serializes store mutations across both threads and CLI processes.
+func (s *Store) lock() (func(), error) {
+	s.mu.Lock()
+	if err := os.MkdirAll(s.dir, 0o700); err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
+	file, err := os.OpenFile(filepath.Join(s.dir, ".plugins.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
+		_ = file.Close()
+		s.mu.Unlock()
+		return nil, err
+	}
+	return func() { _ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN); _ = file.Close(); s.mu.Unlock() }, nil
+}
+
+// Recover repairs an interrupted registry update/rollback before callers inspect the store.
+// Transactions commit when the new installed record reached registry.json; otherwise the
+// previous active directory is restored. Plugin data lives separately and is never touched.
+func (s *Store) Recover() error {
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return s.recoverLocked()
+}
+
+func (s *Store) recoverLocked() error {
+	path := filepath.Join(s.dir, ".transaction.json")
+	var tx storeTransaction
+	if err := jsonfile.Read(path, &tx); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("read interrupted plugin transaction: %w", err)
+	}
+	if tx.Schema != 1 || !ValidID(tx.PluginID) {
+		return errors.New("invalid interrupted plugin transaction; manual repair required")
+	}
+	if tx.Next.ID != tx.PluginID || !tx.Next.Registry || tx.Next.Version == "" || len(tx.Next.Commit) != 40 || !isHex(tx.Next.Commit) {
+		return errors.New("invalid interrupted plugin release metadata; manual repair required")
+	}
+	versions := s.VersionsDir(tx.PluginID)
+	switch tx.Operation {
+	case "update":
+		if tx.Next.PreviousVersion == "" || len(tx.Next.PreviousCommit) != 40 ||
+			tx.Backup != filepath.Join(versions, safeReleaseDir(tx.Next.PreviousVersion, tx.Next.PreviousCommit)) ||
+			filepath.Base(tx.Stage) != "src" || !strings.HasPrefix(filepath.Base(filepath.Dir(tx.Stage)), ".fetch-") {
+			return errors.New("invalid interrupted update paths; manual repair required")
+		}
+	case "rollback":
+		if tx.Next.PreviousVersion == "" || len(tx.Next.PreviousCommit) != 40 ||
+			tx.Backup != filepath.Join(versions, safeReleaseDir(tx.Next.Version, tx.Next.Commit)) ||
+			tx.Stage != filepath.Join(versions, safeReleaseDir(tx.Next.PreviousVersion, tx.Next.PreviousCommit)) {
+			return errors.New("invalid interrupted rollback paths; manual repair required")
+		}
+	default:
+		return errors.New("unknown interrupted plugin transaction; manual repair required")
+	}
+	for _, candidate := range []string{tx.Backup, tx.Stage} {
+		if candidate == "" {
+			continue
+		}
+		abs, err := filepath.Abs(candidate)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(s.dir, abs)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return errors.New("interrupted plugin transaction references a path outside the plugin store; manual repair required")
+		}
+	}
+	list, err := s.loadLocked()
+	if err != nil {
+		return err
+	}
+	committed := slices.ContainsFunc(list, func(in Installed) bool {
+		return in.ID == tx.PluginID && in.Commit == tx.Next.Commit && in.Version == tx.Next.Version
+	})
+	active, backup := s.Dir(tx.PluginID), tx.Backup
+	if committed {
+		if !tx.KeepStage {
+			if err := os.RemoveAll(tx.Stage); err != nil {
+				return err
+			}
+		}
+	} else {
+		if tx.Operation == "rollback" {
+			if _, err := os.Lstat(tx.Stage); err == nil {
+				if _, activeErr := os.Lstat(active); activeErr == nil {
+					if err := os.Rename(active, backup); err != nil {
+						return err
+					}
+				}
+				if err := os.Rename(tx.Stage, active); err != nil {
+					return fmt.Errorf("restore previous plugin release: %w", err)
+				}
+			} else if _, backupErr := os.Lstat(backup); backupErr == nil {
+				if _, activeErr := os.Lstat(active); errors.Is(activeErr, fs.ErrNotExist) {
+					if err := os.Rename(backup, active); err != nil {
+						return err
+					}
+				} else if activeErr != nil {
+					return activeErr
+				}
+			} else if !errors.Is(err, fs.ErrNotExist) {
+				return err
+			}
+		} else if _, err := os.Lstat(backup); err == nil {
+			if err := os.RemoveAll(active); err != nil {
+				return err
+			}
+			if err := os.Rename(backup, active); err != nil {
+				return fmt.Errorf("restore previous plugin release: %w", err)
+			}
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		_ = os.RemoveAll(tx.Stage)
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+type storeTransaction struct {
+	Schema    int       `json:"schema"`
+	PluginID  string    `json:"plugin_id"`
+	Operation string    `json:"operation"`
+	Backup    string    `json:"backup"`
+	Stage     string    `json:"stage"`
+	KeepStage bool      `json:"keep_stage,omitempty"`
+	Next      Installed `json:"next"`
+}
+
+func (s *Store) VersionsDir(id string) string { return filepath.Join(s.dir, ".versions", id) }
 
 // Dir is where plugin id lives.
 func (s *Store) Dir(id string) string { return filepath.Join(s.dir, id) }
@@ -93,9 +250,15 @@ func (s *Store) saveLocked(list []Installed) error {
 
 // List returns every installed plugin with its manifest.
 func (s *Store) List(ctx context.Context, hiveVersion string) ([]Plugin, error) {
-	s.mu.Lock()
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	if err := s.recoverLocked(); err != nil {
+		return nil, err
+	}
 	list, err := s.loadLocked()
-	s.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -135,14 +298,18 @@ func (s *Store) Get(ctx context.Context, id, hiveVersion string) (Plugin, error)
 
 // Fetched is a plugin cloned for installing, not yet installed.
 type Fetched struct {
-	Manifest *Manifest
-	Source   string
-	Ref      string
-	Commit   string
-	Subdir   string
-	dir      string // the clone
-	repoDir  string // repository root (may differ from the installed package)
-	tmpDir   string // clone parent removed after install or discard
+	Manifest         *Manifest
+	Source           string
+	Ref              string
+	Commit           string
+	Version          string
+	Checksum         string
+	Registry         bool
+	checksumVerified bool
+	Subdir           string
+	dir              string // the clone
+	repoDir          string // repository root (may differ from the installed package)
+	tmpDir           string // clone parent removed after install or discard
 }
 
 const maxPluginArchiveBytes = 64 << 20
@@ -177,6 +344,7 @@ func (f *Fetched) VerifyArchiveChecksum(ctx context.Context, want string) error 
 	if got != want {
 		return fmt.Errorf("plugin source checksum mismatch: expected sha256:%s, got sha256:%s", want, got)
 	}
+	f.checksumVerified = true
 	return nil
 }
 
@@ -295,11 +463,20 @@ func (f *Fetched) Discard() {
 // Install puts a fetched plugin in place, enabled.
 func (s *Store) Install(ctx context.Context, f *Fetched, hiveVersion string) (Installed, error) {
 	defer f.Discard()
+	if f.Registry && (!f.checksumVerified || !validReleaseMetadata(f)) {
+		return Installed{}, errors.New("registry plugin install requires a checksum-verified release matching its manifest")
+	}
 	if err := f.Manifest.Supported(ctx, hiveVersion); err != nil {
 		return Installed{}, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return Installed{}, err
+	}
+	defer unlock()
+	if err := s.recoverLocked(); err != nil {
+		return Installed{}, err
+	}
 	list, err := s.loadLocked()
 	if err != nil {
 		return Installed{}, err
@@ -311,7 +488,7 @@ func (s *Store) Install(ctx context.Context, f *Fetched, hiveVersion string) (In
 	if err := os.Rename(f.dir, s.Dir(id)); err != nil {
 		return Installed{}, err
 	}
-	in := Installed{ID: id, Source: f.Source, Ref: f.Ref, Commit: f.Commit, Enabled: true, InstalledAt: time.Now()}
+	in := Installed{ID: id, Source: f.Source, Ref: f.Ref, Commit: f.Commit, Version: f.Version, Checksum: f.Checksum, Registry: f.Registry, Enabled: true, InstalledAt: time.Now()}
 	if err := s.saveLocked(append(list, in)); err != nil {
 		if rollbackErr := os.Rename(s.Dir(id), f.dir); rollbackErr != nil {
 			return Installed{}, fmt.Errorf("record plugin install: %w (also failed to roll back installed files: %w)", err, rollbackErr)
@@ -319,6 +496,158 @@ func (s *Store) Install(ctx context.Context, f *Fetched, hiveVersion string) (In
 		return Installed{}, err
 	}
 	return in, nil
+}
+
+// Update atomically replaces an installed registry plugin and retains its last known-good release.
+func (s *Store) Update(ctx context.Context, f *Fetched, hiveVersion string) (Installed, error) {
+	defer f.Discard()
+	if err := f.Manifest.Supported(ctx, hiveVersion); err != nil {
+		return Installed{}, err
+	}
+	if !f.Registry || !f.checksumVerified || !validReleaseMetadata(f) {
+		return Installed{}, errors.New("updates require a verified registry release")
+	}
+	unlock, err := s.lock()
+	if err != nil {
+		return Installed{}, err
+	}
+	defer unlock()
+	if err := s.recoverLocked(); err != nil {
+		return Installed{}, err
+	}
+	list, err := s.loadLocked()
+	if err != nil {
+		return Installed{}, err
+	}
+	i := slices.IndexFunc(list, func(in Installed) bool { return in.ID == f.Manifest.ID })
+	if i < 0 {
+		return Installed{}, fmt.Errorf("%w %q", ErrNotFound, f.Manifest.ID)
+	}
+	old := list[i]
+	if old.Linked {
+		return Installed{}, errors.New("linked plugins cannot be updated from the registry; unlink before installing a release")
+	}
+	if !old.Registry {
+		return Installed{}, errors.New("plugin was installed from a local or Git source; registry update is unavailable")
+	}
+	if old.Version == "" || old.Commit == "" || old.Checksum == "" {
+		return Installed{}, errors.New("installed registry release metadata is incomplete; reinstall from the catalog before updating")
+	}
+	if old.Commit == f.Commit {
+		return old, nil
+	}
+	if f.Manifest.ID != old.ID {
+		return Installed{}, errors.New("registry release plugin ID does not match installed plugin")
+	}
+	if err := os.MkdirAll(s.VersionsDir(old.ID), 0o700); err != nil {
+		return Installed{}, err
+	}
+	backup := filepath.Join(s.VersionsDir(old.ID), safeReleaseDir(old.Version, old.Commit))
+	if _, err := os.Lstat(backup); err == nil {
+		return Installed{}, errors.New("target known-good release already exists; repair plugin store before updating")
+	}
+	next := old
+	next.Source, next.Ref, next.Commit, next.Version, next.Checksum, next.Registry = f.Source, f.Ref, f.Commit, f.Version, f.Checksum, true
+	next.PreviousVersion, next.PreviousRef, next.PreviousCommit, next.PreviousChecksum = old.Version, old.Ref, old.Commit, old.Checksum
+	tx := storeTransaction{Schema: 1, PluginID: old.ID, Operation: "update", Backup: backup, Stage: f.dir, Next: next}
+	if err := jsonfile.Write(filepath.Join(s.dir, ".transaction.json"), tx); err != nil {
+		return Installed{}, err
+	}
+	if err := os.Rename(s.Dir(old.ID), backup); err != nil {
+		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
+		return Installed{}, err
+	}
+	if err := os.Rename(f.dir, s.Dir(old.ID)); err != nil {
+		_ = os.Rename(backup, s.Dir(old.ID))
+		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
+		return Installed{}, err
+	}
+	list[i] = next
+	if err := s.saveLocked(list); err != nil {
+		_ = os.RemoveAll(s.Dir(old.ID))
+		_ = os.Rename(backup, s.Dir(old.ID))
+		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
+		return Installed{}, err
+	}
+	if err := os.Remove(filepath.Join(s.dir, ".transaction.json")); err != nil {
+		return Installed{}, fmt.Errorf("plugin updated but transaction cleanup failed: %w", err)
+	}
+	return next, nil
+}
+
+func validReleaseMetadata(f *Fetched) bool {
+	return f.Manifest != nil && f.Manifest.ID != "" && f.Version != "" &&
+		strings.TrimPrefix(f.Manifest.Version, "v") == strings.TrimPrefix(f.Version, "v") &&
+		strings.TrimPrefix(f.Ref, "v") == strings.TrimPrefix(f.Version, "v") &&
+		len(f.Commit) == 40 && isHex(f.Commit) && len(f.Checksum) == len("sha256:")+64 &&
+		strings.HasPrefix(strings.ToLower(f.Checksum), "sha256:") && isHex(strings.TrimPrefix(strings.ToLower(f.Checksum), "sha256:"))
+}
+
+// Rollback restores the retained previous registry release. Plugin data and enabled state are preserved.
+func (s *Store) Rollback(id string) (Installed, error) {
+	unlock, err := s.lock()
+	if err != nil {
+		return Installed{}, err
+	}
+	defer unlock()
+	if err := s.recoverLocked(); err != nil {
+		return Installed{}, err
+	}
+	list, err := s.loadLocked()
+	if err != nil {
+		return Installed{}, err
+	}
+	i := slices.IndexFunc(list, func(in Installed) bool { return in.ID == id })
+	if i < 0 {
+		return Installed{}, fmt.Errorf("%w %q", ErrNotFound, id)
+	}
+	cur := list[i]
+	if cur.Linked || !cur.Registry {
+		return Installed{}, errors.New("rollback is available only for registry-installed plugins")
+	}
+	if cur.PreviousVersion == "" || cur.PreviousCommit == "" {
+		return Installed{}, errors.New("no known-good release is retained for rollback")
+	}
+	backup := filepath.Join(s.VersionsDir(id), safeReleaseDir(cur.PreviousVersion, cur.PreviousCommit))
+	if _, err := os.Stat(backup); err != nil {
+		return Installed{}, fmt.Errorf("retained release %s is unavailable: %w", cur.PreviousVersion, err)
+	}
+	current := filepath.Join(s.VersionsDir(id), safeReleaseDir(cur.Version, cur.Commit))
+	if err := os.MkdirAll(s.VersionsDir(id), 0o700); err != nil {
+		return Installed{}, err
+	}
+	next := cur
+	next.Version, next.Ref, next.Commit, next.Checksum = cur.PreviousVersion, cur.PreviousRef, cur.PreviousCommit, cur.PreviousChecksum
+	next.PreviousVersion, next.PreviousRef, next.PreviousCommit, next.PreviousChecksum = cur.Version, cur.Ref, cur.Commit, cur.Checksum
+	tx := storeTransaction{Schema: 1, PluginID: id, Operation: "rollback", Backup: backup, Stage: current, KeepStage: true, Next: next}
+	if err := jsonfile.Write(filepath.Join(s.dir, ".transaction.json"), tx); err != nil {
+		return Installed{}, err
+	}
+	if err := os.Rename(s.Dir(id), current); err != nil {
+		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
+		return Installed{}, err
+	}
+	if err := os.Rename(backup, s.Dir(id)); err != nil {
+		_ = os.Rename(current, s.Dir(id))
+		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
+		return Installed{}, err
+	}
+	list[i] = next
+	if err := s.saveLocked(list); err != nil {
+		_ = os.Rename(s.Dir(id), backup)
+		_ = os.Rename(current, s.Dir(id))
+		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
+		return Installed{}, err
+	}
+	if err := os.Remove(filepath.Join(s.dir, ".transaction.json")); err != nil {
+		return Installed{}, fmt.Errorf("plugin rolled back but transaction cleanup failed: %w", err)
+	}
+	return next, nil
+}
+
+func safeReleaseDir(version, commit string) string {
+	version = strings.NewReplacer("/", "-", "\\", "-", "..", "-").Replace(version)
+	return version + "-" + commit[:min(len(commit), 12)]
 }
 
 // Link installs the plugin in dir as it is, by a symlink: changes there
@@ -335,8 +664,14 @@ func (s *Store) Link(ctx context.Context, dir, hiveVersion string) (Installed, *
 	if err := m.Supported(ctx, hiveVersion); err != nil {
 		return Installed{}, nil, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return Installed{}, nil, err
+	}
+	defer unlock()
+	if err := s.recoverLocked(); err != nil {
+		return Installed{}, nil, err
+	}
 	list, err := s.loadLocked()
 	if err != nil {
 		return Installed{}, nil, err
@@ -356,8 +691,14 @@ func (s *Store) Link(ctx context.Context, dir, hiveVersion string) (Installed, *
 
 // SetEnabled turns a plugin on or off.
 func (s *Store) SetEnabled(id string, on bool) (Installed, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return Installed{}, err
+	}
+	defer unlock()
+	if err := s.recoverLocked(); err != nil {
+		return Installed{}, err
+	}
 	list, err := s.loadLocked()
 	if err != nil {
 		return Installed{}, err
@@ -373,8 +714,14 @@ func (s *Store) SetEnabled(id string, on bool) (Installed, error) {
 // Uninstall removes a plugin's installed files (only the link, when linked).
 // Plugin data is preserved unless deleteData is explicitly true.
 func (s *Store) Uninstall(id string, deleteData ...bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := s.recoverLocked(); err != nil {
+		return err
+	}
 	list, err := s.loadLocked()
 	if err != nil {
 		return err

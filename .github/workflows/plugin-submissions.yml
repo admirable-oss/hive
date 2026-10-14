@@ -1,0 +1,68 @@
+name: Plugin registry submissions
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  detect-trusted-change:
+    runs-on: ubuntu-latest
+    outputs:
+      trusted: ${{ steps.detect.outputs.trusted }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          if ! git diff --quiet "origin/$BASE_REF...HEAD" -- registry; then
+            trusted=false
+            if grep -R -Eq '"(official|verified)"[[:space:]]*:[[:space:]]*true([,[:space:]]|$)' registry || git diff "origin/$BASE_REF...HEAD" -- registry | grep -Eq '"(official|verified)"[[:space:]]*:[[:space:]]*true([,[:space:]]|$)'; then
+              trusted=true
+            fi
+            echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
+          else
+            echo 'trusted=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch target branch for immutable-history checks
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git fetch --no-tags origin "$BASE_REF"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate submission and governance records
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/validate-plugin-submissions.py
+          python -B .github/scripts/test_validate_plugin_submissions.py
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Validate plugin registry contracts
+        run: go test ./internal/plugin
+
+  trusted-listing-review:
+    if: needs.detect-trusted-change.outputs.trusted == 'true'
+    needs: [detect-trusted-change, validate]
+    runs-on: ubuntu-latest
+    environment: plugin-registry-trusted-review
+    steps:
+      - name: Record trusted-listing human approval gate
+        run: echo 'Trusted listing change approved by configured environment reviewers.'
