@@ -46,7 +46,6 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
       - name: publish the Homebrew formula
-        if: ${{ !contains(github.ref_name, '-') }}
         env:
           TAG: ${{ github.ref_name }}
         run: |
