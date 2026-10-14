@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/admirable-oss/hive/internal/platform"
@@ -59,8 +60,14 @@ func TestOpenFDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n1, _ := platform.OpenFDs()
+	n1, err := platform.OpenFDs()
+	// Keep f live until after the descriptor count. The compiler may otherwise
+	// make it unreachable during OpenFDs, allowing its finalizer to close it.
+	runtime.KeepAlive(f)
 	_ = f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if n1 != n0+1 {
 		t.Fatalf("one more file: %d → %d", n0, n1)
 	}
