@@ -2,6 +2,7 @@ name: Plugin registry submissions
 
 on:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,7 +19,7 @@ jobs:
           fetch-depth: 0
       - id: detect
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF: ${{ github.base_ref || 'main' }}
         run: |
           git fetch --no-tags origin "$BASE_REF"
           if ! git diff --quiet "origin/$BASE_REF...HEAD" -- registry; then
@@ -39,7 +40,7 @@ jobs:
           fetch-depth: 0
       - name: Fetch target branch for immutable-history checks
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF: ${{ github.base_ref || 'main' }}
         run: git fetch --no-tags origin "$BASE_REF"
       - uses: actions/setup-python@v5
         with:

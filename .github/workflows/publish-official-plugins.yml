@@ -3,11 +3,18 @@ name: Publish official plugin releases
 on:
   push:
     branches: [main]
-    paths: ["plugins/official/**", ".github/scripts/publish-official-plugins.sh"]
+    paths:
+      - "plugins/official/**"
+      - ".github/scripts/publish-official-plugins.sh"
+      - ".github/workflows/publish-official-plugins.yml"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/plugin-submissions.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
+  actions: write
 
 concurrency:
   group: publish-official-plugins
@@ -15,6 +22,7 @@ concurrency:
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,14 +38,44 @@ jobs:
           done
       - name: Tag releases and record archive checksums
         run: .github/scripts/publish-official-plugins.sh
-      - name: Commit the release records
+      - name: Open a pull request for the release records
+        id: release-records-pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ github.token }}
+          add-paths: registry/official-releases.json
+          branch: automation/official-plugin-release-records
+          base: main
+          delete-branch: true
+          commit-message: "chore(plugin): record official plugin release metadata"
+          title: "chore(plugin): record official plugin release metadata"
+          body: |
+            This pull request records the immutable official plugin tags,
+            pinned commits, and full-repository archive checksums published by
+            the official plugin release workflow.
+
+            The CI and plugin-submission checks run on this branch before the
+            records can merge to `main`.
+      - name: Run required CI checks for the release records pull request
+        if: steps.release-records-pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BRANCH: ${{ steps.release-records-pr.outputs.pull-request-branch }}
+          PR_SHA: ${{ steps.release-records-pr.outputs.pull-request-head-sha }}
         run: |
-          git config user.name "hive-release-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add registry/official-releases.json
-          if git diff --cached --quiet; then
-            echo "No new official plugin releases to record."
-          else
-            git commit -m "chore(plugin): record official plugin release metadata"
-            git push
-          fi
+          for workflow in ci.yml plugin-submissions.yml; do
+            gh workflow run "$workflow" --ref "$PR_BRANCH"
+            run_id=""
+            for attempt in $(seq 1 30); do
+              run_id="$(gh run list --workflow "$workflow" --branch "$PR_BRANCH" --event workflow_dispatch --limit 10 --json databaseId,headSha --jq ".[] | select(.headSha == \"$PR_SHA\") | .databaseId" | head -n 1)"
+              if [ -n "$run_id" ]; then
+                break
+              fi
+              sleep 2
+            done
+            if [ -z "$run_id" ]; then
+              echo "Could not find the $workflow run for $PR_BRANCH at $PR_SHA" >&2
+              exit 1
+            fi
+            gh run watch "$run_id" --exit-status
+          done

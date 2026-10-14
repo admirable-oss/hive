@@ -263,15 +263,29 @@ func (s *Service) workingDirLocked(ctx context.Context, st *State, paneID string
 	if err != nil || !proc.Active() || proc.PID <= 0 {
 		return ""
 	}
-	dir, err := s.cfg.WorkingDir(proc.PID)
-	if err != nil {
-		s.log.Debug("read a pane's working directory", "pane", paneID, "pid", proc.PID, "err", err)
-		return ""
+	// Linux exposes this through /proc/<pid>/cwd. The PTY can report a
+	// command's completion just before that link reflects the shell's new
+	// directory, so retry briefly before falling back to the environment root.
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		dir, err := s.cfg.WorkingDir(proc.PID)
+		if err == nil {
+			fi, statErr := os.Stat(dir)
+			if statErr == nil && fi.IsDir() {
+				return dir
+			}
+			lastErr = statErr
+		} else {
+			lastErr = err
+		}
+		if attempt < 4 {
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
-	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
-		return ""
+	if lastErr != nil {
+		s.log.Debug("read a pane's working directory", "pane", paneID, "pid", proc.PID, "err", lastErr)
 	}
-	return dir
+	return ""
 }
 
 // --- process start ---
