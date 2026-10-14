@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "plugins": [
+    {
+      "id": "auto-tab-title",
+      "subdir": "plugins/official/auto-tab-title",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "ref": "v0.1.0",
+          "commit": "c8873a15f7a8c6bd8d743ad9afbba5ce33a7fc1a",
+          "checksum": "sha256:8f63b896ab674a078b97c23533f3c9a58e7fcb53071eaf63aaa5bec87afdb34b",
+          "published_at": "2026-10-14T22:32:14Z"
+        }
+      ]
+    },
+    {
+      "id": "hive-explorer",
+      "subdir": "plugins/official/hive-explorer",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "ref": "v0.1.0",
+          "commit": "c8873a15f7a8c6bd8d743ad9afbba5ce33a7fc1a",
+          "checksum": "sha256:8f63b896ab674a078b97c23533f3c9a58e7fcb53071eaf63aaa5bec87afdb34b",
+          "published_at": "2026-10-14T22:32:14Z"
+        }
+      ]
+    }
+  ]
+}
