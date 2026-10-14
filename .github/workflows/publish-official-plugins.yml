@@ -13,8 +13,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
-  actions: write
 
 concurrency:
   group: publish-official-plugins
@@ -38,11 +36,22 @@ jobs:
           done
       - name: Tag releases and record archive checksums
         run: .github/scripts/publish-official-plugins.sh
+      - name: Create Pullive installation token
+        id: pullive-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.PULLIVE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PULLIVE_APP_PRIVATE_KEY }}
+          owner: admirable-oss
+          repositories: hive
+          permission-actions: write
+          permission-contents: write
+          permission-pull-requests: write
       - name: Open a pull request for the release records
         id: release-records-pr
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ github.token }}
+          token: ${{ steps.pullive-token.outputs.token }}
           add-paths: registry/official-releases.json
           branch: automation/official-plugin-release-records
           base: main
@@ -59,7 +68,7 @@ jobs:
       - name: Run required CI checks for the release records pull request
         if: steps.release-records-pr.outputs.pull-request-number != ''
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.pullive-token.outputs.token }}
           PR_BRANCH: ${{ steps.release-records-pr.outputs.pull-request-branch }}
           PR_SHA: ${{ steps.release-records-pr.outputs.pull-request-head-sha }}
         run: |
