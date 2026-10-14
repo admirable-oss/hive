@@ -25,6 +25,82 @@ fetch() {
         -H 'User-Agent: hive-installer' "$1"
 }
 
+onboard() {
+    # curl | sh has stdin occupied by the script, so read answers from the
+    # controlling terminal. Keep CI, redirected, and remote non-interactive
+    # installs quiet and useful.
+    [ -t 1 ] && [ -r /dev/tty ] || {
+        printf '\nGet started with: hive\n'
+        return
+    }
+
+    c_reset='\033[0m'; c_gold='\033[38;5;220m'; c_green='\033[38;5;114m'
+    for bee_frame in '🐝·        ' '  🐝·      ' '    🐝·    ' '      🐝·  ' '        🐝'; do
+        printf '\r  %b' "$c_gold"
+        printf '%s' "$bee_frame"
+        printf '%b' "$c_reset"
+        sleep 0.08
+    done
+    printf '\r                      \r'
+    printf '\n%b' "$c_gold"
+    printf '      .     .\n'
+    printf '     . .   . .       H I V E\n'
+    printf '      (o)             agents keep working\n'
+    printf '       |\n'
+    printf '      / \\\n'
+    printf '%b\n' "$c_reset"
+    printf '  Hive keeps coding agents running in the background,\n'
+    printf '  then brings their terminals together when you return.\n\n'
+    printf '  Your agents stay alive when you close the terminal.\n'
+    printf '  Work in parallel, pick up where you left off, and see\n'
+    printf '  every agent from one terminal workspace.\n\n'
+
+    config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
+    config_file="${HIVE_CONFIG:-${config_home}/hive/config.toml}"
+    if [ -e "$config_file" ]; then
+        printf '\n  Existing config found; keeping it as-is.\n'
+    else
+        printf '\n  Pick a terminal theme:\n'
+        printf '    1) Catppuccin Mocha (default)\n'
+        printf '    2) Catppuccin Latte\n'
+        printf '    3) Tokyo Night\n'
+        printf '    4) Gruvbox\n'
+        printf '    5) Nord\n'
+        printf '    6) Match my terminal automatically\n'
+        printf '  Choice [1]: '
+        IFS= read -r choice </dev/tty || choice=1
+        case "$choice" in
+            2) theme=catppuccin-latte ;;
+            3) theme=tokyo-night ;;
+            4) theme=gruvbox ;;
+            5) theme=nord ;;
+            6) theme=auto ;;
+            *) theme=catppuccin ;;
+        esac
+        mkdir -p "$(dirname "$config_file")"
+        {
+            printf '[theme]\nname = "%s"\n' "$theme"
+        } >"$config_file"
+        printf '\n  Saved %s theme to %s\n' "$theme" "$config_file"
+    fi
+
+    printf '\n  Start Hive automatically when you log in? [y/N] '
+    IFS= read -r autostart </dev/tty || autostart=n
+    case "$autostart" in
+        y|Y|yes|YES)
+            if "${INSTALL_DIR}/hive" daemon install; then
+                printf '  %b✓%b Hive will start at login.\n' "$c_green" "$c_reset"
+            else
+                printf '  Could not install the login service. Run: hive daemon install\n'
+            fi
+            ;;
+        *) printf '  You can enable this later with: hive daemon install\n' ;;
+    esac
+
+    printf '\n  Setup complete. Open Hive with: %bhive%b\n' "$c_gold" "$c_reset"
+    printf '  Learn the basics: https://hive.admir-saheta.com/docs/quickstart\n\n'
+}
+
 main() {
     need curl
     need tar
@@ -93,6 +169,7 @@ main() {
         *":${INSTALL_DIR}:"*) ;;
         *) printf 'Add this directory to your PATH: %s\n' "$INSTALL_DIR" ;;
     esac
+    onboard
 }
 
 main "$@"

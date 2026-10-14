@@ -39,3 +39,24 @@ jobs:
           HIVE_RELEASE_SIGNING_KEY: ${{ secrets.HIVE_RELEASE_SIGNING_KEY }}
           HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: check out the Homebrew tap
+        uses: actions/checkout@v5
+        with:
+          repository: admirable-oss/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+      - name: publish the Homebrew formula
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          curl -fsSL "https://github.com/admirable-oss/hive/releases/download/${TAG}/checksums.txt" -o "$RUNNER_TEMP/hive-checksums.txt"
+          sh distribution/update-homebrew-formula.sh "$GITHUB_WORKSPACE/homebrew-tap" "$TAG" "$RUNNER_TEMP/hive-checksums.txt"
+          cd "$GITHUB_WORKSPACE/homebrew-tap"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/hive-agents.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "Update hive-agents formula to ${TAG}"
+            git push
+          fi

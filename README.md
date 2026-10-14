@@ -63,7 +63,8 @@ curl -fsSL https://hive.admir-saheta.com/install.sh | sh
 The installer places `hive` in `~/.local/bin` by default. Set `HIVE_INSTALL_DIR` to choose another directory, `HIVE_CHANNEL=preview` for release candidates, or `HIVE_VERSION` for a given release. Or:
 
 ```sh
-brew install --cask admirable-oss/tap/hive     # Homebrew
+brew tap admirable-oss/tap && brew install hive-agents  # Homebrew CLI formula
+brew install --cask admirable-oss/tap/hive               # macOS cask
 nix run github:admirable-oss/hive              # Nix (or nix profile install)
 go install github.com/admirable-oss/hive/cmd/hive@latest
 ```

@@ -5,8 +5,9 @@ From nothing to three agents working in parallel, in about five minutes.
 ## 1. Install
 
 ```sh
-curl -fsSL https://hive.admir-saheta.com/install.sh | sh   # macOS and Linux; into ~/.local/bin
-brew install --cask admirable-oss/tap/hive                    # or Homebrew
+curl -fsSL https://hive.admir-saheta.com/install.sh | sh   # macOS and Linux; interactive setup
+brew tap admirable-oss/tap && brew install hive-agents  # Homebrew CLI formula
+brew install --cask admirable-oss/tap/hive               # macOS cask
 nix run github:admirable-oss/hive                             # or Nix
 go install github.com/admirable-oss/hive/cmd/hive@latest      # or from source (Go 1.26+)
 ```
