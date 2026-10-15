@@ -23,6 +23,9 @@ command = ["claude"]         # what `hive agent start` runs
 submit = "Enter"             # the key that sends a pasted prompt
 submit_delay_ms = 150        # the pause between pasting a prompt and sending it
 
+[input]
+image = "path"               # how a pasted image reaches it: path | kitty (unset: refused)
+
 [resume]
 args = ["--resume", "{session_id}"]  # resumes the conversation the agent reported
 last = ["--continue"]                # resumes the latest one when no ID is known

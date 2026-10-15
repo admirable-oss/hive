@@ -126,6 +126,19 @@ func NewModule(cfg Config) *Module {
 	environment.Register(router, guardedEnvs)
 	process.Register(router, procs)
 	terminal.Register(router, terms)
+	imageDir := ""
+	if cfg.Images.Keep > 0 {
+		imageDir = filepath.Join(root, "images")
+	}
+	terminal.RegisterImages(router, terms, terminal.ImageConfig{
+		MaxBytes: cfg.Images.MaxBytes, MaxPixels: cfg.Images.MaxPixels, Dir: imageDir, Keep: cfg.Images.Keep,
+		Input: func(processID string) terminal.ImageInput {
+			if m := agents.ManifestOf(processID); m != nil {
+				return terminal.ImageInput(m.Input.Image)
+			}
+			return terminal.ImageInputNone
+		},
+	})
 	event.Register(router, bus)
 	pane.Register(router, panes)
 	agent.Register(router, agents)

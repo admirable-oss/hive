@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/layout"
 	"github.com/admirable-oss/hive/internal/pane"
@@ -83,15 +84,19 @@ func (a *App) do(act keymap.Action) {
 			a.toast(compositor.ToastInfo, "focus a pane before pasting an image")
 			break
 		}
-		procID := v.procID
+		procID, c, limit := v.procID, a.c, a.opts.ImageMaxBytes
+		a.toast(compositor.ToastInfo, "pasting the clipboard image…")
 		a.spawn(func(ctx context.Context) Msg {
-			ctx, cancel := context.WithTimeout(ctx, toolTimeout)
-			defer cancel()
-			data, err := readClipboardImagePNG(ctx)
-			if err == nil {
-				data = kittyImagePaste(data)
+			readCtx, cancel := context.WithTimeout(ctx, toolTimeout)
+			data, err := readClipboardImagePNG(readCtx, limit)
+			cancel()
+			if err != nil {
+				return imagePasteMsg{err: err}
 			}
-			return imagePasteMsg{procID: procID, data: data, err: err}
+			sendCtx, cancel := context.WithTimeout(ctx, imageSendTimeout)
+			defer cancel()
+			res, err := c.TerminalImage(sendCtx, client.ImageRequest{ProcessID: procID, PNG: data})
+			return imagePasteMsg{res: res, err: err}
 		})
 	case keymap.EditScroll:
 		a.editScrollback()

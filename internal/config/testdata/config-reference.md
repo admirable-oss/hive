@@ -78,6 +78,15 @@ the defaults, so a typo never stops the daemon.
 |---|---|---|
 | `ssh` | `"ssh"` | The ssh command that reaches other machines (`hive --remote`, `hive machine`); ~/.ssh/config applies. HIVE_SSH overrides it. |
 | `frame_budget_kb` | `48` | How much of agents' screens a remote daemon sends this client, in KiB per second (0: no limit). Screens update less often when it is reached. |
+| `image_budget_kb` | `1024` | How fast a pasted image is sent to a remote daemon, in KiB per second (0: no limit). Keys typed meanwhile go between its pieces. |
+
+## `[images]`
+
+| Key | Default | Description |
+|---|---|---|
+| `max_kb` | `5120` | The largest image pasted with prefix I, in KiB. The UI reads no more from the clipboard, and the daemon (with its own config) accepts no more. |
+| `max_megapixels` | `16` | The most pixels a pasted image may have, in megapixels. |
+| `keep` | `"1h0m0s"` | Agents that take an image as a file (Claude Code, Codex) get it saved in a private directory and its path pasted; the daemon removes it after this long ("0s": never save, so such agents refuse images). |
 
 ## `[worktrees]`
 

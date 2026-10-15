@@ -49,6 +49,9 @@ type Options struct {
 	NoMouse bool
 	// Clipboard says where copied text goes.
 	Clipboard Clipboard
+	// ImageMaxBytes bounds an image read from the clipboard to paste
+	// (default DefaultImageMaxBytes); the daemon applies its own limit too.
+	ImageMaxBytes int
 	// Notify says when and how to tell the user an agent wants them; the
 	// zero value is notify.Defaults().
 	Notify notify.Config
@@ -87,6 +90,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.Clipboard == "" {
 		o.Clipboard = ClipboardAuto
+	}
+	if o.ImageMaxBytes <= 0 {
+		o.ImageMaxBytes = DefaultImageMaxBytes
 	}
 	return o
 }

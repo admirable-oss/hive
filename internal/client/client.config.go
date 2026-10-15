@@ -31,6 +31,9 @@ type Config struct {
 	// none) so the daemon paces what it sends.
 	Remote      bool
 	FrameBudget int
+	// ImageBudget paces image uploads to a remote daemon, in bytes per
+	// second (0: no limit).
+	ImageBudget int
 }
 
 func (c Config) Validate() error {

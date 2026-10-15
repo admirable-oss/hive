@@ -35,8 +35,10 @@ type Manifest struct {
 	// rule matching as working, and a quiet one as idle. Agents whose
 	// rules reliably mark work (a spinner, "esc to interrupt") turn it
 	// off, so typing in their prompt box is not mistaken for work.
-	Activity bool   `toml:"activity" json:"activity"`
-	Rules    []Rule `toml:"rules" json:"rules"`
+	Activity bool `toml:"activity" json:"activity"`
+	// Input says what the agent accepts besides typed text.
+	Input Input  `toml:"input" json:"input,omitzero"`
+	Rules []Rule `toml:"rules" json:"rules"`
 
 	// Source is the file the manifest came from; set on load.
 	Source string `toml:"-" json:"source,omitempty"`
@@ -63,6 +65,18 @@ type Start struct {
 	// (default 150).
 	SubmitDelayMS int `toml:"submit_delay_ms" json:"submit_delay_ms,omitempty"`
 }
+
+// Input is what an agent accepts on its terminal besides typed text.
+type Input struct {
+	// Image is how a pasted image reaches the agent: path (saved to a
+	// private file whose path is pasted) or kitty (Kitty graphics commands
+	// on its input). Empty: the agent takes no images, and pasting one into
+	// its pane is refused.
+	Image string `toml:"image" json:"image,omitempty"`
+}
+
+// ImageInputs are the values Input.Image may take.
+var ImageInputs = []string{"path", "kitty"}
 
 // Resume says how to start an agent again in the conversation it had, after
 // a reboot: its program followed by Args (with {session_id} replaced by
@@ -163,6 +177,9 @@ func (m *Manifest) compile() error {
 		return errors.New("name is required")
 	case len(m.Detect.Process) == 0:
 		return errors.New("detect.process needs at least one program name")
+	}
+	if m.Input.Image != "" && !slices.Contains(ImageInputs, m.Input.Image) {
+		return fmt.Errorf("input.image %q (want %s)", m.Input.Image, strings.Join(ImageInputs, " or "))
 	}
 	if len(m.Resume.Args) > 0 && !slices.ContainsFunc(m.Resume.Args, func(a string) bool { return strings.Contains(a, SessionIDPlaceholder) }) {
 		return fmt.Errorf("resume.args must contain %s (use resume.last for a command without one)", SessionIDPlaceholder)

@@ -60,12 +60,22 @@ type Config struct {
 	Persist *PersistConfig
 	// Retention bounds what is kept on disk (see runtime.gc).
 	Retention RetentionConfig
+	// Images bounds images pasted into terminals (terminal.image).
+	Images ImagesConfig
 	// ProcessLogMaxBytes rotates each agent's output log past this size,
 	// keeping one older file. Zero lets logs grow.
 	ProcessLogMaxBytes int64
 	// InheritEnv lets agents inherit the daemon's environment unfiltered,
 	// without the HIVE_* variables. Only tests set it.
 	InheritEnv bool
+}
+
+// ImagesConfig bounds pasted images. Zero sizes use terminal's defaults;
+// a zero Keep turns off saving images for agents that take a file path.
+type ImagesConfig struct {
+	MaxBytes  int
+	MaxPixels int
+	Keep      time.Duration
 }
 
 // ShimConfig says how to start a shim: Exe Args… <dir>, with Env added to

@@ -122,6 +122,14 @@
       ],
       "type": "object"
     },
+    "agent.Input": {
+      "properties": {
+        "image": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "agent.KeysParams": {
       "properties": {
         "id": {
@@ -168,6 +176,9 @@
         },
         "id": {
           "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/agent.Input"
         },
         "name": {
           "type": "string"
@@ -2398,6 +2409,23 @@
       ],
       "type": "object"
     },
+    "terminal.ImageReceipt": {
+      "properties": {
+        "delivery": {
+          "type": "string"
+        },
+        "done": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "delivery"
+      ],
+      "type": "object"
+    },
     "terminal.SnapshotResult": {
       "properties": {
         "alt_screen": {
@@ -2433,6 +2461,36 @@
         "height",
         "lines",
         "cursor"
+      ],
+      "type": "object"
+    },
+    "terminal.imageParams": {
+      "properties": {
+        "format": {
+          "type": "string"
+        },
+        "process_id": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "transfer_id": {
+          "type": "string"
+        },
+        "view_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "process_id",
+        "transfer_id",
+        "format",
+        "size",
+        "sha256"
       ],
       "type": "object"
     },
@@ -3254,6 +3312,16 @@
       "pipe": true,
       "result": {
         "$ref": "#/$defs/protocol.Empty"
+      }
+    },
+    {
+      "name": "terminal.image",
+      "params": {
+        "$ref": "#/$defs/terminal.imageParams"
+      },
+      "pipe": true,
+      "result": {
+        "$ref": "#/$defs/terminal.ImageReceipt"
       }
     },
     {

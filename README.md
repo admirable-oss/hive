@@ -170,6 +170,11 @@ process_log_mb = 50         # rotate each agent's output log at this size
 [remote]
 ssh = "ssh"                 # how other machines are reached (~/.ssh/config applies)
 frame_budget_kb = 48        # screen updates a remote daemon sends this client, KiB/s
+image_budget_kb = 1024      # how fast a pasted image is sent to a remote daemon, KiB/s
+
+[images]
+max_kb = 5120               # largest image pasted with prefix I
+keep = "1h"                 # how long images saved for agents that take a path are kept
 
 [ui]
 sidebar = true              # show environments and agents beside the panes

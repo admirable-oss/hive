@@ -21,6 +21,7 @@ type Config struct {
 	Session   Session
 	Retention Retention
 	Remote    Remote
+	Images    Images
 	Update    Update
 	Notify    notify.Config
 	UI        UI
@@ -121,6 +122,22 @@ type Remote struct {
 	// FrameBudgetKB bounds what a remote daemon sends this client of
 	// agents' screens, in KiB per second (0: no limit).
 	FrameBudgetKB int
+	// ImageBudgetKB bounds how fast this client sends a pasted image to a
+	// remote daemon, in KiB per second (0: no limit), so typing stays
+	// responsive meanwhile.
+	ImageBudgetKB int
+}
+
+// Images bounds pasted images (prefix I) and what is kept of them.
+type Images struct {
+	// MaxKB is the largest image accepted, in KiB: read from the clipboard
+	// by the UI, and received by the daemon.
+	MaxKB int
+	// MaxMegapixels bounds an image's pixel count.
+	MaxMegapixels int
+	// Keep is how long the daemon keeps images it saved for agents that
+	// take an image as a file path; 0 turns saving off.
+	Keep time.Duration
 }
 
 // SSHArgv is Remote.SSH as an argv (nil for the default).
@@ -219,7 +236,8 @@ func Defaults() Config {
 			SnapshotInterval: 30 * time.Second, KeepSnapshots: 48, ReplayLines: 500,
 		},
 		Retention: Retention{ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour},
-		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48},
+		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48, ImageBudgetKB: 1024},
+		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour},
 		Update:    Update{Channel: "stable"},
 		Notify:    notify.Defaults(),
 		UI:        UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},

@@ -50,9 +50,16 @@ const toolTimeout = 5 * time.Second
 // drop longer OSC 52 sequences, and base64 grows them by a third.
 const maxOSC52 = 74 << 10
 
-// The terminal RPC JSON-encodes input bytes; keeping source PNGs at 512 KiB
-// leaves room for Kitty base64 and JSON expansion under the 1 MiB message cap.
-const maxClipboardImage = 512 << 10
+// DefaultImageMaxBytes bounds a clipboard image unless configured.
+const DefaultImageMaxBytes = 5 << 20
+
+// maxClipboardPixels is the daemon's hard pixel ceiling; the daemon checks
+// its own configured bound authoritatively.
+const maxClipboardPixels = 64 << 20
+
+// imageSendTimeout bounds one image paste, retries included, on a slow
+// remote link.
+const imageSendTimeout = 3 * time.Minute
 
 // clipboard copies text as configured.
 func (a *App) clipboard(text string) {
@@ -99,7 +106,7 @@ func localClipboard() []string {
 
 // readClipboardImagePNG reads only PNG image data from the local clipboard.
 // It never falls back to text, HTML, or an image URL.
-func readClipboardImagePNG(ctx context.Context) ([]byte, error) {
+func readClipboardImagePNG(ctx context.Context, limit int) ([]byte, error) {
 	candidates := [][]string{}
 	switch runtime.GOOS {
 	case "darwin":
@@ -117,11 +124,11 @@ func readClipboardImagePNG(ctx context.Context) ([]byte, error) {
 			const script = `ObjC.import("AppKit"); var p=$.NSPasteboard.generalPasteboard; var d=p.dataForType($.NSPasteboardTypePNG); if(!d){d=p.dataForType($.NSPasteboardTypeTIFF);} if(!d){throw Error("no image");} var r=$.NSBitmapImageRep.alloc.initWithData(d); var o=r.representationUsingTypeProperties($.NSBitmapImageFileTypePNG, $({})); if(!o){throw Error("PNG conversion failed");} ObjC.unwrap(o.base64EncodedStringWithOptions(0));`
 			cmd := exec.CommandContext(ctx, "osascript", "-l", "JavaScript", "-e", script)
 			encoded, err := cmd.Output()
-			if err == nil && len(encoded) <= (maxClipboardImage+2)/3*4+16 {
+			if err == nil && len(encoded) <= (limit+2)/3*4+16 {
 				data, decErr := base64.StdEncoding.DecodeString(strings.TrimSpace(string(encoded)))
 				if decErr == nil {
 					cfg, imgErr := png.DecodeConfig(bytes.NewReader(data))
-					if imgErr == nil && len(data) <= maxClipboardImage && cfg.Width > 0 && cfg.Height > 0 && int64(cfg.Width)*int64(cfg.Height) <= 16<<20 {
+					if imgErr == nil && len(data) <= limit && cfg.Width > 0 && cfg.Height > 0 && int64(cfg.Width)*int64(cfg.Height) <= maxClipboardPixels {
 						return data, nil
 					}
 				}
@@ -136,7 +143,7 @@ func readClipboardImagePNG(ctx context.Context) ([]byte, error) {
 		}
 		cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 		var out limitedBuffer
-		out.limit = maxClipboardImage
+		out.limit = limit
 		cmd.Stdout = &out
 		if err := cmd.Run(); err != nil {
 			lastErr = err
@@ -144,7 +151,7 @@ func readClipboardImagePNG(ctx context.Context) ([]byte, error) {
 		}
 		data := out.Bytes()
 		cfg, err := png.DecodeConfig(bytes.NewReader(data))
-		if err != nil || cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > 16<<20 {
+		if err != nil || cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > maxClipboardPixels {
 			return nil, fmt.Errorf("clipboard image is not a supported PNG")
 		}
 		return data, nil
@@ -165,28 +172,6 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 		return 0, fmt.Errorf("clipboard image exceeds %d bytes", b.limit)
 	}
 	return b.Buffer.Write(p)
-}
-
-// kittyImagePaste encodes PNG data as a bounded Kitty direct-transmission
-// sequence for terminal integrations that accept image paste commands.
-func kittyImagePaste(data []byte) []byte {
-	encoded := base64.StdEncoding.EncodeToString(data)
-	const chunkSize = 4096
-	id := time.Now().UnixNano() & 0x7fffffff
-	if id == 0 {
-		id = 1
-	}
-	var out bytes.Buffer
-	for offset := 0; offset < len(encoded); {
-		end := min(offset+chunkSize, len(encoded))
-		more := 0
-		if end < len(encoded) {
-			more = 1
-		}
-		fmt.Fprintf(&out, "\x1b_Ga=t,t=d,f=100,i=%d,m=%d;%s\x1b\\", id, more, encoded[offset:end])
-		offset = end
-	}
-	return out.Bytes()
 }
 
 // openURL opens a link with the system's handler.

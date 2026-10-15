@@ -171,6 +171,7 @@ pipe method events.subscribe
 pipe method terminal.attach
 pipe method terminal.frames
 pipe method terminal.graphics
+pipe method terminal.image
 plugin.list params: object
 plugin.list result: []plugin.Status
 plugin.reload params: object
@@ -217,6 +218,8 @@ terminal.frames params: terminal.viewParams
 terminal.frames result: terminal.viewResult
 terminal.graphics params: terminal.viewParams
 terminal.graphics result: protocol.Empty
+terminal.image params: terminal.imageParams
+terminal.image result: terminal.ImageReceipt
 terminal.input params: terminal.inputParams
 terminal.input result: protocol.Empty
 terminal.resize params: terminal.resizeParams
@@ -252,6 +255,8 @@ type agent.Explanation.screen: []string
 type agent.Explanation.verdict: agent.Verdict
 type agent.Explanation.worked_since_seen: boolean
 type agent.Explanation: object
+type agent.Input.image: string
+type agent.Input: object
 type agent.KeysParams.id: string
 type agent.KeysParams.keys: []string
 type agent.KeysParams: object
@@ -261,6 +266,7 @@ type agent.ListResult: object
 type agent.Manifest.activity: boolean
 type agent.Manifest.detect: agent.Detect
 type agent.Manifest.id: string
+type agent.Manifest.input: agent.Input
 type agent.Manifest.name: string
 type agent.Manifest.priority: integer
 type agent.Manifest.resume: agent.Resume
@@ -761,6 +767,10 @@ type runtime.agentRenameParams.name: string
 type runtime.agentRenameParams: object
 type runtime.worktreeListParams.repo: string
 type runtime.worktreeListParams: object
+type terminal.ImageReceipt.delivery: string
+type terminal.ImageReceipt.done: boolean
+type terminal.ImageReceipt.path: string
+type terminal.ImageReceipt: object
 type terminal.SnapshotResult.alt_screen: boolean
 type terminal.SnapshotResult.cursor: vt.Cursor
 type terminal.SnapshotResult.height: integer
@@ -769,6 +779,13 @@ type terminal.SnapshotResult.scrollback: []string
 type terminal.SnapshotResult.title: string
 type terminal.SnapshotResult.width: integer
 type terminal.SnapshotResult: object
+type terminal.imageParams.format: string
+type terminal.imageParams.process_id: string
+type terminal.imageParams.sha256: string
+type terminal.imageParams.size: integer
+type terminal.imageParams.transfer_id: string
+type terminal.imageParams.view_id: string
+type terminal.imageParams: object
 type terminal.inputParams.data: string
 type terminal.inputParams.process_id: string
 type terminal.inputParams.view_id: string

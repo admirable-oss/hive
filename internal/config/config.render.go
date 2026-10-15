@@ -106,6 +106,20 @@ ssh = {{q .Remote.SSH}}
 # How much of agents' screens a remote daemon sends this client, in KiB per
 # second (0: no limit). Screens update less often when it is reached.
 frame_budget_kb = {{.Remote.FrameBudgetKB}}
+# How fast a pasted image is sent to a remote daemon, in KiB per second (0: no
+# limit). Keys typed meanwhile go between its pieces.
+image_budget_kb = {{.Remote.ImageBudgetKB}}
+
+[images]
+# The largest image pasted with prefix I, in KiB. The UI reads no more from the
+# clipboard, and the daemon (with its own config) accepts no more.
+max_kb = {{.Images.MaxKB}}
+# The most pixels a pasted image may have, in megapixels.
+max_megapixels = {{.Images.MaxMegapixels}}
+# Agents that take an image as a file (Claude Code, Codex) get it saved in a
+# private directory and its path pasted; the daemon removes it after this long
+# ("0s": never save, so such agents refuse images).
+keep = {{dur .Images.Keep}}
 
 [worktrees]
 # Where ` + "`hive worktree create`" + ` puts checkouts, as <directory>/<repo>/<branch>

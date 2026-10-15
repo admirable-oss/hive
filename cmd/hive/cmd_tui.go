@@ -127,15 +127,16 @@ func uiOptions(cfg config.Config) (mux.Options, []string) {
 
 	clip, _ := mux.ParseClipboard(cfg.UI.Clipboard) // checked when the config loaded
 	return mux.Options{
-		Keymap:       km,
-		Theme:        cfg.Theme.Name,
-		CustomTheme:  custom,
-		HideSidebar:  !cfg.UI.Sidebar,
-		SidebarWidth: cfg.UI.SidebarWidth,
-		NoMouse:      !cfg.UI.Mouse,
-		Clipboard:    clip,
-		Notify:       cfg.Notify,
-		Commands:     commands,
-		StatusRight:  status,
+		Keymap:        km,
+		Theme:         cfg.Theme.Name,
+		CustomTheme:   custom,
+		HideSidebar:   !cfg.UI.Sidebar,
+		SidebarWidth:  cfg.UI.SidebarWidth,
+		NoMouse:       !cfg.UI.Mouse,
+		Clipboard:     clip,
+		ImageMaxBytes: cfg.Images.MaxKB << 10,
+		Notify:        cfg.Notify,
+		Commands:      commands,
+		StatusRight:   status,
 	}, warnings
 }

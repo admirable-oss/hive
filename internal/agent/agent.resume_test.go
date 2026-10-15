@@ -41,3 +41,23 @@ func TestResumeArgsNeedTheSessionID(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestInputImageIsChecked(t *testing.T) {
+	const head = "id = \"x\"\nname = \"X\"\n[detect]\nprocess = [\"x\"]\n[input]\n"
+	if _, err := ParseManifest([]byte(head+"image = \"clipboard\"\n"), "x.toml"); err == nil || !strings.Contains(err.Error(), "input.image") {
+		t.Fatalf("err = %v", err)
+	}
+	m, err := ParseManifest([]byte(head+"image = \"path\"\n"), "x.toml")
+	if err != nil || m.Input.Image != "path" {
+		t.Fatalf("m = %+v, err = %v", m, err)
+	}
+	ms, _, err := LoadManifests("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"claude", "codex"} {
+		if m := byID(ms, id); m == nil || m.Input.Image != "path" {
+			t.Errorf("built-in %s manifest does not declare image = \"path\"", id)
+		}
+	}
+}

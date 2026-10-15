@@ -79,6 +79,12 @@ func (c *Config) schema() map[string]map[string]setter {
 				})
 			},
 			"frame_budget_kb": integer(&c.Remote.FrameBudgetKB, 0, 1<<20),
+			"image_budget_kb": integer(&c.Remote.ImageBudgetKB, 0, 1<<20),
+		},
+		"images": {
+			"max_kb":         integer(&c.Images.MaxKB, 1, 16<<10),
+			"max_megapixels": integer(&c.Images.MaxMegapixels, 1, 64),
+			"keep":           durationOrOff(&c.Images.Keep, time.Minute, 7*24*time.Hour),
 		},
 		"retention": {
 			"exited_processes": duration(&c.Retention.ExitedProcesses, time.Hour, 10*365*24*time.Hour),

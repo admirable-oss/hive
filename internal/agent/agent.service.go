@@ -165,6 +165,17 @@ func (s *Service) Manifest(id string) *Manifest {
 	return byID(s.manifests, id)
 }
 
+// ManifestOf returns the manifest of the agent recognised in a process's
+// terminal, or nil when none is.
+func (s *Service) ManifestOf(processID string) *Manifest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if t := s.trackers[processID]; t != nil {
+		return t.manifest
+	}
+	return nil
+}
+
 // Reload reads the manifests again (after editing a user manifest) and
 // re-detects every terminal's agent.
 func (s *Service) Reload() ([]string, error) {

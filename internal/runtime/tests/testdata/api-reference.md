@@ -686,6 +686,19 @@ Result: [terminal.viewResult](#terminalviewresult)
 
 Result: [protocol.Empty](#protocolempty)
 
+### `terminal.image` (pipe)
+
+| Param | Type | |
+|---|---|---|
+| `format` | `string` |  |
+| `process_id` | `string` |  |
+| `sha256` | `string` |  |
+| `size` | `integer` |  |
+| `transfer_id` | `string` |  |
+| `view_id` | `string` |  |
+
+Result: [terminal.ImageReceipt](#terminalimagereceipt)
+
 ### `terminal.input`
 
 | Param | Type | |
@@ -802,6 +815,12 @@ Result: [protocol.Empty](#protocolempty)
 | `verdict` | [agent.Verdict](#agentverdict) |  |
 | `worked_since_seen` | `boolean` |  |
 
+### agent.Input
+
+| Field | Type | |
+|---|---|---|
+| `image` | `string` |  |
+
 ### agent.KeysParams
 
 | Field | Type | |
@@ -823,6 +842,7 @@ Result: [protocol.Empty](#protocolempty)
 | `activity` | `boolean` |  |
 | `detect` | [agent.Detect](#agentdetect) |  |
 | `id` | `string` |  |
+| `input` | [agent.Input](#agentinput) |  |
 | `name` | `string` |  |
 | `priority` | `integer` |  |
 | `resume` | [agent.Resume](#agentresume) |  |
@@ -1710,6 +1730,14 @@ An object.
 |---|---|---|
 | `repo` | `string` |  |
 
+### terminal.ImageReceipt
+
+| Field | Type | |
+|---|---|---|
+| `delivery` | `string` |  |
+| `done` | `boolean` |  |
+| `path` | `string` |  |
+
 ### terminal.SnapshotResult
 
 | Field | Type | |
@@ -1721,6 +1749,17 @@ An object.
 | `scrollback` | `[]string` |  |
 | `title` | `string` |  |
 | `width` | `integer` |  |
+
+### terminal.imageParams
+
+| Field | Type | |
+|---|---|---|
+| `format` | `string` |  |
+| `process_id` | `string` |  |
+| `sha256` | `string` |  |
+| `size` | `integer` |  |
+| `transfer_id` | `string` |  |
+| `view_id` | `string` |  |
 
 ### terminal.inputParams
 

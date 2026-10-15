@@ -210,9 +210,8 @@ type callDoneMsg struct {
 }
 
 type imagePasteMsg struct {
-	procID string
-	data   []byte
-	err    error
+	res client.ImageResult
+	err error
 }
 
 // call runs a workspace change in the background. Failures become error
@@ -241,15 +240,13 @@ func (a *App) Handle(m Msg) {
 		}
 		a.refresh()
 	case imagePasteMsg:
-		if m.err != nil {
+		switch {
+		case m.err != nil:
 			a.toast(compositor.ToastWarning, "image paste: "+errText(m.err))
-			break
-		}
-		if v := a.views[m.procID]; v != nil {
-			a.send(v, m.data)
-			a.toast(compositor.ToastInfo, "PNG image sent using Kitty graphics input")
-		} else {
-			a.toast(compositor.ToastWarning, "the target pane is no longer open")
+		case m.res.Delivery == "path":
+			a.toast(compositor.ToastInfo, "image saved and its path pasted: "+m.res.Path)
+		default:
+			a.toast(compositor.ToastInfo, "image sent as Kitty graphics input")
 		}
 	case loadedMsg:
 		if m.gen == a.gen {

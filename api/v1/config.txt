@@ -1,6 +1,9 @@
 daemon.autostart
 daemon.shutdown_timeout
 git.refresh_interval
+images.keep
+images.max_kb
+images.max_megapixels
 keys.command
 keys.copy
 keys.navigate
@@ -20,6 +23,7 @@ notify.terminal
 notify.toast
 process.stop_grace
 remote.frame_budget_kb
+remote.image_budget_kb
 remote.ssh
 retention.exited_processes
 retention.gc_interval

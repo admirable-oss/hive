@@ -45,6 +45,11 @@ type Client interface {
 	TerminalFrames(ctx context.Context, req ViewRequest) (*FrameStream, error)
 	// TerminalGraphics opens the ordered graphics side stream for a terminal.
 	TerminalGraphics(ctx context.Context, req ViewRequest) (*GraphicsStream, error)
+	// TerminalImage sends a PNG image to a terminal's program, as the
+	// program declares it takes one. The image goes as stream data, not in
+	// a request; an interrupted transfer is retried and delivered at most
+	// once.
+	TerminalImage(ctx context.Context, req ImageRequest) (ImageResult, error)
 	TerminalSnapshot(ctx context.Context, req SnapshotRequest) (Snapshot, error)
 	TerminalResize(ctx context.Context, processID string, width, height uint16) error
 	TerminalInput(ctx context.Context, processID string, data []byte) error

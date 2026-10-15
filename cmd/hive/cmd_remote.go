@@ -114,6 +114,7 @@ func (a *app) remoteClient(t remote.Target, name string) client.Client {
 	return client.NewService(client.Config{
 		Name: name, Dial: t.Dial, Remote: true,
 		FrameBudget: a.cfg.Remote.FrameBudgetKB << 10,
+		ImageBudget: a.cfg.Remote.ImageBudgetKB << 10,
 	})
 }
 
