@@ -28,7 +28,10 @@ const (
 	MaxKittyImageBytes     = 16 << 20
 	maxKittyImageDimension = 16384
 	maxKittyImagePixels    = 16 << 20
-	MaxGraphicsEventBytes  = MaxKittyCommandBytes
+	// MaxGraphicsEventBytes bounds one relayed graphics event: a command
+	// that passes ValidateKittyGraphicsRelay (header and payload each at
+	// most 4 KiB), with room to spare. Readers allocate no more per event.
+	MaxGraphicsEventBytes = 16 << 10
 )
 
 var (
@@ -357,6 +360,8 @@ func (p *kittyGraphicsParser) feed(src []byte, write func([]byte), handle func(K
 				p.state, p.string = kittyString, b
 			case '[':
 				p.state = kittyCSI
+			case 0x1b:
+				// ESC ESC: the second starts the escape sequence.
 			case 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f:
 				p.state = kittyEscapeIntermediate
 			default:
@@ -410,13 +415,12 @@ func (p *kittyGraphicsParser) feed(src []byte, write func([]byte), handle func(K
 			case 0x18, 0x1a:
 				p.reset()
 			default:
-				p.state = kittyAPC
-				if b == 0x1b {
-					p.state = kittyAPCEscape
-				} else if !p.dropped {
-					p.append(0x1b)
-					p.append(b)
-				}
+				// Any other ESC ends the string unterminated, as in the
+				// emulator: the command is dropped and the ESC starts a
+				// new escape sequence, which b continues.
+				p.reset()
+				p.state = kittyEscape
+				i--
 			}
 		}
 	}

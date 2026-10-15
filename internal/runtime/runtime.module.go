@@ -62,6 +62,7 @@ func NewModule(cfg Config) *Module {
 		LaunchEnv: cfg.launchEnv(),
 		// Rotation applies to terminal agents' logs, which the shim writes.
 		LogMaxBytes: cfg.ProcessLogMaxBytes,
+		LogGraphics: cfg.Images.LogGraphics,
 	}
 	if cfg.Shim != nil {
 		// Agents run under shims: they survive the daemon and are adopted

@@ -87,6 +87,8 @@ the defaults, so a typo never stops the daemon.
 | `max_kb` | `5120` | The largest image pasted with prefix I, in KiB. The UI reads no more from the clipboard, and the daemon (with its own config) accepts no more. |
 | `max_megapixels` | `16` | The most pixels a pasted image may have, in megapixels. |
 | `keep` | `"1h0m0s"` | Agents that take an image as a file (Claude Code, Codex) get it saved in a private directory and its path pasted; the daemon removes it after this long ("0s": never save, so such agents refuse images). |
+| `log_graphics` | `false` | Keep images that agents print (Kitty graphics) in their output logs. Off strips them, so image data is never written to disk. |
+| `render` | `"auto"` | How images agents print are drawn: auto (the terminal's graphics protocol: Kitty, iTerm2 or Sixel, else coloured cells) \| cells \| text (a placeholder naming the image) \| off |
 
 ## `[worktrees]`
 

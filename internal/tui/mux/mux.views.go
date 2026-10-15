@@ -38,6 +38,21 @@ type view struct {
 	size size // the size this view asked for; zero follows the terminal
 }
 
+// maxGraphicsQueuedView bounds graphics events one view holds before they
+// are drawn (a hidden pane's images); past it the view's graphics reset.
+const maxGraphicsQueuedView = 32 << 20
+
+// releaseGraphics returns the view's graphics memory to the UI's budget
+// once its stream has ended.
+func (v *view) releaseGraphics() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.graphicsState.mem.queued.give(v.graphicsBytes)
+	v.graphics, v.graphicsBytes = nil, 0
+	v.graphicsState.dropImages()
+	v.graphicsState.assembler.Reset()
+}
+
 // viewOp is one queued keystroke batch or resize.
 type viewOp struct {
 	data   []byte
@@ -62,6 +77,7 @@ func (a *App) openView(procID string, sz size, cached *vt.Screen) *view {
 		done:   make(chan struct{}),
 		size:   sz,
 	}
+	v.graphicsState.mem = a.gmem
 	c, wake := a.c, a.signal
 	a.bg.Add(1)
 	go func() {
@@ -75,6 +91,7 @@ func (a *App) openView(procID string, sz size, cached *vt.Screen) *view {
 // run streams the view; sz is its size at opening (v.size belongs to the
 // loop).
 func (v *view) run(ctx context.Context, c client.Client, wake func(), sz size) {
+	defer v.releaseGraphics()
 	req := client.ViewRequest{ProcessID: v.procID, Width: uint16(sz.w), Height: uint16(sz.h)}
 	fs, err := c.TerminalFrames(ctx, req)
 	if err != nil {
@@ -111,7 +128,7 @@ func (v *view) run(ctx context.Context, c client.Client, wake func(), sz size) {
 					return
 				}
 				v.mu.Lock()
-				if v.graphicsBytes+len(event.Command) <= 32<<20 {
+				if v.graphicsBytes+len(event.Command) <= maxGraphicsQueuedView && v.graphicsState.mem.queued.take(len(event.Command)) {
 					event.Command = append([]byte(nil), event.Command...)
 					v.graphics = append(v.graphics, event)
 					v.graphicsBytes += len(event.Command)

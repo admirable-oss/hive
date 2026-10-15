@@ -55,6 +55,9 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 		if err != nil {
 			return nil, err
 		}
+		if !cmd.LogGraphics {
+			logFile = vt.NewGraphicsStripper(logFile)
+		}
 	}
 
 	size := cmd.Size.Or(f.Size, DefaultSize)

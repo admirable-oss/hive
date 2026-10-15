@@ -36,6 +36,7 @@ type App struct {
 	comp *compositor.Compositor
 	now  func() time.Time
 	open func(url string) // opens a link (the system's handler; tests replace it)
+	gmem graphicsMemory   // graphics memory shared by every view
 
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -109,6 +110,7 @@ func New(ctx context.Context, c client.Client, opts Options) *App {
 		width:  80,
 		height: 24,
 		dirty:  true,
+		gmem:   newGraphicsMemory(),
 	}
 	a.open = a.openURL
 	a.connCtx, a.connCancel = context.WithCancel(ctx)

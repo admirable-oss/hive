@@ -30,6 +30,8 @@ type Config struct {
 	// LogMaxBytes rotates each terminal process's output log past this
 	// size, keeping one older file. Zero lets logs grow.
 	LogMaxBytes int64
+	// LogGraphics keeps image data (Kitty graphics) in output logs.
+	LogGraphics bool
 }
 
 type Module struct {
@@ -43,6 +45,9 @@ func NewModule(cfg Config, envs Environments, terms Terminals) *Module {
 		runner = NewExecRunner(cfg.StopGrace)
 	}
 	opts := []Option{WithLogger(cfg.Logger)}
+	if cfg.LogGraphics {
+		opts = append(opts, WithLogGraphics())
+	}
 	if cfg.LogMaxBytes > 0 {
 		opts = append(opts, WithLogLimit(cfg.LogMaxBytes))
 	}

@@ -175,6 +175,7 @@ image_budget_kb = 1024      # how fast a pasted image is sent to a remote daemon
 [images]
 max_kb = 5120               # largest image pasted with prefix I
 keep = "1h"                 # how long images saved for agents that take a path are kept
+render = "auto"             # images agents print: auto | cells | text | off
 
 [ui]
 sidebar = true              # show environments and agents beside the panes

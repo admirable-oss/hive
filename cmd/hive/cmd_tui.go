@@ -135,6 +135,7 @@ func uiOptions(cfg config.Config) (mux.Options, []string) {
 		NoMouse:       !cfg.UI.Mouse,
 		Clipboard:     clip,
 		ImageMaxBytes: cfg.Images.MaxKB << 10,
+		ImageRender:   cfg.Images.Render,
 		Notify:        cfg.Notify,
 		Commands:      commands,
 		StatusRight:   status,

@@ -102,7 +102,7 @@ func imageServer(t *testing.T, input terminal.ImageInput, cut int64) (client.Cli
 	return c, sess, &dials
 }
 
-func testPNG(t *testing.T, w, h int, pad int) []byte {
+func testPNG(t testing.TB, w, h int, pad int) []byte {
 	t.Helper()
 	var b bytes.Buffer
 	if err := png.Encode(&b, image.NewRGBA(image.Rect(0, 0, w, h))); err != nil {

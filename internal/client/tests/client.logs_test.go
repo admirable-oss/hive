@@ -208,7 +208,7 @@ func TestClient_StatusIdentifiesTheDaemon(t *testing.T) {
 
 // shortSock returns a socket path short enough for macOS's 104-byte limit,
 // which t.TempDir (it embeds the test name) can exceed.
-func shortSock(t *testing.T) string {
+func shortSock(t testing.TB) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "hv")
 	if err != nil {

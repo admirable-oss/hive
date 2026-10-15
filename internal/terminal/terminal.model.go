@@ -37,6 +37,9 @@ type Command struct {
 	// LogMaxBytes rotates the log past this size, keeping one older file
 	// (LogPath.1). Zero lets it grow.
 	LogMaxBytes int64
+	// LogGraphics keeps Kitty graphics commands (image data) in the log;
+	// by default they are stripped from it.
+	LogGraphics bool
 	Size        Size // zero means the factory's default
 	// Replay is shown on the screen before the program's first output
 	// (text from an earlier run of the pane). It is not logged.

@@ -138,7 +138,16 @@ type Images struct {
 	// Keep is how long the daemon keeps images it saved for agents that
 	// take an image as a file path; 0 turns saving off.
 	Keep time.Duration
+	// LogGraphics keeps images agents print (Kitty graphics) in their
+	// output logs; off strips them, so no image data is written to disk.
+	LogGraphics bool
+	// Render is how images agents print are drawn: auto (the terminal's
+	// graphics protocol, else coloured cells) | cells | text | off.
+	Render string
 }
+
+// Image render modes.
+var imageRenderModes = []string{"auto", "cells", "text", "off"}
 
 // SSHArgv is Remote.SSH as an argv (nil for the default).
 func (c Config) SSHArgv() []string { return strings.Fields(c.Remote.SSH) }
@@ -237,7 +246,7 @@ func Defaults() Config {
 		},
 		Retention: Retention{ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour},
 		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48, ImageBudgetKB: 1024},
-		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour},
+		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},
 		Update:    Update{Channel: "stable"},
 		Notify:    notify.Defaults(),
 		UI:        UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},

@@ -52,6 +52,9 @@ type Options struct {
 	// ImageMaxBytes bounds an image read from the clipboard to paste
 	// (default DefaultImageMaxBytes); the daemon applies its own limit too.
 	ImageMaxBytes int
+	// ImageRender is how images programs print are drawn: auto (the
+	// outer terminal's protocol, else cells), cells, text or off.
+	ImageRender string
 	// Notify says when and how to tell the user an agent wants them; the
 	// zero value is notify.Defaults().
 	Notify notify.Config
@@ -240,7 +243,7 @@ func (o *terminalOut) leave() {
 }
 
 func (o *terminalOut) frame(a *App) {
-	protocol := o.graphics.protocol()
+	protocol := renderProtocol(a.opts.ImageRender, o.graphics.protocol())
 	scene, unlock := a.scene()
 	targets := a.graphicsTargets(scene)
 	plan := a.graphicsFramePlan(targets, protocol, o.graphics.caps.CellW, o.graphics.caps.CellH, !o.graphics.active)

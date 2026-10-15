@@ -52,6 +52,56 @@ type graphicsViewState struct {
 	lastProtocol   graphicsProtocol
 	auxSequences   []string
 	auxCells       []cellGraphicsPlacement
+	mem            graphicsMemory
+}
+
+// dropImages releases every decoded image.
+func (s *graphicsViewState) dropImages() {
+	s.mem.images.give(s.imageTotal)
+	s.images, s.imageBytes, s.imageTotal = nil, nil, 0
+}
+
+// graphicsBudget bounds bytes held by all views together, on top of each
+// view's own bounds, so many panes of images cannot exhaust memory. A nil
+// budget is unlimited (tests that build an App by hand).
+type graphicsBudget struct {
+	used  atomic.Int64
+	limit int64
+}
+
+func (b *graphicsBudget) take(n int) bool {
+	if b == nil || n <= 0 {
+		return true
+	}
+	if b.used.Add(int64(n)) > b.limit {
+		b.used.Add(-int64(n))
+		return false
+	}
+	return true
+}
+
+func (b *graphicsBudget) give(n int) {
+	if b != nil && n > 0 {
+		b.used.Add(-int64(n))
+	}
+}
+
+// graphicsMemory is the UI's graphics memory: events received and not yet
+// drawn, and images decoded for Sixel, iTerm2 and cell output.
+type graphicsMemory struct {
+	queued, images *graphicsBudget
+}
+
+const (
+	maxGraphicsQueuedTotal = 64 << 20
+	maxGraphicsImagesTotal = 96 << 20
+)
+
+func newGraphicsMemory() graphicsMemory {
+	return graphicsMemory{
+		queued: &graphicsBudget{limit: maxGraphicsQueuedTotal},
+		images: &graphicsBudget{limit: maxGraphicsImagesTotal},
+	}
 }
 
 const (
@@ -63,6 +113,7 @@ const (
 func (s *graphicsViewState) deleteSixelImage(id uint32) {
 	if n := s.imageBytes[id]; n > 0 {
 		s.imageTotal -= n
+		s.mem.images.give(n)
 		delete(s.imageBytes, id)
 	}
 	delete(s.images, id)
@@ -72,7 +123,7 @@ func (s *graphicsViewState) saveSixelImage(id uint32, img image.Image) {
 	b := img.Bounds()
 	n := b.Dx() * b.Dy() * 4
 	s.deleteSixelImage(id)
-	if n <= 0 || n > maxSixelStateBytes || n > maxSixelStateBytes-s.imageTotal {
+	if n <= 0 || n > maxSixelStateBytes || n > maxSixelStateBytes-s.imageTotal || !s.mem.images.take(n) {
 		return
 	}
 	if s.images == nil {
@@ -262,7 +313,7 @@ func (s *graphicsViewState) consume(event vt.GraphicsEvent, protocol graphicsPro
 				}
 			}
 		}
-		if protocol != graphicsKitty {
+		if protocol.decodes() {
 			if upload, err := s.assembler.Push(c); err == nil && upload != nil {
 				if img, err := vt.DecodeKittyImage(*upload); err == nil {
 					s.saveSixelImage(s.uploadID, img)
@@ -316,7 +367,7 @@ func (s *graphicsViewState) consume(event vt.GraphicsEvent, protocol graphicsPro
 		if kitty {
 			s.pendingUploads = append(s.pendingUploads, formatGraphicsCommand(opts, c.Payload))
 		}
-		if protocol != graphicsKitty {
+		if protocol.decodes() {
 			if upload, err := s.assembler.Push(c); err == nil && upload != nil {
 				if img, err := vt.DecodeKittyImage(*upload); err == nil {
 					s.saveSixelImage(s.uploadID, img)
@@ -447,9 +498,7 @@ func (v *view) graphicsPlan(rect layout.Rect, screenX, screenY int, protocol gra
 		state.imageIDs = nil
 		state.responseIDs = nil
 		state.uploadID, state.uploadInner, state.uploadPlace = 0, 0, nil
-		state.images = nil
-		state.imageBytes = nil
-		state.imageTotal = 0
+		state.dropImages()
 		state.auxSequences = nil
 		state.auxCells = nil
 		state.assembler.Reset()
@@ -472,6 +521,7 @@ func (v *view) graphicsPlan(rect layout.Rect, screenX, screenY int, protocol gra
 	}
 	for i := 0; i < state.processed; i++ {
 		v.graphicsBytes -= len(v.graphics[i].Command)
+		state.mem.queued.give(len(v.graphics[i].Command))
 	}
 	v.graphics = nil
 	state.processed = 0
@@ -561,7 +611,7 @@ func (v *view) graphicsPlan(rect layout.Rect, screenX, screenY int, protocol gra
 	case graphicsIterm:
 		plan.iterm = append(plan.iterm, state.auxSequences...)
 		plan.cells = append(plan.cells, state.auxCells...)
-	case graphicsCells:
+	case graphicsCells, graphicsText:
 		keys := make([]graphicsPlacementKey, 0, len(state.placements))
 		for key := range state.placements {
 			keys = append(keys, key)
@@ -575,7 +625,13 @@ func (v *view) graphicsPlan(rect layout.Rect, screenX, screenY int, protocol gra
 		for _, key := range keys {
 			placement := state.placements[key]
 			img := state.images[key.image]
-			if img != nil && placement.col >= 0 && placement.row >= 0 && placement.cols > 0 && placement.rows > 0 && placement.col+placement.cols <= rect.W && placement.row+placement.rows <= rect.H && placement.options['x'] == "" && placement.options['y'] == "" && placement.options['w'] == "" && placement.options['h'] == "" {
+			cropped := placement.options['x'] != "" || placement.options['y'] != "" || placement.options['w'] != "" || placement.options['h'] != ""
+			if protocol == graphicsText || cropped {
+				img = nil // cells draw whole images only
+			}
+			// An image that cannot be drawn as cells (text mode, cropped,
+			// invalid, or past the memory bounds) is still named, as text.
+			if placement.col >= 0 && placement.row >= 0 && placement.cols > 0 && placement.rows > 0 && placement.col+placement.cols <= rect.W && placement.row+placement.rows <= rect.H {
 				plan.cells = append(plan.cells, cellGraphicsPlacement{image: img, row: placement.row + screenY, col: placement.col + screenX, rows: placement.rows, cols: placement.cols})
 			}
 		}
@@ -599,10 +655,17 @@ func scaleGraphicsImage(src image.Image, width, height int) *image.RGBA {
 	return dst
 }
 
+// imagePlaceholder names an image drawn as text.
+const imagePlaceholder = "[image]"
+
 func applyCellGraphics(scr uv.Screen, placements []cellGraphicsPlacement) {
 	bounds := scr.Bounds()
 	for _, p := range placements {
-		if p.image == nil || p.cols <= 0 || p.rows <= 0 {
+		if p.cols <= 0 || p.rows <= 0 {
+			continue
+		}
+		if p.image == nil {
+			applyTextGraphics(scr, p)
 			continue
 		}
 		b := p.image.Bounds()
@@ -625,6 +688,25 @@ func applyCellGraphics(scr uv.Screen, placements []cellGraphicsPlacement) {
 				scr.SetCell(cx, cy, &uv.Cell{Content: "▀", Width: 1, Style: uv.Style{Fg: top, Bg: bottom}})
 			}
 		}
+	}
+}
+
+// applyTextGraphics names an image in the first row of its placement,
+// clipped to its width and the screen; the program's own cells stay.
+func applyTextGraphics(scr uv.Screen, p cellGraphicsPlacement) {
+	bounds := scr.Bounds()
+	if p.row < bounds.Min.Y || p.row >= bounds.Max.Y {
+		return
+	}
+	for i, r := range imagePlaceholder {
+		cx := p.col + i
+		if i >= p.cols || cx >= bounds.Max.X {
+			break
+		}
+		if cx < bounds.Min.X {
+			continue
+		}
+		scr.SetCell(cx, p.row, &uv.Cell{Content: string(r), Width: 1, Style: uv.Style{Attrs: uv.AttrFaint}})
 	}
 }
 
@@ -796,7 +878,39 @@ const (
 	graphicsIterm
 	graphicsSixel
 	graphicsCells
+	// graphicsText draws a placeholder naming each image: for terminals
+	// that cannot show coloured cells, or users who want no pixels.
+	graphicsText
 )
+
+// decodes reports whether the protocol needs images' pixels in the UI
+// (converted to Sixel, iTerm2 or cells). Kitty passes uploads through; text
+// and none never decode.
+func (p graphicsProtocol) decodes() bool {
+	return p == graphicsSixel || p == graphicsIterm || p == graphicsCells
+}
+
+// Image render modes ([images] render).
+const (
+	ImageRenderAuto  = "auto"
+	ImageRenderCells = "cells"
+	ImageRenderText  = "text"
+	ImageRenderOff   = "off"
+)
+
+// renderProtocol applies the configured render mode to the protocol the
+// outer terminal confirmed.
+func renderProtocol(mode string, detected graphicsProtocol) graphicsProtocol {
+	switch mode {
+	case ImageRenderCells:
+		return graphicsCells
+	case ImageRenderText:
+		return graphicsText
+	case ImageRenderOff:
+		return graphicsNone
+	}
+	return detected
+}
 
 // protocol chooses one output format for a render session: Kitty, confirmed
 // iTerm2, confirmed Sixel, then ANSI cell graphics for ordinary terminals.

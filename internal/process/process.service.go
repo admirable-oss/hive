@@ -104,6 +104,12 @@ func WithAdopter(a Adopter) Option {
 	return func(s *service) { s.adopter = a }
 }
 
+// WithLogGraphics keeps Kitty graphics commands (image data) in terminal
+// processes' output logs instead of stripping them.
+func WithLogGraphics() Option {
+	return func(s *service) { s.logGraphics = true }
+}
+
 // WithLogLimit rotates terminal processes' output logs past limit bytes.
 func WithLogLimit(limit int64) Option {
 	return func(s *service) { s.logMax = limit }
@@ -121,15 +127,16 @@ func WithOrphanControl(lookup func(pid int) (platform.ProcessInfo, error), termi
 }
 
 type service struct {
-	store     Store
-	envs      Environments
-	runner    Runner
-	terms     Terminals // nil disables Terminal: true
-	adopter   Adopter   // nil: plain processes die with the daemon
-	events    Events
-	launchEnv *LaunchEnv
-	logMax    int64
-	log       *slog.Logger
+	store       Store
+	envs        Environments
+	runner      Runner
+	terms       Terminals // nil disables Terminal: true
+	adopter     Adopter   // nil: plain processes die with the daemon
+	events      Events
+	launchEnv   *LaunchEnv
+	logMax      int64
+	logGraphics bool
+	log         *slog.Logger
 
 	// Orphan control: see reapOrphan.
 	lookup    func(pid int) (platform.ProcessInfo, error)
@@ -309,7 +316,7 @@ func (s *service) launch(ctx context.Context, p Process, req StartRequest, envir
 	}
 	sess, err := s.terms.Open(ctx, p.ID, terminal.Command{
 		ID: p.ID, Path: p.Command, Args: p.Args, WorkingDir: p.WorkingDir, Env: environ,
-		LogPath: stdout, LogMaxBytes: s.logMax, Replay: req.Replay,
+		LogPath: stdout, LogMaxBytes: s.logMax, LogGraphics: s.logGraphics, Replay: req.Replay,
 		Size: terminal.Size{Width: req.Width, Height: req.Height},
 	})
 	if err != nil {

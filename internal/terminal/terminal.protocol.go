@@ -104,8 +104,11 @@ func Register(r *protocol.Router, svc Service) {
 	}))
 	// terminal.graphics is an ordered side stream of complete Kitty APC
 	// commands. It is kept separate from cell frames so frame coalescing can
-	// never discard upload chunks or reorder image operations.
+	// never discard upload chunks or reorder image operations. A client on a
+	// slow link is sent it within its byte budget (shared with frames), so
+	// images an agent prints cannot crowd out its screen and input.
 	r.MustRegister("terminal.graphics", protocol.PipeMethod(func(ctx context.Context, p viewParams) (protocol.Empty, protocol.PipeFunc, error) {
+		peer := protocol.PeerOf(ctx)
 		sess, err := lookup(svc, p.ProcessID)
 		if err != nil {
 			return protocol.Empty{}, nil, err
@@ -120,8 +123,10 @@ func Register(r *protocol.Router, svc Service) {
 			var buf []byte
 			return graphics.Graphics(ctx, func(event vt.GraphicsEvent) error {
 				buf = vt.AppendGraphicsEvent(buf[:0], event)
-				_, err := pipe.Write(buf)
-				return err
+				if _, err := pipe.Write(buf); err != nil {
+					return err
+				}
+				return spend(ctx, peer, len(buf))
 			})
 		}, nil
 	}))
@@ -287,6 +292,23 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 	n, err := c.w.Write(p)
 	c.n += n
 	return n, err
+}
+
+// spend takes n bytes sent to peer from its budget and waits until the
+// budget allows more. A local client (no budget) is not held back.
+func spend(ctx context.Context, peer *protocol.Peer, n int) error {
+	wait := peer.Spend(n)
+	if wait <= 0 {
+		return nil
+	}
+	t := time.NewTimer(wait)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 // pace holds the next frame back for a client on a slow link, after one

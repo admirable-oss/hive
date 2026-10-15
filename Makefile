@@ -27,6 +27,7 @@ FUZZ_TARGETS := \
 	./internal/protocol/tests:FuzzStreamReceive \
 	./internal/config:FuzzParse \
 	./internal/vt:FuzzDecodeFrame \
+	./internal/vt:FuzzKittyGraphicsParser \
 	./internal/plugin:FuzzParseManifest \
 	./internal/agent:FuzzParseManifest
 

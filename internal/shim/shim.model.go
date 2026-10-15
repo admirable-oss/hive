@@ -25,6 +25,8 @@ type Spec struct {
 	StderrPath string        `json:"stderr_path,omitempty"`
 	// LogMaxBytes rotates a terminal agent's log (see terminal.Command).
 	LogMaxBytes int64 `json:"log_max_bytes,omitempty"`
+	// LogGraphics keeps image data in the log (see terminal.Command).
+	LogGraphics bool `json:"log_graphics,omitempty"`
 	// Replay is shown before a terminal agent's first output.
 	Replay          []byte        `json:"replay,omitempty"`
 	ScrollbackBytes int           `json:"scrollback_bytes,omitempty"`

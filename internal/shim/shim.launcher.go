@@ -56,7 +56,7 @@ func (l *Launcher) Open(ctx context.Context, cmd terminal.Command) (terminal.Ses
 	size := cmd.Size.Or(l.DefaultSize, terminal.DefaultSize)
 	return l.launch(ctx, Spec{
 		ID: cmd.ID, Path: cmd.Path, Args: cmd.Args, WorkingDir: cmd.WorkingDir, Env: cmd.Env,
-		Terminal: true, Size: size, StdoutPath: cmd.LogPath, LogMaxBytes: cmd.LogMaxBytes, Replay: cmd.Replay,
+		Terminal: true, Size: size, StdoutPath: cmd.LogPath, LogMaxBytes: cmd.LogMaxBytes, LogGraphics: cmd.LogGraphics, Replay: cmd.Replay,
 		ScrollbackBytes: l.ScrollbackBytes, StopGrace: l.StopGrace,
 	})
 }

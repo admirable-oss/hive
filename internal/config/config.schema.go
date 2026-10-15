@@ -85,6 +85,17 @@ func (c *Config) schema() map[string]map[string]setter {
 			"max_kb":         integer(&c.Images.MaxKB, 1, 16<<10),
 			"max_megapixels": integer(&c.Images.MaxMegapixels, 1, 64),
 			"keep":           durationOrOff(&c.Images.Keep, time.Minute, 7*24*time.Hour),
+			"log_graphics":   boolean(&c.Images.LogGraphics),
+			"render": func(raw any) error {
+				return setString(raw, func(s string) error {
+					s = strings.ToLower(strings.TrimSpace(s))
+					if !slices.Contains(imageRenderModes, s) {
+						return fmt.Errorf("%q is not one of %s", s, strings.Join(imageRenderModes, ", "))
+					}
+					c.Images.Render = s
+					return nil
+				})
+			},
 		},
 		"retention": {
 			"exited_processes": duration(&c.Retention.ExitedProcesses, time.Hour, 10*365*24*time.Hour),

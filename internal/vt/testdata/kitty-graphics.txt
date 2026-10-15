@@ -1,0 +1,55 @@
+# Kitty graphics fixtures: what the PTY parser observes and what the relay
+# and upload assembler make of it, fed whole, split at every byte boundary,
+# and byte by byte (see TestKittyGraphicsFixtures).
+#
+# name | outcomes | visible text | sequence
+#
+# outcomes, one per observed command ("-": none observed):
+#   reject   parsed, refused by ValidateKittyGraphicsRelay
+#   command  a valid non-upload command (placement, delete, query)
+#   partial  a valid upload chunk; more must follow
+#   upload   completes a valid static image upload
+#   invalid  a valid chunk the assembler refuses (bad image or sequence)
+# visible text is line 0 of the screen afterwards: graphics never print.
+# The sequence uses Go string escapes; {X*n} repeats X n times.
+plain-text | - | hello | "hello"
+png-direct | upload | ab | "a\x1b_Ga=T,f=100,c=1,r=1;iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAAAAABX3VL4AAAAEklEQVR4nGJiYGBiYAAEAAD//wAYAAV4jI74AAAAAElFTkSuQmCC\x1b\\b"
+png-declared-size | upload |  | "\x1b_Ga=t,f=100,s=2,v=2;iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAAAAABX3VL4AAAAEklEQVR4nGJiYGBiYAAEAAD//wAYAAV4jI74AAAAAElFTkSuQmCC\x1b\\"
+png-size-mismatch | invalid |  | "\x1b_Ga=t,f=100,s=3,v=2;iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAAAAABX3VL4AAAAEklEQVR4nGJiYGBiYAAEAAD//wAYAAV4jI74AAAAAElFTkSuQmCC\x1b\\"
+png-chunked | partial upload |  | "\x1b_Ga=T,f=100,c=1,r=1,m=1;iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAAAAABX3VL4AAAA\x1b\\\x1b_Gm=0;EklEQVR4nGJiYGBiYAAEAAD//wAYAAV4jI74AAAAAElFTkSuQmCC\x1b\\"
+rgb-raw | upload |  | "\x1b_Ga=t,f=24,s=2,v=2;{A*16}\x1b\\"
+rgba-length-mismatch | invalid |  | "\x1b_Ga=t,f=32,s=2,v=2;{A*16}\x1b\\"
+rgb-chunked-quiet | partial partial upload |  | "\x1b_Ga=t,f=24,s=2,v=2,q=2,m=1;AAAA\x1b\\\x1b_Gm=1,q=2;AAAA\x1b\\\x1b_Gm=0,q=2;{A*8}\x1b\\"
+not-a-png | invalid |  | "\x1b_Ga=t,f=100;R0lGODlh\x1b\\"
+file-source | reject |  | "\x1b_Ga=T,t=f,f=100;L2V0Yy9wYXNzd2Q=\x1b\\"
+temp-file-source | reject |  | "\x1b_Ga=T,t=t,f=100;L3RtcC94\x1b\\"
+shared-memory-source | reject |  | "\x1b_Ga=T,t=s,f=100;c2htLW5hbWU=\x1b\\"
+bad-base64 | reject |  | "\x1b_Ga=t,f=24,s=1,v=1;!!!!\x1b\\"
+payload-newline | reject |  | "\x1b_Ga=t,f=24,s=1,v=1;AA\nAA\x1b\\"
+oversized-chunk | reject |  | "\x1b_Ga=t,f=24,m=1;{A*4100}\x1b\\"
+padding-in-nonfinal | reject |  | "\x1b_Ga=t,f=24,s=1,v=1,m=1;AA==\x1b\\"
+empty-nonfinal | reject |  | "\x1b_Ga=t,f=24,s=1,v=1,m=1;\x1b\\"
+unsupported-format | reject |  | "\x1b_Ga=t,f=99,s=1,v=1;AAAA\x1b\\"
+id-and-number | reject |  | "\x1b_Ga=t,f=24,s=1,v=1,i=1,I=2;AAAA\x1b\\"
+zero-id | reject |  | "\x1b_Ga=t,f=24,s=1,v=1,i=0;AAAA\x1b\\"
+bad-continuation-flag | reject |  | "\x1b_Ga=t,f=24,s=1,v=1,m=2;AAAA\x1b\\"
+bad-quiet-flag | reject |  | "\x1b_Ga=t,f=24,s=1,v=1,q=7;AAAA\x1b\\"
+interrupted-by-new-upload | partial invalid |  | "\x1b_Ga=t,f=24,s=2,v=2,m=1;AAAA\x1b\\\x1b_Ga=t,f=24,s=1,v=1;AAAA\x1b\\"
+continuation-with-extra-keys | partial invalid |  | "\x1b_Ga=t,f=24,s=2,v=2,m=1;AAAA\x1b\\\x1b_Gm=0,f=24;{A*12}\x1b\\"
+placement | command |  | "\x1b_Ga=p,i=1,c=2,r=1;\x1b\\"
+delete | command |  | "\x1b_Ga=d,d=i,i=1;\x1b\\"
+query | command |  | "\x1b_Ga=q,i=31,s=1,v=1,t=d,f=24;AAAA\x1b\\"
+duplicate-key | - |  | "\x1b_Ga=T,a=t;AAAA\x1b\\"
+header-without-semicolon | - | x | "\x1b_Ga=T\x1b\\x"
+empty-header | - |  | "\x1b_G;AAAA\x1b\\"
+bad-key | - |  | "\x1b_Gab=1;AAAA\x1b\\"
+empty-value | - |  | "\x1b_Ga=;AAAA\x1b\\"
+can-aborts | - | tail | "\x1b_Ga=t,f=24,s=1,v=1;AAAA\x18tail"
+sub-aborts | - | tail | "\x1b_Ga=t,f=24,s=1,v=1;AAAA\x1atail"
+other-apc | - | after | "\x1b_Xhello\x1b\\after"
+graphics-inside-osc | - |  | "\x1b]0;\x1b_Ga=T;AAAA\x1b\\"
+unterminated | - |  | "\x1b_Ga=t,f=24,s=1,v=1;AAAA"
+escape-inside-payload | - | AA | "\x1b_Ga=t,f=24,s=1,v=1;AA\x1bZAA\x1b\\"
+graphics-between-text | upload upload | one two three | "one \x1b_Ga=t,f=24,s=1,v=1;AAAA\x1b\\two \x1b_Ga=t,f=24,s=1,v=1;AAAA\x1b\\three"
+escape-sequence-ends-command | - | visible | "\x1b_Ga=p,i=1,c=1,r=1;\x1b[31mvisible\x1b\\"
+escape-escape-ends-command | upload |  | "\x1b_Ga=p,i=1;\x1b\x1b_Ga=t,f=24,s=1,v=1;AAAA\x1b\\"

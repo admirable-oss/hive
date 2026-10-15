@@ -120,6 +120,13 @@ max_megapixels = {{.Images.MaxMegapixels}}
 # private directory and its path pasted; the daemon removes it after this long
 # ("0s": never save, so such agents refuse images).
 keep = {{dur .Images.Keep}}
+# Keep images that agents print (Kitty graphics) in their output logs. Off
+# strips them, so image data is never written to disk.
+log_graphics = {{.Images.LogGraphics}}
+# How images agents print are drawn: auto (the terminal's graphics protocol:
+# Kitty, iTerm2 or Sixel, else coloured cells) | cells | text (a placeholder
+# naming the image) | off
+render = {{q .Images.Render}}
 
 [worktrees]
 # Where ` + "`hive worktree create`" + ` puts checkouts, as <directory>/<repo>/<branch>

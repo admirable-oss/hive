@@ -350,3 +350,41 @@ func TestPTY_LogRotatesPastItsLimit(t *testing.T) {
 		t.Fatalf("the current log lacks the latest output: %q", data)
 	}
 }
+
+// TestPTY_LogLeavesOutImageData: images an agent prints (Kitty graphics)
+// are kept out of its output log unless LogGraphics asks for them, while
+// the graphics stream still carries them to viewers.
+func TestPTY_LogLeavesOutImageData(t *testing.T) {
+	const script = `printf 'before\033_Ga=t,f=24,s=1,v=1,i=9;SECRETPIXELS\033\\after\n'; printf 'next\033_Ga=t,f=24,s=1,v=1,i=8;AAAA\033\\line\n'; read _`
+	for _, keep := range []bool{false, true} {
+		logPath := filepath.Join(t.TempDir(), "out.log")
+		sess := openPTY(t, terminal.PTYFactory{}, terminal.Command{Path: "sh", Args: []string{"-c", script}, LogPath: logPath, LogGraphics: keep})
+		waitScreen(t, sess, "nextline")
+		ctx, cancel := context.WithCancel(context.Background())
+		var events []vt.GraphicsEvent
+		err := sess.(terminal.GraphicsSession).Graphics(ctx, func(e vt.GraphicsEvent) error {
+			events = append(events, e)
+			if strings.Contains(string(e.Command), "AAAA") {
+				cancel() // both have arrived
+			}
+			return nil
+		})
+		cancel()
+		if err != nil || len(events) != 2 {
+			t.Fatalf("graphics stream: %d events, %v", len(events), err)
+		}
+		_, _ = sess.Write([]byte("\n"))
+		_ = sess.Wait()
+		data, err := os.ReadFile(logPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		log := string(data)
+		if !strings.Contains(log, "beforeafter") && !keep || !strings.Contains(log, "line") {
+			t.Fatalf("keep=%v: text around the images is missing: %q", keep, log)
+		}
+		if strings.Contains(log, "SECRETPIXELS") != keep || strings.Contains(log, "\x1b_G") != keep {
+			t.Fatalf("keep=%v: log = %q", keep, log)
+		}
+	}
+}

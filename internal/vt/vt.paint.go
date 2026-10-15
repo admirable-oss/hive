@@ -52,7 +52,7 @@ func (p *Painter) Paint(f *Frame) error {
 	}
 	b.WriteString(modeChanges(prev.Modes, p.screen.Modes))
 	if p.screen.Title != prev.Title {
-		b.WriteString("\x1b]2;" + sanitizeTitle(p.screen.Title) + "\x07")
+		b.WriteString("\x1b]2;");b.WriteString(sanitizeTitle(p.screen.Title));b.WriteString("\x07")
 	}
 	if p.screen.Bells != prev.Bells {
 		b.WriteByte('\a')
@@ -60,10 +60,10 @@ func (p *Painter) Paint(f *Frame) error {
 	if c := f.Clipboard; c != nil {
 		// A program in the agent copied text: pass it on, so it reaches
 		// the clipboard of the machine the user sits at.
-		b.WriteString("\x1b]52;" + c.Selection + ";" + c.Data + "\x07")
+		b.WriteString("\x1b]52;");b.WriteString(c.Selection);b.WriteString(";");b.WriteString(c.Data);b.WriteString("\x07")
 	}
 	c := p.screen.Cursor
-	b.WriteString("\x1b[" + strconv.Itoa(c.Y+1) + ";" + strconv.Itoa(c.X+1) + "H")
+	b.WriteString("\x1b[");b.WriteString(strconv.Itoa(c.Y + 1));b.WriteString(";");b.WriteString(strconv.Itoa(c.X + 1));b.WriteString("H")
 	if !p.started || c.Shape != prev.Cursor.Shape || c.Blink != prev.Cursor.Blink {
 		b.WriteString(cursorShape(c))
 	}
@@ -80,7 +80,7 @@ func (p *Painter) Paint(f *Frame) error {
 // erase to the end of the line in the default background.
 func (p *Painter) writeLine(y int) {
 	b := &p.buf
-	b.WriteString("\x1b[" + strconv.Itoa(y+1) + "H")
+	b.WriteString("\x1b[");b.WriteString(strconv.Itoa(y + 1));b.WriteString("H")
 	line := trimBlank(p.screen.Lines[y])
 	var cur Style
 	link := ""
@@ -105,7 +105,7 @@ func (p *Painter) writeLine(y int) {
 		// ambiguous-width). Moving to the next column explicitly keeps one
 		// disagreement from shifting the rest of the line.
 		if c.Width != 1 || !isASCII(c.Content) {
-			b.WriteString("\x1b[" + strconv.Itoa(x+int(c.Width)+1) + "G")
+			b.WriteString("\x1b[");b.WriteString(strconv.Itoa(x + int(c.Width) + 1));b.WriteString("G")
 		}
 	}
 	if link != "" {

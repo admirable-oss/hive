@@ -76,6 +76,9 @@ type ImagesConfig struct {
 	MaxBytes  int
 	MaxPixels int
 	Keep      time.Duration
+	// LogGraphics keeps image data in agents' output logs; by default
+	// graphics commands are stripped from them.
+	LogGraphics bool
 }
 
 // ShimConfig says how to start a shim: Exe Args… <dir>, with Env added to

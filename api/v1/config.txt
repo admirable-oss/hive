@@ -2,8 +2,10 @@ daemon.autostart
 daemon.shutdown_timeout
 git.refresh_interval
 images.keep
+images.log_graphics
 images.max_kb
 images.max_megapixels
+images.render
 keys.command
 keys.copy
 keys.navigate

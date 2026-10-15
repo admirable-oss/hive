@@ -352,9 +352,12 @@ target from one machine, which keeps the release flow reproducible.
 
 ---
 
-## M11 · Visual Terminal Workflows — `v1.0.3`
+## M11 · Visual Terminal Workflows — `v1.0.3` — **LIVE**
 
 Give agents the context they need.
+
+Design, resource bounds, terminal compatibility and measurements:
+[docs/plugins/image-graphics.md](docs/plugins/image-graphics.md).
 
 Coding agents increasingly work with screenshots, diagrams, browser captures,
 and other visual inputs. Hive should make these workflows possible without

@@ -169,9 +169,10 @@ func runDaemon(ctx context.Context, a *app) error {
 
 		AgentManifestDir: a.agentManifestDir(),
 		Images: runtime.ImagesConfig{
-			MaxBytes:  a.cfg.Images.MaxKB << 10,
-			MaxPixels: a.cfg.Images.MaxMegapixels << 20,
-			Keep:      a.cfg.Images.Keep,
+			MaxBytes:    a.cfg.Images.MaxKB << 10,
+			MaxPixels:   a.cfg.Images.MaxMegapixels << 20,
+			Keep:        a.cfg.Images.Keep,
+			LogGraphics: a.cfg.Images.LogGraphics,
 		},
 
 		Persist: &runtime.PersistConfig{
