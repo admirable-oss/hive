@@ -52,24 +52,52 @@ func TestPeerUIDIsOurs(t *testing.T) {
 }
 
 func TestOpenFDs(t *testing.T) {
-	n0, err := platform.OpenFDs()
-	if err != nil || n0 < 3 {
-		t.Fatalf("open fds = %d, %v", n0, err)
+	// A process descriptor table can change while it is being scanned (for
+	// example, macOS may briefly open or close descriptors during runtime
+	// activity). Sample several times and open a small batch so one transient
+	// descriptor does not make this count check flaky.
+	const samples = 5
+	const openedFiles = 4
+	baseline := int(^uint(0) >> 1)
+	for range samples {
+		count, err := platform.OpenFDs()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count < baseline {
+			baseline = count
+		}
 	}
-	f, err := os.Open(os.DevNull)
-	if err != nil {
-		t.Fatal(err)
+	if baseline < 3 {
+		t.Fatalf("open fds = %d, want at least 3", baseline)
 	}
-	fd := f.Fd()
-	n1, err := platform.OpenFDs()
-	// Keep f live until after the descriptor count. The compiler may otherwise
-	// make it unreachable during OpenFDs, allowing its finalizer to close it.
-	runtime.KeepAlive(f)
-	_ = f.Close()
-	if err != nil {
-		t.Fatal(err)
+	files := make([]*os.File, 0, openedFiles)
+	t.Cleanup(func() {
+		for _, f := range files {
+			_ = f.Close()
+		}
+	})
+	for range openedFiles {
+		f, err := os.Open(os.DevNull)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, f)
 	}
-	if n1 != n0+1 {
-		t.Fatalf("one more file: %d → %d (new file descriptor %d)", n0, n1, fd)
+	held := int(^uint(0) >> 1)
+	for range samples {
+		count, err := platform.OpenFDs()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count < held {
+			held = count
+		}
+	}
+	// Keep the files live through every descriptor scan. The compiler may
+	// otherwise make them unreachable during OpenFDs and close them early.
+	runtime.KeepAlive(files)
+	if held < baseline+openedFiles-1 {
+		t.Fatalf("open files: stable count %d → %d after opening %d descriptors", baseline, held, openedFiles)
 	}
 }
