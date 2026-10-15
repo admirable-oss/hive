@@ -75,6 +75,7 @@ const (
 	ToggleSidebar Action = "toggle-sidebar"
 	EditScroll    Action = "edit-scrollback"
 	Paste         Action = "paste"
+	PasteImage    Action = "paste-image"
 	Detach        Action = "detach"
 	SendPrefix    Action = "send-prefix"
 	EnterNavigate Action = "mode-navigate"
@@ -162,7 +163,7 @@ var descriptions = map[Action]string{
 	Popup: "open a shell in a popup", Goto: "go to an agent or pane (fuzzy)",
 	Help: "show key bindings", Overview: "Overview dashboard (toggle)",
 	ToggleSidebar: "show or hide the sidebar", EditScroll: "open the pane's scrollback in $EDITOR",
-	Paste: "paste the last copied text", Detach: "leave the UI (agents keep running)",
+	Paste: "paste the last copied text", PasteImage: "paste a clipboard image to the focused pane", Detach: "leave the UI (agents keep running)",
 	SendPrefix:    "send the prefix key to the pane",
 	EnterNavigate: "navigate mode (sticky)", EnterResize: "resize mode (sticky)",
 	EnterCopy: "copy mode", ExitMode: "back to terminal mode",
@@ -223,7 +224,7 @@ func defaults() map[Mode]map[Action][]string {
 		NextEnv: {")"}, PrevEnv: {"("},
 		RenameTab: {","}, RenamePane: {"."},
 		Popup: {"f"}, Goto: {"w", "s"}, Help: {"?"}, Overview: {"O"},
-		ToggleSidebar: {"b"}, EditScroll: {"e"}, Paste: {"]"}, Detach: {"d"},
+		ToggleSidebar: {"b"}, EditScroll: {"e"}, Paste: {"]"}, PasteImage: {"I"}, Detach: {"d"},
 		EnterNavigate: {"space"}, EnterResize: {"r"}, EnterCopy: {"[", "v"},
 		ExitMode:  {"esc"},
 		NextAgent: {"a"}, OpenNotification: {"N"},

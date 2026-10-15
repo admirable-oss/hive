@@ -18,12 +18,17 @@ import (
 type view struct {
 	procID string
 
-	mu     sync.Mutex
-	screen *vt.Screen // nil until the first frame (or a cached screen)
-	ended  bool       // the stream ended: the agent exited or the daemon went away
-	failed bool       // the stream could not be opened
-	frames uint64     // frames applied so far
-	copies []string   // text programs in the agent copied (OSC 52), not yet passed on
+	mu               sync.Mutex
+	screen           *vt.Screen         // nil until the first frame (or a cached screen)
+	ended            bool               // the stream ended: the agent exited or the daemon went away
+	failed           bool               // the stream could not be opened
+	frames           uint64             // frames applied so far
+	copies           []string           // text programs in the agent copied (OSC 52), not yet passed on
+	graphics         []vt.GraphicsEvent // ordered Kitty events received for this view
+	graphicsBytes    int
+	graphicsReset    bool // overflow: discard graphics state and stop retaining events
+	graphicsScrolled bool // scrollback changed: remove screen-anchored placements
+	graphicsState    graphicsViewState
 
 	ops    chan viewOp
 	cancel context.CancelFunc
@@ -82,6 +87,42 @@ func (v *view) run(ctx context.Context, c client.Client, wake func(), sz size) {
 	}
 	stop := context.AfterFunc(ctx, func() { _ = fs.Close() })
 	defer stop()
+	graphics, graphicsErr := c.TerminalGraphics(ctx, req)
+	var graphicsDone chan struct{}
+	if graphicsErr == nil {
+		graphicsDone = make(chan struct{})
+		graphicsStop := context.AfterFunc(ctx, func() { _ = graphics.Close() })
+		defer func() {
+			graphicsStop()
+			_ = graphics.Close()
+			<-graphicsDone
+		}()
+		go func() {
+			defer close(graphicsDone)
+			for {
+				event, err := graphics.Next()
+				if err != nil {
+					if ctx.Err() == nil {
+						v.mu.Lock()
+						v.graphicsReset = true
+						v.mu.Unlock()
+						wake()
+					}
+					return
+				}
+				v.mu.Lock()
+				if v.graphicsBytes+len(event.Command) <= 32<<20 {
+					event.Command = append([]byte(nil), event.Command...)
+					v.graphics = append(v.graphics, event)
+					v.graphicsBytes += len(event.Command)
+				} else {
+					v.graphicsReset = true
+				}
+				v.mu.Unlock()
+				wake()
+			}
+		}()
+	}
 
 	readerDone := make(chan struct{})
 	go func() {
@@ -101,6 +142,9 @@ func (v *view) run(ctx context.Context, c client.Client, wake func(), sz size) {
 			}
 			v.screen.Apply(f)
 			v.frames++
+			if !f.Keyframe && f.Rows > 2 && len(f.Lines) >= max(3, f.Rows/2) {
+				v.graphicsScrolled = true
+			}
 			if c := f.Clipboard; c != nil {
 				if text, err := base64.StdEncoding.DecodeString(c.Data); err == nil {
 					v.copies = append(v.copies, string(text))

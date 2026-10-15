@@ -39,6 +39,12 @@ type Session interface {
 	Frames(ctx context.Context, emit func(*vt.Frame) error) error
 }
 
+// GraphicsSession is an optional session capability. It replays Kitty APC
+// commands in original order and never merges them with screen frames.
+type GraphicsSession interface {
+	Graphics(ctx context.Context, emit func(vt.GraphicsEvent) error) error
+}
+
 // Factory opens a new terminal session for the given command.
 type Factory interface {
 	Open(ctx context.Context, cmd Command) (Session, error)

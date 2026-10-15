@@ -195,6 +195,21 @@ func (s *service) TerminalFrames(ctx context.Context, req ViewRequest) (*FrameSt
 	return &FrameStream{Attachment: a, reader: vt.NewFrameReader(r)}, nil
 }
 
+func (s *service) TerminalGraphics(ctx context.Context, req ViewRequest) (*GraphicsStream, error) {
+	mux, err := s.conn(ctx)
+	if errors.Is(err, errLegacy) {
+		return nil, ErrDaemonTooOld
+	}
+	if err != nil {
+		return nil, err
+	}
+	p, err := mux.OpenPipe(ctx, "terminal.graphics", req, nil)
+	if err != nil {
+		return nil, fmt.Errorf("terminal.graphics: %w", err)
+	}
+	return &GraphicsStream{pipe: p, reader: vt.NewGraphicsReader(p)}, nil
+}
+
 func (s *service) TerminalSnapshot(ctx context.Context, req SnapshotRequest) (Snapshot, error) {
 	if err := s.requireMux(ctx); err != nil {
 		return Snapshot{}, err

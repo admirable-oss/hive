@@ -220,7 +220,39 @@ func (r *Remote) Frames(ctx context.Context, emit func(*vt.Frame) error) error {
 	}
 }
 
+// Graphics replays the shim's ordered Kitty APC command stream. It is kept
+// independent from Frames because graphics chunks cannot be coalesced.
+func (r *Remote) Graphics(ctx context.Context, emit func(vt.GraphicsEvent) error) error {
+	if !r.terminal {
+		return ErrNotTerminal
+	}
+	p, err := r.mux.OpenPipe(ctx, "shim.graphics", nil, nil)
+	if err != nil {
+		return err
+	}
+	defer p.Close()
+	stop := context.AfterFunc(ctx, func() { _ = p.Close() })
+	defer stop()
+	reader := vt.NewGraphicsReader(p)
+	for {
+		event, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
+		if err := emit(event); err != nil {
+			return err
+		}
+	}
+}
+
 var _ terminal.ForegroundReader = (*Remote)(nil)
+var _ terminal.GraphicsSession = (*Remote)(nil)
 
 // Foreground asks the shim which program is in the agent terminal's
 // foreground. Shims from before the call answer unknown_method.

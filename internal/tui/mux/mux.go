@@ -13,6 +13,7 @@ package mux
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -129,7 +130,8 @@ func Run(ctx context.Context, c client.Client, opts Options) error {
 		return fmt.Errorf("open the terminal: %w", err)
 	}
 	a := New(ctx, c, opts)
-	out := &terminalOut{scr: scr}
+	probe := &graphicsProbe{active: true}
+	out := &terminalOut{scr: scr, graphics: probe}
 	out.enter(!a.opts.NoMouse)
 
 	defer func() {
@@ -143,6 +145,9 @@ func Run(ctx context.Context, c client.Client, opts Options) error {
 	timer.Stop()
 	defer timer.Stop()
 	armed := false
+	graphicsTimer := time.NewTimer(graphicsProbeTimeout)
+	defer graphicsTimer.Stop()
+	graphicsTimerC := graphicsTimer.C
 	var lastFrame time.Time
 
 	for !a.Quit() {
@@ -150,10 +155,20 @@ func Run(ctx context.Context, c client.Client, opts Options) error {
 		case <-ctx.Done():
 			return nil
 		case ev := <-t.Events():
+			if out.graphics.handle(ev) {
+				continue
+			}
+			if a.graphicsReply(ev) {
+				continue
+			}
 			if ws, ok := ev.(uv.WindowSizeEvent); ok {
 				_ = scr.Resize(ws.Width, ws.Height)
 			}
 			a.HandleEvent(ev) //nolint:contextcheck // as above
+		case <-graphicsTimerC:
+			out.graphics.finish()
+			a.dirty = true
+			graphicsTimerC = nil
 		case m := <-a.Msgs():
 			a.Handle(m) //nolint:contextcheck // as above
 		case <-a.Wake():
@@ -179,14 +194,18 @@ func Run(ctx context.Context, c client.Client, opts Options) error {
 // terminalOut applies frames to the real terminal: cells through the
 // renderer's diff, plus the cursor, mouse mode, title and raw sequences.
 type terminalOut struct {
-	scr    *uv.TerminalScreen
-	mouse  bool
-	mode   uv.MouseMode
-	shown  bool
-	shape  vt.CursorShape
-	blink  bool
-	title  string
-	styled bool // the cursor style was changed from the default
+	scr                *uv.TerminalScreen
+	graphics           *graphicsProbe
+	graphicsPlacements map[graphicsPlacementKey]string
+	graphicsImages     map[uint32]struct{}
+	graphicsNative     []string
+	mouse              bool
+	mode               uv.MouseMode
+	shown              bool
+	shape              vt.CursorShape
+	blink              bool
+	title              string
+	styled             bool // the cursor style was changed from the default
 }
 
 func (o *terminalOut) enter(mouse bool) {
@@ -199,16 +218,58 @@ func (o *terminalOut) enter(mouse bool) {
 		_ = o.scr.SetMouseMode(o.mode)
 	}
 	_, _ = o.scr.WriteString(ansi.SetModeFocusEvent + ansi.RequestBackgroundColor)
+	_, _ = o.scr.WriteString(kittyGraphicsQuery + primaryDA1Query + itermCapabilitiesQuery + "\x1b[16t")
 	_ = o.scr.Flush()
 }
 
 func (o *terminalOut) leave() {
+	for key := range o.graphicsPlacements {
+		_, _ = o.scr.WriteString(deletePlacementSequence(key))
+	}
+	for id := range o.graphicsImages {
+		_, _ = o.scr.WriteString(deleteImageSequence(id))
+	}
 	_, _ = o.scr.WriteString(ansi.ResetModeFocusEvent)
 	_ = o.scr.Flush()
 }
 
 func (o *terminalOut) frame(a *App) {
-	res := a.Draw(o.scr)
+	protocol := o.graphics.protocol()
+	kitty := protocol == graphicsKitty
+	scene, unlock := a.scene()
+	targets := a.graphicsTargets(scene)
+	plan := a.graphicsFramePlan(targets, protocol, o.graphics.caps.CellW, o.graphics.caps.CellH, !o.graphics.active)
+	native := append(append([]string(nil), plan.sixels...), plan.iterm...)
+	sort.Strings(native)
+	nativeChanged := !sameStrings(o.graphicsNative, native)
+	clearNative := len(o.graphicsNative) > 0 && (nativeChanged || (protocol != graphicsSixel && protocol != graphicsIterm))
+	if clearNative {
+		bounds := o.scr.Bounds()
+		_ = o.scr.Resize(bounds.Max.X-bounds.Min.X, bounds.Max.Y-bounds.Min.Y)
+		_, _ = o.scr.WriteString("\x1b[2J\x1b[H")
+	}
+	res := a.drawScene(o.scr, scene, unlock)
+	if protocol == graphicsSixel || protocol == graphicsIterm {
+		o.graphicsNative = append(o.graphicsNative[:0], native...)
+	} else {
+		o.graphicsNative = nil
+	}
+	if len(plan.cells) > 0 {
+		applyCellGraphics(o.scr, plan.cells)
+	}
+	for key := range o.graphicsPlacements {
+		if _, ok := plan.placements[key]; !ok {
+			_, _ = o.scr.WriteString(deletePlacementSequence(key))
+		}
+	}
+	for id := range o.graphicsImages {
+		if _, ok := plan.images[id]; !ok {
+			_, _ = o.scr.WriteString(deleteImageSequence(id))
+		}
+	}
+	for _, command := range plan.uploads {
+		_, _ = o.scr.WriteString(command)
+	}
 	for _, s := range a.TakeOutput() {
 		_, _ = o.scr.WriteString(s)
 	}
@@ -241,13 +302,70 @@ func (o *terminalOut) frame(a *App) {
 		_ = o.scr.HideCursor()
 	}
 	_ = o.scr.Render()
+	if kitty {
+		placements := make(map[graphicsPlacementKey]string, len(plan.placements))
+		for key, placement := range plan.placements {
+			sequence := placementSequence(placement)
+			placements[key] = sequence
+			if o.graphicsPlacements[key] != sequence {
+				_, _ = o.scr.WriteString(sequence)
+			}
+		}
+		o.graphicsPlacements = placements
+		o.graphicsImages = plan.images
+		if res.Cursor != nil {
+			_ = o.scr.SetCursorPosition(res.Cursor.X, res.Cursor.Y)
+		}
+		if o.shown {
+			_ = o.scr.ShowCursor()
+		} else {
+			_ = o.scr.HideCursor()
+		}
+	} else if protocol == graphicsSixel || protocol == graphicsIterm {
+		sequences := plan.sixels
+		if protocol == graphicsIterm {
+			sequences = plan.iterm
+		}
+		for _, sequence := range sequences {
+			_, _ = o.scr.WriteString(sequence)
+		}
+		if len(plan.sixels) > 0 && res.Cursor != nil {
+			_ = o.scr.SetCursorPosition(res.Cursor.X, res.Cursor.Y)
+		}
+		if o.shown {
+			_ = o.scr.ShowCursor()
+		} else {
+			_ = o.scr.HideCursor()
+		}
+		o.graphicsPlacements = nil
+		o.graphicsImages = nil
+	} else {
+		o.graphicsPlacements = nil
+		o.graphicsImages = nil
+	}
 	_ = o.scr.Flush()
+}
+
+func sameStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Draw paints the current frame onto scr (the terminal, or a buffer in
 // tests) and returns where the cursor goes and what is clickable.
 func (a *App) Draw(scr uv.Screen) compositor.Result {
 	s, unlock := a.scene()
+	return a.drawScene(scr, s, unlock)
+}
+
+func (a *App) drawScene(scr uv.Screen, s *compositor.Scene, unlock func()) compositor.Result {
 	res := a.comp.Draw(scr, s)
 	unlock()
 	a.last = res

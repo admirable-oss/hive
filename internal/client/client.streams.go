@@ -52,6 +52,18 @@ type FrameStream struct {
 // the view closed.
 func (f *FrameStream) Next() (*vt.Frame, error) { return f.reader.Next() }
 
+// GraphicsStream yields cursor-anchored Kitty APC events in original order.
+type GraphicsStream struct {
+	pipe   io.ReadCloser
+	reader *vt.GraphicsReader
+}
+
+// Next returns the next graphics event or io.EOF when the session ends.
+func (g *GraphicsStream) Next() (vt.GraphicsEvent, error) { return g.reader.Next() }
+
+// Close ends the graphics subscription.
+func (g *GraphicsStream) Close() error { return g.pipe.Close() }
+
 // EventStream delivers daemon events.
 type EventStream struct {
 	pipe    io.ReadCloser

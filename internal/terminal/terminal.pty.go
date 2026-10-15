@@ -89,10 +89,16 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 		size:     size,
 		watchers: make(map[chan struct{}]struct{}),
 		waiters:  make(map[*waiter]struct{}),
+		graphics: newGraphicsJournal(),
 	}
 	// Answers to the program's terminal queries go back to its input.
 	s.term = vt.New(int(size.Width), int(size.Height), vt.Options{
-		Reply:           func(b []byte) { _, _ = ptmx.Write(b) },
+		Reply: func(b []byte) { _, _ = ptmx.Write(b) },
+		KittyGraphics: func(command vt.KittyGraphicsCommand) {
+			if command.ValidateKittyGraphicsRelay() == nil {
+				s.graphics.publish(vt.GraphicsEvent{Command: command.Raw, Cursor: command.Cursor})
+			}
+		},
 		ScrollbackBytes: f.ScrollbackBytes,
 	})
 	if len(cmd.Replay) > 0 {
@@ -119,7 +125,8 @@ type ptySession struct {
 	ended    bool                       // output finished; the screen is final
 
 	waiters     map[*waiter]struct{} // WaitOutput calls
-	waitVersion uint64               // output already checked for waiters
+	graphics    *graphicsJournal
+	waitVersion uint64 // output already checked for waiters
 	waitPushed  uint64
 	closing     bool
 }
@@ -210,6 +217,10 @@ func (s *ptySession) Snapshot(context.Context) (*vt.Screen, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.term.Snapshot(), nil
+}
+
+func (s *ptySession) Graphics(ctx context.Context, emit func(vt.GraphicsEvent) error) error {
+	return s.graphics.stream(ctx, emit)
 }
 
 func (s *ptySession) Read(_ context.Context, req ReadRequest) ([]string, error) {
@@ -373,6 +384,7 @@ func (s *ptySession) readLoop() {
 		delete(s.waiters, w)
 	}
 	_ = s.term.Close()
+	s.graphics.close()
 	s.mu.Unlock()
 
 	_ = s.ptmx.Close()

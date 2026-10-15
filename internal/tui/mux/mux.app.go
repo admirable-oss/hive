@@ -209,6 +209,12 @@ type callDoneMsg struct {
 	done func(error)
 }
 
+type imagePasteMsg struct {
+	procID string
+	data   []byte
+	err    error
+}
+
 // call runs a workspace change in the background. Failures become error
 // toasts; either way done (if set) runs on the loop, and the workspace is
 // read again, so the screen follows even when events are not arriving.
@@ -234,6 +240,17 @@ func (a *App) Handle(m Msg) {
 			m.done(m.err)
 		}
 		a.refresh()
+	case imagePasteMsg:
+		if m.err != nil {
+			a.toast(compositor.ToastWarning, "image paste: "+errText(m.err))
+			break
+		}
+		if v := a.views[m.procID]; v != nil {
+			a.send(v, m.data)
+			a.toast(compositor.ToastInfo, "PNG image sent using Kitty graphics input")
+		} else {
+			a.toast(compositor.ToastWarning, "the target pane is no longer open")
+		}
 	case loadedMsg:
 		if m.gen == a.gen {
 			a.loaded(m)

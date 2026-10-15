@@ -102,6 +102,29 @@ func Register(r *protocol.Router, svc Service) {
 			}
 		})
 	}))
+	// terminal.graphics is an ordered side stream of complete Kitty APC
+	// commands. It is kept separate from cell frames so frame coalescing can
+	// never discard upload chunks or reorder image operations.
+	r.MustRegister("terminal.graphics", protocol.PipeMethod(func(ctx context.Context, p viewParams) (protocol.Empty, protocol.PipeFunc, error) {
+		sess, err := lookup(svc, p.ProcessID)
+		if err != nil {
+			return protocol.Empty{}, nil, err
+		}
+		graphics, ok := sess.(GraphicsSession)
+		if !ok {
+			return protocol.Empty{}, nil, protocol.NewError(protocol.ErrorCodeUnsupported, errors.New("graphics stream unavailable"))
+		}
+		return protocol.Empty{}, func(ctx context.Context, pipe protocol.Pipe) error {
+			ctx, stop := protocol.UntilClosed(ctx, pipe)
+			defer stop()
+			var buf []byte
+			return graphics.Graphics(ctx, func(event vt.GraphicsEvent) error {
+				buf = vt.AppendGraphicsEvent(buf[:0], event)
+				_, err := pipe.Write(buf)
+				return err
+			})
+		}, nil
+	}))
 	r.MustRegister("terminal.input", protocol.Method(func(_ context.Context, p inputParams) (protocol.Empty, error) {
 		sess, err := lookup(svc, p.ProcessID)
 		if err != nil {

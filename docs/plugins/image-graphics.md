@@ -1,0 +1,37 @@
+# M11: Image graphics over terminal panes
+
+Status: in progress, 2026-10-15
+
+## Evaluation
+
+Hive's rendering path runs agent PTY output through a VT emulator, line-based frames, a cell compositor, then the outer terminal renderer. The current screen/frame types contain cells, cursor, title, modes, bells, and clipboard text. They have no image resource, image placement, or terminal graphics capability state.
+
+Kitty graphics commands are APC sequences with base64 payloads. Uploads may be chunked; image data and placements are separate; responses are asynchronous. Graphics therefore cannot be represented as text cells or blindly copied to the outer terminal. Hive needs a stateful parser at the PTY boundary, a bounded graphics side channel, and a renderer gated by explicit outer-terminal capability and agent-integration support. The Kitty protocol provides an explicit query; do not infer support from TERM. The initial outer-terminal probe now sends a correlated Kitty query, DA1, and iTerm2 feature query. iTerm2 can be handled through its Kitty implementation; native iTerm2 file transfer has no equivalent standalone capability probe.
+
+## Implemented renderer support
+
+- Detect outer-terminal protocols independently from agent image-input support. The initial probe recognizes Kitty, iTerm2 inline files only when its feature report advertises `FILE`, and Sixel via DA1 or iTerm2 feature reporting. Select one rendering protocol deterministically (Kitty, iTerm2 inline image, Sixel, then ANSI truecolor half-block cells). Do not infer support from `TERM` or treat formats as interchangeable.
+- **Parser foundation added:** an optional VT callback observes syntactically valid Kitty APC commands across arbitrary PTY read boundaries, with an 8 MiB encoded-command cap and a 4 KiB header cap. Header fields are split and duplicate or malformed fields are rejected. An explicit relay validator accepts direct-data (`t=d`) only, caps encoded chunks at 4096 bytes, checks base64, chunk flags, format values, and image identifiers, and refuses file/shared-memory sources. It does not rewrite PTY bytes or synthesize replies. A Go assembler now enforces Kitty’s 4096-byte encoded chunk size, base64 validity, continuation header shape, and a 16 MiB image-data cap and an 8192-chunk cap. Empty or padded non-final chunks are rejected to prevent stalled or malformed uploads. It emits a static image upload only after its final chunk; unsupported animation, placement, and delete actions are rejected by this upload path. Raw RGB/RGBA uploads must declare positive dimensions matching their exact byte count; dimensions are capped at 16384 per side and 16 megapixels. PNG uploads are fully decoded with the same pixel cap, and optional declared dimensions must match the PNG header. A separate `terminal.graphics`/`shim.graphics` stream now replays validated direct-data APC commands in order, independent of cell-frame coalescing; file and shared-memory sources are excluded. The per-session journal is capped at 32 MiB and returns an explicit overflow error rather than silently losing commands.
+- Image bytes stay out of cells and ordinary line updates. The `terminal.graphics`/`shim.graphics` stream carries cursor-anchored commands separately from coalesced frames. The mux now remaps image IDs per view, replays placements when pane geometry changes, and emits only explicit `c`/`r` placements fully contained in the pane. A pane delete or screen restoration removes Hive-owned placement and image IDs. A detected scroll clears screen-anchored placements; images do not enter cell scrollback and are not restored from it. Journal and viewer overflow reset graphics state instead of leaving a partial upload displayed.
+- The mux routes outer Kitty acknowledgements to the originating view using its remapped image or query ID; the startup capability-probe response is consumed before view routing. Unsupported terminals receive an explicit `ENOTSUP` response to Kitty queries.
+- Placements are anchored to the agent cursor and translated into pane coordinates. This increment suppresses any placement that would partially cross the pane viewport. Resize reuses the placement ID to move the image; detected scroll removes placements instead of attempting to reconstruct image positions from cell-only scrollback.
+- Future work: move the per-pane resource table into negotiated frame/keyframe state, anchor placements to logical output positions, and release resources with scrollback eviction. The current mux-only state rebuilds from the bounded command journal when a view reopens. The ANSI cell renderer is the generic fallback; native Sixel and iTerm output fall back to ANSI cells when a placement cannot be encoded within its output limits.
+- On detach and terminal restoration, delete only Hive-owned Kitty placements and image IDs. Reattached views receive the bounded event history and rebuild visible placements. Sixel has no image identity/delete operation, so when the visible Sixel set changes Hive invalidates the cell renderer, clears the alternate screen, redraws the UI, then redraws all visible Sixel placements. Sixel cache memory and each frame's output are bounded; unsupported crop offsets and partial pane overlaps are suppressed. Terminal-specific Sixel erase behavior can vary; leaving alternate screen restores the prior display. Unsupported terminals use normal cell rendering only. Kitty scrollback anchoring and exact pixel clipping remain unsupported.
+- Image paste is a separate prefix action (`I`): it reads PNG bytes from the local clipboard (macOS `pngpaste` or NSPasteboard via JXA; Wayland `wl-paste`; X11 `xclip`), validates PNG dimensions/size, and sends a Kitty direct-transmission sequence to the focused pane. Existing text paste remains unchanged. Applications must explicitly understand Kitty image input for this path to be useful; this is not an agent-native image attachment API.
+
+## Zig and Go boundary
+
+Keep Go responsible for PTY parsing, protocol state, transport, lifecycle, and the complete fallback path. Do not put terminal I/O or Kitty parsing behind cgo: these are stateful and I/O-bound, while cgo complicates Hive's current `CGO_ENABLED=0` and cross-compilation builds. Zig can provide an optional narrow C ABI for a CPU-bound image transform or copy path only after profiling shows it is worthwhile. The pure-Go implementation must remain complete when Zig/cgo artifacts are unavailable.
+
+## Implementation order
+
+1. **In progress:** explicit outer-terminal capability detection, bounded Kitty observation and static-image validation, daemon/shim streaming, cursor-anchored per-view state, pane-contained Kitty placement, resize replay, acknowledgement routing, scroll clearing, and screen-restoration cleanup are implemented. The mux selects detected Kitty, iTerm2 `FILE`, or Sixel output; ordinary terminals get a Unicode truecolor half-block renderer. Partial placements are suppressed because Kitty has no pane clip rectangle.
+2. Add true clipping, logical scrollback anchoring, Sixel cleanup/clipping, and image resources in keyframes before supporting those cases.
+3. Replace the Kitty terminal-input paste bridge with declared agent-native image-input transports where those APIs are available.
+4. Consider an optional Zig transform after profiling.
+
+## References
+
+- [Kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/)
+- Hive VT model: `internal/vt`
+- Hive renderer/compositor: `internal/tui/mux`, `internal/tui/compositor`

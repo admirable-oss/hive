@@ -30,6 +30,15 @@ type Options struct {
 	// the application's input. It runs on its own goroutine, so Write never
 	// waits for it. Nil discards the answers.
 	Reply func([]byte)
+	// KittyGraphics receives complete Kitty graphics APC commands from PTY
+	// output. It runs synchronously from Write; implementations should copy
+	// retained data and return quickly. Commands larger than MaxKittyCommandBytes
+	// are ignored. A nil callback adds no parser work or allocations.
+	KittyGraphics func(KittyGraphicsCommand)
+	// KittyImage receives validated, complete static image uploads after their
+	// chunks have been assembled. It runs synchronously from Write and should
+	// retain data only within the caller's own memory budget.
+	KittyImage func(KittyImageUpload)
 	// ScrollbackBytes bounds the history of lines that scrolled off the
 	// screen. Zero means DefaultScrollbackBytes; negative keeps none.
 	ScrollbackBytes int
@@ -46,14 +55,18 @@ type Terminal struct {
 	version  uint64   // bumped on every change
 	resized  uint64   // version at the last resize (forces keyframes)
 
-	cursor Cursor // hidden/shape/blink, tracked from callbacks
-	title  string
-	titles titleFilter // takes titles out of the output (see vt.title.go)
-	clip   Clipboard   // the last clipboard set (OSC 52)
-	clips  uint64      // counts clipboard sets
-	parsed []byte      // reused buffer of filtered output
-	modes  Modes
-	bells  uint32
+	cursor   Cursor // hidden/shape/blink, tracked from callbacks
+	title    string
+	titles   titleFilter // takes titles out of the output (see vt.title.go)
+	graphics kittyGraphicsParser
+	uploads  KittyGraphicsAssembler
+	kitty    func(KittyGraphicsCommand)
+	image    func(KittyImageUpload)
+	clip     Clipboard // the last clipboard set (OSC 52)
+	clips    uint64    // counts clipboard sets
+	parsed   []byte    // reused buffer of filtered output
+	modes    Modes
+	bells    uint32
 
 	scrollback *Scrollback
 
@@ -76,6 +89,8 @@ func New(cols, rows int, opts Options) *Terminal {
 		scrollback: NewScrollback(max(budget, 0)),
 		replies:    make(chan []byte, replyQueue),
 		done:       make(chan struct{}),
+		kitty:      opts.KittyGraphics,
+		image:      opts.KittyImage,
 	}
 	t.emu.SetScrollbackSize(maxWriteChunk + 1)
 	t.emu.SetCallbacks(xvt.Callbacks{
@@ -132,16 +147,44 @@ func (t *Terminal) Write(p []byte) (int, error) {
 		return 0, ErrClosed
 	}
 	total := len(p)
-	t.parsed = t.titles.filter(t.parsed[:0], p, terminalOSC{t})
-	p = t.parsed
-	for len(p) > 0 {
-		n := min(len(p), maxWriteChunk)
-		_, _ = t.emu.Write(p[:n])
-		t.drainScrollback()
-		p = p[n:]
+	if t.kitty != nil || t.image != nil {
+		t.graphics.feed(p, t.writeVT, t.observeKitty)
+	} else {
+		t.writeVT(p)
 	}
 	t.sync()
 	return total, nil
+}
+
+// writeVT filters title OSCs and feeds bytes to the emulator. The graphics
+// parser calls this at APC boundaries so observers can capture exact VT state.
+func (t *Terminal) writeVT(p []byte) {
+	t.parsed = t.titles.filter(t.parsed[:0], p, terminalOSC{t})
+	filtered := t.parsed
+	for len(filtered) > 0 {
+		n := min(len(filtered), maxWriteChunk)
+		_, _ = t.emu.Write(filtered[:n])
+		t.drainScrollback()
+		filtered = filtered[n:]
+	}
+}
+
+func (t *Terminal) observeKitty(command KittyGraphicsCommand) {
+	pos := t.emu.CursorPosition()
+	command.Cursor = Cursor{
+		X: clamp(pos.X, 0, t.screen.Cols-1), Y: clamp(pos.Y, 0, t.screen.Rows-1),
+		Hidden: t.cursor.Hidden,
+	}
+	var image *KittyImageUpload
+	if t.image != nil {
+		image, _ = t.uploads.Push(command)
+	}
+	if t.kitty != nil {
+		t.kitty(command)
+	}
+	if image != nil {
+		t.image(*image)
+	}
 }
 
 // Resize changes the terminal size. Content is kept where it fits.
@@ -174,6 +217,8 @@ func (t *Terminal) Close() error {
 		return nil
 	}
 	t.closed = true
+	t.graphics.reset()
+	t.uploads.Reset()
 	// End the reply reader by closing the pipe it reads, and only then mark
 	// the emulator closed: x/vt's Close sets a flag its Read checks without
 	// a lock, so doing it while the reader runs would be a data race.

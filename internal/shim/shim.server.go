@@ -417,6 +417,26 @@ func (s *server) router() *protocol.Router {
 			})
 		}, nil
 	}))
+	r.MustRegister("shim.graphics", protocol.PipeMethod(func(ctx context.Context, _ struct{}) (protocol.Empty, protocol.PipeFunc, error) {
+		sess, err := term()
+		if err != nil {
+			return protocol.Empty{}, nil, err
+		}
+		graphics, ok := sess.(terminal.GraphicsSession)
+		if !ok {
+			return protocol.Empty{}, nil, protocol.NewError(protocol.ErrorCodeUnsupported, errors.New("graphics stream unavailable"))
+		}
+		return protocol.Empty{}, func(ctx context.Context, p protocol.Pipe) error {
+			ctx, stop := protocol.UntilClosed(ctx, p)
+			defer stop()
+			var buf []byte
+			return graphics.Graphics(ctx, func(event vt.GraphicsEvent) error {
+				buf = vt.AppendGraphicsEvent(buf[:0], event)
+				_, err := p.Write(buf)
+				return err
+			})
+		}, nil
+	}))
 	r.MustRegister("shim.foreground", protocol.Method(func(ctx context.Context, _ struct{}) (terminal.Foreground, error) {
 		sess, err := term()
 		if err != nil {

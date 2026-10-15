@@ -77,6 +77,22 @@ func (a *App) do(act keymap.Action) {
 		} else if v := a.focusedView(); v != nil {
 			a.send(v, pasteBytes(a.ui.clip, v.modes()))
 		}
+	case keymap.PasteImage:
+		v := a.focusedView()
+		if v == nil {
+			a.toast(compositor.ToastInfo, "focus a pane before pasting an image")
+			break
+		}
+		procID := v.procID
+		a.spawn(func(ctx context.Context) Msg {
+			ctx, cancel := context.WithTimeout(ctx, toolTimeout)
+			defer cancel()
+			data, err := readClipboardImagePNG(ctx)
+			if err == nil {
+				data = kittyImagePaste(data)
+			}
+			return imagePasteMsg{procID: procID, data: data, err: err}
+		})
 	case keymap.EditScroll:
 		a.editScrollback()
 	case keymap.NewTab:
