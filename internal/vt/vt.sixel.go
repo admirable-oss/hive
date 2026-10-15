@@ -9,8 +9,10 @@ import (
 
 // MaxSixelPixels bounds conversion work and the size of a generated terminal
 // control sequence. Callers must still check the encoded byte limit.
-const MaxSixelPixels = 2_000_000
-const maxSixelBytes = 8 << 20
+const (
+	MaxSixelPixels = 2000000
+	maxSixelBytes  = 8 << 20
+)
 
 // EncodeSixel encodes an image as a DEC Sixel DCS sequence. It uses a fixed
 // 3:3:2 RGB palette, which avoids slow per-image quantization and keeps the

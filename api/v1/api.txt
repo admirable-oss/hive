@@ -170,6 +170,7 @@ pipe method debug.pprof
 pipe method events.subscribe
 pipe method terminal.attach
 pipe method terminal.frames
+pipe method terminal.graphics
 plugin.list params: object
 plugin.list result: []plugin.Status
 plugin.reload params: object
@@ -214,6 +215,8 @@ terminal.attach params: terminal.viewParams
 terminal.attach result: terminal.viewResult
 terminal.frames params: terminal.viewParams
 terminal.frames result: terminal.viewResult
+terminal.graphics params: terminal.viewParams
+terminal.graphics result: protocol.Empty
 terminal.input params: terminal.inputParams
 terminal.input result: protocol.Empty
 terminal.resize params: terminal.resizeParams

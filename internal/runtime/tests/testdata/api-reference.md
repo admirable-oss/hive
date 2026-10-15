@@ -676,6 +676,16 @@ Result: [terminal.viewResult](#terminalviewresult)
 
 Result: [terminal.viewResult](#terminalviewresult)
 
+### `terminal.graphics` (pipe)
+
+| Param | Type | |
+|---|---|---|
+| `height` | `integer` |  |
+| `process_id` | `string` |  |
+| `width` | `integer` |  |
+
+Result: [protocol.Empty](#protocolempty)
+
 ### `terminal.input`
 
 | Param | Type | |

@@ -3247,6 +3247,16 @@
       }
     },
     {
+      "name": "terminal.graphics",
+      "params": {
+        "$ref": "#/$defs/terminal.viewParams"
+      },
+      "pipe": true,
+      "result": {
+        "$ref": "#/$defs/protocol.Empty"
+      }
+    },
+    {
       "name": "terminal.input",
       "params": {
         "$ref": "#/$defs/terminal.inputParams"

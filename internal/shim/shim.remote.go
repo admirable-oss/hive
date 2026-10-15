@@ -251,8 +251,10 @@ func (r *Remote) Graphics(ctx context.Context, emit func(vt.GraphicsEvent) error
 	}
 }
 
-var _ terminal.ForegroundReader = (*Remote)(nil)
-var _ terminal.GraphicsSession = (*Remote)(nil)
+var (
+	_ terminal.ForegroundReader = (*Remote)(nil)
+	_ terminal.GraphicsSession  = (*Remote)(nil)
+)
 
 // Foreground asks the shim which program is in the agent terminal's
 // foreground. Shims from before the call answer unknown_method.

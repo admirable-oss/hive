@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"image"
+
+	// Register PNG decoding for image.Decode in Kitty image validation.
 	_ "image/png"
 	"io"
 	"strconv"
@@ -19,17 +21,21 @@ import (
 // passed unchanged to the terminal emulator.
 const MaxKittyCommandBytes = 8 << 20
 
-const maxKittyHeaderBytes = 4096
-const maxKittyChunkBytes = 4096
-const maxKittyImageChunks = 8192
-const MaxKittyImageBytes = 16 << 20
-const maxKittyImageDimension = 16384
-const maxKittyImagePixels = 16 << 20
-const MaxGraphicsEventBytes = MaxKittyCommandBytes
+const (
+	maxKittyHeaderBytes    = 4096
+	maxKittyChunkBytes     = 4096
+	maxKittyImageChunks    = 8192
+	MaxKittyImageBytes     = 16 << 20
+	maxKittyImageDimension = 16384
+	maxKittyImagePixels    = 16 << 20
+	MaxGraphicsEventBytes  = MaxKittyCommandBytes
+)
 
-var errUnsafeKittyCommand = errors.New("vt: unsupported or unsafe Kitty graphics command")
-var errKittyUpload = errors.New("vt: invalid or incomplete Kitty image upload")
-var errGraphicsEvent = errors.New("vt: invalid graphics event")
+var (
+	errUnsafeKittyCommand = errors.New("vt: unsupported or unsafe Kitty graphics command")
+	errKittyUpload        = errors.New("vt: invalid or incomplete Kitty image upload")
+	errGraphicsEvent      = errors.New("vt: invalid graphics event")
+)
 
 // ParseKittyGraphicsCommand parses one complete Kitty APC command.
 func ParseKittyGraphicsCommand(raw []byte, cursor Cursor) (KittyGraphicsCommand, error) {
@@ -363,11 +369,12 @@ func (p *kittyGraphicsParser) feed(src []byte, write func([]byte), handle func(K
 				p.state = kittyEscape
 			}
 		case kittyCSI:
-			if b >= 0x40 && b <= 0x7e {
+			switch {
+			case b >= 0x40 && b <= 0x7e:
 				p.state = kittyGround
-			} else if b == 0x1b {
+			case b == 0x1b:
 				p.state = kittyEscape
-			} else if b == 0x18 || b == 0x1a {
+			case b == 0x18 || b == 0x1a:
 				p.state = kittyGround
 			}
 		case kittyString:
@@ -468,7 +475,7 @@ func parseKittyGraphicsHeader(header string) (string, map[byte]string, bool) {
 			return "", nil, false
 		}
 		k := key[0]
-		if !((k >= 'a' && k <= 'z') || (k >= 'A' && k <= 'Z')) {
+		if (k < 'a' || k > 'z') && (k < 'A' || k > 'Z') {
 			return "", nil, false
 		}
 		if _, exists := options[k]; exists {

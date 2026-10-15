@@ -235,7 +235,6 @@ func (o *terminalOut) leave() {
 
 func (o *terminalOut) frame(a *App) {
 	protocol := o.graphics.protocol()
-	kitty := protocol == graphicsKitty
 	scene, unlock := a.scene()
 	targets := a.graphicsTargets(scene)
 	plan := a.graphicsFramePlan(targets, protocol, o.graphics.caps.CellW, o.graphics.caps.CellH, !o.graphics.active)
@@ -302,7 +301,8 @@ func (o *terminalOut) frame(a *App) {
 		_ = o.scr.HideCursor()
 	}
 	_ = o.scr.Render()
-	if kitty {
+	switch protocol {
+	case graphicsKitty:
 		placements := make(map[graphicsPlacementKey]string, len(plan.placements))
 		for key, placement := range plan.placements {
 			sequence := placementSequence(placement)
@@ -321,7 +321,7 @@ func (o *terminalOut) frame(a *App) {
 		} else {
 			_ = o.scr.HideCursor()
 		}
-	} else if protocol == graphicsSixel || protocol == graphicsIterm {
+	case graphicsSixel, graphicsIterm:
 		sequences := plan.sixels
 		if protocol == graphicsIterm {
 			sequences = plan.iterm
@@ -339,7 +339,7 @@ func (o *terminalOut) frame(a *App) {
 		}
 		o.graphicsPlacements = nil
 		o.graphicsImages = nil
-	} else {
+	default:
 		o.graphicsPlacements = nil
 		o.graphicsImages = nil
 	}

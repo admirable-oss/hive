@@ -80,6 +80,7 @@ One key after the prefix, then back to terminal mode.
 | `N` | `open_notification_target` | go to the agent of the latest notification |
 | `O` | `overview` | Overview dashboard (toggle) |
 | `]` | `paste` | paste the last copied text |
+| `I` | `paste_image` | paste a clipboard image to the focused pane |
 | `f` | `popup` | open a shell in a popup |
 | `(` | `prev_env` | previous environment |
 | `p` | `prev_tab` | previous tab |

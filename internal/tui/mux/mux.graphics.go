@@ -13,10 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	uv "github.com/charmbracelet/ultraviolet"
+
 	"github.com/admirable-oss/hive/internal/layout"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
 	"github.com/admirable-oss/hive/internal/vt"
-	uv "github.com/charmbracelet/ultraviolet"
 )
 
 var nextOuterGraphicsID atomic.Uint32
@@ -53,9 +54,11 @@ type graphicsViewState struct {
 	auxCells       []cellGraphicsPlacement
 }
 
-const maxSixelStateBytes = 32 << 20
-const maxSixelFrameBytes = 16 << 20
-const maxItermSequenceBytes = 900 << 10 // Leave room below OSC implementations' 1 MiB limit.
+const (
+	maxSixelStateBytes    = 32 << 20
+	maxSixelFrameBytes    = 16 << 20
+	maxItermSequenceBytes = 900 << 10 // Leave room below OSC implementations' 1 MiB limit.
+)
 
 func (s *graphicsViewState) deleteSixelImage(id uint32) {
 	if n := s.imageBytes[id]; n > 0 {
@@ -551,13 +554,14 @@ func (v *view) graphicsPlan(rect layout.Rect, screenX, screenY int, protocol gra
 			state.auxSequences = append(state.auxSequences, fmt.Sprintf("\x1b[%d;%dH%s", placement.row+screenY+1, placement.col+screenX+1, encoded))
 		}
 	}
-	if protocol == graphicsSixel {
+	switch protocol {
+	case graphicsSixel:
 		plan.sixels = append(plan.sixels, state.auxSequences...)
 		plan.cells = append(plan.cells, state.auxCells...)
-	} else if protocol == graphicsIterm {
+	case graphicsIterm:
 		plan.iterm = append(plan.iterm, state.auxSequences...)
 		plan.cells = append(plan.cells, state.auxCells...)
-	} else if protocol == graphicsCells {
+	case graphicsCells:
 		keys := make([]graphicsPlacementKey, 0, len(state.placements))
 		for key := range state.placements {
 			keys = append(keys, key)
