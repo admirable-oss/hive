@@ -60,6 +60,8 @@ type Config struct {
 	Persist *PersistConfig
 	// Retention bounds what is kept on disk (see runtime.gc).
 	Retention RetentionConfig
+	// Plugins is the user's policy for plugins.
+	Plugins PluginsConfig
 	// Images bounds images pasted into terminals (terminal.image).
 	Images ImagesConfig
 	// ProcessLogMaxBytes rotates each agent's output log past this size,
@@ -68,6 +70,16 @@ type Config struct {
 	// InheritEnv lets agents inherit the daemon's environment unfiltered,
 	// without the HIVE_* variables. Only tests set it.
 	InheritEnv bool
+}
+
+// PluginsConfig is the [plugins] policy: capabilities allowed without
+// asking or never, isolation, restart limits and hidden contributions.
+type PluginsConfig struct {
+	Allow, Deny   []string
+	Isolation     string
+	RestartLimit  int
+	RestartWindow time.Duration
+	Hidden        []string
 }
 
 // ImagesConfig bounds pasted images. Zero sizes use terminal's defaults;

@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { init } from "@hive-oss/plugin-sdk";
 
-const plugin = await init({ id: "auto-tab-title", version: "0.1.0" });
+const plugin = await init({ id: "auto-tab-title", version: "0.2.0" });
 try {
   if (plugin.context.trigger !== "event" || !plugin.context.event) process.exitCode = 0;
   else {

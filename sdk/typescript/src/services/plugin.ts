@@ -1,7 +1,7 @@
 import type { PluginContext, PluginEvent } from "../models/context.js";
 import { isPluginContext } from "../models/context.js";
-import type { ExtensionContribution } from "../views/contribution.js";
-import { mergeContributions } from "../views/contribution.js";
+import type { Card, Discovery, ExtensionContribution, Status } from "../views/contribution.js";
+import { ttlNanos } from "../views/contribution.js";
 import { HiveConnection } from "../protocol/connection.js";
 import type { ProtocolTransport } from "../protocol/types.js";
 import { createHiveAPI, type HiveAPI } from "./hive.js";
@@ -14,6 +14,19 @@ export interface HivePlugin {
   readonly context: PluginContext;
   readonly hive: HiveAPI;
   on<T = unknown>(eventType: string, handler: EventHandler<T>): this;
+  /** Whether the plugin holds a capability now. */
+  has(capability: string): boolean;
+  /** Show (or clear) one of the cards the manifest declares. */
+  setCard(card: Card): Promise<void>;
+  /** Show (or clear) one of the status indicators the manifest declares. */
+  setStatus(status: Status): Promise<void>;
+  /** Say startup is done (otherwise 2s of uptime counts). */
+  ready(): Promise<void>;
+  /** Ask the user for an optional capability; the user grants it. */
+  requestCapability(capability: string, reason?: string): Promise<void>;
+  /** What this hive offers, and what this plugin may call. */
+  capabilities(): Promise<Discovery>;
+  /** @deprecated declare contributions in hive-plugin.toml [contributes]. */
   extend(contribution: ExtensionContribution): this;
   run(): Promise<void>;
   close(): void;
@@ -26,7 +39,6 @@ export async function init(options: InitOptions, connector?: (socketPath: string
   const connection = await HiveConnection.connect(options, connector);
   const hive = createHiveAPI(connection);
   const handlers = new Map<string, EventHandler<any>[]>();
-  let contribution: ExtensionContribution = {};
   const plugin: HivePlugin = {
     context,
     hive,
@@ -34,12 +46,22 @@ export async function init(options: InitOptions, connector?: (socketPath: string
       handlers.set(eventType, [...(handlers.get(eventType) ?? []), handler as EventHandler<any>]);
       return plugin;
     },
-    extend(value: ExtensionContribution): HivePlugin { contribution = mergeContributions(contribution, value); return plugin; },
+    has: (capability: string) => (context.capabilities ?? []).includes(capability),
+    async setCard(card: Card) {
+      const { ttlSeconds, ...rest } = card;
+      await hive.call("plugin.card", { ...rest, ttl: ttlNanos(ttlSeconds) });
+    },
+    async setStatus(status: Status) {
+      const { ttlSeconds, ...rest } = status;
+      await hive.call("plugin.status", { ...rest, ttl: ttlNanos(ttlSeconds) });
+    },
+    async ready() { await hive.call("plugin.ready", {}); },
+    async requestCapability(capability: string, reason = "") { await hive.call("plugin.request", { capability, reason }); },
+    capabilities: () => hive.call<Discovery>("plugin.capabilities", {}),
+    extend(_value: ExtensionContribution): HivePlugin {
+      throw new Error("UI contributions are declared in hive-plugin.toml [contributes] since plugin API 1; set cards and indicators with setCard/setStatus");
+    },
     async run() {
-      if (Object.keys(contribution).length && !connection.welcome.capabilities?.includes("plugin.contributions")) {
-        throw new Error("Hive daemon does not advertise plugin.contributions; upgrade Hive to enable UI extensions");
-      }
-      if (Object.keys(contribution).length) await hive.call("plugin.contribute", { plugin: options.id, contribution });
       if (context.trigger === "event" && context.event) {
         const matching = [...(handlers.get(context.event.type) ?? []), ...(handlers.get("*") ?? [])];
         for (const handler of matching) await handler(context.event, context);

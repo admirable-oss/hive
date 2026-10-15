@@ -38,6 +38,8 @@ type App struct {
 	open func(url string) // opens a link (the system's handler; tests replace it)
 	gmem graphicsMemory   // graphics memory shared by every view
 
+	plugins pluginsState // what plugins contribute to the UI
+
 	ctx     context.Context
 	cancel  context.CancelFunc
 	msgs    chan Msg
@@ -241,6 +243,10 @@ func (a *App) Handle(m Msg) {
 			m.done(m.err)
 		}
 		a.refresh()
+	case contributionsMsg:
+		a.contributionsLoaded(m)
+	case configMsg:
+		a.configLoaded(m)
 	case imagePasteMsg:
 		switch {
 		case m.err != nil:

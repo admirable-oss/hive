@@ -1,7 +1,7 @@
 use crate::{
     models::{AgentList, Pane, Process, Tab, TerminalSnapshot, WorkspaceSnapshot},
     protocol::Connection,
-    views::ExtensionContribution,
+    views::{Card, Status},
 };
 use serde::Serialize;
 use serde_json::json;
@@ -110,24 +110,35 @@ impl Hive {
         self.connection
             .call("terminal.snapshot", json!({"process_id": process_id}))
     }
-    pub fn extend(
+    /// Show (or clear) one of the cards the manifest declares.
+    pub fn set_card(&mut self, card: &Card) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let _: serde_json::Value = self.connection.call("plugin.card", card)?;
+        Ok(())
+    }
+    /// Show (or clear) one of the status indicators the manifest declares.
+    pub fn set_status(&mut self, status: &Status) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let _: serde_json::Value = self.connection.call("plugin.status", status)?;
+        Ok(())
+    }
+    /// Say startup is done (otherwise 2s of uptime counts).
+    pub fn ready(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let _: serde_json::Value = self.connection.call("plugin.ready", json!({}))?;
+        Ok(())
+    }
+    /// Ask the user for an optional capability; the user grants it.
+    pub fn request_capability(
         &mut self,
-        plugin_id: &str,
-        contribution: ExtensionContribution,
+        capability: &str,
+        reason: &str,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        if !self
-            .connection
-            .welcome
-            .capabilities
-            .iter()
-            .any(|capability| capability == "plugin.contributions")
-        {
-            return Err("Hive daemon does not advertise plugin.contributions".into());
-        }
         let _: serde_json::Value = self.connection.call(
-            "plugin.contribute",
-            json!({"plugin": plugin_id, "contribution": contribution}),
+            "plugin.request",
+            json!({"capability": capability, "reason": reason}),
         )?;
         Ok(())
+    }
+    /// What this hive offers, and what this plugin may call.
+    pub fn capabilities(&mut self) -> Result<serde_json::Value, Box<dyn Error + Send + Sync>> {
+        self.connection.call("plugin.capabilities", json!({}))
     }
 }

@@ -11,17 +11,8 @@ function isPluginContext(value) {
   const candidate = value;
   return typeof candidate.plugin === "string" && typeof candidate.trigger === "string" && typeof candidate.session === "string";
 }
-function mergeContributions(a, b) {
-  const merged = {
-    commands: [...a.commands ?? [], ...b.commands ?? []],
-    views: [...a.views ?? [], ...b.views ?? []],
-    keybindings: [...a.keybindings ?? [], ...b.keybindings ?? []]
-  };
-  for (const key of ["commands", "views", "keybindings"]) {
-    const ids = (merged[key] ?? []).map((item) => "id" in item ? item.id : item.key);
-    if (new Set(ids).size !== ids.length) throw new Error(`duplicate plugin ${key} contribution ID`);
-  }
-  return merged;
+function ttlNanos(seconds) {
+  return seconds === void 0 ? void 0 : Math.round(seconds * 1e9);
 }
 var HiveProtocolError = class extends Error {
   constructor(code, message, method) {
@@ -195,7 +186,6 @@ async function init(options, connector) {
   const connection = await HiveConnection.connect(options, connector);
   const hive = createHiveAPI(connection);
   const handlers = /* @__PURE__ */ new Map();
-  let contribution = {};
   const plugin2 = {
     context,
     hive,
@@ -203,15 +193,26 @@ async function init(options, connector) {
       handlers.set(eventType, [...handlers.get(eventType) ?? [], handler]);
       return plugin2;
     },
-    extend(value) {
-      contribution = mergeContributions(contribution, value);
-      return plugin2;
+    has: (capability) => (context.capabilities ?? []).includes(capability),
+    async setCard(card) {
+      const { ttlSeconds, ...rest } = card;
+      await hive.call("plugin.card", { ...rest, ttl: ttlNanos(ttlSeconds) });
+    },
+    async setStatus(status) {
+      const { ttlSeconds, ...rest } = status;
+      await hive.call("plugin.status", { ...rest, ttl: ttlNanos(ttlSeconds) });
+    },
+    async ready() {
+      await hive.call("plugin.ready", {});
+    },
+    async requestCapability(capability, reason = "") {
+      await hive.call("plugin.request", { capability, reason });
+    },
+    capabilities: () => hive.call("plugin.capabilities", {}),
+    extend(_value) {
+      throw new Error("UI contributions are declared in hive-plugin.toml [contributes] since plugin API 1; set cards and indicators with setCard/setStatus");
     },
     async run() {
-      if (Object.keys(contribution).length && !connection.welcome.capabilities?.includes("plugin.contributions")) {
-        throw new Error("Hive daemon does not advertise plugin.contributions; upgrade Hive to enable UI extensions");
-      }
-      if (Object.keys(contribution).length) await hive.call("plugin.contribute", { plugin: options.id, contribution });
       if (context.trigger === "event" && context.event) {
         const matching = [...handlers.get(context.event.type) ?? [], ...handlers.get("*") ?? []];
         for (const handler of matching) await handler(context.event, context);
@@ -236,7 +237,7 @@ async function readContext(input = stdin) {
 }
 
 // src/index.ts
-var plugin = await init({ id: "hive-explorer", version: "0.1.0" });
+var plugin = await init({ id: "hive-explorer", version: "0.2.0" });
 try {
   if (plugin.context.trigger === "action") {
     const dir = process.env.HIVE_PLUGIN_DIR;

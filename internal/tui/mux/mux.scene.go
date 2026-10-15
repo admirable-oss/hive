@@ -82,7 +82,7 @@ func (a *App) tabBar() compositor.TabBar {
 			})
 		}
 	}
-	tb.Right = append(a.statusSpans(), a.modeIndicator()...)
+	tb.Right = append(append(a.statusSpans(), a.pluginStatusSpans()...), a.modeIndicator()...)
 	return tb
 }
 
@@ -230,6 +230,7 @@ func (a *App) sidebarRows() []compositor.SidebarRow {
 			rows = append(rows, compositor.SidebarRow{Spans: []compositor.Span{{Text: "  none yet", Style: muted}}})
 		}
 	}
+	rows = append(rows, a.pluginRows(header)...)
 	return append(rows, a.machineRows(header)...)
 }
 

@@ -97,8 +97,17 @@ command hive pane zoom
 command hive ping
 command hive plugin
 command hive plugin (alias plugins)
+command hive plugin cancel
+command hive plugin capabilities
+command hive plugin card
+command hive plugin config
+command hive plugin contributions
 command hive plugin disable
+command hive plugin doctor
 command hive plugin enable
+command hive plugin export
+command hive plugin grant
+command hive plugin import
 command hive plugin info
 command hive plugin init
 command hive plugin install
@@ -106,9 +115,14 @@ command hive plugin link
 command hive plugin list
 command hive plugin list (alias ls)
 command hive plugin logs
+command hive plugin ready
+command hive plugin reload
+command hive plugin request
+command hive plugin revoke
 command hive plugin rollback
 command hive plugin run
 command hive plugin search
+command hive plugin status
 command hive plugin uninstall
 command hive plugin uninstall (alias remove)
 command hive plugin uninstall (alias rm)
@@ -257,13 +271,31 @@ flag hive pane wait-output --text string
 flag hive pane wait-output --timeout duration
 flag hive pane zoom --off bool
 flag hive pane zoom --on bool
+flag hive plugin card --clear bool
+flag hive plugin card --env string
+flag hive plugin card --link stringArray
+flag hive plugin card --pane string
+flag hive plugin card --plugin string
+flag hive plugin card --row stringArray
+flag hive plugin card --ttl duration
+flag hive plugin config --set stringArray
+flag hive plugin config --unset stringArray
+flag hive plugin export --data bool
+flag hive plugin export --output string -o
+flag hive plugin import --data bool
+flag hive plugin import --force bool
 flag hive plugin install --ref string
 flag hive plugin install --subdir string
 flag hive plugin logs --follow bool -f
 flag hive plugin logs --lines int -n
+flag hive plugin ready --plugin string
+flag hive plugin request --plugin string
 flag hive plugin run --env string
 flag hive plugin run --pane string
 flag hive plugin search --category string
+flag hive plugin status --plugin string
+flag hive plugin status --tone string
+flag hive plugin status --ttl duration
 flag hive plugin uninstall --delete-data bool
 flag hive process logs --follow bool -f
 flag hive process logs --lines int -n

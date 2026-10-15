@@ -22,6 +22,7 @@ type Config struct {
 	Retention Retention
 	Remote    Remote
 	Images    Images
+	Plugins   Plugins
 	Update    Update
 	Notify    notify.Config
 	UI        UI
@@ -146,6 +147,28 @@ type Images struct {
 	Render string
 }
 
+// Plugins is the user's policy for every plugin.
+type Plugins struct {
+	// Allow grants these capabilities to plugins that list them as
+	// optional, without asking; Deny withholds them from every plugin
+	// (one that requires a denied capability does not run).
+	Allow []string
+	Deny  []string
+	// Isolation is auto (strict for plugins that support it), standard
+	// or strict (every plugin, sandboxed).
+	Isolation string
+	// RestartLimit and RestartWindow stop restarting a plugin command
+	// that fails more than RestartLimit times within RestartWindow.
+	RestartLimit  int
+	RestartWindow time.Duration
+	// Hidden turns off contributions: "plugin", "plugin:kind" or
+	// "plugin:kind:id" (`hive plugin contributions` lists them).
+	Hidden []string
+}
+
+// Plugin isolation modes.
+var pluginIsolations = []string{"auto", "standard", "strict"}
+
 // Image render modes.
 var imageRenderModes = []string{"auto", "cells", "text", "off"}
 
@@ -247,6 +270,7 @@ func Defaults() Config {
 		Retention: Retention{ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour},
 		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48, ImageBudgetKB: 1024},
 		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},
+		Plugins:   Plugins{Allow: []string{}, Deny: []string{}, Isolation: "auto", RestartLimit: 5, RestartWindow: 10 * time.Minute, Hidden: []string{}},
 		Update:    Update{Channel: "stable"},
 		Notify:    notify.Defaults(),
 		UI:        UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},

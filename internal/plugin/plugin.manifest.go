@@ -34,6 +34,10 @@ const ManifestFile = "hive-plugin.toml"
 
 // Manifest describes a plugin.
 type Manifest struct {
+	// API is the plugin API version the plugin is written for (see
+	// APIVersion). Zero is a plugin from before versioned APIs: API 1,
+	// holding every capability, with no contributions.
+	API         int    `toml:"api" json:"api,omitempty"`
 	ID          string `toml:"id" json:"id"`
 	Name        string `toml:"name" json:"name,omitempty"`
 	Version     string `toml:"version" json:"version"`
@@ -56,10 +60,95 @@ type Manifest struct {
 	// download packages or invoke a compiler.
 	Runtimes []Runtime `toml:"runtime" json:"runtime,omitempty"`
 
+	// Permissions are the capabilities it asks for (API 1).
+	Permissions Permissions `toml:"permissions" json:"permissions,omitzero"`
+	// Contributes is what it adds to the UI (API 1).
+	Contributes Contributes `toml:"contributes" json:"contributes,omitzero"`
+	// Isolation "strict" says it can run sandboxed: no network or writes
+	// outside its own directories unless granted, and only its own socket.
+	Isolation string `toml:"isolation" json:"isolation,omitempty"`
+	// EventConcurrency bounds its event commands running at once (default
+	// 4); 1 runs them strictly one after another, in event order.
+	EventConcurrency int `toml:"event_concurrency" json:"event_concurrency,omitempty"`
+
 	Startup []Startup `toml:"startup" json:"startup,omitempty"`
 	Actions []Action  `toml:"actions" json:"actions,omitempty"`
 	Events  []Event   `toml:"events" json:"events,omitempty"`
 }
+
+// Permissions are the capabilities a plugin asks for. Required ones are
+// granted when the user installs it; optional ones only when the user
+// grants them (or allows them in [plugins] allow).
+type Permissions struct {
+	Required []string `toml:"required" json:"required,omitempty"`
+	Optional []string `toml:"optional" json:"optional,omitempty"`
+	// Reasons say why, per capability; shown when installing.
+	Reasons map[string]string `toml:"reasons" json:"reasons,omitempty"`
+}
+
+// Contributes is a plugin's restricted UI contribution: declared here, so
+// the UI draws it from data and never runs plugin code to draw.
+type Contributes struct {
+	// Cards are sidebar cards whose rows the plugin sets at run time.
+	Cards []Card `toml:"cards" json:"cards,omitempty"`
+	// Status are tab-bar indicators whose text the plugin sets.
+	Status []StatusIndicator `toml:"status" json:"status,omitempty"`
+	// Actions offer its actions where the user is: on a pane, an agent, an
+	// environment or the session.
+	Actions []ContextAction `toml:"actions" json:"actions,omitempty"`
+	// Palette puts its actions in the command palette.
+	Palette []PaletteEntry `toml:"palette" json:"palette,omitempty"`
+	// Links are fixed URLs offered in the palette.
+	Links []Link `toml:"links" json:"links,omitempty"`
+}
+
+// Card is a sidebar card, about the focused environment or agent.
+type Card struct {
+	ID    string `toml:"id" json:"id"`
+	Title string `toml:"title" json:"title"`
+	// Scope is environment (default) or agent.
+	Scope string `toml:"scope" json:"scope,omitempty"`
+}
+
+// StatusIndicator is a short text on the tab bar.
+type StatusIndicator struct {
+	ID    string `toml:"id" json:"id"`
+	Title string `toml:"title" json:"title"`
+}
+
+// ContextAction offers an action in the contexts it names.
+type ContextAction struct {
+	Action string `toml:"action" json:"action"`
+	Title  string `toml:"title" json:"title,omitempty"`
+	// Contexts are pane, agent, environment and session (default all).
+	Contexts []string `toml:"contexts" json:"contexts,omitempty"`
+}
+
+// PaletteEntry puts an action in the command palette.
+type PaletteEntry struct {
+	Action string `toml:"action" json:"action"`
+	Title  string `toml:"title" json:"title,omitempty"`
+}
+
+// Link is a fixed http(s) URL.
+type Link struct {
+	ID    string `toml:"id" json:"id,omitempty"`
+	Title string `toml:"title" json:"title"`
+	URL   string `toml:"url" json:"url"`
+}
+
+// Contribution limits keep the UI readable.
+const (
+	MaxCards          = 4
+	MaxStatus         = 4
+	MaxContextActions = 16
+	MaxPalette        = 16
+	MaxLinks          = 8
+	MaxTitle          = 48
+)
+
+// Action contexts.
+var ActionContexts = []string{"pane", "agent", "environment", "session"}
 
 // Runtime is an executable requirement checked before installation and when
 // loading an installed plugin.
@@ -103,10 +192,13 @@ type Startup struct {
 
 // Action is a command run on demand.
 type Action struct {
-	ID          string   `toml:"id" json:"id"`
-	Title       string   `toml:"title" json:"title,omitempty"`
-	Command     []string `toml:"command" json:"command"`
-	TimeoutText string   `toml:"timeout" json:"timeout,omitempty"`
+	ID      string   `toml:"id" json:"id"`
+	Title   string   `toml:"title" json:"title,omitempty"`
+	Command []string `toml:"command" json:"command"`
+	// Async returns at once with a run ID instead of waiting for the
+	// command; its outcome shows in the plugin's health and log.
+	Async       bool   `toml:"async" json:"async,omitempty"`
+	TimeoutText string `toml:"timeout" json:"timeout,omitempty"`
 	timeout     time.Duration
 }
 
@@ -161,8 +253,22 @@ func LoadManifest(dir string) (*Manifest, error) {
 	return ParseManifest(data)
 }
 
+// ErrUnsupportedAPI is returned for a manifest written for a plugin API
+// this hive does not run.
+var ErrUnsupportedAPI = errors.New("unsupported plugin API")
+
 // ParseManifest decodes and checks a manifest.
 func ParseManifest(data []byte) (*Manifest, error) {
+	// The API version first, leniently: a manifest for a newer API may use
+	// keys this hive does not know, and deserves that answer, not "unknown
+	// key".
+	var head struct {
+		API int    `toml:"api"`
+		ID  string `toml:"id"`
+	}
+	if toml.Unmarshal(data, &head) == nil && head.API != 0 && !slices.Contains(SupportedAPIs, head.API) {
+		return nil, fmt.Errorf("%w: plugin %s needs plugin API %d; this hive runs %s (`hive update`)", ErrUnsupportedAPI, head.ID, head.API, apiList())
+	}
 	var m Manifest
 	dec := toml.NewDecoder(strings.NewReader(string(data)))
 	dec.DisallowUnknownFields()
@@ -195,6 +301,9 @@ func (m *Manifest) check() error {
 	}
 	if m.Name == "" {
 		m.Name = m.ID
+	}
+	if err := m.checkSurfaces(); err != nil {
+		return err
 	}
 	if m.DataDirectory != "" && !safeRelativeDirectory(m.DataDirectory) {
 		return fmt.Errorf("data_directory %q: want a relative path without traversal", m.DataDirectory)
@@ -495,6 +604,39 @@ func (m *Manifest) Preview(source string) string {
 	if len(m.Migrations) > 0 {
 		fmt.Fprintf(&b, "  configuration/data migrations: %d command(s)\n", len(m.Migrations))
 	}
+	if m.Legacy() {
+		b.WriteString("  plugin API: unversioned (it declares no permissions, so it holds them all)\n")
+	} else {
+		fmt.Fprintf(&b, "  plugin API: %d\n", m.API)
+		if len(m.Permissions.Required) == 0 {
+			b.WriteString("  permissions required: none\n")
+		}
+		for _, c := range m.Permissions.Required {
+			fmt.Fprintf(&b, "  requires %s: %s%s\n", c, describeCapability(c), reasonSuffix(m.Permissions.Reasons[c]))
+		}
+		for _, c := range m.Permissions.Optional {
+			fmt.Fprintf(&b, "  may ask for %s: %s%s\n", c, describeCapability(c), reasonSuffix(m.Permissions.Reasons[c]))
+		}
+	}
+	if m.Isolation == "strict" {
+		b.WriteString("  can run isolated (strict): no network or outside writes unless granted\n")
+	}
+	c := m.Contributes
+	for _, card := range c.Cards {
+		fmt.Fprintf(&b, "  sidebar card %q (%s)\n", card.Title, card.Scope)
+	}
+	for _, s := range c.Status {
+		fmt.Fprintf(&b, "  status indicator %q\n", s.Title)
+	}
+	for _, a := range c.Actions {
+		fmt.Fprintf(&b, "  action %q on %s\n", a.Title, strings.Join(a.Contexts, ", "))
+	}
+	for _, p := range c.Palette {
+		fmt.Fprintf(&b, "  palette entry %q\n", p.Title)
+	}
+	for _, l := range c.Links {
+		fmt.Fprintf(&b, "  link %q: %s\n", l.Title, l.URL)
+	}
 	b.WriteString("  It runs as you, with your files and your Hive sessions:\n")
 	for _, s := range m.Startup {
 		when := "while hive runs"
@@ -510,4 +652,11 @@ func (m *Manifest) Preview(source string) string {
 		fmt.Fprintf(&b, "    action %s (%s): %s\n", a.ID, a.Title, strings.Join(a.Command, " "))
 	}
 	return b.String()
+}
+
+func reasonSuffix(reason string) string {
+	if reason == "" {
+		return ""
+	}
+	return " (" + reason + ")"
 }

@@ -1,8 +1,16 @@
+api = 1
 id = "hive-explorer"
 name = "Hive Explorer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Browse, preview, search, and inspect Git status in the current workspace."
-min_hive_version = "1.0.0"
+min_hive_version = "1.0.2"
+
+[permissions]
+# The explorer itself runs in a popup pane Hive starts; the plugin only
+# opens it.
+required = ["hive.write"]
+[permissions.reasons]
+"hive.write" = "open the explorer in a popup over the current tab"
 
 [[runtime]]
 command = "node"
@@ -13,3 +21,10 @@ id = "open"
 title = "Open Hive Explorer"
 command = ["node", "dist/index.mjs"]
 timeout = "15s"
+
+[[contributes.actions]]
+action = "open"
+contexts = ["pane", "environment"]
+
+[[contributes.palette]]
+action = "open"

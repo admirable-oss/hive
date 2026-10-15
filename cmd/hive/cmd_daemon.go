@@ -168,6 +168,10 @@ func runDaemon(ctx context.Context, a *app) error {
 		GitInterval: a.cfg.Git.RefreshInterval,
 
 		AgentManifestDir: a.agentManifestDir(),
+		Plugins: runtime.PluginsConfig{
+			Allow: a.cfg.Plugins.Allow, Deny: a.cfg.Plugins.Deny, Isolation: a.cfg.Plugins.Isolation,
+			RestartLimit: a.cfg.Plugins.RestartLimit, RestartWindow: a.cfg.Plugins.RestartWindow, Hidden: a.cfg.Plugins.Hidden,
+		},
 		Images: runtime.ImagesConfig{
 			MaxBytes:    a.cfg.Images.MaxKB << 10,
 			MaxPixels:   a.cfg.Images.MaxMegapixels << 20,

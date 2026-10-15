@@ -33,19 +33,22 @@ type Installed struct {
 	ID string `json:"id"`
 	// Source is where it came from: a git URL or path, or the linked
 	// directory. Commit is the installed commit (installs from git).
-	Source           string    `json:"source"`
-	Ref              string    `json:"ref,omitempty"`
-	Commit           string    `json:"commit,omitempty"`
-	Version          string    `json:"version,omitempty"`
-	Checksum         string    `json:"checksum,omitempty"`
-	Registry         bool      `json:"registry,omitempty"`
-	PreviousVersion  string    `json:"previous_version,omitempty"`
-	PreviousRef      string    `json:"previous_ref,omitempty"`
-	PreviousCommit   string    `json:"previous_commit,omitempty"`
-	PreviousChecksum string    `json:"previous_checksum,omitempty"`
-	Linked           bool      `json:"linked,omitempty"`
-	Enabled          bool      `json:"enabled"`
-	InstalledAt      time.Time `json:"installed_at"`
+	Source           string `json:"source"`
+	Ref              string `json:"ref,omitempty"`
+	Commit           string `json:"commit,omitempty"`
+	Version          string `json:"version,omitempty"`
+	Checksum         string `json:"checksum,omitempty"`
+	Registry         bool   `json:"registry,omitempty"`
+	PreviousVersion  string `json:"previous_version,omitempty"`
+	PreviousRef      string `json:"previous_ref,omitempty"`
+	PreviousCommit   string `json:"previous_commit,omitempty"`
+	PreviousChecksum string `json:"previous_checksum,omitempty"`
+	Linked           bool   `json:"linked,omitempty"`
+	Enabled          bool   `json:"enabled"`
+	// Granted are the capabilities the user approved: the required ones
+	// when installing or updating, optional ones with `hive plugin grant`.
+	Granted     []string  `json:"granted,omitempty"`
+	InstalledAt time.Time `json:"installed_at"`
 }
 
 // Plugin is an installed plugin with its manifest, as found on disk.
@@ -489,7 +492,8 @@ func (s *Store) Install(ctx context.Context, f *Fetched, hiveVersion string) (In
 	if err := os.Rename(f.dir, s.Dir(id)); err != nil {
 		return Installed{}, err
 	}
-	in := Installed{ID: id, Source: f.Source, Ref: f.Ref, Commit: f.Commit, Version: f.Version, Checksum: f.Checksum, Registry: f.Registry, Enabled: true, InstalledAt: time.Now()}
+	// Installing approves what the preview showed: its required capabilities.
+	in := Installed{ID: id, Source: f.Source, Ref: f.Ref, Commit: f.Commit, Version: f.Version, Checksum: f.Checksum, Registry: f.Registry, Enabled: true, InstalledAt: time.Now(), Granted: Approve(f.Manifest, nil)}
 	if err := s.saveLocked(append(list, in)); err != nil {
 		if rollbackErr := os.Rename(s.Dir(id), f.dir); rollbackErr != nil {
 			return Installed{}, fmt.Errorf("record plugin install: %w (also failed to roll back installed files: %w)", err, rollbackErr)
@@ -550,6 +554,9 @@ func (s *Store) Update(ctx context.Context, f *Fetched, hiveVersion string) (Ins
 	next := old
 	next.Source, next.Ref, next.Commit, next.Version, next.Checksum, next.Registry = f.Source, f.Ref, f.Commit, f.Version, f.Checksum, true
 	next.PreviousVersion, next.PreviousRef, next.PreviousCommit, next.PreviousChecksum = old.Version, old.Ref, old.Commit, old.Checksum
+	// Updating approves the release's required capabilities (the CLI showed
+	// what changed) and keeps optional grants it still asks for.
+	next.Granted = Approve(f.Manifest, old.Granted)
 	tx := storeTransaction{Schema: 1, PluginID: old.ID, Operation: "update", Backup: backup, Stage: f.dir, Next: next}
 	if err := jsonfile.Write(filepath.Join(s.dir, ".transaction.json"), tx); err != nil {
 		return Installed{}, err
@@ -686,8 +693,30 @@ func (s *Store) Link(ctx context.Context, dir, hiveVersion string) (Installed, *
 	if err := os.Symlink(abs, s.Dir(m.ID)); err != nil {
 		return Installed{}, nil, err
 	}
-	in := Installed{ID: m.ID, Source: abs, Linked: true, Enabled: true, InstalledAt: time.Now()}
+	in := Installed{ID: m.ID, Source: abs, Linked: true, Enabled: true, InstalledAt: time.Now(), Granted: Approve(m, nil)}
 	return in, m, s.saveLocked(append(list, in))
+}
+
+// SetGranted records the capabilities the user approved for a plugin.
+func (s *Store) SetGranted(id string, granted []string) (Installed, error) {
+	unlock, err := s.lock()
+	if err != nil {
+		return Installed{}, err
+	}
+	defer unlock()
+	if err := s.recoverLocked(); err != nil {
+		return Installed{}, err
+	}
+	list, err := s.loadLocked()
+	if err != nil {
+		return Installed{}, err
+	}
+	i := slices.IndexFunc(list, func(in Installed) bool { return in.ID == id })
+	if i < 0 {
+		return Installed{}, fmt.Errorf("%w %q", ErrNotFound, id)
+	}
+	list[i].Granted = sortedUnique(granted)
+	return list[i], s.saveLocked(list)
 }
 
 // SetEnabled turns a plugin on or off.
@@ -734,9 +763,12 @@ func (s *Store) Uninstall(id string, deleteData ...bool) error {
 	if err := os.RemoveAll(s.Dir(id)); err != nil { // a symlink is removed, not followed
 		return err
 	}
+	_ = os.RemoveAll(s.CacheDir(id)) // disposable by definition
 	if len(deleteData) > 0 && deleteData[0] {
-		if err := os.RemoveAll(s.DataDir(id)); err != nil {
-			return err
+		for _, d := range []string{s.DataDir(id), s.ConfigDir(id), s.VersionsDir(id)} {
+			if err := os.RemoveAll(d); err != nil {
+				return err
+			}
 		}
 	}
 	return s.saveLocked(slices.Delete(list, i, i+1))

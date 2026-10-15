@@ -1,0 +1,15 @@
+{
+  "action": "show",
+  "api": 1,
+  "capabilities": [
+    "hive.read",
+    "hive.write"
+  ],
+  "environment": "api",
+  "pane": "p1",
+  "plugin": "contract",
+  "run": "<run>",
+  "session": "work",
+  "tab": "t1",
+  "trigger": "action"
+}

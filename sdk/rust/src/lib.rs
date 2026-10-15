@@ -10,9 +10,7 @@ pub mod views;
 pub use models::{Agent, AgentList, Event, PluginContext, Process, Tab, WorkspaceSnapshot};
 pub use protocol::{Connection, HiveProtocolError, Welcome};
 pub use services::Hive;
-pub use views::{
-    CommandContribution, ExtensionContribution, KeybindingContribution, ViewContribution,
-};
+pub use views::{Card, CardRow, Link, Status, capability, ttl_nanos};
 
 use std::{env, io, path::PathBuf};
 

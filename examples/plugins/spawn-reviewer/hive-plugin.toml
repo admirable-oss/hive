@@ -1,13 +1,32 @@
 # Starts a reviewer agent in every new worktree and asks it to review the
-# branch. SPAWN_REVIEWER_KIND chooses the agent (default claude).
+# branch; or, on demand, in the environment you are in.
+# SPAWN_REVIEWER_KIND chooses the agent (default claude).
+api = 1
 id = "spawn-reviewer"
 name = "Spawn reviewer"
-version = "0.1.0"
+version = "0.2.0"
 description = "When a worktree is created, starts a reviewer agent in it and asks it to review the branch."
-min_hive_version = "0.10.0"
+min_hive_version = "1.0.2"
 platforms = ["darwin", "linux"]
+
+[permissions]
+required = ["hive.read", "hive.process", "hive.input"]
+[permissions.reasons]
+"hive.read" = "read the new worktree's environment"
+"hive.process" = "start the reviewer agent"
+"hive.input" = "give the reviewer its prompt"
 
 [[events]]
 on = "worktree.created"
 command = ["./spawn-reviewer.sh"]
 timeout = "5m"
+
+[[actions]]
+id = "review"
+title = "Start a reviewer here"
+command = ["./spawn-reviewer.sh"]
+timeout = "5m"
+
+[[contributes.actions]]
+action = "review"
+contexts = ["environment", "session"]

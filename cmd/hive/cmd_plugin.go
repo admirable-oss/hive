@@ -76,7 +76,10 @@ one shows everything it will run and asks first. See https://hive.admir-saheta.c
 	}
 	cmd.AddCommand(newPluginSearchCmd(a), newPluginInstallCmd(a), newPluginLinkCmd(a), newPluginListCmd(a), newPluginInfoCmd(a),
 		newPluginToggleCmd(a, true), newPluginToggleCmd(a, false), newPluginUninstallCmd(a),
-		newPluginRunCmd(a), newPluginLogsCmd(a), newPluginValidateCmd(a), newPluginInitCmd(a), newPluginUpdateCmd(a), newPluginRollbackCmd(a))
+		newPluginRunCmd(a), newPluginLogsCmd(a), newPluginValidateCmd(a), newPluginInitCmd(a), newPluginUpdateCmd(a), newPluginRollbackCmd(a),
+		newPluginReloadCmd(a), newPluginGrantCmd(a, true), newPluginGrantCmd(a, false), newPluginDoctorCmd(a), newPluginConfigCmd(a),
+		newPluginContributionsCmd(a), newPluginCapabilitiesCmd(a), newPluginCancelCmd(a), newPluginExportCmd(a), newPluginImportCmd(a),
+		newPluginCardCmd(a), newPluginStatusCmd(a), newPluginReadyCmd(a), newPluginRequestCmd(a))
 	return cmd
 }
 
@@ -109,9 +112,32 @@ func newPluginInitCmd(a *app) *cobra.Command {
 				body string
 				mode os.FileMode
 			}{
-				plugin.ManifestFile: {body: fmt.Sprintf("id = %q\nname = %q\nversion = %q\ndescription = %q\nmin_hive_version = %q\n\n[[actions]]\nid = %q\ntitle = %q\ncommand = [%q, %q]\n", id, id, "0.1.0", "A Hive plugin.", "1.0.0", "hello", "Hello from "+id, "sh", "./hello.sh"), mode: 0o644},
-				"hello.sh":          {body: "#!/bin/sh\nprintf '%s\\n' 'Hello from Hive plugin'\n", mode: 0o755},
-				"README.md":         {body: fmt.Sprintf("# %s\n\nA Hive plugin scaffold.\n\n## Validate\n\n```sh\nhive plugin validate .\n```\n\n## Try it\n\n```sh\nhive plugin link .\nhive plugin run %s hello\n```\n\nEdit `hello.sh` and `hive-plugin.toml` to customize this plugin. Plugins run with your user permissions; review every command before installing them from a registry.\n", id, id), mode: 0o644},
+				plugin.ManifestFile: {body: fmt.Sprintf(`api = %d
+id = %q
+name = %q
+version = "0.1.0"
+description = "A Hive plugin."
+min_hive_version = "1.0.2"
+# This plugin needs no network and writes only its own directories, so it
+# can run sandboxed.
+isolation = "strict"
+
+[permissions]
+# What it may do through Hive (see `+"`hive plugin capabilities`"+`).
+required = ["hive.read"]
+optional = []
+
+[[actions]]
+id = "hello"
+title = "Hello from %s"
+command = ["sh", "./hello.sh"]
+
+# Offer the action in the command palette.
+[[contributes.palette]]
+action = "hello"
+`, plugin.APIVersion, id, id, id), mode: 0o644},
+				"hello.sh":  {body: "#!/bin/sh\nprintf '%s\\n' 'Hello from Hive plugin'\n", mode: 0o755},
+				"README.md": {body: fmt.Sprintf("# %s\n\nA Hive plugin scaffold.\n\n## Validate\n\n```sh\nhive plugin validate .\n```\n\n## Try it\n\n```sh\nhive plugin link .\nhive plugin run %s hello\n```\n\nEdit `hello.sh` and `hive-plugin.toml` to customize this plugin. Plugins run with your user permissions; review every command before installing them from a registry.\n", id, id), mode: 0o644},
 			}
 			created := make([]string, 0, len(files))
 			for name, file := range files {
@@ -155,6 +181,17 @@ func newPluginValidateCmd(a *app) *cobra.Command {
 			}
 			if err := manifest.Supported(cmd.Context(), buildinfo.Get().Version); err != nil {
 				return err
+			}
+			if manifest.Legacy() {
+				fmt.Fprintf(a.errOut, "warning: no api = %d and [permissions]: the plugin will hold every capability\n", plugin.APIVersion)
+			}
+			for _, e := range manifest.Events {
+				if !plugin.KnownEvent(e.On) {
+					fmt.Fprintf(a.errOut, "warning: [[events]] on %q never fires in plugin API %d (see `hive plugin capabilities`)\n", e.On, plugin.APIVersion)
+				}
+			}
+			if manifest.Isolation == "strict" && !plugin.SandboxAvailable() {
+				fmt.Fprintln(a.errOut, "warning: isolation = \"strict\" needs sandbox-exec (macOS) or bwrap (Linux), which this system lacks")
 			}
 			return a.emit(map[string]any{"valid": true, "manifest": manifest}, func() error {
 				fmt.Fprintf(a.out, "valid %s %s\n", manifest.ID, manifest.Version)
@@ -305,6 +342,11 @@ func newPluginUpdateCmd(a *app) *cobra.Command {
 			}
 			f.Version, f.Checksum, f.Registry = release.Version, release.Checksum, true
 			fmt.Fprintf(a.errOut, "Update %s %s → %s\n%s", p.ID, p.Version, release.Version, f.Preview())
+			if p.Manifest != nil {
+				if change := plugin.ComparePermissions(p.Manifest, f.Manifest); !change.Empty() {
+					fmt.Fprintf(a.errOut, "\nPermission changes:\n%s", change)
+				}
+			}
 			if !a.confirm("Install this release?") {
 				f.Discard()
 				return fmt.Errorf("%w (run again with --yes to update)", plugin.ErrDeclined)
@@ -362,6 +404,10 @@ func (a *app) installFetchedPlugin(ctx context.Context, store *plugin.Store, f *
 		fmt.Fprintf(a.errOut, "Catalog listing: %s (%s)\n  license: %s\n  repository: %s\n  pinned commit: %s\n", listing.Name, listing.ID, cmpStr(listing.License, "unspecified"), listing.Repository, f.Commit)
 	}
 	fmt.Fprint(a.errOut, f.Preview())
+	if problem := plugin.Decide(f.Manifest, plugin.Approve(f.Manifest, nil), a.pluginPolicy()).Problem(f.Manifest.ID); strings.Contains(problem, "denied") {
+		f.Discard()
+		return fmt.Errorf("not installed: plugin %s %s", f.Manifest.ID, problem)
+	}
 	if !a.confirm("Install it?") {
 		f.Discard()
 		return fmt.Errorf("%w (run again with --yes to install it)", plugin.ErrDeclined)
@@ -432,6 +478,13 @@ type pluginRow struct {
 	plugin.Plugin
 	Running   int    `json:"running"`
 	LastError string `json:"last_error,omitempty"`
+	// Health, Grant, Isolation and Runs are the daemon's view; Live says
+	// the daemon runs it.
+	Health    *plugin.Health   `json:"health,omitempty"`
+	Grant     plugin.Grant     `json:"grant"`
+	Isolation string           `json:"isolation,omitempty"`
+	Runs      []plugin.RunInfo `json:"runs,omitempty"`
+	Live      bool             `json:"live"`
 }
 
 func (a *app) pluginRows(ctx context.Context) ([]pluginRow, error) {
@@ -449,8 +502,14 @@ func (a *app) pluginRows(ctx context.Context) ([]pluginRow, error) {
 	}
 	rows := make([]pluginRow, 0, len(list))
 	for _, p := range list {
-		s := live[p.ID]
-		rows = append(rows, pluginRow{Plugin: p, Running: s.Running, LastError: s.LastError})
+		s, ok := live[p.ID]
+		row := pluginRow{Plugin: p, Running: s.Running, LastError: s.LastError, Live: ok, Isolation: s.Isolation, Runs: s.Runs}
+		if ok {
+			row.Health, row.Grant = &s.Health, s.Grant
+		} else if p.Manifest != nil {
+			row.Grant = plugin.Decide(p.Manifest, p.Granted, a.pluginPolicy())
+		}
+		rows = append(rows, row)
 	}
 	return rows, nil
 }
@@ -483,6 +542,10 @@ func newPluginListCmd(a *app) *cobra.Command {
 						state = "broken: " + r.Problem
 					case !r.Enabled:
 						state = "disabled"
+					case r.Health != nil && r.Health.State == plugin.StateReady:
+						state = "ready"
+					case r.Health != nil:
+						state = r.Health.State + suffixIf(r.LastError, ": "+r.LastError)
 					case r.LastError != "":
 						state = "error: " + r.LastError
 					}
@@ -517,8 +580,34 @@ func newPluginInfoCmd(a *app) *cobra.Command {
 						fmt.Fprint(a.out, r.Manifest.Preview(r.Source))
 					}
 					fmt.Fprintf(a.out, "  enabled: %v; running commands: %d\n", r.Enabled, r.Running)
+					if r.Manifest != nil && !r.Manifest.Legacy() {
+						fmt.Fprintf(a.out, "  holds: %s\n", cmpStr(strings.Join(r.Grant.Effective, ", "), "nothing"))
+						if len(r.Grant.Ungranted) > 0 {
+							fmt.Fprintf(a.out, "  may ask for: %s (`hive plugin grant %s …`)\n", strings.Join(r.Grant.Ungranted, ", "), r.ID)
+						}
+						if len(r.Grant.Denied) > 0 {
+							fmt.Fprintf(a.out, "  denied by [plugins] deny: %s\n", strings.Join(r.Grant.Denied, ", "))
+						}
+					}
 					if r.Problem != "" {
 						fmt.Fprintf(a.out, "  problem: %s\n", r.Problem)
+					}
+					if h := r.Health; h != nil {
+						fmt.Fprintf(a.out, "  health: %s since %s (isolation: %s)\n", h.State, h.Since.Format(time.DateTime), r.Isolation)
+						fmt.Fprintf(a.out, "  events: %d delivered, %d failed, %d dropped; actions: %d run, %d failed, %d timed out\n",
+							h.Events.Delivered, h.Events.Failed, h.Events.Dropped, h.Actions.Run, h.Actions.Failed, h.Actions.TimedOut)
+						if h.Crashes+h.Restarts > 0 {
+							fmt.Fprintf(a.out, "  restarts: %d; crashes in the window: %d\n", h.Restarts, h.Crashes)
+						}
+						for _, w := range h.Warnings {
+							fmt.Fprintf(a.out, "  warning: %s\n", w)
+						}
+						for _, req := range h.Requests {
+							fmt.Fprintf(a.out, "  asks for %s%s\n", req.Capability, suffixIf(req.Reason, ": "+req.Reason))
+						}
+					}
+					for _, run := range r.Runs {
+						fmt.Fprintf(a.out, "  running: %s (%s, since %s)\n", run.ID, run.Action, run.Started.Format(time.TimeOnly))
 					}
 					if r.LastError != "" {
 						fmt.Fprintf(a.out, "  last error: %s\n", r.LastError)
@@ -674,6 +763,9 @@ func newPluginRunCmd(a *app) *cobra.Command {
 			res, err := client.NewPlugins(a.client).Run(ctx, req)
 			if err != nil {
 				return err
+			}
+			if res.Async {
+				return a.done(map[string]any{"run": res.Run, "async": true}, "started %s (`hive plugin cancel %s %s` stops it; `hive plugin logs %s` shows it)", res.Run, req.Plugin, res.Run, req.Plugin)
 			}
 			if err := a.emit(res, func() error { _, err := fmt.Fprint(a.out, res.Output); return err }); err != nil {
 				return err

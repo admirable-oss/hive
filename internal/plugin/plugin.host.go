@@ -1,33 +1,33 @@
 package plugin
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/logging"
 )
 
 // Context is what a plugin command learns about why it runs: on stdin and
-// in the file $HIVE_PLUGIN_CONTEXT.
+// in the file $HIVE_PLUGIN_CONTEXT. Its shape is part of plugin API 1:
+// fields are only ever added.
 type Context struct {
+	// API is the plugin API version of this context.
+	API     int    `json:"api"`
 	Plugin  string `json:"plugin"`
-	Trigger string `json:"trigger"` // startup, action or event
+	Trigger string `json:"trigger"` // startup, action, event or migration
 	Action  string `json:"action,omitempty"`
+	// Run identifies this action run (plugin.cancel takes it).
+	Run string `json:"run,omitempty"`
 	// Event is the event that triggered it: its type and data, as
 	// `hive events` prints them.
 	Event   *EventInfo `json:"event,omitempty"`
@@ -37,12 +37,21 @@ type Context struct {
 	Environment string `json:"environment,omitempty"`
 	Tab         string `json:"tab,omitempty"`
 	Pane        string `json:"pane,omitempty"`
+	// Capabilities are the capabilities the plugin holds now.
+	Capabilities []string `json:"capabilities"`
 }
 
 // EventInfo is an event passed to a plugin.
 type EventInfo struct {
 	Type string          `json:"type"`
 	Data json.RawMessage `json:"data,omitempty"`
+	// Seq is the daemon's event number: events reach a plugin in Seq
+	// order (with event_concurrency 1 they also finish in that order).
+	Seq  uint64    `json:"seq,omitempty"`
+	Time time.Time `json:"time,omitzero"`
+	// Missed says events were lost before this one (a queue overflowed):
+	// re-read whatever state the plugin follows.
+	Missed bool `json:"missed,omitempty"`
 }
 
 // Result is how an action went.
@@ -50,17 +59,34 @@ type Result struct {
 	ExitCode int `json:"exit_code"`
 	// Output is the end of what it printed (stdout and stderr).
 	Output string `json:"output"`
+	// Run identifies the run; Async says it was started, not waited for.
+	Run   string `json:"run,omitempty"`
+	Async bool   `json:"async,omitempty"`
 }
 
 // Status is a plugin as the daemon runs it.
 type Status struct {
 	Plugin
-	// Running counts its startup commands running now.
+	// Running counts its commands running now.
 	Running int `json:"running"`
-	// LastError is its latest failure (a command that could not start,
-	// or exited with an error).
+	// LastError is its latest failure.
 	LastError string `json:"last_error,omitempty"`
+	Health    Health `json:"health"`
+	// Grant is what it may do; Isolation is how it runs (standard or
+	// strict).
+	Grant     Grant  `json:"grant"`
+	Isolation string `json:"isolation"`
+	API       int    `json:"api"`
+	// Runs are its action runs in progress.
+	Runs []RunInfo `json:"runs,omitempty"`
 }
+
+// Isolation modes ([plugins] isolation).
+const (
+	IsolationAuto     = "auto"     // strict for plugins that support it
+	IsolationStandard = "standard" // never strict
+	IsolationStrict   = "strict"   // strict for every plugin
+)
 
 // HostConfig sets up a Host.
 type HostConfig struct {
@@ -75,9 +101,48 @@ type HostConfig struct {
 	// LogDir holds each plugin's output log (<id>.log, rotated).
 	LogDir string
 	Logger *slog.Logger
+
+	// Policy decides capabilities with the user's grants.
+	Policy Policy
+	// Isolation is auto (default), standard or strict.
+	Isolation string
+	// RestartLimit and RestartWindow stop restarting a startup command
+	// that fails more than RestartLimit times within RestartWindow
+	// (defaults 5 and 10 minutes).
+	RestartLimit  int
+	RestartWindow time.Duration
+	// Hidden are contributions the user turned off: "plugin",
+	// "plugin:kind" or "plugin:kind:id".
+	Hidden []string
+	// Serve opens a plugin's own socket, which accepts only the methods
+	// its capabilities allow and knows the caller is that plugin. Nil
+	// leaves plugins on the daemon's socket (tests).
+	Serve func(id string, granted []string) (path string, stop func(), err error)
+	// SocketPath is the daemon's own socket, which strict isolation hides.
+	SocketPath string
+	// Publish announces plugin events on the daemon's bus.
+	Publish func(typ string, data any)
 }
 
-// Host runs the enabled plugins' commands for the daemon.
+func (c HostConfig) withDefaults() HostConfig {
+	if c.RestartLimit <= 0 {
+		c.RestartLimit = 5
+	}
+	if c.RestartWindow <= 0 {
+		c.RestartWindow = 10 * time.Minute
+	}
+	if c.Isolation == "" {
+		c.Isolation = IsolationAuto
+	}
+	if c.Publish == nil {
+		c.Publish = func(string, any) {}
+	}
+	return c
+}
+
+// Host runs the enabled plugins for the daemon. Each plugin has its own
+// lifetime: a crash, a hang or a full queue in one never holds up another
+// or the daemon, and one can be reloaded alone.
 type Host struct {
 	cfg HostConfig
 	log *slog.Logger
@@ -85,25 +150,39 @@ type Host struct {
 	mu      sync.Mutex
 	ctx     context.Context // the host's life (Run)
 	plugins map[string]*loaded
-	stop    context.CancelFunc // ends the current load's startup commands
-	running sync.WaitGroup     // every command the host started
-	loads   sync.WaitGroup     // the current load's startup loops
+	missed  bool // the daemon lost events since the last delivery
+	running sync.WaitGroup
+	runSeq  uint64
+	content contentStore
 }
 
 type loaded struct {
 	Plugin
-	log     io.Writer
-	closer  io.Closer
-	running int
-	lastErr string
-	problem string        // a load-time problem that prevents actions and events
-	sem     chan struct{} // bounds its concurrent event commands
-	logMu   sync.Mutex    // its commands write their output to log
-}
+	grant   Grant
+	strict  bool
+	problem string // a load-time problem: it runs nothing
 
-// maxEventCommands bounds one plugin's event commands running at once;
-// more events wait.
-const maxEventCommands = 4
+	ctx    context.Context // its life: until unloaded
+	cancel context.CancelFunc
+	wg     sync.WaitGroup // its startup loops and event workers
+
+	log    io.Writer
+	closer io.Closer
+	logMu  sync.Mutex
+
+	socket     string
+	stopSocket func()
+
+	queue  chan queuedEvent
+	missed bool // it dropped an event since its last delivery
+
+	running  int
+	lastErr  string
+	health   Health
+	crashes  []time.Time
+	startups int // startup commands configured
+	runs     map[string]*actionRun
+}
 
 // NewHost returns a host; Run starts it.
 func NewHost(cfg HostConfig) *Host {
@@ -116,6 +195,7 @@ func NewHost(cfg HostConfig) *Host {
 			return env
 		}
 	}
+	cfg = cfg.withDefaults()
 	return &Host{cfg: cfg, log: logging.OrDiscard(cfg.Logger), plugins: map[string]*loaded{}}
 }
 
@@ -125,81 +205,202 @@ func (h *Host) Run(ctx context.Context) {
 	h.mu.Lock()
 	h.ctx = ctx
 	h.mu.Unlock()
-	h.Reload() //nolint:contextcheck // the host keeps ctx; plugins live as long as it
-	<-ctx.Done()
-	h.mu.Lock()
-	h.unloadLocked()
-	h.mu.Unlock()
-	h.loads.Wait()
-	h.running.Wait()
+	h.Reload()
+	t := time.NewTicker(5 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			h.mu.Lock()
+			ids := slices.Collect(maps.Keys(h.plugins))
+			h.mu.Unlock()
+			for _, id := range ids {
+				h.unload(id)
+			}
+			h.running.Wait()
+			return
+		case <-t.C:
+			h.tick()
+		}
+	}
 }
 
-// Reload reads the installed plugins again and restarts what changed: every
-// startup command stops, and the enabled plugins' start again.
+// tick expires contributions and refreshes health states that change
+// with time (degraded fades, readiness by uptime).
+func (h *Host) tick() {
+	expired := h.content.expire(time.Now())
+	h.mu.Lock()
+	var changed []Status
+	for _, l := range h.plugins {
+		if h.refreshLocked(l) {
+			changed = append(changed, h.statusOfLocked(l))
+		}
+	}
+	h.mu.Unlock()
+	for _, id := range expired {
+		h.cfg.Publish(EventContributions, map[string]string{"plugin": id})
+	}
+	for _, st := range changed {
+		h.cfg.Publish(EventChanged, st)
+	}
+}
+
+// Reload reads the installed plugins again and restarts every one: its
+// commands stop, and the enabled plugins start again.
 func (h *Host) Reload() []Status {
 	h.mu.Lock()
 	ctx := h.ctx
+	ids := slices.Collect(maps.Keys(h.plugins))
+	h.mu.Unlock()
 	if ctx == nil || ctx.Err() != nil {
-		h.mu.Unlock()
 		return nil
 	}
-	h.unloadLocked()
-	h.mu.Unlock()
-	h.loads.Wait() // the previous load's commands have stopped
-
+	for _, id := range ids {
+		h.unload(id)
+	}
 	list, err := h.cfg.Store.List(ctx, h.cfg.Version)
 	if err != nil {
 		h.log.Error("read installed plugins", "err", err)
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	load, stop := context.WithCancel(ctx)
-	h.stop = stop
 	for _, p := range list {
-		switch {
-		case !p.Enabled:
-			continue
-		case p.Problem != "":
-			h.log.Warn("plugin not loaded", "plugin", p.ID, "problem", p.Problem)
-			continue
-		}
-		l := &loaded{Plugin: p, log: io.Discard, sem: make(chan struct{}, maxEventCommands)}
-		if err := h.prepareConfiguration(load, l); err != nil {
-			h.log.Error("plugin configuration is not ready; plugin not loaded", "plugin", p.ID, "err", err)
-			l.lastErr = "configuration: " + err.Error()
-			l.problem = l.lastErr
-			h.plugins[p.ID] = l
-			continue
-		}
-		if h.cfg.LogDir != "" {
-			if f, err := logging.OpenRotating(filepath.Join(h.cfg.LogDir, p.ID+".log"), 1<<20, 2); err == nil {
-				l.log, l.closer = f, f
-			}
-		}
-		h.plugins[p.ID] = l
-		h.log.Info("plugin loaded", "plugin", p.ID, "version", p.Manifest.Version, "startup", len(p.Manifest.Startup), "events", len(p.Manifest.Events), "actions", len(p.Manifest.Actions))
-		for _, s := range p.Manifest.Startup {
-			h.loads.Go(func() { h.runStartup(load, l, s) })
-		}
+		h.load(ctx, p)
 	}
-	return h.statusLocked()
+	return h.Status()
 }
 
-// unloadLocked stops the current load's startup commands (they exit in
-// the background) and forgets its plugins.
-func (h *Host) unloadLocked() {
-	if h.stop != nil {
-		h.stop()
-		h.stop = nil
+// ReloadPlugin restarts one plugin: its commands stop, its manifest,
+// grants and settings are read again, and it starts afresh (its crash
+// count too). A plugin that was disabled or uninstalled just stops.
+func (h *Host) ReloadPlugin(id string) (Status, error) {
+	h.mu.Lock()
+	ctx := h.ctx
+	h.mu.Unlock()
+	if ctx == nil || ctx.Err() != nil {
+		return Status{}, fmt.Errorf("plugin host is not running")
 	}
-	for id, l := range h.plugins {
-		if l.closer != nil {
-			l.logMu.Lock()
-			_ = l.closer.Close()
-			l.log = io.Discard
-			l.logMu.Unlock()
+	h.unload(id)
+	p, err := h.cfg.Store.Get(ctx, id, h.cfg.Version)
+	if err != nil {
+		return Status{}, err
+	}
+	h.load(ctx, p)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l := h.plugins[id]
+	if l == nil {
+		return Status{Plugin: p, Health: Health{State: StateDisabled}}, nil
+	}
+	return h.statusOfLocked(l), nil
+}
+
+// load starts p when it is enabled. A plugin that cannot run is still
+// recorded, failed, so its health says why.
+func (h *Host) load(ctx context.Context, p Plugin) {
+	if !p.Enabled {
+		return
+	}
+	lctx, cancel := context.WithCancel(ctx)
+	l := &loaded{Plugin: p, ctx: lctx, cancel: cancel, log: io.Discard, runs: map[string]*actionRun{}}
+	l.health = Health{State: StateStarting, Since: time.Now(), LoadedAt: time.Now()}
+	fail := func(problem string) {
+		l.problem, l.lastErr = problem, problem
+		l.health.LastError, l.health.LastErrorAt = problem, time.Now()
+		h.mu.Lock()
+		h.plugins[p.ID] = l
+		h.refreshLocked(l)
+		st := h.statusOfLocked(l)
+		h.mu.Unlock()
+		h.log.Warn("plugin not loaded", "plugin", p.ID, "problem", problem)
+		h.cfg.Publish(EventChanged, st)
+	}
+	if p.Problem != "" || p.Manifest == nil {
+		fail(cmpStr(p.Problem, "no manifest"))
+		return
+	}
+	m := p.Manifest
+	l.grant = Decide(m, p.Granted, h.cfg.Policy)
+	if problem := l.grant.Problem(p.ID); problem != "" {
+		fail(problem)
+		return
+	}
+	l.strict = h.cfg.Isolation == IsolationStrict || (h.cfg.Isolation == IsolationAuto && m.Isolation == "strict")
+	if l.strict && !SandboxAvailable() {
+		fail("strict isolation needs " + sandboxTool() + ", which is not available here")
+		return
+	}
+	if m.Legacy() {
+		l.health.Warnings = append(l.health.Warnings, "declares no plugin API or permissions, so it holds every capability; its author can add api = 1 and [permissions]")
+	}
+	for _, e := range m.Events {
+		if !KnownEvent(e.On) {
+			l.health.Warnings = append(l.health.Warnings, fmt.Sprintf("handles %q, which plugin API %d never publishes", e.On, APIVersion))
 		}
-		delete(h.plugins, id)
+	}
+	warnings, err := h.prepareConfiguration(lctx, l)
+	if err != nil {
+		fail("configuration: " + err.Error() + " (see `hive plugin config " + p.ID + "`)")
+		return
+	}
+	l.health.Warnings = append(l.health.Warnings, warnings...)
+	if h.cfg.LogDir != "" {
+		if f, err := logging.OpenRotating(filepath.Join(h.cfg.LogDir, p.ID+".log"), 1<<20, 2); err == nil {
+			l.log, l.closer = f, f
+		}
+	}
+	if h.cfg.Serve != nil {
+		path, stop, err := h.cfg.Serve(p.ID, l.grant.Effective)
+		if err != nil {
+			fail("open its socket: " + err.Error())
+			return
+		}
+		l.socket, l.stopSocket = path, stop
+	}
+	workers := m.EventConcurrency
+	if workers <= 0 {
+		workers = defaultEventConcurrency
+	}
+	l.queue = make(chan queuedEvent, eventQueue)
+	l.startups = len(m.Startup)
+	h.mu.Lock()
+	h.plugins[p.ID] = l
+	if l.startups == 0 {
+		h.markReadyLocked(l)
+	}
+	for range workers {
+		l.wg.Go(func() { h.deliver(l) }) //nolint:contextcheck // workers live as long as the plugin (l.ctx), not this load call
+	}
+	for _, s := range m.Startup {
+		l.wg.Go(func() { h.runStartup(l, s) })
+	}
+	st := h.statusOfLocked(l)
+	h.mu.Unlock()
+	h.log.Info("plugin loaded", "plugin", p.ID, "version", m.Version, "api", m.EffectiveAPI(), "strict", l.strict, "capabilities", l.grant.Effective)
+	h.cfg.Publish(EventChanged, st)
+}
+
+// unload stops a plugin: its context ends, its commands are stopped, and
+// its socket and log close. It waits for them.
+func (h *Host) unload(id string) {
+	h.mu.Lock()
+	l := h.plugins[id]
+	delete(h.plugins, id)
+	h.mu.Unlock()
+	if l == nil {
+		return
+	}
+	l.cancel()
+	l.wg.Wait()
+	if l.stopSocket != nil {
+		l.stopSocket()
+	}
+	if l.closer != nil {
+		l.logMu.Lock()
+		_ = l.closer.Close()
+		l.log = io.Discard
+		l.logMu.Unlock()
+	}
+	if h.content.forget(id) {
+		h.cfg.Publish(EventContributions, map[string]string{"plugin": id})
 	}
 }
 
@@ -207,253 +408,69 @@ func (h *Host) unloadLocked() {
 func (h *Host) Status() []Status {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.statusLocked()
-}
-
-func (h *Host) statusLocked() []Status {
 	out := []Status{}
 	for _, l := range h.plugins {
-		out = append(out, Status{Plugin: l.Plugin, Running: l.running, LastError: l.lastErr})
+		h.refreshLocked(l)
+		out = append(out, h.statusOfLocked(l))
 	}
 	slices.SortFunc(out, func(a, b Status) int { return strings.Compare(a.ID, b.ID) })
 	return out
 }
 
-// restartPause bounds how often a startup command that keeps exiting is
-// started again.
-const (
-	restartFirst = 2 * time.Second
-	restartMax   = time.Minute
-)
-
-func (h *Host) runStartup(ctx context.Context, l *loaded, s Startup) {
-	pause := restartFirst
-	for ctx.Err() == nil {
-		h.mu.Lock()
-		l.running++
-		h.mu.Unlock()
-		start := time.Now()
-		_, err := h.run(ctx, l, s.Command, Context{Trigger: "startup"}, nil)
-		h.mu.Lock()
-		l.running--
-		if err != nil && ctx.Err() == nil {
-			l.lastErr = fmt.Sprintf("startup %s: %v", strings.Join(s.Command, " "), err)
-		}
-		h.mu.Unlock()
-		if ctx.Err() != nil || !s.Restart {
-			return
-		}
-		if time.Since(start) > restartMax {
-			pause = restartFirst // it ran a good while: start over quickly
-		}
-		h.log.Warn("plugin command stopped; starting it again", "plugin", l.ID, "command", s.Command, "err", err, "in", pause)
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(pause):
-		}
-		pause = min(pause*2, restartMax)
+func (h *Host) statusOfLocked(l *loaded) Status {
+	st := Status{Plugin: l.Plugin, Running: l.running, LastError: l.lastErr, Health: l.health, Grant: l.grant, Isolation: IsolationStandard, API: APIVersion}
+	if l.Manifest != nil {
+		st.API = l.Manifest.EffectiveAPI()
 	}
+	if l.strict {
+		st.Isolation = IsolationStrict
+	}
+	st.Health.Warnings = slices.Clone(l.health.Warnings)
+	st.Health.Requests = slices.Clone(l.health.Requests)
+	for _, r := range l.runs {
+		st.Runs = append(st.Runs, r.info)
+	}
+	slices.SortFunc(st.Runs, func(a, b RunInfo) int { return a.Started.Compare(b.Started) })
+	return st
 }
 
-// Event runs every enabled plugin's handlers for an event, in the
-// background.
-func (h *Host) Event(typ string, data json.RawMessage) {
+// Granted returns what a loaded plugin holds now (nil when it is not
+// loaded): its socket checks calls against it.
+func (h *Host) Granted(id string) []string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.stop == nil {
-		return
+	if l := h.plugins[id]; l != nil && l.problem == "" {
+		return slices.Clone(l.grant.Effective)
 	}
-	for _, l := range h.plugins {
-		if l.problem != "" {
-			continue
-		}
-		for _, e := range l.Manifest.Events {
-			if !e.Matches(typ) {
-				continue
+	return nil
+}
+
+// Discovery describes this hive to plugins; with id, also what that
+// plugin holds and may call.
+func (h *Host) Discovery(id string) Discovery {
+	d := Discovery{
+		API: APIVersion, SupportedAPIs: slices.Clone(SupportedAPIs), HiveVersion: h.cfg.Version,
+		Capabilities: slices.Clone(CapabilityList), Events: slices.Clone(Events),
+		Contributions: slices.Clone(ContributionKinds), Isolation: []string{IsolationStandard},
+	}
+	if SandboxAvailable() {
+		d.Isolation = append(d.Isolation, IsolationStrict)
+	}
+	if id != "" {
+		d.Plugin = id
+		d.Granted = h.Granted(id)
+		for _, m := range ClassifiedMethods() {
+			if Allowed(m, d.Granted) {
+				d.Methods = append(d.Methods, m)
 			}
-			c := Context{Trigger: "event", Event: &EventInfo{Type: typ, Data: data}}
-			c.Environment, c.Tab, c.Pane = about(data)
-			h.running.Go(func() {
-				l.sem <- struct{}{}
-				defer func() { <-l.sem }()
-				ctx, cancel := context.WithTimeout(h.ctx, e.Timeout())
-				defer cancel()
-				if _, err := h.run(ctx, l, e.Command, c, nil); err != nil {
-					h.mu.Lock()
-					l.lastErr = fmt.Sprintf("on %s: %v", typ, err)
-					h.mu.Unlock()
-					h.log.Warn("plugin event command failed", "plugin", l.ID, "event", typ, "err", err)
-				}
-			})
 		}
 	}
+	return d
 }
 
-// about reads which environment, tab and pane an event's data names.
-func about(data json.RawMessage) (env, tab, pane string) {
-	var d struct {
-		ID            string `json:"id"`
-		EnvironmentID string `json:"environment_id"`
-		TabID         string `json:"tab_id"`
-		PaneID        string `json:"pane_id"`
-		Environment   *struct {
-			ID string `json:"id"`
-		} `json:"environment"`
+func cmpStr(a, b string) string {
+	if a != "" {
+		return a
 	}
-	if json.Unmarshal(data, &d) != nil {
-		return "", "", ""
-	}
-	env, tab, pane = d.EnvironmentID, d.TabID, d.PaneID
-	if d.Environment != nil {
-		env = d.Environment.ID
-	}
-	return env, tab, pane
-}
-
-// ErrNoAction is returned for an action a plugin does not have.
-var ErrNoAction = errors.New("no such plugin action")
-
-// Action runs a plugin's action and returns how it went.
-func (h *Host) Action(ctx context.Context, id, action string, c Context) (Result, error) {
-	h.mu.Lock()
-	l := h.plugins[id]
-	h.mu.Unlock()
-	if l == nil {
-		return Result{}, fmt.Errorf("%w %q (or it is disabled; see `hive plugin list`)", ErrNotFound, id)
-	}
-	if l.problem != "" {
-		return Result{}, fmt.Errorf("plugin %s is not ready: %s", id, l.lastErr)
-	}
-	a, ok := l.Manifest.Action(action)
-	if !ok {
-		var ids []string
-		for _, x := range l.Manifest.Actions {
-			ids = append(ids, x.ID)
-		}
-		return Result{}, fmt.Errorf("%w %q in %s (have %s)", ErrNoAction, action, id, strings.Join(ids, ", "))
-	}
-	ctx, cancel := context.WithTimeout(ctx, a.Timeout())
-	defer cancel()
-	c.Trigger, c.Action = "action", action
-	var out tailBuffer
-	code, err := h.run(ctx, l, a.Command, c, &out)
-	res := Result{ExitCode: code, Output: out.String()}
-	if err != nil && code == 0 {
-		return res, err // it did not run at all
-	}
-	return res, nil
-}
-
-// run runs one plugin command to its end and returns its exit code. Its
-// output goes to the plugin's log (and to also, when set).
-func (h *Host) run(ctx context.Context, l *loaded, argv []string, c Context, also io.Writer) (int, error) {
-	return h.runWithEnvironment(ctx, l, argv, c, also, nil)
-}
-
-func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string, c Context, also io.Writer, extra map[string]string) (int, error) {
-	c.Plugin, c.Session = l.ID, h.cfg.Session
-	data := h.cfg.Store.DataDir(l.ID)
-	if l.Manifest.DataDirectory != "" && l.Manifest.DataDirectory != "." {
-		data = filepath.Join(data, filepath.FromSlash(l.Manifest.DataDirectory))
-	}
-	if err := os.MkdirAll(data, 0o700); err != nil {
-		return 0, err
-	}
-	configDir := h.cfg.Store.ConfigDir(l.ID)
-	if l.Manifest.Configuration.Directory != "" && l.Manifest.Configuration.Directory != "." {
-		configDir = filepath.Join(configDir, filepath.FromSlash(l.Manifest.Configuration.Directory))
-	}
-	if err := os.MkdirAll(configDir, 0o700); err != nil {
-		return 0, err
-	}
-	ctxJSON, _ := json.Marshal(c)
-	ctxFile := filepath.Join(data, ".context-"+randomID()+".json")
-	if err := os.WriteFile(ctxFile, ctxJSON, 0o600); err != nil {
-		return 0, err
-	}
-	defer os.Remove(ctxFile)
-
-	path := argv[0]
-	if strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") {
-		path = filepath.Join(l.Dir, path)
-	}
-	cmd := exec.CommandContext(ctx, path, argv[1:]...)
-	cmd.Dir = l.Dir
-	vars := map[string]string{
-		"HIVE_PLUGIN_ID":         l.ID,
-		"HIVE_PLUGIN_DIR":        l.Dir,
-		"HIVE_PLUGIN_DATA":       data,
-		"HIVE_PLUGIN_CONFIG_DIR": configDir,
-		"HIVE_PLUGIN_CONFIG":     filepath.Join(configDir, pluginConfigFile),
-		"HIVE_PLUGIN_VERSION":    l.Manifest.Version,
-		"HIVE_PLUGIN_CONTEXT":    ctxFile,
-	}
-	for key, value := range extra {
-		vars[key] = value
-	}
-	cmd.Env = h.cfg.Env(vars)
-	cmd.Stdin = bytes.NewReader(ctxJSON)
-	var w io.Writer = pluginLog{l}
-	if also != nil {
-		w = io.MultiWriter(w, also)
-	}
-	cmd.Stdout, cmd.Stderr = w, w
-	// Its own process group, so stopping it stops what it started.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
-	cmd.WaitDelay = 3 * time.Second
-	h.running.Add(1)
-	defer h.running.Done()
-	if err := cmd.Start(); err != nil {
-		return 0, err
-	}
-	err := cmd.Wait()
-	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) // anything it left running
-	if ee, ok := errors.AsType[*exec.ExitError](err); ok {
-		return ee.ExitCode(), err
-	}
-	return 0, err
-}
-
-func randomID() string {
-	b := make([]byte, 6)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
-// pluginLog writes a command's output to its plugin's log, one write at a
-// time. It never fails: an unloaded plugin's log is gone, and its commands
-// are being stopped anyway.
-type pluginLog struct{ l *loaded }
-
-func (w pluginLog) Write(p []byte) (int, error) {
-	w.l.logMu.Lock()
-	defer w.l.logMu.Unlock()
-	_, _ = w.l.log.Write(p)
-	return len(p), nil
-}
-
-// tailBuffer keeps the last 64 KiB written to it.
-type tailBuffer struct {
-	mu  sync.Mutex
-	buf []byte
-}
-
-const tailKeep = 64 << 10
-
-func (t *tailBuffer) Write(p []byte) (int, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.buf = append(t.buf, p...)
-	if len(t.buf) > tailKeep {
-		t.buf = t.buf[len(t.buf)-tailKeep:]
-	}
-	return len(p), nil
-}
-
-func (t *tailBuffer) String() string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return string(t.buf)
+	return b
 }

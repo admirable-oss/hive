@@ -17,7 +17,8 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 The modules separate `models`, `protocol`, `services`, and `views`. Use the
 typed methods for common operations and `Hive::call` for methods described by
-the daemon's `api.schema`. Current TUI contribution transport requires the
-host's `plugin.contributions` capability; pane popups are supported today.
+the daemon's `api.schema`. UI contributions are declared in the manifest's
+`[contributes]` (plugin API 1); `Hive::set_card`, `set_status`, `ready`,
+`request_capability` and `capabilities` cover the plugin's run-time side.
 
 Run the crate tests with `cargo test`.

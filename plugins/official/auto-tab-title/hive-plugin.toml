@@ -1,8 +1,17 @@
+api = 1
 id = "auto-tab-title"
 name = "Automatic tab titles"
-version = "0.1.0"
+version = "0.2.0"
 description = "Name tabs after their active agent or terminal foreground title."
-min_hive_version = "1.0.0"
+min_hive_version = "1.0.2"
+# It only reads the workspace and renames tabs: it runs sandboxed where it can.
+isolation = "strict"
+
+[permissions]
+required = ["hive.read", "hive.write"]
+[permissions.reasons]
+"hive.read" = "read tabs, agents and terminal titles"
+"hive.write" = "rename tabs"
 
 [[runtime]]
 command = "node"

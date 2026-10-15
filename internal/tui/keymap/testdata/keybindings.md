@@ -79,6 +79,7 @@ One key after the prefix, then back to terminal mode.
 | `n` | `next_tab` | next tab |
 | `N` | `open_notification_target` | go to the agent of the latest notification |
 | `O` | `overview` | Overview dashboard (toggle) |
+| `:` `P` | `palette` | plugin palette: actions, links and settings plugins offer here |
 | `]` | `paste` | paste the last copied text |
 | `I` | `paste_image` | paste a clipboard image to the focused pane |
 | `f` | `popup` | open a shell in a popup |
@@ -127,6 +128,7 @@ Sticky: keys move between panes and tabs until `esc`.
 | `a` | `next_agent` | go to the next agent that is blocked or done |
 | `)` | `next_env` | next environment |
 | `n` `tab` | `next_tab` | next tab |
+| `:` | `palette` | plugin palette: actions, links and settings plugins offer here |
 | `(` | `prev_env` | previous environment |
 | `p` `shift+tab` | `prev_tab` | previous tab |
 | `"` `-` | `split_down` | split the pane, new pane below |

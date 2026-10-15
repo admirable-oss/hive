@@ -465,17 +465,90 @@ Result: [pane.Pane](#panepane)
 
 ## plugin
 
+### `plugin.cancel`
+
+| Param | Type | |
+|---|---|---|
+| `plugin` | `string` |  |
+| `run` | `string` |  |
+
+Result: [protocol.Empty](#protocolempty)
+
+### `plugin.capabilities`
+
+No params.
+
+Result: [plugin.Discovery](#plugindiscovery)
+
+### `plugin.card`
+
+| Param | Type | |
+|---|---|---|
+| `card` | `string` |  |
+| `environment` | `string` |  |
+| `links` | [\[\]plugin.Link](#pluginlink) |  |
+| `pane` | `string` |  |
+| `plugin` | `string` |  |
+| `rows` | [\[\]plugin.CardRow](#plugincardrow) |  |
+| `ttl` | `integer` | nanoseconds |
+
+Result: [plugin.CardContent](#plugincardcontent)
+
+### `plugin.config`
+
+| Param | Type | |
+|---|---|---|
+| `plugin` | `string` |  |
+
+Result: [plugin.ConfigView](#pluginconfigview)
+
+### `plugin.config.set`
+
+| Param | Type | |
+|---|---|---|
+| `plugin` | `string` |  |
+| `set` | `map[string]any` |  |
+| `unset` | `[]string` |  |
+
+Result: [plugin.ConfigView](#pluginconfigview)
+
+### `plugin.contributions`
+
+No params.
+
+Result: [plugin.Contributions](#plugincontributions)
+
 ### `plugin.list`
 
 No params.
 
 Result: [\[\]plugin.Status](#pluginstatus)
 
+### `plugin.ready`
+
+| Param | Type | |
+|---|---|---|
+| `plugin` | `string` |  |
+
+Result: [protocol.Empty](#protocolempty)
+
 ### `plugin.reload`
 
-No params.
+| Param | Type | |
+|---|---|---|
+| `plugin` | `string` |  |
 
 Result: [\[\]plugin.Status](#pluginstatus)
+
+### `plugin.request`
+
+| Param | Type | |
+|---|---|---|
+| `capability` | `string` |  |
+| `plugin` | `string` |  |
+| `reason` | `string` |  |
+
+Result: [plugin.PermissionRequest](#pluginpermissionrequest)
 
 ### `plugin.run`
 
@@ -488,6 +561,18 @@ Result: [\[\]plugin.Status](#pluginstatus)
 | `tab` | `string` |  |
 
 Result: [plugin.Result](#pluginresult)
+
+### `plugin.status`
+
+| Param | Type | |
+|---|---|---|
+| `indicator` | `string` |  |
+| `plugin` | `string` |  |
+| `text` | `string` |  |
+| `tone` | `string` |  |
+| `ttl` | `integer` | nanoseconds |
+
+Result: [plugin.StatusContent](#pluginstatuscontent)
 
 ## process
 
@@ -1406,10 +1491,82 @@ Result: [protocol.Empty](#protocolempty)
 
 | Field | Type | |
 |---|---|---|
+| `async` | `boolean` |  |
 | `command` | `[]string` |  |
 | `id` | `string` |  |
 | `timeout` | `string` |  |
 | `title` | `string` |  |
+
+### plugin.ActionStats
+
+| Field | Type | |
+|---|---|---|
+| `canceled` | `integer` |  |
+| `failed` | `integer` |  |
+| `run` | `integer` |  |
+| `timed_out` | `integer` |  |
+
+### plugin.CapabilityInfo
+
+| Field | Type | |
+|---|---|---|
+| `description` | `string` |  |
+| `enforced` | `string` |  |
+| `name` | `string` |  |
+
+### plugin.Card
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` |  |
+| `scope` | `string` |  |
+| `title` | `string` |  |
+
+### plugin.CardContent
+
+| Field | Type | |
+|---|---|---|
+| `card` | `string` |  |
+| `environment` | `string` |  |
+| `links` | [\[\]plugin.Link](#pluginlink) |  |
+| `pane` | `string` |  |
+| `plugin` | `string` |  |
+| `rows` | [\[\]plugin.CardRow](#plugincardrow) |  |
+| `title` | `string` |  |
+| `until` | `string` |  |
+
+### plugin.CardRow
+
+| Field | Type | |
+|---|---|---|
+| `label` | `string` |  |
+| `text` | `string` |  |
+| `tone` | `string` |  |
+
+### plugin.CardUpdate
+
+| Field | Type | |
+|---|---|---|
+| `card` | `string` |  |
+| `environment` | `string` |  |
+| `links` | [\[\]plugin.Link](#pluginlink) |  |
+| `pane` | `string` |  |
+| `plugin` | `string` |  |
+| `rows` | [\[\]plugin.CardRow](#plugincardrow) |  |
+| `ttl` | `integer` | nanoseconds |
+
+### plugin.ConfigView
+
+| Field | Type | |
+|---|---|---|
+| `error` | `string` |  |
+| `name` | `string` |  |
+| `path` | `string` |  |
+| `plugin` | `string` |  |
+| `schema_version` | `integer` |  |
+| `settings` | [\[\]plugin.Setting](#pluginsetting) |  |
+| `values` | `map[string]any` |  |
+| `warnings` | `[]string` |  |
 
 ### plugin.Configuration
 
@@ -1419,6 +1576,63 @@ Result: [protocol.Empty](#protocolempty)
 | `settings` | [\[\]plugin.Setting](#pluginsetting) |  |
 | `version` | `integer` |  |
 
+### plugin.ContextAction
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `contexts` | `[]string` |  |
+| `title` | `string` |  |
+
+### plugin.Contributes
+
+| Field | Type | |
+|---|---|---|
+| `actions` | [\[\]plugin.ContextAction](#plugincontextaction) |  |
+| `cards` | [\[\]plugin.Card](#plugincard) |  |
+| `links` | [\[\]plugin.Link](#pluginlink) |  |
+| `palette` | [\[\]plugin.PaletteEntry](#pluginpaletteentry) |  |
+| `status` | [\[\]plugin.StatusIndicator](#pluginstatusindicator) |  |
+
+### plugin.Contribution
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `available` | `boolean` |  |
+| `contexts` | `[]string` |  |
+| `hidden` | `boolean` |  |
+| `id` | `string` |  |
+| `key` | `string` |  |
+| `kind` | `string` |  |
+| `plugin` | `string` |  |
+| `scope` | `string` |  |
+| `title` | `string` |  |
+| `url` | `string` |  |
+
+### plugin.Contributions
+
+| Field | Type | |
+|---|---|---|
+| `cards` | [\[\]plugin.CardContent](#plugincardcontent) |  |
+| `declared` | [\[\]plugin.Contribution](#plugincontribution) |  |
+| `status` | [\[\]plugin.StatusContent](#pluginstatuscontent) |  |
+
+### plugin.Discovery
+
+| Field | Type | |
+|---|---|---|
+| `api` | `integer` |  |
+| `capabilities` | [\[\]plugin.CapabilityInfo](#plugincapabilityinfo) |  |
+| `contributions` | `[]string` |  |
+| `events` | `[]string` |  |
+| `granted` | `[]string` |  |
+| `hive_version` | `string` |  |
+| `isolation` | `[]string` |  |
+| `methods` | `[]string` |  |
+| `plugin` | `string` |  |
+| `supported_apis` | `[]integer` |  |
+
 ### plugin.Event
 
 | Field | Type | |
@@ -1427,20 +1641,68 @@ Result: [protocol.Empty](#protocolempty)
 | `on` | `string` |  |
 | `timeout` | `string` |  |
 
+### plugin.EventStats
+
+| Field | Type | |
+|---|---|---|
+| `delivered` | `integer` |  |
+| `dropped` | `integer` |  |
+| `failed` | `integer` |  |
+| `queued` | `integer` |  |
+
+### plugin.Grant
+
+| Field | Type | |
+|---|---|---|
+| `denied` | `[]string` |  |
+| `effective` | `[]string` |  |
+| `missing` | `[]string` |  |
+| `ungranted` | `[]string` |  |
+
+### plugin.Health
+
+| Field | Type | |
+|---|---|---|
+| `actions` | [plugin.ActionStats](#pluginactionstats) |  |
+| `crashes` | `integer` |  |
+| `events` | [plugin.EventStats](#plugineventstats) |  |
+| `last_error` | `string` |  |
+| `last_error_at` | `string` |  |
+| `loaded_at` | `string` |  |
+| `ready_at` | `string` |  |
+| `requests` | [\[\]plugin.PermissionRequest](#pluginpermissionrequest) |  |
+| `restarts` | `integer` |  |
+| `since` | `string` |  |
+| `state` | `string` |  |
+| `warnings` | `[]string` |  |
+
+### plugin.Link
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` |  |
+| `title` | `string` |  |
+| `url` | `string` |  |
+
 ### plugin.Manifest
 
 | Field | Type | |
 |---|---|---|
 | `actions` | [\[\]plugin.Action](#pluginaction) |  |
+| `api` | `integer` |  |
 | `configuration` | [plugin.Configuration](#pluginconfiguration) |  |
+| `contributes` | [plugin.Contributes](#plugincontributes) |  |
 | `data_directory` | `string` |  |
 | `description` | `string` |  |
+| `event_concurrency` | `integer` |  |
 | `events` | [\[\]plugin.Event](#pluginevent) |  |
 | `id` | `string` |  |
+| `isolation` | `string` |  |
 | `max_hive_version` | `string` |  |
 | `migrations` | [\[\]plugin.Migration](#pluginmigration) |  |
 | `min_hive_version` | `string` |  |
 | `name` | `string` |  |
+| `permissions` | [plugin.Permissions](#pluginpermissions) |  |
 | `platforms` | `[]string` |  |
 | `runtime` | [\[\]plugin.Runtime](#pluginruntime) |  |
 | `startup` | [\[\]plugin.Startup](#pluginstartup) |  |
@@ -1454,12 +1716,47 @@ Result: [protocol.Empty](#protocolempty)
 | `from` | `integer` |  |
 | `to` | `integer` |  |
 
+### plugin.PaletteEntry
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `title` | `string` |  |
+
+### plugin.PermissionRequest
+
+| Field | Type | |
+|---|---|---|
+| `at` | `string` |  |
+| `capability` | `string` |  |
+| `plugin` | `string` |  |
+| `reason` | `string` |  |
+
+### plugin.Permissions
+
+| Field | Type | |
+|---|---|---|
+| `optional` | `[]string` |  |
+| `reasons` | `map[string]string` |  |
+| `required` | `[]string` |  |
+
 ### plugin.Result
 
 | Field | Type | |
 |---|---|---|
+| `async` | `boolean` |  |
 | `exit_code` | `integer` |  |
 | `output` | `string` |  |
+| `run` | `string` |  |
+
+### plugin.RunInfo
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `async` | `boolean` |  |
+| `id` | `string` |  |
+| `started` | `string` |  |
 
 ### plugin.Runtime
 
@@ -1489,12 +1786,17 @@ Result: [protocol.Empty](#protocolempty)
 
 | Field | Type | |
 |---|---|---|
+| `api` | `integer` |  |
 | `checksum` | `string` |  |
 | `commit` | `string` |  |
 | `dir` | `string` |  |
 | `enabled` | `boolean` |  |
+| `grant` | [plugin.Grant](#plugingrant) |  |
+| `granted` | `[]string` |  |
+| `health` | [plugin.Health](#pluginhealth) |  |
 | `id` | `string` |  |
 | `installed_at` | `string` |  |
+| `isolation` | `string` |  |
 | `last_error` | `string` |  |
 | `linked` | `boolean` |  |
 | `manifest` | [plugin.Manifest](#pluginmanifest) |  |
@@ -1506,8 +1808,36 @@ Result: [protocol.Empty](#protocolempty)
 | `ref` | `string` |  |
 | `registry` | `boolean` |  |
 | `running` | `integer` |  |
+| `runs` | [\[\]plugin.RunInfo](#pluginruninfo) |  |
 | `source` | `string` |  |
 | `version` | `string` |  |
+
+### plugin.StatusContent
+
+| Field | Type | |
+|---|---|---|
+| `indicator` | `string` |  |
+| `plugin` | `string` |  |
+| `text` | `string` |  |
+| `tone` | `string` |  |
+| `until` | `string` |  |
+
+### plugin.StatusIndicator
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` |  |
+| `title` | `string` |  |
+
+### plugin.StatusUpdate
+
+| Field | Type | |
+|---|---|---|
+| `indicator` | `string` |  |
+| `plugin` | `string` |  |
+| `text` | `string` |  |
+| `tone` | `string` |  |
+| `ttl` | `integer` | nanoseconds |
 
 ### process.LogsRequest
 
@@ -1723,6 +2053,35 @@ An object.
 |---|---|---|
 | `id` | `string` |  |
 | `name` | `string` |  |
+
+### runtime.pluginConfigSet
+
+| Field | Type | |
+|---|---|---|
+| `plugin` | `string` |  |
+| `set` | `map[string]any` |  |
+| `unset` | `[]string` |  |
+
+### runtime.pluginParams
+
+| Field | Type | |
+|---|---|---|
+| `plugin` | `string` |  |
+
+### runtime.pluginRequestParams
+
+| Field | Type | |
+|---|---|---|
+| `capability` | `string` |  |
+| `plugin` | `string` |  |
+| `reason` | `string` |  |
+
+### runtime.pluginRunRef
+
+| Field | Type | |
+|---|---|---|
+| `plugin` | `string` |  |
+| `run` | `string` |  |
 
 ### runtime.worktreeListParams
 

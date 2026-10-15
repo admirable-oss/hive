@@ -33,6 +33,9 @@ const (
 	// ErrorCodeConflict means the request clashes with current state (a
 	// path already in use, uncommitted changes in a worktree to remove).
 	ErrorCodeConflict = "conflict"
+	// ErrorCodePermissionDenied means the caller may not do this: a plugin
+	// calling a method its capabilities do not cover, on its own socket.
+	ErrorCodePermissionDenied = "permission_denied"
 )
 
 // Error is the error payload of a Response. It is also a Go error, so domain

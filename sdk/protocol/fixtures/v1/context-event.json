@@ -1,0 +1,22 @@
+{
+  "api": 1,
+  "capabilities": [
+    "hive.read",
+    "hive.write"
+  ],
+  "environment": "feature-x",
+  "event": {
+    "data": {
+      "branch": "feature/x",
+      "environment": {
+        "id": "feature-x"
+      }
+    },
+    "seq": 42,
+    "time": "2026-01-02T03:04:05Z",
+    "type": "worktree.created"
+  },
+  "plugin": "contract",
+  "session": "work",
+  "trigger": "event"
+}

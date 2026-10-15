@@ -405,7 +405,7 @@ type eventsMsg struct {
 }
 
 // eventTypes are the events the UI follows.
-var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", "metadata.", event.Lost}
+var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", "metadata.", "plugin.", event.Lost}
 
 // subscribe opens the event stream and reads it until it ends.
 func (a *App) subscribe() {
@@ -452,6 +452,7 @@ func (a *App) handleEvents(m eventsMsg) {
 	case m.ev == nil:
 		a.ws.live, a.ws.retry, a.dirty = true, 0, true
 		a.refresh() // changes made before the stream opened
+		a.loadContributions()
 	default:
 		a.apply(*m.ev)
 	}
@@ -467,6 +468,10 @@ func (a *App) apply(ev event.Event) {
 			a.noteOutput(ev)
 		}
 		return // news, not a change to the workspace
+	}
+	if strings.HasPrefix(ev.Type, "plugin.") {
+		a.applyPluginEvent(ev)
+		return // plugins, not the workspace
 	}
 	if s == nil {
 		a.refresh()

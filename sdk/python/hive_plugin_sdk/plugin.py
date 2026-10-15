@@ -8,7 +8,7 @@ from typing import Any, Callable, TextIO
 from .models.context import Event, PluginContext
 from .protocol.connection import Connection
 from .services.hive import Hive
-from .views import ExtensionContribution
+from .views import Card, ExtensionContribution, Status
 
 EventHandler = Callable[[Event, PluginContext], Any]
 
@@ -18,25 +18,40 @@ class Plugin:
         self.context = context
         self.hive = Hive(connection)
         self._handlers: dict[str, list[EventHandler]] = defaultdict(list)
-        self._contribution = ExtensionContribution()
 
     def on(self, event_type: str, handler: EventHandler) -> "Plugin":
         self._handlers[event_type].append(handler)
         return self
 
+    def has(self, capability: str) -> bool:
+        """Whether the plugin holds a capability now."""
+        return self.context.has(capability)
+
+    def set_card(self, card: Card) -> None:
+        """Show (or clear) one of the cards the manifest declares."""
+        self.hive.call("plugin.card", card.params())
+
+    def set_status(self, status: Status) -> None:
+        """Show (or clear) one of the status indicators the manifest declares."""
+        self.hive.call("plugin.status", status.params())
+
+    def ready(self) -> None:
+        """Say startup is done (otherwise 2s of uptime counts)."""
+        self.hive.call("plugin.ready", {})
+
+    def request_capability(self, capability: str, reason: str = "") -> None:
+        """Ask the user for an optional capability; the user grants it."""
+        self.hive.call("plugin.request", {"capability": capability, "reason": reason})
+
+    def capabilities(self) -> dict[str, Any]:
+        """What this hive offers, and what this plugin may call."""
+        return self.hive.call("plugin.capabilities", {})
+
     def extend(self, contribution: ExtensionContribution) -> "Plugin":
-        self._contribution = self._contribution.merge(contribution)
-        return self
+        raise RuntimeError("UI contributions are declared in hive-plugin.toml [contributes] since plugin API 1; "
+                           "set cards and indicators with set_card/set_status")
 
     def run(self) -> None:
-        connection = self.hive.connection
-        contribution = self._contribution
-        if contribution.commands or contribution.views or contribution.keybindings:
-            if "plugin.contributions" not in connection.welcome.capabilities:
-                raise RuntimeError("Hive daemon does not advertise plugin.contributions; upgrade Hive to enable UI extensions")
-            self.hive.call("plugin.contribute", {"plugin": self.context.plugin, "contribution": {
-                "commands": contribution.commands, "views": contribution.views, "keybindings": contribution.keybindings,
-            }})
         if self.context.trigger == "event" and self.context.event:
             for handler in self._handlers[self.context.event.type] + self._handlers["*"]:
                 handler(self.context.event, self.context)

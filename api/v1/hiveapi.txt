@@ -1,6 +1,7 @@
 const CodeConflict
 const CodeInvalidParams
 const CodeNotFound
+const CodePermissionDenied
 const CodeTimeout
 const CodeUnavailable
 const OutcomeBlocked

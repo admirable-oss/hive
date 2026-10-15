@@ -49,6 +49,7 @@ Hive is at **v1.0 release candidates** and built in public. The wire API, the CL
 | Housekeeping (`hive gc`, retention, output log rotation) and self-update (`hive update`, agents keep running) | ✅ working |
 | Remote machines over SSH: `--remote`, saved machines, every machine's agents in the sidebar, compressed and paced screens, clipboard back to you ([docs](https://hive.admir-saheta.com/docs/use/rc-ra/)) | ✅ working |
 | Plugins (startup, events, actions; install from git with a trust preview), key commands, sidebar tokens, status bar ([docs](https://hive.admir-saheta.com/docs/config/plugins/)) | ✅ working |
+| Plugin API 1: versioned contract, capabilities enforced per plugin socket, optional sandbox, health and restart limits, sidebar cards, tab-bar indicators, contextual actions, palette, settings forms, backups ([reference](docs/plugins/api.md)) | ✅ working |
 | Hardening: frozen APIs, peer-credential checks on every socket, signed releases, 100 panes at under 16 ms a frame and under 1 % CPU idle, nightly fuzzing and chaos soaks ([security](SECURITY.md)) | ✅ working |
 | Windows support | 🗺 planned |
 
@@ -124,6 +125,7 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive session save \| restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again (the daemon does both by itself) |
 | `hive --remote <host> …` · `hive --machine <name> …` | Run any command (or the multiplexer) against Hive on another machine over SSH; installs it there after asking |
 | `hive plugin search \| install \| update [id] \| rollback <id> \| init <id> \| link \| list \| info \| enable \| disable \| uninstall \| run \| logs` | Discover catalog plugins or manage Git and local plugins; updates retain a rollback release and plugin data is preserved |
+| `hive plugin doctor \| reload [id] \| grant \| revoke \| config <id> \| contributions \| capabilities \| cancel \| export \| import` | Check plugin health and compatibility, manage capabilities and settings, back them up |
 | `hive pane report-metadata` · `hive env report-metadata` · `hive metadata` | Tokens and titles in the sidebar, with a TTL |
 | `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip and agents |
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
@@ -176,6 +178,12 @@ image_budget_kb = 1024      # how fast a pasted image is sent to a remote daemon
 max_kb = 5120               # largest image pasted with prefix I
 keep = "1h"                 # how long images saved for agents that take a path are kept
 render = "auto"             # images agents print: auto | cells | text | off
+
+[plugins]
+allow = []                  # optional capabilities granted to every plugin that asks
+deny = []                   # capabilities no plugin gets
+isolation = "auto"          # sandbox plugins that support it | standard | strict
+restart_limit = 5           # crashes within restart_window before a plugin is given up on
 
 [ui]
 sidebar = true              # show environments and agents beside the panes
@@ -265,7 +273,9 @@ hive ps start -t dev -- claude
   snapshots/session-<time>.json              the 48 before it
   history/<pane>.txt                         panes' recent text, only with session.replay_history
   machines.json                              saved machines (hive machine), shared by every session
-  plugins/<id>/  plugins/registry.json       installed plugins (shared by every session); plugins/.data/<id>/ their data
+  plugins/<id>/  plugins/registry.json       installed plugins (shared by every session); plugins/.data/<id>/ their data,
+                                             .config/<id>/ their settings, .cache/<id>/ their caches
+  <session>/p/<hash>.sock                    each running plugin's own daemon socket, scoped to its capabilities
   logs/plugins/<id>.log                      what each plugin's commands printed
   ssh/                                       shared SSH connections' sockets (ControlMaster)
   run/<process-id>/                          one shim per live agent (0700)

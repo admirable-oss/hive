@@ -413,9 +413,12 @@ to work normally.
 
 ---
 
-## M12 · Plugin Runtime Surfaces — `v1.0.2`
+## M12 · Plugin Runtime Surfaces — `v1.0.2` — **LIVE**
 
 Plugins become first-class citizens.
+
+Plugin API 1 reference (versions, capabilities and the security boundary,
+contributions, lifecycle, configuration): [docs/plugins/api.md](docs/plugins/api.md).
 
 Hive’s initial plugin system provides commands, events, startup actions, and
 status-bar metadata. This milestone expands the extension model so plugins can

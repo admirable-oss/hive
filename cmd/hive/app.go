@@ -72,6 +72,12 @@ func newApp(getenv func(string) string, stdout, stderr io.Writer) (*app, error) 
 	if err := a.useSession(getenv(session.EnvVar)); err != nil {
 		return nil, fmt.Errorf("%s: %w", session.EnvVar, err)
 	}
+	// A plugin's commands reach the daemon on the plugin's own socket,
+	// which allows only what its capabilities cover; the daemon itself
+	// (autostart, `hive daemon`) stays on the session's.
+	if p := getenv(pluginSocketEnv); p != "" {
+		a.client = client.NewService(client.Config{SocketPath: p, Name: "plugin"})
+	}
 
 	cfg, warnings, err := config.Load(a.configPath)
 	cfg, envWarnings := config.ApplyEnv(cfg, getenv)
@@ -96,6 +102,10 @@ func (a *app) useSession(name string) error {
 	a.client = client.NewService(client.Config{SocketPath: a.socket})
 	return nil
 }
+
+// pluginSocketEnv names a plugin's own daemon socket in its commands'
+// environment.
+const pluginSocketEnv = "HIVE_PLUGIN_SOCKET"
 
 // sessionArgs is the --session flag that selects a.session in a child hive.
 func (a *app) sessionArgs() []string {

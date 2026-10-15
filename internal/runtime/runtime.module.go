@@ -16,6 +16,7 @@ import (
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
+	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/shim"
@@ -119,7 +120,7 @@ func NewModule(cfg Config) *Module {
 
 	meta := metadata.NewStore(nil)
 	server.Go(func(ctx context.Context) { expireMetadata(ctx, meta, bus, log) })
-	plugins := newPluginHost(cfg, log.With("module", "plugin"))
+	plugins := newPluginHost(cfg, log.With("module", "plugin"), router, bus)
 	server.Go(plugins.Run)
 	server.Go(func(ctx context.Context) { forwardEvents(ctx, bus, plugins) })
 
@@ -148,7 +149,7 @@ func NewModule(cfg Config) *Module {
 	registerAgentOps(router, &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs})
 	registerSession(router, keep)
 	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)
-	registerPlugins(router, plugins)
+	registerPlugins(router, plugins, plugin.NewStore(cfg.pluginDir()))
 	registerDebug(router, server)
 	registerAPI(router, server, guardedEnvs, panes, procs, agents) // last: it describes the others
 

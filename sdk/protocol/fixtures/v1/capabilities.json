@@ -1,0 +1,159 @@
+{
+  "api": 1,
+  "capabilities": [
+    {
+      "description": "read the workspace: environments, tabs, panes, agents, screens, events",
+      "enforced": "daemon",
+      "name": "hive.read"
+    },
+    {
+      "description": "change the workspace: tabs, panes, layouts, names, metadata, worktrees",
+      "enforced": "daemon",
+      "name": "hive.write"
+    },
+    {
+      "description": "type into terminals and prompt agents",
+      "enforced": "daemon",
+      "name": "hive.input"
+    },
+    {
+      "description": "start and stop processes and agents through Hive",
+      "enforced": "daemon",
+      "name": "hive.process"
+    },
+    {
+      "description": "run other plugins, restore sessions, debug the daemon",
+      "enforced": "daemon",
+      "name": "hive.admin"
+    },
+    {
+      "description": "write files outside the plugin's own directories",
+      "enforced": "sandbox",
+      "name": "filesystem.write"
+    },
+    {
+      "description": "use the network",
+      "enforced": "sandbox",
+      "name": "network"
+    },
+    {
+      "description": "run other programs",
+      "enforced": "declared",
+      "name": "process.exec"
+    }
+  ],
+  "contributions": [
+    "card",
+    "status",
+    "action",
+    "palette",
+    "link",
+    "config"
+  ],
+  "events": [
+    "agent.state",
+    "environment.created",
+    "environment.git",
+    "environment.removed",
+    "environment.updated",
+    "layout.updated",
+    "metadata.changed",
+    "pane.closed",
+    "pane.created",
+    "pane.focused",
+    "pane.moved",
+    "pane.updated",
+    "plugin.changed",
+    "plugin.contributions",
+    "plugin.permission",
+    "process.exited",
+    "process.output",
+    "process.recovered",
+    "process.started",
+    "session.restored",
+    "tab.closed",
+    "tab.created",
+    "tab.updated",
+    "worktree.created",
+    "worktree.removed"
+  ],
+  "granted": [
+    "hive.read",
+    "hive.write"
+  ],
+  "hive_version": "<hive_version>",
+  "isolation": [
+    "standard",
+    "strict"
+  ],
+  "methods": [
+    "agent.explain",
+    "agent.focus",
+    "agent.get",
+    "agent.list",
+    "agent.manifests",
+    "agent.read",
+    "agent.rename",
+    "agent.report",
+    "agent.seen",
+    "agent.wait",
+    "api.schema",
+    "api.snapshot",
+    "client.report",
+    "environment.create",
+    "environment.get",
+    "environment.list",
+    "environment.update",
+    "events.subscribe",
+    "layout.apply",
+    "layout.export",
+    "metadata.list",
+    "metadata.report",
+    "pane.close",
+    "pane.focus",
+    "pane.get",
+    "pane.list",
+    "pane.move",
+    "pane.popup",
+    "pane.read",
+    "pane.rename",
+    "pane.resize",
+    "pane.split",
+    "pane.swap",
+    "pane.wait_output",
+    "pane.zoom",
+    "plugin.capabilities",
+    "plugin.card",
+    "plugin.config",
+    "plugin.config.set",
+    "plugin.contributions",
+    "plugin.list",
+    "plugin.ready",
+    "plugin.request",
+    "plugin.status",
+    "process.get",
+    "process.list",
+    "process.logs",
+    "runtime.ping",
+    "runtime.status",
+    "session.save",
+    "tab.close",
+    "tab.create",
+    "tab.focus",
+    "tab.get",
+    "tab.list",
+    "tab.rename",
+    "tab.resize",
+    "terminal.frames",
+    "terminal.graphics",
+    "terminal.resize",
+    "terminal.snapshot",
+    "worktree.create",
+    "worktree.list",
+    "worktree.open"
+  ],
+  "plugin": "contract",
+  "supported_apis": [
+    1
+  ]
+}

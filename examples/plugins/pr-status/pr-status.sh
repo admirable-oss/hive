@@ -21,22 +21,42 @@ summary='"#\(.number) " +
    elif all(.statusCheckRollup[]; (.conclusion // .state) == "SUCCESS" or (.conclusion // .state) == "SKIPPED" or (.conclusion // .state) == "NEUTRAL") then " ✓"
    else " …" end)'
 
-# one ENV DIR reports the PR of the branch checked out in DIR.
+# tone picks a card row's colour from a token's checks.
+tone() {
+	case $1 in
+	*✓) echo success ;;
+	*✗) echo error ;;
+	*…) echo warning ;;
+	*) echo info ;;
+	esac
+}
+
+# one ENV DIR reports the PR of the branch checked out in DIR (and prints
+# "open" when there is one).
 one() {
 	branch=$(git -C "$2" branch --show-current 2>/dev/null) || return 0
 	[ -n "$branch" ] || return 0
+	ttl=$((interval * 3))s
 	if token=$(cd "$2" && gh pr view "$branch" --json number,state,isDraft,statusCheckRollup --jq "$summary" 2>/dev/null) && [ -n "$token" ]; then
-		"$hive" env report-metadata "$1" --token "pr=$token" --ttl $((interval * 3))s >/dev/null
+		"$hive" env report-metadata "$1" --token "pr=$token" --ttl "$ttl" >/dev/null
+		"$hive" plugin card pr --env "$1" --row "$(tone "$token"):$branch=$token" --ttl "$ttl" >/dev/null
+		case $token in *open*) echo open ;; esac
 	else
 		"$hive" env report-metadata "$1" --token pr= >/dev/null 2>&1 || true
+		"$hive" plugin card pr --env "$1" --clear >/dev/null 2>&1 || true
 	fi
 }
 
 pass() {
-	"$hive" env list --template '{{range .}}{{.id}}	{{.path}}{{"\n"}}{{end}}' |
+	open=$("$hive" env list --template '{{range .}}{{.id}}	{{.path}}{{"\n"}}{{end}}' |
 		while IFS='	' read -r env dir; do
 			[ -n "$env" ] && one "$env" "$dir"
-		done
+		done | grep -c open)
+	if [ "${open:-0}" -gt 0 ]; then
+		"$hive" plugin status open-prs "$open open PR(s)" --ttl $((interval * 3))s >/dev/null
+	else
+		"$hive" plugin status open-prs >/dev/null
+	fi
 }
 
 # The environment an action was run in: from its context.
@@ -46,9 +66,11 @@ context_env() {
 
 case "${1:-once}" in
 watch)
+	pass
+	"$hive" plugin ready >/dev/null
 	while :; do
-		pass
 		sleep "$interval"
+		pass
 	done
 	;;
 once)

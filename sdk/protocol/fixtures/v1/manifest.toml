@@ -1,0 +1,62 @@
+api = 1
+id = "contract"
+name = "Contract"
+version = "1.0.0"
+description = "Exercises every plugin API 1 surface."
+min_hive_version = "1.0.2"
+isolation = "strict"
+event_concurrency = 1
+
+[permissions]
+required = ["hive.read", "hive.write"]
+optional = ["network"]
+[permissions.reasons]
+network = "fetch build results"
+
+[[startup]]
+command = ["sh", "-c", "exec sleep 600"]
+restart = true
+
+[[actions]]
+id = "show"
+title = "Show the context"
+command = ["sh", "-c", "cat \"$HIVE_PLUGIN_CONTEXT\""]
+
+[[actions]]
+id = "background"
+command = ["sleep", "1"]
+async = true
+
+[[events]]
+on = "worktree.created"
+command = ["sh", "-c", "cat \"$HIVE_PLUGIN_CONTEXT\" > \"$HIVE_PLUGIN_DATA/event.json\""]
+timeout = "30s"
+
+[configuration]
+version = 1
+[[configuration.settings]]
+name = "branch"
+type = "string"
+default = "main"
+description = "the branch to follow"
+
+[[contributes.cards]]
+id = "build"
+title = "Build"
+scope = "environment"
+
+[[contributes.status]]
+id = "builds"
+title = "Builds"
+
+[[contributes.actions]]
+action = "show"
+contexts = ["pane", "environment"]
+
+[[contributes.palette]]
+action = "show"
+
+[[contributes.links]]
+id = "docs"
+title = "Docs"
+url = "https://example.com/docs"

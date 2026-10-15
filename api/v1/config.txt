@@ -23,6 +23,12 @@ notify.sound
 notify.system
 notify.terminal
 notify.toast
+plugins.allow
+plugins.deny
+plugins.hidden
+plugins.isolation
+plugins.restart_limit
+plugins.restart_window
 process.stop_grace
 remote.frame_budget_kb
 remote.image_budget_kb

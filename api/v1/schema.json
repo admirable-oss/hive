@@ -1540,6 +1540,9 @@
     },
     "plugin.Action": {
       "properties": {
+        "async": {
+          "type": "boolean"
+        },
         "command": {
           "items": {
             "type": "string"
@@ -1562,6 +1565,206 @@
       ],
       "type": "object"
     },
+    "plugin.ActionStats": {
+      "properties": {
+        "canceled": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "integer"
+        },
+        "run": {
+          "type": "integer"
+        },
+        "timed_out": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "run",
+        "failed",
+        "timed_out",
+        "canceled"
+      ],
+      "type": "object"
+    },
+    "plugin.CapabilityInfo": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "enforced": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "enforced"
+      ],
+      "type": "object"
+    },
+    "plugin.Card": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "type": "object"
+    },
+    "plugin.CardContent": {
+      "properties": {
+        "card": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/plugin.Link"
+          },
+          "type": "array"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/plugin.CardRow"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "until": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "card",
+        "title",
+        "rows",
+        "until"
+      ],
+      "type": "object"
+    },
+    "plugin.CardRow": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "plugin.CardUpdate": {
+      "properties": {
+        "card": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/plugin.Link"
+          },
+          "type": "array"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/plugin.CardRow"
+          },
+          "type": "array"
+        },
+        "ttl": {
+          "description": "nanoseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "card"
+      ],
+      "type": "object"
+    },
+    "plugin.ConfigView": {
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "integer"
+        },
+        "settings": {
+          "items": {
+            "$ref": "#/$defs/plugin.Setting"
+          },
+          "type": "array"
+        },
+        "values": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "plugin",
+        "name",
+        "schema_version",
+        "settings",
+        "values",
+        "path"
+      ],
+      "type": "object"
+    },
     "plugin.Configuration": {
       "properties": {
         "directory": {
@@ -1577,6 +1780,203 @@
           "type": "integer"
         }
       },
+      "type": "object"
+    },
+    "plugin.ContextAction": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "contexts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    "plugin.Contributes": {
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/plugin.ContextAction"
+          },
+          "type": "array"
+        },
+        "cards": {
+          "items": {
+            "$ref": "#/$defs/plugin.Card"
+          },
+          "type": "array"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/plugin.Link"
+          },
+          "type": "array"
+        },
+        "palette": {
+          "items": {
+            "$ref": "#/$defs/plugin.PaletteEntry"
+          },
+          "type": "array"
+        },
+        "status": {
+          "items": {
+            "$ref": "#/$defs/plugin.StatusIndicator"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "plugin.Contribution": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "contexts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "kind",
+        "id",
+        "key",
+        "title",
+        "available"
+      ],
+      "type": "object"
+    },
+    "plugin.Contributions": {
+      "properties": {
+        "cards": {
+          "items": {
+            "$ref": "#/$defs/plugin.CardContent"
+          },
+          "type": "array"
+        },
+        "declared": {
+          "items": {
+            "$ref": "#/$defs/plugin.Contribution"
+          },
+          "type": "array"
+        },
+        "status": {
+          "items": {
+            "$ref": "#/$defs/plugin.StatusContent"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "declared",
+        "cards",
+        "status"
+      ],
+      "type": "object"
+    },
+    "plugin.Discovery": {
+      "properties": {
+        "api": {
+          "type": "integer"
+        },
+        "capabilities": {
+          "items": {
+            "$ref": "#/$defs/plugin.CapabilityInfo"
+          },
+          "type": "array"
+        },
+        "contributions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "events": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "granted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hive_version": {
+          "type": "string"
+        },
+        "isolation": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "methods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "supported_apis": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "api",
+        "supported_apis",
+        "hive_version",
+        "capabilities",
+        "events",
+        "contributions",
+        "isolation"
+      ],
       "type": "object"
     },
     "plugin.Event": {
@@ -1600,6 +2000,138 @@
       ],
       "type": "object"
     },
+    "plugin.EventStats": {
+      "properties": {
+        "delivered": {
+          "type": "integer"
+        },
+        "dropped": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "integer"
+        },
+        "queued": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "delivered",
+        "failed",
+        "dropped",
+        "queued"
+      ],
+      "type": "object"
+    },
+    "plugin.Grant": {
+      "properties": {
+        "denied": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "effective": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ungranted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "effective"
+      ],
+      "type": "object"
+    },
+    "plugin.Health": {
+      "properties": {
+        "actions": {
+          "$ref": "#/$defs/plugin.ActionStats"
+        },
+        "crashes": {
+          "type": "integer"
+        },
+        "events": {
+          "$ref": "#/$defs/plugin.EventStats"
+        },
+        "last_error": {
+          "type": "string"
+        },
+        "last_error_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "loaded_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "ready_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "requests": {
+          "items": {
+            "$ref": "#/$defs/plugin.PermissionRequest"
+          },
+          "type": "array"
+        },
+        "restarts": {
+          "type": "integer"
+        },
+        "since": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "state",
+        "since",
+        "restarts",
+        "crashes",
+        "events",
+        "actions"
+      ],
+      "type": "object"
+    },
+    "plugin.Link": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "url"
+      ],
+      "type": "object"
+    },
     "plugin.Manifest": {
       "properties": {
         "actions": {
@@ -1608,14 +2140,23 @@
           },
           "type": "array"
         },
+        "api": {
+          "type": "integer"
+        },
         "configuration": {
           "$ref": "#/$defs/plugin.Configuration"
+        },
+        "contributes": {
+          "$ref": "#/$defs/plugin.Contributes"
         },
         "data_directory": {
           "type": "string"
         },
         "description": {
           "type": "string"
+        },
+        "event_concurrency": {
+          "type": "integer"
         },
         "events": {
           "items": {
@@ -1624,6 +2165,9 @@
           "type": "array"
         },
         "id": {
+          "type": "string"
+        },
+        "isolation": {
           "type": "string"
         },
         "max_hive_version": {
@@ -1640,6 +2184,9 @@
         },
         "name": {
           "type": "string"
+        },
+        "permissions": {
+          "$ref": "#/$defs/plugin.Permissions"
         },
         "platforms": {
           "items": {
@@ -1691,18 +2238,107 @@
       ],
       "type": "object"
     },
+    "plugin.PaletteEntry": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    "plugin.PermissionRequest": {
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "capability": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "capability",
+        "at"
+      ],
+      "type": "object"
+    },
+    "plugin.Permissions": {
+      "properties": {
+        "optional": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reasons": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "plugin.Result": {
       "properties": {
+        "async": {
+          "type": "boolean"
+        },
         "exit_code": {
           "type": "integer"
         },
         "output": {
+          "type": "string"
+        },
+        "run": {
           "type": "string"
         }
       },
       "required": [
         "exit_code",
         "output"
+      ],
+      "type": "object"
+    },
+    "plugin.RunInfo": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "async": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "started": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "started"
       ],
       "type": "object"
     },
@@ -1761,6 +2397,9 @@
     },
     "plugin.Status": {
       "properties": {
+        "api": {
+          "type": "integer"
+        },
         "checksum": {
           "type": "string"
         },
@@ -1773,11 +2412,26 @@
         "enabled": {
           "type": "boolean"
         },
+        "grant": {
+          "$ref": "#/$defs/plugin.Grant"
+        },
+        "granted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "health": {
+          "$ref": "#/$defs/plugin.Health"
+        },
         "id": {
           "type": "string"
         },
         "installed_at": {
           "format": "date-time",
+          "type": "string"
+        },
+        "isolation": {
           "type": "string"
         },
         "last_error": {
@@ -1813,6 +2467,12 @@
         "running": {
           "type": "integer"
         },
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/plugin.RunInfo"
+          },
+          "type": "array"
+        },
         "source": {
           "type": "string"
         },
@@ -1826,7 +2486,77 @@
         "enabled",
         "installed_at",
         "dir",
-        "running"
+        "running",
+        "health",
+        "grant",
+        "isolation",
+        "api"
+      ],
+      "type": "object"
+    },
+    "plugin.StatusContent": {
+      "properties": {
+        "indicator": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string"
+        },
+        "until": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "indicator",
+        "text",
+        "until"
+      ],
+      "type": "object"
+    },
+    "plugin.StatusIndicator": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "type": "object"
+    },
+    "plugin.StatusUpdate": {
+      "properties": {
+        "indicator": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string"
+        },
+        "ttl": {
+          "description": "nanoseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "indicator"
       ],
       "type": "object"
     },
@@ -2395,6 +3125,64 @@
       "required": [
         "id",
         "name"
+      ],
+      "type": "object"
+    },
+    "runtime.pluginConfigSet": {
+      "properties": {
+        "plugin": {
+          "type": "string"
+        },
+        "set": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "unset": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "runtime.pluginParams": {
+      "properties": {
+        "plugin": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "runtime.pluginRequestParams": {
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capability"
+      ],
+      "type": "object"
+    },
+    "runtime.pluginRunRef": {
+      "properties": {
+        "plugin": {
+          "type": "string"
+        },
+        "run": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "run"
       ],
       "type": "object"
     },
@@ -3078,6 +3866,62 @@
       }
     },
     {
+      "name": "plugin.cancel",
+      "params": {
+        "$ref": "#/$defs/runtime.pluginRunRef"
+      },
+      "result": {
+        "$ref": "#/$defs/protocol.Empty"
+      }
+    },
+    {
+      "name": "plugin.capabilities",
+      "params": {
+        "properties": {},
+        "type": "object"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.Discovery"
+      }
+    },
+    {
+      "name": "plugin.card",
+      "params": {
+        "$ref": "#/$defs/plugin.CardUpdate"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.CardContent"
+      }
+    },
+    {
+      "name": "plugin.config",
+      "params": {
+        "$ref": "#/$defs/runtime.pluginParams"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.ConfigView"
+      }
+    },
+    {
+      "name": "plugin.config.set",
+      "params": {
+        "$ref": "#/$defs/runtime.pluginConfigSet"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.ConfigView"
+      }
+    },
+    {
+      "name": "plugin.contributions",
+      "params": {
+        "properties": {},
+        "type": "object"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.Contributions"
+      }
+    },
+    {
       "name": "plugin.list",
       "params": {
         "properties": {},
@@ -3091,10 +3935,18 @@
       }
     },
     {
+      "name": "plugin.ready",
+      "params": {
+        "$ref": "#/$defs/runtime.pluginParams"
+      },
+      "result": {
+        "$ref": "#/$defs/protocol.Empty"
+      }
+    },
+    {
       "name": "plugin.reload",
       "params": {
-        "properties": {},
-        "type": "object"
+        "$ref": "#/$defs/runtime.pluginParams"
       },
       "result": {
         "items": {
@@ -3104,12 +3956,30 @@
       }
     },
     {
+      "name": "plugin.request",
+      "params": {
+        "$ref": "#/$defs/runtime.pluginRequestParams"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.PermissionRequest"
+      }
+    },
+    {
       "name": "plugin.run",
       "params": {
         "$ref": "#/$defs/runtime.PluginRunRequest"
       },
       "result": {
         "$ref": "#/$defs/plugin.Result"
+      }
+    },
+    {
+      "name": "plugin.status",
+      "params": {
+        "$ref": "#/$defs/plugin.StatusUpdate"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.StatusContent"
       }
     },
     {

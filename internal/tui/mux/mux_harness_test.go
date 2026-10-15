@@ -34,6 +34,13 @@ func startDaemon(t testing.TB) client.Client {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return startDaemonIn(t, dir)
+}
+
+// startDaemonIn runs a daemon whose socket and data are in dir (its
+// plugins in dir/plugins).
+func startDaemonIn(t testing.TB, dir string) client.Client {
+	t.Helper()
 	mod := runtime.NewModule(runtime.Config{
 		SocketPath: filepath.Join(dir, "hive.sock"),
 		Shell:      []string{"/bin/cat"},

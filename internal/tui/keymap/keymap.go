@@ -76,6 +76,8 @@ const (
 	EditScroll    Action = "edit-scrollback"
 	Paste         Action = "paste"
 	PasteImage    Action = "paste-image"
+	// Palette lists what plugins offer here: actions, links, settings.
+	Palette       Action = "palette"
 	Detach        Action = "detach"
 	SendPrefix    Action = "send-prefix"
 	EnterNavigate Action = "mode-navigate"
@@ -163,7 +165,8 @@ var descriptions = map[Action]string{
 	Popup: "open a shell in a popup", Goto: "go to an agent or pane (fuzzy)",
 	Help: "show key bindings", Overview: "Overview dashboard (toggle)",
 	ToggleSidebar: "show or hide the sidebar", EditScroll: "open the pane's scrollback in $EDITOR",
-	Paste: "paste the last copied text", PasteImage: "paste a clipboard image to the focused pane", Detach: "leave the UI (agents keep running)",
+	Paste: "paste the last copied text", PasteImage: "paste a clipboard image to the focused pane",
+	Palette: "plugin palette: actions, links and settings plugins offer here", Detach: "leave the UI (agents keep running)",
 	SendPrefix:    "send the prefix key to the pane",
 	EnterNavigate: "navigate mode (sticky)", EnterResize: "resize mode (sticky)",
 	EnterCopy: "copy mode", ExitMode: "back to terminal mode",
@@ -225,6 +228,7 @@ func defaults() map[Mode]map[Action][]string {
 		RenameTab: {","}, RenamePane: {"."},
 		Popup: {"f"}, Goto: {"w", "s"}, Help: {"?"}, Overview: {"O"},
 		ToggleSidebar: {"b"}, EditScroll: {"e"}, Paste: {"]"}, PasteImage: {"I"}, Detach: {"d"},
+		Palette:       {":", "P"},
 		EnterNavigate: {"space"}, EnterResize: {"r"}, EnterCopy: {"[", "v"},
 		ExitMode:  {"esc"},
 		NextAgent: {"a"}, OpenNotification: {"N"},
@@ -238,7 +242,7 @@ func defaults() map[Mode]map[Action][]string {
 		NextTab: {"n", "tab"}, PrevTab: {"p", "shift+tab"}, NextEnv: {")"}, PrevEnv: {"("},
 		Zoom: {"z"}, ClosePane: {"x"}, SplitRight: {"%", "|"}, SplitDown: {`"`, "-"},
 		SwapNext: {"}"}, SwapPrev: {"{"}, FocusNext: {"o"}, NewTab: {"c"},
-		Goto: {"w", "/"}, EnterResize: {"r"}, EnterCopy: {"["}, NextAgent: {"a"},
+		Goto: {"w", "/"}, EnterResize: {"r"}, EnterCopy: {"["}, NextAgent: {"a"}, Palette: {":"},
 		ExitMode: {"esc", "q", "enter", "i"},
 	}
 	maps.Copy(navigate, focus)

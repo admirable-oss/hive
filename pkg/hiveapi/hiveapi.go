@@ -107,6 +107,9 @@ const (
 	CodeConflict      = protocol.ErrorCodeConflict // e.g. prompting a blocked agent
 	CodeUnavailable   = protocol.ErrorCodeUnavailable
 	CodeTimeout       = protocol.ErrorCodeTimeout
+	// CodePermissionDenied: a plugin called a method its granted
+	// capabilities do not cover.
+	CodePermissionDenied = protocol.ErrorCodePermissionDenied
 )
 
 // ErrUnavailable means no daemon answers on the socket.

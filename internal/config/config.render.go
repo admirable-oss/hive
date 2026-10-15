@@ -128,6 +128,25 @@ log_graphics = {{.Images.LogGraphics}}
 # naming the image) | off
 render = {{q .Images.Render}}
 
+[plugins]
+# Capabilities granted, without asking, to plugins that list them as optional
+# (hive.read, hive.write, hive.input, hive.process, hive.admin,
+# filesystem.write, network, process.exec).
+allow = {{list .Plugins.Allow}}
+# Capabilities no plugin gets; one that requires a denied capability does not
+# run.
+deny = {{list .Plugins.Deny}}
+# auto (sandbox plugins that declare isolation = "strict") | standard (never)
+# | strict (every plugin; needs sandbox-exec on macOS, bwrap on Linux)
+isolation = {{q .Plugins.Isolation}}
+# A plugin command that fails more than restart_limit times within
+# restart_window is no longer restarted (` + "`hive plugin reload <id>`" + ` resets it).
+restart_limit = {{.Plugins.RestartLimit}}
+restart_window = {{dur .Plugins.RestartWindow}}
+# Contributions to turn off: "plugin", "plugin:kind" or "plugin:kind:id"
+# (` + "`hive plugin contributions`" + ` lists them).
+hidden = {{list .Plugins.Hidden}}
+
 [worktrees]
 # Where ` + "`hive worktree create`" + ` puts checkouts, as <directory>/<repo>/<branch>
 # ("" means ~/.hive/worktrees, or $HIVE_HOME/worktrees).

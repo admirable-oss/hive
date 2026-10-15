@@ -162,7 +162,7 @@ command = ["./run.sh"]
 	}
 	host := NewHost(HostConfig{Store: store, Version: "1.0.0"})
 	loaded := &loaded{Plugin: Plugin{Installed: Installed{ID: "settings"}, Dir: dir, Manifest: m}}
-	if err := host.prepareConfiguration(context.Background(), loaded); err != nil {
+	if _, err := host.prepareConfiguration(context.Background(), loaded); err != nil {
 		t.Fatal(err)
 	}
 	var got ConfigurationFile
@@ -203,7 +203,7 @@ command = ["./run.sh"]
 	}
 	host := NewHost(HostConfig{Store: store, Version: "1.0.0"})
 	l := &loaded{Plugin: Plugin{Installed: Installed{ID: "defaults"}, Dir: dir, Manifest: m}}
-	if err := host.prepareConfiguration(context.Background(), l); err != nil {
+	if _, err := host.prepareConfiguration(context.Background(), l); err != nil {
 		t.Fatal(err)
 	}
 	var got ConfigurationFile
@@ -546,8 +546,11 @@ func TestReferencePlugins(t *testing.T) {
 			t.Errorf("%s: %v", d, err)
 			continue
 		}
-		if err := m.Supported(context.Background(), "v0.10.0"); err != nil {
+		if err := m.Supported(context.Background(), "v1.0.2"); err != nil {
 			t.Errorf("%s: %v", d, err)
+		}
+		if m.Legacy() {
+			t.Errorf("%s: reference plugins use plugin API %d with declared permissions", d, APIVersion)
 		}
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/notify"
+	"github.com/admirable-oss/hive/internal/plugin"
 )
 
 // setter validates one raw TOML value and stores it.
@@ -96,6 +97,14 @@ func (c *Config) schema() map[string]map[string]setter {
 					return nil
 				})
 			},
+		},
+		"plugins": {
+			"allow":          capabilityList(&c.Plugins.Allow),
+			"deny":           capabilityList(&c.Plugins.Deny),
+			"isolation":      oneOf(&c.Plugins.Isolation, pluginIsolations),
+			"restart_limit":  integer(&c.Plugins.RestartLimit, 1, 100),
+			"restart_window": duration(&c.Plugins.RestartWindow, time.Minute, 24*time.Hour),
+			"hidden":         contributionList(&c.Plugins.Hidden),
 		},
 		"retention": {
 			"exited_processes": duration(&c.Retention.ExitedProcesses, time.Hour, 10*365*24*time.Hour),
@@ -270,6 +279,61 @@ func stateList(dst *[]string) setter {
 		}
 		*dst = out
 		return nil
+	}
+}
+
+// capabilityList reads a list of plugin capabilities.
+func capabilityList(dst *[]string) setter {
+	return func(raw any) error {
+		list, ok := raw.([]any)
+		if !ok {
+			return typeError("a list of capabilities", raw)
+		}
+		out := []string{}
+		for _, item := range list {
+			s, ok := item.(string)
+			if !ok || !plugin.KnownCapability(s) {
+				return fmt.Errorf("%v is not a capability (%s)", item, strings.Join(plugin.AllCapabilities(), ", "))
+			}
+			out = append(out, s)
+		}
+		*dst = out
+		return nil
+	}
+}
+
+// contributionList reads contribution keys: plugin[:kind[:id]].
+func contributionList(dst *[]string) setter {
+	return func(raw any) error {
+		list, ok := raw.([]any)
+		if !ok {
+			return typeError("a list of plugin contributions", raw)
+		}
+		out := []string{}
+		for _, item := range list {
+			s, ok := item.(string)
+			parts := strings.Split(s, ":")
+			if !ok || len(parts) > 3 || !plugin.ValidID(parts[0]) || (len(parts) > 1 && !slices.Contains(plugin.ContributionKinds, parts[1])) {
+				return fmt.Errorf("%v: want plugin, plugin:kind or plugin:kind:id (kinds: %s)", item, strings.Join(plugin.ContributionKinds, ", "))
+			}
+			out = append(out, s)
+		}
+		*dst = out
+		return nil
+	}
+}
+
+// oneOf reads a string from a fixed set.
+func oneOf(dst *string, values []string) setter {
+	return func(raw any) error {
+		return setString(raw, func(s string) error {
+			s = strings.ToLower(strings.TrimSpace(s))
+			if !slices.Contains(values, s) {
+				return fmt.Errorf("%q is not one of %s", s, strings.Join(values, ", "))
+			}
+			*dst = s
+			return nil
+		})
 	}
 }
 

@@ -13,7 +13,7 @@ the cross-language wire contract.
 | Go | `github.com/admirable-oss/hive/pkg/pluginsdk` | [`../pkg/pluginsdk/`](../pkg/pluginsdk/) |
 
 Every SDK separates protocol transport, invocation/workspace models, typed Hive
-services, and TUI view contribution types. The Hive `api.schema` method remains
+services, and plugin API 1 UI surface types. The Hive `api.schema` method remains
 the source of truth for all RPC names and parameter/result shapes. `api.snapshot`
 is the portable workspace read API. `tab.rename`, `pane.popup`,
 `terminal.snapshot`, and `agent.list` are used consistently by the examples.
@@ -24,11 +24,14 @@ Frames are limited to 1 MiB. Responses correlate by string ID and errors contain
 `code` and `message`. The protocol supports streaming pipes through `stream`,
 `data`, and `close`; typed client support for those is being added separately.
 
-Contribution metadata types are exposed consistently. Hive currently supports
-interactive TUI extensions by launching a process in `pane.popup`; custom
-native sidebar/view contribution RPCs remain gated on a daemon host capability.
-SDKs must report this capability clearly and never silently claim a view was
-installed.
+Plugin API 1 ([docs/plugins/api.md](../docs/plugins/api.md)) is shared by every
+SDK: the context's `api`, `run`, `capabilities` and event `seq`/`time`/`missed`
+fields, and helpers for `plugin.card`, `plugin.status`, `plugin.ready`,
+`plugin.request` and `plugin.capabilities`. UI contributions are declared in the
+manifest's `[contributes]`; the old runtime `extend(...)` call fails with a
+pointer there. The v1 fixtures in `protocol/fixtures/v1/` (contexts, discovery,
+a card request, the reference manifest) are the cross-language contract, and
+Hive's own contract test regenerates them from a running plugin host.
 
 ## Local checks
 

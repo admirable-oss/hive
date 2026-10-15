@@ -39,6 +39,73 @@ func (p Plugins) Reload(ctx context.Context) ([]plugin.Status, error) {
 	return r, err
 }
 
+// ReloadPlugin restarts one plugin (its crash count too).
+func (p Plugins) ReloadPlugin(ctx context.Context, id string) ([]plugin.Status, error) {
+	var r []plugin.Status
+	err := p.c.Call(ctx, "plugin.reload", map[string]string{"plugin": id}, &r)
+	return r, err
+}
+
+// Cancel stops an action run in progress.
+func (p Plugins) Cancel(ctx context.Context, id, run string) error {
+	return p.c.Call(ctx, "plugin.cancel", map[string]string{"plugin": id, "run": run}, nil)
+}
+
+// Capabilities describes the daemon's plugin API (and, from a plugin's
+// own socket, what that plugin holds).
+func (p Plugins) Capabilities(ctx context.Context) (plugin.Discovery, error) {
+	var r plugin.Discovery
+	err := p.c.Call(ctx, "plugin.capabilities", struct{}{}, &r)
+	return r, err
+}
+
+// Contributions lists what plugins add to the UI, and what it shows now.
+func (p Plugins) Contributions(ctx context.Context) (plugin.Contributions, error) {
+	var r plugin.Contributions
+	err := p.c.Call(ctx, "plugin.contributions", struct{}{}, &r)
+	return r, err
+}
+
+// SetCard shows or clears a plugin's card.
+func (p Plugins) SetCard(ctx context.Context, u plugin.CardUpdate) (plugin.CardContent, error) {
+	var r plugin.CardContent
+	err := p.c.Call(ctx, "plugin.card", u, &r)
+	return r, err
+}
+
+// SetStatus shows or clears a plugin's status indicator.
+func (p Plugins) SetStatus(ctx context.Context, u plugin.StatusUpdate) (plugin.StatusContent, error) {
+	var r plugin.StatusContent
+	err := p.c.Call(ctx, "plugin.status", u, &r)
+	return r, err
+}
+
+// Ready says a plugin's startup is done.
+func (p Plugins) Ready(ctx context.Context, id string) error {
+	return p.c.Call(ctx, "plugin.ready", map[string]string{"plugin": id}, nil)
+}
+
+// Request asks the user for an optional capability.
+func (p Plugins) Request(ctx context.Context, id, capability, reason string) (plugin.PermissionRequest, error) {
+	var r plugin.PermissionRequest
+	err := p.c.Call(ctx, "plugin.request", map[string]string{"plugin": id, "capability": capability, "reason": reason}, &r)
+	return r, err
+}
+
+// Config reads a plugin's settings with their schema.
+func (p Plugins) Config(ctx context.Context, id string) (plugin.ConfigView, error) {
+	var r plugin.ConfigView
+	err := p.c.Call(ctx, "plugin.config", map[string]string{"plugin": id}, &r)
+	return r, err
+}
+
+// SetConfig changes a plugin's settings (and restarts it on them).
+func (p Plugins) SetConfig(ctx context.Context, id string, set map[string]any, unset []string) (plugin.ConfigView, error) {
+	var r plugin.ConfigView
+	err := p.c.Call(ctx, "plugin.config.set", map[string]any{"plugin": id, "set": set, "unset": unset}, &r)
+	return r, err
+}
+
 // Run runs a plugin's action and waits for it.
 func (p Plugins) Run(ctx context.Context, req PluginRun) (plugin.Result, error) {
 	var r plugin.Result

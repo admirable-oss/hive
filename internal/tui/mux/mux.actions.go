@@ -98,6 +98,8 @@ func (a *App) do(act keymap.Action) {
 			res, err := c.TerminalImage(sendCtx, client.ImageRequest{ProcessID: procID, PNG: data})
 			return imagePasteMsg{res: res, err: err}
 		})
+	case keymap.Palette:
+		a.openPalette()
 	case keymap.EditScroll:
 		a.editScrollback()
 	case keymap.NewTab:

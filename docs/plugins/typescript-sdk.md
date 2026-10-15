@@ -91,12 +91,24 @@ exported for protocol-level integrations and tests.
 Plugins remain ordinary manifest-driven processes. Declare actions and event
 subscriptions in `hive-plugin.toml`; `plugin.on(eventType, handler)` dispatches
 the current event invocation inside the plugin process. Use `"*"` to handle
-every event. `plugin.extend(...)` provides a typed declaration model for
-commands, views, and keybindings. It is capability-gated: the plugin host must
-advertise `plugin.contributions` and implement `plugin.contribute` before those
-declarations can be committed. Until that host capability lands, use manifest
-actions and `panes.popup()` for interactive TUI extensions. A popup runs inside
-Hive's pane layout and responds to terminal resize/input as a normal process.
+every event.
+
+UI contributions are declared in `hive-plugin.toml` under `[contributes]`
+(plugin API 1): sidebar cards, tab-bar indicators, contextual actions, palette
+entries and links ([the API reference](api.md#contributions)). At run time a
+plugin sets their content:
+
+```ts
+await plugin.setCard({ card: "ci", environment: plugin.context.environment, rows: [{ label: "main", text: "passing", tone: "success" }], ttlSeconds: 600 });
+await plugin.setStatus({ indicator: "builds", text: "2 green", tone: "success" });
+await plugin.ready();                                   // startup done
+if (!plugin.has("network")) await plugin.requestCapability("network", "fetch build results");
+```
+
+`plugin.extend(...)` from earlier SDKs never had a daemon method and now
+throws with a pointer to `[contributes]`. For full interactive views, an action
+can still open a process in `panes.popup()`; a popup runs inside Hive's pane
+layout and responds to terminal resize and input like any other process.
 
 The SDK surface is language-neutral by design: Go and TypeScript wrappers map to
 the daemon method schema, while transport and JSON types stay documented here.

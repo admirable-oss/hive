@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { init } from "@hive-oss/plugin-sdk";
 
-const plugin = await init({ id: "hive-explorer", version: "0.1.0" });
+const plugin = await init({ id: "hive-explorer", version: "0.2.0" });
 try {
   if (plugin.context.trigger === "action") {
     const dir = process.env.HIVE_PLUGIN_DIR;

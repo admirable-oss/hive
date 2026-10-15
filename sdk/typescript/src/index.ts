@@ -15,5 +15,5 @@ export { HiveProtocolError } from "./models/errors.js";
 export { isPluginContext } from "./models/context.js";
 export type { PluginContext, PluginEvent } from "./models/context.js";
 export type { Agent, Pane, Process, Tab, TerminalSnapshot, WorkspaceSnapshot } from "./models/workspace.js";
-export { mergeContributions } from "./views/contribution.js";
-export type { ExtensionContribution } from "./views/contribution.js";
+export { Capability, mergeContributions, ttlNanos } from "./views/contribution.js";
+export type { Card, CardRow, Discovery, ExtensionContribution, Link, Status, Tone } from "./views/contribution.js";

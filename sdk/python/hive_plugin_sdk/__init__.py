@@ -5,10 +5,10 @@ from .models.errors import HiveProtocolError
 from .plugin import Plugin, init
 from .protocol import Connection, Envelope, Hello, Welcome
 from .services import Hive
-from .views import ExtensionContribution
+from .views import Card, CardRow, ExtensionContribution, Link, Status
 
 __all__ = [
-    "Agent", "AgentList", "Connection", "Envelope", "Event", "ExtensionContribution", "Hello",
+    "Agent", "AgentList", "Card", "CardRow", "Connection", "Envelope", "Event", "ExtensionContribution", "Hello", "Link", "Status",
     "Hive", "HiveProtocolError", "Pane", "Plugin", "PluginContext", "Process",
     "Tab", "TerminalSnapshot", "Welcome", "WorkspaceSnapshot", "init",
 ]
