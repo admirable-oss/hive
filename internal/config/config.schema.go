@@ -111,6 +111,13 @@ func (c *Config) schema() map[string]map[string]setter {
 			"history_events":  integer(&c.Observers.HistoryEvents, 64, 100000),
 			"max_connections": integer(&c.Observers.MaxConnections, 1, 1024),
 		},
+		"web": {
+			"listen":       str(&c.Web.Listen),
+			"public_url":   str(&c.Web.PublicURL),
+			"tls_cert":     str(&c.Web.TLSCert),
+			"tls_key":      str(&c.Web.TLSKey),
+			"behind_proxy": boolean(&c.Web.BehindProxy),
+		},
 		"retention": {
 			"exited_processes": duration(&c.Retention.ExitedProcesses, time.Hour, 10*365*24*time.Hour),
 			"process_log_mb":   integer(&c.Retention.ProcessLogMB, 0, 100000),
@@ -677,4 +684,11 @@ func KeyNames() []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// str stores a string as given (trimmed).
+func str(dst *string) setter {
+	return func(raw any) error {
+		return setString(raw, func(v string) error { *dst = strings.TrimSpace(v); return nil })
+	}
 }

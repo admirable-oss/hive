@@ -436,6 +436,8 @@ func (s *Server) watch(ctx context.Context, p WatchRequest) (WatchResult, protoc
 	}
 	return WatchResult{Pane: pn.ID, ProcessID: pn.ProcessID}, func(ctx context.Context, pipe protocol.Pipe) error {
 		defer c.closeStream()
+		s.watching(pn.ID, 1)
+		defer s.watching(pn.ID, -1)
 		ctx, stop := protocol.UntilClosed(ctx, pipe)
 		defer stop()
 		checked := time.Now()

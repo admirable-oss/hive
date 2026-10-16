@@ -53,6 +53,7 @@ Hive is at **v1.0 release candidates** and built in public. The wire API, the CL
 | Plugin API 1: versioned contract, capabilities enforced per plugin socket, optional sandbox, health and restart limits, sidebar cards, tab-bar indicators, contextual actions, palette, settings forms, backups ([reference](docs/plugins/api.md)) | ✅ working |
 | Hardening: frozen APIs, peer-credential checks on every socket, signed releases, 100 panes at under 16 ms a frame and under 1 % CPU idle, nightly fuzzing and chaos soaks ([security](SECURITY.md)) | ✅ working |
 | Observers: read-only, scoped, expiring credentials for dashboards and notifiers; screens and events with resync, locally or over SSH; audited ([docs](docs/observers.md)) | ✅ working |
+| Web observer: agents, states, screens and activity live in a browser, read-only; one-time share links, expiry and revocation, "observed" marks in the multiplexer ([docs](docs/web.md)) | ✅ working |
 
 ## Quick start
 
@@ -137,6 +138,8 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive plugin doctor \| reload [id] \| grant \| revoke \| config <id> \| contributions \| capabilities \| cancel \| export \| import` | Check plugin health and compatibility, manage capabilities and settings, back them up |
 | `hive observer create \| list \| show \| revoke \| validate \| audit` | Read-only credentials for dashboards and notifiers: scoped to environments or panes, expiring, revocable ([observers](docs/observers.md)) |
 | `hive observer status \| snapshot \| screen \| events \| watch` | Act as an observer, with the token in `$HIVE_OBSERVER_TOKEN` |
+| `hive web runtime add \| list \| remove` · `hive web serve` | Let the web observer show a runtime; run it ([web observer](docs/web.md)) |
+| `hive web share \| grants \| revoke \| audit \| status` | One-time sign-in links for browsers, and who is signed in |
 | `hive pane report-metadata` · `hive env report-metadata` · `hive metadata` | Tokens and titles in the sidebar, with a TTL |
 | `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip and agents |
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
@@ -289,6 +292,8 @@ hive ps start -t dev -- claude
   <session>/p/<hash>.sock                    each running plugin's own daemon socket, scoped to its capabilities
   observer.sock                              the observer socket: read-only, token-authenticated (0600)
   observers/credentials.json  audit.log      observer credentials (token hashes only) and who used them
+  web/                                       the web observer: runtimes.json, tokens/ (0600), access.json (hashes only),
+                                             audit.log, web.log, web.sock (its admin socket)
   logs/plugins/<id>.log                      what each plugin's commands printed
   ssh/                                       shared SSH connections' sockets (ControlMaster)
   run/<process-id>/                          one shim per live agent (0700)

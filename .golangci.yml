@@ -129,6 +129,7 @@ linters:
           files:
             - "**/internal/client/*.go"
             - "**/internal/tui/**/*.go"
+            - "**/internal/web/*.go"
             - "!$test"
           deny:
             - pkg: github.com/admirable-oss/hive/internal/runtime

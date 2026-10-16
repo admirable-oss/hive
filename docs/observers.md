@@ -70,6 +70,16 @@ anything in the operating system:
 - **Screen access exposes whatever is on the screen.** That includes secrets
   an agent prints. Grant `--screens` only to observers that need it.
 
+### Being observed is visible
+
+- **In the multiplexer.** While any observer is connected, the tab bar shows
+  `◉ observed by <name>`, and a pane whose screen one watches shows
+  `[watched]`.
+- **To programs.** The control socket's `observer.activity` method says who
+  is observing, as does the `observer.activity` event on `hive events`.
+- **Daemon shutdown.** A daemon that stops ends its observers' connections;
+  observers never hold it up.
+
 ## Credentials
 
 ```sh
@@ -80,6 +90,9 @@ hive observer revoke <id>          # its open connections end at once
 hive observer validate             # check $HIVE_OBSERVER_TOKEN without using it (exit 1 if unusable)
 hive observer audit [--credential <id>]
 ```
+
+For a browser, the [web observer](web.md) (`hive web`) holds credentials
+like these for you and shares one-time links instead of tokens.
 
 Managing credentials needs control of the daemon: `hive.sock`, or `--remote`.
 No plugin can manage them, whatever capabilities it holds.

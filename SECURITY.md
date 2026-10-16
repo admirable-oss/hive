@@ -42,6 +42,13 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 - What observers receive leaves out environment variables, command lines, working directories, PIDs and agents' session IDs. Screens, when allowed, show whatever is on them, secrets included.
 - This is access control in Hive's API, not isolation by the operating system: the observer socket is as private as the others (only you can connect), and a program running as you could still open the control socket. To hold an observer to its token, run it somewhere else and let it in only through an ssh key restricted to the observer socket (`command="hive proxy --observer",restrict` in `authorized_keys`). See [docs/observers.md](docs/observers.md).
 
+**The web observer shows, and only what you share.**
+
+- `hive web serve` is a process of its own that reaches daemons only through their observer sockets, with credentials you make for it (`hive web runtime add`); it has no way to type, change layouts or start anything, and neither do its pages.
+- Browsers sign in with one-time links whose code travels in the URL fragment (never sent to a server or logged) and is exchanged for an HttpOnly, SameSite=Strict cookie. Links and access expire; `hive web revoke` signs browsers out at once. Only hashes of codes and cookies are stored.
+- It refuses to serve beyond this machine without TLS (its own, or a proxy's). Pages load nothing from elsewhere (Content-Security-Policy), are never cached, cannot be framed, and keep nothing in the browser but the theme.
+- Screens and output history are shown only when both the runtime and the link allow them; history is read on request and audited. The multiplexer shows when someone observes, and which screens are watched. See [docs/web.md](docs/web.md).
+
 **Installing hive elsewhere, plugins and updates need your yes, and updates are verified.**
 
 - `hive update` downloads the release, checks the archive against `checksums.txt`, and checks `checksums.txt` against its ed25519 signature (`checksums.txt.sig`) with the release key built into your binary. An unsigned or wrongly signed release is not installed. Builds from source carry no release key and check only the checksum (they say so).

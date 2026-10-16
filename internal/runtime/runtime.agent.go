@@ -30,7 +30,7 @@ func (l *paneLocator) Locate(ctx context.Context) (map[string]agent.Location, er
 	}
 	out := make(map[string]agent.Location, len(panes))
 	for _, p := range panes {
-		out[p.ProcessID] = agent.Location{PaneID: p.ID, TabID: p.TabID, Name: p.Name}
+		out[p.ProcessID] = agent.Location{PaneID: p.ID, TabID: p.TabID, Name: p.Name, EnvironmentID: p.EnvironmentID}
 	}
 	return out, nil
 }

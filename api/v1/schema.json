@@ -863,6 +863,46 @@
       ],
       "type": "object"
     },
+    "observer.ActiveObserver": {
+      "properties": {
+        "connections": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "connections"
+      ],
+      "type": "object"
+    },
+    "observer.Activity": {
+      "properties": {
+        "observers": {
+          "items": {
+            "$ref": "#/$defs/observer.ActiveObserver"
+          },
+          "type": "array"
+        },
+        "watched": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "observers",
+        "watched"
+      ],
+      "type": "object"
+    },
     "observer.AuditEntry": {
       "properties": {
         "action": {
@@ -3660,7 +3700,7 @@
       "type": "object"
     }
   },
-  "api_level": 10,
+  "api_level": 11,
   "methods": [
     {
       "name": "agent.explain",
@@ -3957,6 +3997,15 @@
       },
       "result": {
         "$ref": "#/$defs/metadata.Entry"
+      }
+    },
+    {
+      "name": "observer.activity",
+      "params": {
+        "$ref": "#/$defs/protocol.Empty"
+      },
+      "result": {
+        "$ref": "#/$defs/observer.Activity"
       }
     },
     {

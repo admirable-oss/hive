@@ -91,6 +91,7 @@ var methodCapabilities = map[string]string{
 	"process.logs": CapHiveRead, "runtime.status": CapHiveRead, "tab.get": CapHiveRead, "tab.list": CapHiveRead,
 	"terminal.snapshot": CapHiveRead, "terminal.frames": CapHiveRead, "terminal.graphics": CapHiveRead,
 	"worktree.list": CapHiveRead, "plugin.list": CapHiveRead, "plugin.contributions": CapHiveRead,
+	"observer.activity": CapHiveRead,
 
 	// Changing the workspace.
 	"agent.focus": CapHiveWrite, "agent.rename": CapHiveWrite, "agent.seen": CapHiveWrite, "agent.report": CapHiveWrite,

@@ -806,3 +806,21 @@ func TestADaemonThatAnswersBadlyIsNotCalledUnreachable(t *testing.T) {
 		t.Fatal("the daemon answered: it is reachable")
 	}
 }
+
+// TestShowsWhoObserves: while observers are connected the tab bar says so,
+// and a pane whose screen one watches is marked.
+func TestShowsWhoObserves(t *testing.T) {
+	h := newHarness(t, 120, 12, Options{HideSidebar: true})
+	activity := map[string]any{
+		"observers": []map[string]any{{"id": "o1", "name": "dashboard", "connections": 1}},
+		"watched":   map[string]int{h.focused(): 1},
+	}
+	h.a.apply(event.Event{Type: "observer.activity", Data: mustJSON(t, activity)})
+	h.waitText("observed by dashboard")
+	h.waitText("[watched]")
+	h.a.apply(event.Event{Type: "observer.activity", Data: mustJSON(t, map[string]any{"observers": []any{}, "watched": map[string]int{}})})
+	h.waitFor("the marks to go", func() bool {
+		s := h.screen()
+		return !strings.Contains(s, "observed by") && !strings.Contains(s, "[watched]")
+	})
+}

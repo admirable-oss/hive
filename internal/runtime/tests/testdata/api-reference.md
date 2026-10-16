@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 10. Clients speak newline-delimited JSON over the daemon's unix
+API level 11. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -296,6 +296,12 @@ Result: [\[\]metadata.Entry](#metadataentry)
 Result: [metadata.Entry](#metadataentry)
 
 ## observer
+
+### `observer.activity`
+
+No params.
+
+Result: [observer.Activity](#observeractivity)
 
 ### `observer.audit`
 
@@ -1251,6 +1257,21 @@ Result: [protocol.Empty](#protocolempty)
 | `source` | `string` |  |
 | `text` | `string` |  |
 | `until` | `string` |  |
+
+### observer.ActiveObserver
+
+| Field | Type | |
+|---|---|---|
+| `connections` | `integer` |  |
+| `id` | `string` |  |
+| `name` | `string` |  |
+
+### observer.Activity
+
+| Field | Type | |
+|---|---|---|
+| `observers` | [\[\]observer.ActiveObserver](#observeractiveobserver) |  |
+| `watched` | `map[string]integer` |  |
 
 ### observer.AuditEntry
 

@@ -41,6 +41,25 @@ type snapshot struct {
 	agents map[string]agent.Agent
 	// meta is the tokens and titles reported on panes and environments.
 	meta map[metadata.Target]metadata.Entry
+	// observed is who observes the daemon (observer credentials with
+	// open connections, and the panes whose screens they watch).
+	observed observedState
+}
+
+// observedState is observer.activity.
+type observedState struct {
+	Observers []struct {
+		Name        string `json:"name"`
+		Connections int    `json:"connections"`
+	} `json:"observers"`
+	Watched map[string]int `json:"watched"`
+}
+
+// loadObserved reads who observes; nothing from a daemon without observers.
+func loadObserved(ctx context.Context, c client.Client) observedState {
+	var o observedState
+	_ = c.Call(ctx, "observer.activity", nil, &o)
+	return o
 }
 
 type size struct{ w, h int }
@@ -157,6 +176,7 @@ func load(ctx context.Context, c client.Client, api client.Workspace) (*snapshot
 	}
 	s.agents = loadAgents(ctx, c)
 	s.meta = loadMetadata(ctx, c)
+	s.observed = loadObserved(ctx, c)
 	slices.SortStableFunc(s.procs, func(a, b process.Process) int { return a.StartedAt.Compare(b.StartedAt) })
 	return &s, nil
 }
@@ -487,6 +507,12 @@ func (a *App) apply(ev event.Event) {
 		return
 	case metadata.EventChange:
 		a.applyMetadata(ev)
+		return
+	case "observer.activity":
+		var o observedState
+		if json.Unmarshal(ev.Data, &o) == nil {
+			s.observed, a.dirty = o, true
+		}
 		return
 	case "pane.focused":
 		var p pane.Pane

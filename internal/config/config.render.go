@@ -156,6 +156,18 @@ history_events = {{.Observers.HistoryEvents}}
 # Open observer connections allowed, all credentials together.
 max_connections = {{.Observers.MaxConnections}}
 
+[web]
+# The web observer (` + "`hive web serve`" + `): read-only agent status in a browser.
+# Its HTTP address. Beyond this machine it needs TLS or a proxy that terminates it.
+listen = {{q .Web.Listen}}
+# Where browsers reach it, for share links ("" derives it from listen).
+public_url = {{q .Web.PublicURL}}
+# A certificate and key to serve HTTPS.
+tls_cert = {{q .Web.TLSCert}}
+tls_key = {{q .Web.TLSKey}}
+# A reverse proxy in front terminates TLS (cookies are then Secure).
+behind_proxy = {{.Web.BehindProxy}}
+
 [worktrees]
 # Where ` + "`hive worktree create`" + ` puts checkouts, as <directory>/<repo>/<branch>
 # ("" means ~/.hive/worktrees, or $HIVE_HOME/worktrees).

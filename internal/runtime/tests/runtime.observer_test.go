@@ -358,3 +358,67 @@ func waitFor(ctx context.Context, t *testing.T, ok func() bool) {
 		time.Sleep(20 * time.Millisecond)
 	}
 }
+
+// TestObserverDoesNotHoldTheDaemon: a daemon stops promptly with observers
+// connected, ending their connections.
+func TestObserverDoesNotHoldTheDaemon(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	o := newObserved(ctx, t)
+	created := o.create(ctx, t, runtime.ObserverCreateParams{Name: "lingering", Scope: observer.Scope{All: true}})
+	c := o.connect(ctx, t, created.Token)
+	stream, _, err := c.Events(ctx, observer.EventsRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	start := time.Now()
+	if err := o.mod.Service.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > 10*time.Second {
+		t.Fatalf("stopping took %s with an observer connected", d)
+	}
+	select {
+	case <-c.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("the observer's connection outlived the daemon")
+	}
+}
+
+// TestObserverActivity: the daemon tells its users who observes, and which
+// screens are watched.
+func TestObserverActivity(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	o := newObserved(ctx, t)
+	events, err := o.control.Events(ctx, runtime.EventObserverActivity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer events.Close()
+	created := o.create(ctx, t, runtime.ObserverCreateParams{Name: "watcher", Scope: observer.Scope{All: true}, Screens: true})
+	c := o.connect(ctx, t, created.Token)
+	watch, _, err := c.Watch(ctx, observer.WatchRequest{Pane: o.dev.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer watch.Close()
+	for {
+		ev, err := events.Next()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var a observer.Activity
+		if err := json.Unmarshal(ev.Data, &a); err != nil {
+			t.Fatal(err)
+		}
+		if len(a.Observers) == 1 && a.Observers[0].Name == "watcher" && a.Watched[o.dev.ID] == 1 {
+			break
+		}
+	}
+	var now observer.Activity
+	if err := o.control.Call(ctx, "observer.activity", nil, &now); err != nil || now.Watched[o.dev.ID] != 1 {
+		t.Fatalf("activity = %+v, %v", now, err)
+	}
+}
