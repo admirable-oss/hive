@@ -172,6 +172,11 @@ func runDaemon(ctx context.Context, a *app) error {
 			Allow: a.cfg.Plugins.Allow, Deny: a.cfg.Plugins.Deny, Isolation: a.cfg.Plugins.Isolation,
 			RestartLimit: a.cfg.Plugins.RestartLimit, RestartWindow: a.cfg.Plugins.RestartWindow, Hidden: a.cfg.Plugins.Hidden,
 		},
+		Observers: runtime.ObserversConfig{
+			Disabled:       !a.cfg.Observers.Enabled,
+			History:        a.cfg.Observers.HistoryEvents,
+			MaxConnections: a.cfg.Observers.MaxConnections,
+		},
 		Images: runtime.ImagesConfig{
 			MaxBytes:    a.cfg.Images.MaxKB << 10,
 			MaxPixels:   a.cfg.Images.MaxMegapixels << 20,

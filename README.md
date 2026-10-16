@@ -52,7 +52,7 @@ Hive is at **v1.0 release candidates** and built in public. The wire API, the CL
 | Windows (amd64): ConPTY terminals, job-object process trees, Task Scheduler login service, zip releases with update and rollback ([platforms](docs/platforms.md)) | ✅ working |
 | Plugin API 1: versioned contract, capabilities enforced per plugin socket, optional sandbox, health and restart limits, sidebar cards, tab-bar indicators, contextual actions, palette, settings forms, backups ([reference](docs/plugins/api.md)) | ✅ working |
 | Hardening: frozen APIs, peer-credential checks on every socket, signed releases, 100 panes at under 16 ms a frame and under 1 % CPU idle, nightly fuzzing and chaos soaks ([security](SECURITY.md)) | ✅ working |
-| Windows support | 🗺 planned |
+| Observers: read-only, scoped, expiring credentials for dashboards and notifiers; screens and events with resync, locally or over SSH; audited ([docs](docs/observers.md)) | ✅ working |
 
 ## Quick start
 
@@ -135,6 +135,8 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive --remote <host> …` · `hive --machine <name> …` | Run any command (or the multiplexer) against Hive on another machine over SSH; installs it there after asking |
 | `hive plugin search \| install \| update [id] \| rollback <id> \| init <id> \| link \| list \| info \| enable \| disable \| uninstall \| run \| logs` | Discover catalog plugins or manage Git and local plugins; updates retain a rollback release and plugin data is preserved |
 | `hive plugin doctor \| reload [id] \| grant \| revoke \| config <id> \| contributions \| capabilities \| cancel \| export \| import` | Check plugin health and compatibility, manage capabilities and settings, back them up |
+| `hive observer create \| list \| show \| revoke \| validate \| audit` | Read-only credentials for dashboards and notifiers: scoped to environments or panes, expiring, revocable ([observers](docs/observers.md)) |
+| `hive observer status \| snapshot \| screen \| events \| watch` | Act as an observer, with the token in `$HIVE_OBSERVER_TOKEN` |
 | `hive pane report-metadata` · `hive env report-metadata` · `hive metadata` | Tokens and titles in the sidebar, with a TTL |
 | `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip and agents |
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
@@ -285,6 +287,8 @@ hive ps start -t dev -- claude
   plugins/<id>/  plugins/registry.json       installed plugins (shared by every session); plugins/.data/<id>/ their data,
                                              .config/<id>/ their settings, .cache/<id>/ their caches
   <session>/p/<hash>.sock                    each running plugin's own daemon socket, scoped to its capabilities
+  observer.sock                              the observer socket: read-only, token-authenticated (0600)
+  observers/credentials.json  audit.log      observer credentials (token hashes only) and who used them
   logs/plugins/<id>.log                      what each plugin's commands printed
   ssh/                                       shared SSH connections' sockets (ControlMaster)
   run/<process-id>/                          one shim per live agent (0700)
@@ -312,6 +316,11 @@ One JSON object per line. Requests carry `type`, `id`, `method` and `params`; ea
 | `process` | `start`, `list`, `get`, `logs`, `logs.stream` (pipe), `stop` |
 | `terminal` | `attach` (pipe: screen painted as ANSI, keystrokes back), `frames` (pipe: binary screen frames), `snapshot`, `input`, `resize` |
 | `events` | `subscribe` (pipe: one JSON event per line; `events_lost` means resync) |
+| `observer` | `create`, `list`, `get`, `revoke`, `validate`, `audit`: credentials for the observer socket |
+
+The **observer socket** (`observer.sock`) speaks the same protocol 2 but
+offers only `observe.*` methods, all read-only, after `observe.auth` with
+an observer token ([observers](docs/observers.md)).
 
 Screens never travel as raw output. Each agent's terminal is emulated in its shim, and viewers get frames computed from the current screen when they are ready for one. A slow viewer gets fewer frames, never a corrupted screen, and a late one starts with an exact keyframe. `process.logs` returns a size-capped tail in one reply (`truncated: true` when cut); `process.logs.stream` sends logs of any size.
 

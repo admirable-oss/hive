@@ -35,6 +35,13 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 - `hive --remote` and saved machines run `ssh <host> hive proxy`, so authentication, host keys, `~/.ssh/config` and agent forwarding are ssh's, as you set them up.
 - The remote daemon is as private as the local one.
 
+**Observers read, and only what their credential allows.**
+
+- The observer socket (`observer.sock`) offers only read-only methods, after authentication with an observer token. There is no method there that types into a terminal, changes a layout or starts anything.
+- A credential is scoped to the whole session or to listed environments and panes, may or may not read screens, and always expires. Revoking it ends its connections at once. The daemon stores only a hash of each token; tokens are never logged, and every credential made, connection, refusal and out-of-scope request is written to `observers/audit.log`.
+- What observers receive leaves out environment variables, command lines, working directories, PIDs and agents' session IDs. Screens, when allowed, show whatever is on them, secrets included.
+- This is access control in Hive's API, not isolation by the operating system: the observer socket is as private as the others (only you can connect), and a program running as you could still open the control socket. To hold an observer to its token, run it somewhere else and let it in only through an ssh key restricted to the observer socket (`command="hive proxy --observer",restrict` in `authorized_keys`). See [docs/observers.md](docs/observers.md).
+
 **Installing hive elsewhere, plugins and updates need your yes, and updates are verified.**
 
 - `hive update` downloads the release, checks the archive against `checksums.txt`, and checks `checksums.txt` against its ed25519 signature (`checksums.txt.sig`) with the release key built into your binary. An unsigned or wrongly signed release is not installed. Builds from source carry no release key and check only the checksum (they say so).

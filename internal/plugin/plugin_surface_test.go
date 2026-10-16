@@ -172,7 +172,7 @@ func TestComparePermissions(t *testing.T) {
 
 // TestEveryMethodIsClassified: a method plugins could call without a
 // capability decision must not exist. A new daemon method fails here
-// until it is classified in methodCapabilities.
+// until it is classified in methodCapabilities (or closedMethods).
 func TestEveryMethodIsClassified(t *testing.T) {
 	f, err := os.Open("../../api/v1/api.txt")
 	if err != nil {
@@ -187,7 +187,7 @@ func TestEveryMethodIsClassified(t *testing.T) {
 			continue
 		}
 		seen[name] = true
-		if _, ok := MethodCapability(name); !ok {
+		if _, ok := MethodCapability(name); !ok && !Closed(name) {
 			t.Errorf("method %s has no plugin capability (classify it in methodCapabilities)", name)
 		}
 	}
@@ -195,6 +195,9 @@ func TestEveryMethodIsClassified(t *testing.T) {
 		if !seen[m] {
 			t.Errorf("classified method %s does not exist", m)
 		}
+	}
+	if Allowed("observer.create", AllCapabilities()) {
+		t.Fatal("a closed method is allowed")
 	}
 	if Allowed("process.start", []string{CapHiveRead}) || !Allowed("process.start", []string{CapHiveProcess}) || !Allowed("plugin.card", nil) || Allowed("no.such", AllCapabilities()) {
 		t.Fatal("Allowed disagrees with the table")

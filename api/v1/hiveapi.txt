@@ -4,6 +4,8 @@ const CodeNotFound
 const CodePermissionDenied
 const CodeTimeout
 const CodeUnavailable
+const ObserverResync
+const ObserverTokenEnv
 const OutcomeBlocked
 const OutcomeExited
 const OutcomeReached
@@ -22,6 +24,14 @@ const UntilDone
 const UntilExited
 const UntilIdle
 const UntilWorking
+field ObserverOptions.Dial func(ctx context.Context) (net.Conn, error)
+field ObserverOptions.Home string
+field ObserverOptions.Host string
+field ObserverOptions.Name string
+field ObserverOptions.RemoteSession string
+field ObserverOptions.Session string
+field ObserverOptions.Socket string
+field ObserverOptions.Token string
 field Options.Home string
 field Options.Name string
 field Options.Session string
@@ -57,11 +67,14 @@ func (c *Client) StartAgent(ctx context.Context, req StartAgent) (AgentStarted, 
 func (c *Client) StopAgent(ctx context.Context, id string) (Agent, error)
 func (c *Client) Tabs(ctx context.Context, environmentID string) ([]Tab, error)
 func (c *Client) Wait(ctx context.Context, id string, opts WaitOptions) (WaitResult, error)
+func (o ObserverOptions) SocketPath() (string, error)
 func (o Options) SocketPath() (string, error)
 func Connect(opts Options) (*Client, error)
 func ConnectContext(ctx context.Context, opts Options) (*Client, error)
+func Follow(ctx context.Context, opts ObserverOptions, fn func(ObserverUpdate) error) error
 func IsCode(err error, code string) bool
 func New(c client.Client) *Client
+func Observe(ctx context.Context, opts ObserverOptions) (*Observer, error)
 type Agent = agent.Agent
 type AgentList = agent.ListResult
 type AgentStarted = client.AgentStarted
@@ -71,10 +84,31 @@ type Environment = environment.Environment
 type Error = protocol.Error
 type Event = event.Event
 type EventStream = client.EventStream
+type EventsRequest = observer.EventsRequest
 type Explanation = agent.Explanation
+type HistoryRequest = observer.HistoryRequest
 type Manifest = agent.Manifest
+type ObservedAgent = observer.Agent
+type ObservedEnvironment = observer.Environment
+type ObservedMetadata = observer.Metadata
+type ObservedPane = observer.Pane
+type ObservedPaneDetail = observer.PaneResult
+type ObservedProcess = observer.Process
+type ObservedTab = observer.Tab
+type Observer = observer.Client
+type ObserverCredential = observer.Credential
+type ObserverEvent = observer.Event
+type ObserverEventStream = observer.EventStream
+type ObserverOptions struct
+type ObserverPage = observer.Page
+type ObserverScope = observer.Scope
+type ObserverSnapshot = observer.Snapshot
+type ObserverStatus = observer.Status
+type ObserverUpdate = observer.Update
 type Options struct
 type Outcome = agent.Outcome
+type OutputRequest = observer.OutputRequest
+type OutputResult = observer.OutputResult
 type Pane = pane.Pane
 type PopupOptions struct
 type Process = process.Process
@@ -83,6 +117,10 @@ type PromptResult = agent.PromptResult
 type ReadOptions = client.ReadRequest
 type Rollups = agent.Rollups
 type Schema = protocol.Schema
+type Screen = observer.Screen
+type ScreenRequest = observer.ScreenRequest
+type ScreenStream = observer.ScreenStream
+type ScreenUpdate = observer.ScreenUpdate
 type Snapshot = client.APISnapshot
 type Spec = pane.Spec
 type StartAgent = client.AgentStartRequest
@@ -91,4 +129,5 @@ type Tab = pane.Tab
 type Until = agent.Until
 type WaitOptions = client.WaitOptions
 type WaitResult = agent.WaitResult
+type WatchRequest = observer.WatchRequest
 var ErrUnavailable

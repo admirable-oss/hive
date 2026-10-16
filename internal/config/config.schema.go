@@ -106,6 +106,11 @@ func (c *Config) schema() map[string]map[string]setter {
 			"restart_window": duration(&c.Plugins.RestartWindow, time.Minute, 24*time.Hour),
 			"hidden":         contributionList(&c.Plugins.Hidden),
 		},
+		"observers": {
+			"enabled":         boolean(&c.Observers.Enabled),
+			"history_events":  integer(&c.Observers.HistoryEvents, 64, 100000),
+			"max_connections": integer(&c.Observers.MaxConnections, 1, 1024),
+		},
 		"retention": {
 			"exited_processes": duration(&c.Retention.ExitedProcesses, time.Hour, 10*365*24*time.Hour),
 			"process_log_mb":   integer(&c.Retention.ProcessLogMB, 0, 100000),

@@ -19,8 +19,9 @@ import (
 // and a real detached daemon: the runtime starts on demand; an agent runs
 // in a pseudo console under its shim, takes input and shows output; it
 // keeps running through a daemon restart and is re-attached; plugins are
-// held to their platforms; hive updates itself and rolls back; and `hive
-// stop` ends everything.
+// held to their platforms; an observer reads over the observer socket
+// until revoked; hive updates itself and rolls back; and `hive stop` ends
+// everything.
 func TestWindowsCoreWorkflow(t *testing.T) {
 	c := newCLI(t)
 	c.exe = filepath.Join(c.home, "bin", "hive.exe")
@@ -81,6 +82,29 @@ command = ["cmd.exe", "/c", "echo hello-from-plugin"]
 	unixPlugin := writePluginDir(t, "id = \"unix-only\"\nversion = \"1.0.0\"\nplatforms = [\"linux\", \"darwin\"]\n[[actions]]\nid = \"a\"\ncommand = [\"sh\", \"-c\", \"true\"]\n")
 	if _, errOut, code := c.run("plugin", "link", unixPlugin); code == 0 || !strings.Contains(errOut, "not windows") {
 		t.Fatalf("a Unix-only plugin linked on Windows: exit %d %s", code, errOut)
+	}
+
+	// An observer reads the agent's screen over the observer socket, and
+	// is refused once revoked.
+	var created struct {
+		Credential struct {
+			ID string `json:"id"`
+		} `json:"credential"`
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal([]byte(c.must("--json", "observer", "create", "win-dash", "--env", "dev", "--screens")), &created); err != nil {
+		t.Fatal(err)
+	}
+	c.env = append(c.env, observerTokenEnv+"="+created.Token)
+	if out := c.must("observer", "status"); !strings.Contains(out, "1 environment(s)") {
+		t.Fatalf("observer status: %q", out)
+	}
+	if out := c.must("observer", "snapshot"); !strings.Contains(out, `"dev"`) {
+		t.Fatalf("observer snapshot: %q", out)
+	}
+	c.must("observer", "revoke", created.Credential.ID)
+	if _, _, code := c.run("observer", "status"); code == 0 {
+		t.Fatal("a revoked observer token still works")
 	}
 
 	// Self-update from a release .zip, then roll back.

@@ -23,6 +23,7 @@ type Config struct {
 	Remote    Remote
 	Images    Images
 	Plugins   Plugins
+	Observers Observers
 	Update    Update
 	Notify    notify.Config
 	UI        UI
@@ -166,6 +167,19 @@ type Plugins struct {
 	Hidden []string
 }
 
+// Observers configures the observer socket: read-only, scoped access for
+// dashboards and notifiers (`hive observer`).
+type Observers struct {
+	// Enabled serves the observer socket. Off, credentials are kept but
+	// nobody can observe.
+	Enabled bool
+	// HistoryEvents is how many events observers can catch up with after
+	// a reconnect.
+	HistoryEvents int
+	// MaxConnections bounds open observer connections.
+	MaxConnections int
+}
+
 // Plugin isolation modes.
 var pluginIsolations = []string{"auto", "standard", "strict"}
 
@@ -271,6 +285,7 @@ func Defaults() Config {
 		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48, ImageBudgetKB: 1024},
 		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},
 		Plugins:   Plugins{Allow: []string{}, Deny: []string{}, Isolation: "auto", RestartLimit: 5, RestartWindow: 10 * time.Minute, Hidden: []string{}},
+		Observers: Observers{Enabled: true, HistoryEvents: 2048, MaxConnections: 32},
 		Update:    Update{Channel: "stable"},
 		Notify:    notify.Defaults(),
 		UI:        UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},

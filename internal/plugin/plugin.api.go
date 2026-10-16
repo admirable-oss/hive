@@ -117,6 +117,16 @@ var methodCapabilities = map[string]string{
 	"plugin.cancel": CapHiveAdmin, "agent.reload": CapHiveAdmin,
 }
 
+// closedMethods are daemon methods no plugin may call, whatever it holds:
+// an observer credential a plugin made would outlive the plugin and its
+// grants.
+var closedMethods = []string{
+	"observer.audit", "observer.create", "observer.get", "observer.list", "observer.revoke", "observer.validate",
+}
+
+// Closed reports whether method is classified as callable by no plugin.
+func Closed(method string) bool { return slices.Contains(closedMethods, method) }
+
 // MethodCapability returns the capability a plugin needs for method; ok
 // is false for a method no plugin may call.
 func MethodCapability(method string) (capability string, ok bool) {
@@ -130,12 +140,14 @@ func Allowed(method string, granted []string) bool {
 	return ok && (c == capSelf || slices.Contains(granted, c))
 }
 
-// ClassifiedMethods lists the methods with a capability, sorted.
+// ClassifiedMethods lists the methods with a capability, and the closed
+// ones, sorted.
 func ClassifiedMethods() []string {
-	out := make([]string, 0, len(methodCapabilities))
+	out := make([]string, 0, len(methodCapabilities)+len(closedMethods))
 	for m := range methodCapabilities {
 		out = append(out, m)
 	}
+	out = append(out, closedMethods...)
 	slices.Sort(out)
 	return out
 }

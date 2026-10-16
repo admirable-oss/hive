@@ -155,8 +155,10 @@ func (a *app) useRemote(r remoteArgs) error {
 }
 
 // localCommands run on this machine even with --remote: they are about
-// this machine, or work the same anywhere.
-var localCommands = []string{"machine", "completion", "help", "version", "proxy", "__complete", "__completeNoDesc"}
+// this machine, or work the same anywhere. (`hive observer` commands that
+// act as an observer reach the remote observer socket themselves, with the
+// token from this machine.)
+var localCommands = []string{"machine", "completion", "help", "version", "proxy", "observer", "__complete", "__completeNoDesc"}
 
 // passThrough runs a command that has no daemon client of its own (daemon
 // management, configuration, integrations, update) on the remote machine

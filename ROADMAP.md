@@ -553,9 +553,15 @@ CI coverage.
 
 ---
 
-## M14 · Observer API — `v1.0.5`
+## M14 · Observer API — `v1.0.5` — **LIVE**
 
 Observe without taking control.
+
+Credentials, the observer socket, methods, events and resynchronisation,
+limits, remote observers and the security model:
+[docs/observers.md](docs/observers.md). The API is frozen in
+`api/v1/observer.txt`; examples are in `examples/observer-dashboard` and
+`examples/observer-notifier`.
 
 Introduce a read-only interface for applications that need to inspect Hive
 sessions without gaining the ability to type into agents or change runtime

@@ -64,6 +64,8 @@ type Config struct {
 	Plugins PluginsConfig
 	// Images bounds images pasted into terminals (terminal.image).
 	Images ImagesConfig
+	// Observers is the observer socket's policy.
+	Observers ObserversConfig
 	// ProcessLogMaxBytes rotates each agent's output log past this size,
 	// keeping one older file. Zero lets logs grow.
 	ProcessLogMaxBytes int64

@@ -43,7 +43,8 @@ const Version2 = "2"
 //	7 remote clients: client.report, frames/deflate, clipboard in frames (M7)
 //	8 extensibility: plugin.*, metadata.*, worktree.created/removed (M8)
 //	9 hardening: debug.pprof, debug.stats (M9)
-const APILevel = 9
+//	10 observers: observer.*, the observer socket's observe.* (M14)
+const APILevel = 10
 
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.

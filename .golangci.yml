@@ -116,6 +116,7 @@ linters:
             - "**/internal/event/*.go"
             - "**/internal/git/*.go"
             - "**/internal/pane/*.go"
+            - "**/internal/observer/*.go"
             - "!$test"
           deny:
             - pkg: github.com/admirable-oss/hive/internal/runtime

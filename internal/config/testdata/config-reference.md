@@ -101,6 +101,14 @@ the defaults, so a typo never stops the daemon.
 | `restart_window` | `"10m0s"` | A plugin command that fails more than restart_limit times within restart_window is no longer restarted (`hive plugin reload <id>` resets it). |
 | `hidden` | `[]` | Contributions to turn off: "plugin", "plugin:kind" or "plugin:kind:id" (`hive plugin contributions` lists them). |
 
+## `[observers]`
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Serve the observer socket: read-only access for dashboards and notifiers holding a credential (`hive observer create`). Off, nobody can observe. |
+| `history_events` | `2048` | Events kept for observers to catch up with after a reconnect. |
+| `max_connections` | `32` | Open observer connections allowed, all credentials together. |
+
 ## `[worktrees]`
 
 | Key | Default | Description |
