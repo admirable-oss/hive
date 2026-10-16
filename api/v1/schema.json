@@ -2610,6 +2610,9 @@
         "id": {
           "type": "string"
         },
+        "log_dir": {
+          "type": "string"
+        },
         "lost": {
           "type": "boolean"
         },

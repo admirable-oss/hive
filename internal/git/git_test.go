@@ -104,7 +104,7 @@ func TestParseStatusUpstream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := git.Status{Root: "/r", Branch: "feature/x", Head: "0123456789ab", Upstream: "origin/feature/x", Ahead: 3, Behind: 2, Modified: 1, Conflicts: 1, Untracked: 1}
+	want := git.Status{Root: filepath.FromSlash("/r"), Branch: "feature/x", Head: "0123456789ab", Upstream: "origin/feature/x", Ahead: 3, Behind: 2, Modified: 1, Conflicts: 1, Untracked: 1}
 	if *st != want {
 		t.Fatalf("got %+v\nwant %+v", *st, want)
 	}

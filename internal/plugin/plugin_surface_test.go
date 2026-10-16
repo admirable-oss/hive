@@ -330,6 +330,8 @@ command = ["./ev.sh"]
 			t.Fatalf("events out of order: %v", lines)
 		}
 	}
+	// The 20th line lands just before its delivery is counted.
+	waitFor(t, "20 deliveries counted", func() bool { return statusOf(h, "ordered").Health.Events.Delivered == 20 })
 	if st := statusOf(h, "ordered"); st.Health.Events.Delivered != 20 || st.Health.Events.Dropped != 0 {
 		t.Fatalf("events = %+v", st.Health.Events)
 	}

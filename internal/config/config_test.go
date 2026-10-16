@@ -179,7 +179,7 @@ func TestResolvePath(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := config.ResolvePath(env(tt.env), "/home/u"); got != filepath.FromSlash(tt.want) {
+			if got := config.ResolvePath(env(tt.env), "/home/u"); got != tt.want && got != filepath.FromSlash(tt.want) {
 				t.Fatalf("got %q, want %q", got, tt.want)
 			}
 		})

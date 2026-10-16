@@ -35,6 +35,10 @@ type Process struct {
 	// with the host (a reboot) or with its shim, and a later daemon found
 	// it gone. Such processes are what a session restore starts again.
 	Lost bool `json:"lost,omitempty"`
+	// LogDir holds its output logs when they are not in its record's
+	// directory: on Windows a running process's logs cannot be moved with
+	// it to another environment, so they stay where it writes them.
+	LogDir string `json:"log_dir,omitempty"`
 }
 
 // Active reports whether the process is (or is about to be) running.

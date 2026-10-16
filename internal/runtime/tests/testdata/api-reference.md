@@ -1859,6 +1859,7 @@ Result: [protocol.Empty](#protocolempty)
 | `environment_id` | `string` |  |
 | `exit_code` | `integer` |  |
 | `id` | `string` |  |
+| `log_dir` | `string` |  |
 | `lost` | `boolean` |  |
 | `pid` | `integer` |  |
 | `started_at` | `string` |  |
