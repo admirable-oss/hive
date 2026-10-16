@@ -167,6 +167,15 @@ tls_cert = {{q .Web.TLSCert}}
 tls_key = {{q .Web.TLSKey}}
 # A reverse proxy in front terminates TLS (cookies are then Secure).
 behind_proxy = {{.Web.BehindProxy}}
+# Notifications on phones and browsers that turn them on (Web Push; they need
+# HTTPS, or localhost).
+push = {{.Web.Push}}
+# How push services can reach you, if they must (mailto: or https:; "" uses
+# the public URL).
+push_contact = {{q .Web.PushContact}}
+# Accept push services other than the browsers' own (Google, Mozilla, Apple,
+# Microsoft).
+push_allow_any_endpoint = {{.Web.PushAllowAnyEndpoint}}
 
 [worktrees]
 # Where ` + "`hive worktree create`" + ` puts checkouts, as <directory>/<repo>/<branch>

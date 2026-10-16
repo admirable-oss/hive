@@ -690,9 +690,14 @@ through the read-only API.
 
 ---
 
-## M16 · Mobile Observer — `v1.0.7`
+## M16 · Mobile Observer — `v1.0.7` — **LIVE**
 
 Your agents don’t stop when you leave your desk.
+
+An installable web app (PWA) on the web observer, with Web Push notifications
+sent directly and end-to-end encrypted, deep links, and phone layouts tested
+in emulated iPhone and Pixel browsers; why not native apps (yet), delivery
+limits and the device checklist: [docs/mobile.md](docs/mobile.md).
 
 Build on the Web Observer to make Hive’s read-only monitoring experience useful
 on phones and tablets. Prioritize actionable information over attempting to

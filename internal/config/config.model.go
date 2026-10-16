@@ -193,6 +193,14 @@ type Web struct {
 	TLSCert     string
 	TLSKey      string
 	BehindProxy bool
+	// Push sends notifications to phones and browsers (Web Push).
+	Push bool
+	// PushContact is how push services can reach whoever runs it (a
+	// mailto: or https: URL; "" uses the public URL).
+	PushContact string
+	// PushAllowAnyEndpoint accepts push services other than the
+	// browsers' own.
+	PushAllowAnyEndpoint bool
 }
 
 // Plugin isolation modes.
@@ -301,7 +309,7 @@ func Defaults() Config {
 		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},
 		Plugins:   Plugins{Allow: []string{}, Deny: []string{}, Isolation: "auto", RestartLimit: 5, RestartWindow: 10 * time.Minute, Hidden: []string{}},
 		Observers: Observers{Enabled: true, HistoryEvents: 2048, MaxConnections: 32},
-		Web:       Web{Listen: "127.0.0.1:8484"},
+		Web:       Web{Listen: "127.0.0.1:8484", Push: true},
 		Update:    Update{Channel: "stable"},
 		Notify:    notify.Defaults(),
 		UI:        UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},

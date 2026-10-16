@@ -62,6 +62,9 @@ update.channel
 web.behind_proxy
 web.listen
 web.public_url
+web.push
+web.push_allow_any_endpoint
+web.push_contact
 web.tls_cert
 web.tls_key
 worktrees.directory

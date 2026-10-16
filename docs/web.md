@@ -129,6 +129,12 @@ It names the grant, the client's address and its user agent, and never a
 code or a cookie. Each daemon's own observer audit log (`hive observer
 audit`) also records the web observer's connections.
 
+## On phones
+
+The web observer is an installable app on phones, with an Attention view,
+notifications (Web Push) and deep links to agents. See [Hive on your
+phone](mobile.md).
+
 ## The app
 
 - **Agents.** Every agent the link can see, across runtimes. Agents that
@@ -202,6 +208,9 @@ public_url = ""             # where browsers reach it, for share links
 tls_cert = ""               # a certificate and key to serve HTTPS
 tls_key = ""
 behind_proxy = false        # a reverse proxy in front terminates TLS
+push = true                 # notifications on phones and browsers (see mobile.md)
+push_contact = ""
+push_allow_any_endpoint = false
 ```
 
 Flags of `hive web serve` (`--listen`, `--public-url`, `--tls-cert`,

@@ -26,7 +26,7 @@ func TestSignInFollowAndRevoke(t *testing.T) {
 		t.Fatalf("anonymous: %d %s", code, at)
 	}
 	code := h.share(web.ShareRequest{Label: "watch", Scope: observer.Scope{All: true}, Screens: true})
-	if at := b.signIn(code); at.Path != "/" {
+	if at := b.signIn(code); at.Path != "/attention" {
 		t.Fatalf("sign-in ended at %s", at)
 	}
 	// The link works once.

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	g "maragu.dev/gomponents"
 
 	"github.com/admirable-oss/hive/internal/observer"
+	"github.com/admirable-oss/hive/internal/protocol"
 )
 
 // Stream timing.
@@ -43,7 +45,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /login", s.login)
 	mux.HandleFunc("POST /logout", s.authed(s.logout))
 	mux.HandleFunc("GET /session", s.sessionCheck)
+	mux.HandleFunc("GET /manifest.webmanifest", s.manifest)
+	mux.HandleFunc("GET /sw.js", s.serviceWorker)
+	mux.HandleFunc("GET /offline", s.offline)
 	mux.HandleFunc("GET /{$}", s.authed(s.dashboard))
+	mux.HandleFunc("GET /attention", s.authed(s.attention))
+	mux.HandleFunc("GET /machines", s.authed(s.machines))
+	mux.HandleFunc("GET /settings", s.authed(s.settings))
+	mux.HandleFunc("POST /settings", s.authed(s.saveSettings))
+	mux.HandleFunc("GET /push/key", s.authed(s.pushKey))
+	mux.HandleFunc("POST /push/subscribe", s.authed(s.pushSubscribe))
+	mux.HandleFunc("POST /push/unsubscribe", s.authed(s.pushUnsubscribe))
+	mux.HandleFunc("POST /push/test", s.authed(s.pushTest))
 	mux.HandleFunc("GET /access", s.authed(s.access))
 	mux.HandleFunc("GET /r/{rt}", s.authed(s.runtimePage))
 	mux.HandleFunc("GET /r/{rt}/e/{env}", s.authed(s.environmentPage))
@@ -58,7 +71,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) headers(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+		h.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
@@ -157,7 +170,7 @@ func (s *Server) sameOrigin(r *http.Request) bool {
 }
 
 func (s *Server) loginForm(w http.ResponseWriter, r *http.Request) {
-	render(w, http.StatusOK, loginPage(r.URL.Query().Get("reason")))
+	render(w, http.StatusOK, loginPage(r.URL.Query().Get("reason"), safeNext(r.URL.Query().Get("next"))))
 }
 
 // login redeems a link's code for a session cookie.
@@ -172,10 +185,15 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	code := r.PostFormValue("code")
+	next := safeNext(r.PostFormValue("next"))
 	sess, grant, cookie, err := s.store.Redeem(code, r.UserAgent())
 	if err != nil {
 		s.audit.Record(observer.AuditEntry{Action: "link_refused", Credential: grant.ID, Name: grant.Label, Detail: refusal(err), Client: s.client(r)})
-		http.Redirect(w, r, "/login?reason=refused", http.StatusSeeOther)
+		to := "/login?reason=refused"
+		if next != "" {
+			to += "&next=" + url.QueryEscape(next)
+		}
+		http.Redirect(w, r, to, http.StatusSeeOther)
 		return
 	}
 	s.audit.Record(observer.AuditEntry{Action: "signed_in", Credential: grant.ID, Name: grant.Label, Detail: "session " + sess.ID, Client: s.client(r)})
@@ -183,7 +201,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		Name: s.cookieName(), Value: cookie, Path: "/", Expires: sess.ExpiresAt,
 		HttpOnly: true, Secure: s.cfg.secure(), SameSite: http.SameSiteStrictMode,
 	})
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	if next == "" {
+		next = "/attention"
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // next is a local path (safeNext)
 }
 
 func refusal(err error) string {
@@ -206,7 +227,11 @@ func (s *Server) authed(next authedHandler) http.HandlerFunc {
 				writeJSON(w, http.StatusUnauthorized, map[string]string{"reason": reason})
 				return
 			}
-			http.Redirect(w, r, "/login?reason="+reason, http.StatusSeeOther) //nolint:gosec // a fixed local path; reason is one of a few words
+			to := "/login?reason=" + reason
+			if next := safeNext(r.URL.RequestURI()); next != "" && next != "/" {
+				to += "&next=" + url.QueryEscape(next) // back here after signing in (a notification's link)
+			}
+			http.Redirect(w, r, to, http.StatusSeeOther) //nolint:gosec // a local path; reason is one of a few words, next is checked
 			return
 		}
 		next(w, r, sess, grant)
@@ -254,12 +279,15 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, sess Session, gr
 	s.endSessions([]string{sess.ID}, "out")
 	s.audit.Record(observer.AuditEntry{Action: "signed_out", Credential: grant.ID, Name: grant.Label, Detail: "session " + sess.ID, Client: s.client(r)})
 	s.clearCookie(w)
+	// The installed app's cache and this browser's storage go too.
+	w.Header().Set("Clear-Site-Data", `"cache", "storage"`)
+	s.refreshPush() // this browser's devices went with its session
 	http.Redirect(w, r, "/login?reason=out", http.StatusSeeOther)
 }
 
 // page builds what a page shows, connecting its runtimes if needed.
 func (s *Server) page(sess Session, grant Grant, path string, q url.Values) *page {
-	p := &page{grant: grant, session: sess, now: s.now(), path: path, query: q}
+	p := &page{grant: grant, session: sess, now: s.now(), path: path, query: q, prefs: s.store.PrefsOf(sess.ID)}
 	for _, rt := range s.allowed(grant) {
 		c := s.conn(rt.Name)
 		if c == nil {
@@ -277,6 +305,42 @@ func (s *Server) touch(names ...string) {
 			c.Acquire()()
 		}
 	}
+}
+
+// loadWait is how long a page about one runtime waits for it to connect:
+// a notification's link usually arrives while nobody was looking.
+const loadWait = 4 * time.Second
+
+// waitLoaded connects runtime name and waits briefly until it is known.
+func (s *Server) waitLoaded(r *http.Request, name string) {
+	c := s.conn(name)
+	if c == nil {
+		return
+	}
+	release := c.Acquire() //nolint:contextcheck // the connection outlives this request
+	defer release()
+	if c.model.View().Loaded() {
+		return
+	}
+	ch, unsub := c.Subscribe()
+	defer unsub()
+	t := time.NewTimer(loadWait)
+	defer t.Stop()
+	for !c.model.View().Loaded() {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-t.C:
+			return
+		case <-ch:
+		}
+	}
+}
+
+func renderString(n g.Node) string {
+	var b bytes.Buffer
+	_ = n.Render(&b)
+	return b.String()
 }
 
 func (s *Server) notFound(w http.ResponseWriter, p *page, what string) {
@@ -304,6 +368,9 @@ func (s *Server) runtimePage(w http.ResponseWriter, r *http.Request, sess Sessio
 }
 
 func (s *Server) environmentPage(w http.ResponseWriter, r *http.Request, sess Session, grant Grant) {
+	if slicesContains(grant.Runtimes, r.PathValue("rt")) {
+		s.waitLoaded(r, r.PathValue("rt"))
+	}
 	p := s.page(sess, grant, r.URL.Path, r.URL.Query())
 	rt, env := p.runtime(r.PathValue("rt")), r.PathValue("env")
 	if rt == nil || !grant.Scope.Environment(env) || (rt.v.Loaded() && !hasEnv(rt, env)) {
@@ -323,6 +390,9 @@ func paneVisible(p *page, r *shown, pane string) bool {
 }
 
 func (s *Server) panePage(w http.ResponseWriter, r *http.Request, sess Session, grant Grant) {
+	if slicesContains(grant.Runtimes, r.PathValue("rt")) {
+		s.waitLoaded(r, r.PathValue("rt"))
+	}
 	p := s.page(sess, grant, r.URL.Path, r.URL.Query())
 	rt, pane := p.runtime(r.PathValue("rt")), r.PathValue("pane")
 	if rt == nil || !rt.v.Loaded() {
@@ -347,6 +417,8 @@ func (s *Server) panePage(w http.ResponseWriter, r *http.Request, sess Session, 
 			cancel()
 			if err == nil {
 				scr = screenState{screen: got, have: true}
+			} else if pe, ok := errors.AsType[*protocol.Error](err); ok && pe.Code == protocol.ErrorCodePermissionDenied {
+				scr = screenState{err: pe.Message}
 			}
 		}
 	}
@@ -425,6 +497,12 @@ func parseView(raw string) (streamView, bool) {
 		v.kind = "dashboard"
 	case u.Path == "/access":
 		v.kind = "access"
+	case u.Path == "/attention":
+		v.kind = "attention"
+	case u.Path == "/machines":
+		v.kind = "machines"
+	case u.Path == "/settings":
+		v.kind = "settings"
 	case len(parts) == 2 && parts[0] == "r":
 		v.kind, v.runtime = "runtime", parts[1]
 	case len(parts) == 4 && parts[0] == "r" && parts[2] == "e":
@@ -616,10 +694,14 @@ func slicesContains(xs []string, x string) bool {
 
 // fragments are the parts of a view that change live.
 func (s *Server) fragments(v streamView, p *page, watch *paneWatch) []g.Node {
-	out := []g.Node{connFragment(p)}
+	out := []g.Node{connFragment(p), bannerFragment(p)}
 	switch v.kind {
 	case "dashboard":
 		out = append(out, dashboardFragments(p)...)
+	case "attention":
+		out = append(out, attentionFragments(p, p.prefs)...)
+	case "machines":
+		out = append(out, machinesFragments(p)...)
 	case "runtime":
 		if rt := p.runtime(v.runtime); rt != nil {
 			out = append(out, runtimeFragments(p, rt)...)
@@ -639,9 +721,9 @@ func (s *Server) fragments(v streamView, p *page, watch *paneWatch) []g.Node {
 			scr = screenState{screen: screen, have: have, err: err, version: version}
 		}
 		frags := paneFragments(p, rt, v.pane, scr)
-		if watch != nil && !scr.have && scr.err == "" {
+		if watch != nil && !scr.have && (scr.err == "" || scr.err == errOffline.Error()) {
 			// Still loading: keep the screen the page came with.
-			frags = frags[:len(frags)-1]
+			frags = slices.DeleteFunc(frags, func(n g.Node) bool { id, _ := fragmentMeta(renderString(n)); return id == "screen" })
 		}
 		out = append(out, frags...)
 	}

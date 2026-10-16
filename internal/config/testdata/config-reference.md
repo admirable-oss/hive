@@ -118,6 +118,9 @@ the defaults, so a typo never stops the daemon.
 | `tls_cert` | `""` | A certificate and key to serve HTTPS. |
 | `tls_key` | `""` | A certificate and key to serve HTTPS. |
 | `behind_proxy` | `false` | A reverse proxy in front terminates TLS (cookies are then Secure). |
+| `push` | `true` | Notifications on phones and browsers that turn them on (Web Push; they need HTTPS, or localhost). |
+| `push_contact` | `""` | How push services can reach you, if they must (mailto: or https:; "" uses the public URL). |
+| `push_allow_any_endpoint` | `false` | Accept push services other than the browsers' own (Google, Mozilla, Apple, Microsoft). |
 
 ## `[worktrees]`
 

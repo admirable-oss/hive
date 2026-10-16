@@ -16,6 +16,7 @@ import (
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/terminal"
+	"github.com/admirable-oss/hive/internal/vt"
 )
 
 func TestMain(m *testing.M) { goleak.VerifyTestMain(m) }
@@ -39,9 +40,21 @@ func newWorld(t *testing.T, root string) *world {
 	w := &world{root: root, envs: envs, procs: procs, terms: terms, store: store}
 	w.panes = pane.NewService(pane.Config{Size: terminal.Size{Width: 81, Height: 24}, Shell: []string{"sh"}}, store, procs, terms, envs, nil)
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
+		list, _ := procs.List(ctx, "")
+		var sessions []terminal.Session
+		for _, p := range list {
+			if s, err := terms.Get(p.ID); err == nil {
+				sessions = append(sessions, s)
+			}
+		}
 		_ = procs.StopAll(ctx)
+		// A terminal's output ends after its process (on Windows, once the
+		// pseudo console closes): wait for it, so nothing outlives the test.
+		for _, s := range sessions {
+			_ = s.Frames(ctx, func(*vt.Frame) error { return nil })
+		}
 	})
 	return w
 }
@@ -184,7 +197,7 @@ func TestClosingPanesAndTabs(t *testing.T) {
 
 func waitStatus(t *testing.T, w *world, processID string, want process.Status) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(20 * time.Second) // Windows stops a console program slowly
 	for {
 		p, err := w.procs.Get(context.Background(), processID)
 		if err == nil && p.Status == want {

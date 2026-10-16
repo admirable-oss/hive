@@ -58,3 +58,8 @@ func serveAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	_, _ = w.Write(data) //nolint:gosec // an asset embedded in hive, not user input
 }
+
+func shortHash(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:6])
+}
