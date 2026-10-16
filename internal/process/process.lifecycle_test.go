@@ -1,3 +1,5 @@
+//go:build !windows
+
 package process_test
 
 import (
@@ -11,15 +13,6 @@ import (
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/process"
 )
-
-func newEnv(t *testing.T, root, id string) environment.Service {
-	t.Helper()
-	envs := environment.NewService(environment.NewFilesystemStore(root))
-	if _, err := envs.Create(context.Background(), environment.CreateRequest{ID: id}); err != nil {
-		t.Fatalf("create env: %v", err)
-	}
-	return envs
-}
 
 func TestStore_TailReadsOnlyTheEnd(t *testing.T) {
 	root := t.TempDir()

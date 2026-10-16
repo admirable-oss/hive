@@ -15,8 +15,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"github.com/admirable-oss/hive/internal/pgroup"
 )
 
 // CacheDir is plugin id's disposable cache: removed on uninstall, and safe
@@ -119,17 +120,23 @@ func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string,
 		w = io.MultiWriter(w, also)
 	}
 	cmd.Stdout, cmd.Stderr = w, w
-	// Its own process group, so stopping it stops what it started.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
+	// Its own group, so stopping it stops what it started.
+	pgroup.Configure(cmd)
+	cmd.Cancel = func() error { return pgroup.TerminateAfter(cmd.Process.Pid, 3*time.Second) }
 	cmd.WaitDelay = 3 * time.Second
 	h.running.Add(1)
 	defer h.running.Done()
 	if err := cmd.Start(); err != nil {
 		return 0, err
 	}
+	if err := pgroup.Started(cmd); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return 0, err
+	}
 	err = cmd.Wait()
-	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) // anything it left running
+	_ = pgroup.Kill(cmd.Process.Pid) // anything it left running
+	pgroup.Release(cmd.Process.Pid)
 	if ee, ok := errors.AsType[*exec.ExitError](err); ok {
 		return ee.ExitCode(), err
 	}

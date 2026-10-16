@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"syscall"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/pgroup"
@@ -30,7 +29,7 @@ func NewExecRunner(grace time.Duration) Runner {
 func (r execRunner) Start(_ context.Context, cmd Command) (Handle, error) {
 	c := exec.Command(cmd.Path, cmd.Args...) //nolint:noctx // agents outlive any request context
 	c.Dir, c.Env = cmd.WorkingDir, cmd.Env
-	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	pgroup.Configure(c)
 
 	h := &execHandle{cmd: c, grace: r.grace}
 	for _, log := range []struct {
@@ -54,6 +53,12 @@ func (r execRunner) Start(_ context.Context, cmd Command) (Handle, error) {
 		h.closeLogs()
 		return nil, err
 	}
+	if err := pgroup.Started(c); err != nil {
+		_ = c.Process.Kill()
+		_ = c.Wait()
+		h.closeLogs()
+		return nil, err
+	}
 	return h, nil
 }
 
@@ -72,6 +77,7 @@ func (h *execHandle) PID() int {
 
 func (h *execHandle) Wait() error {
 	err := h.cmd.Wait()
+	pgroup.Release(h.PID())
 	h.closeLogs()
 	return err
 }

@@ -18,9 +18,9 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/vt"
 )
@@ -442,13 +442,8 @@ func privateDir(dir string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	fi, err := os.Lstat(dir)
-	if err != nil {
-		return err
-	}
-	st, ok := fi.Sys().(*syscall.Stat_t)
-	if !fi.IsDir() || fi.Mode().Perm()&0o077 != 0 || (ok && int(st.Uid) != os.Getuid()) {
-		return fmt.Errorf("image directory %s is not private to this user", dir)
+	if err := platform.CheckPrivateDir(dir); err != nil {
+		return fmt.Errorf("image directory: %w", err)
 	}
 	return nil
 }

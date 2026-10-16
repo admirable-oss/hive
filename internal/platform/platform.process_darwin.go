@@ -37,3 +37,7 @@ func bootTime() (time.Time, error) {
 	}
 	return time.Unix(tv.Sec, int64(tv.Usec)*int64(time.Microsecond)), nil
 }
+
+// NewestDescendant is Windows' stand-in for a terminal's foreground group;
+// Unix asks the terminal (ForegroundGroup).
+func NewestDescendant(int) (int, error) { return 0, ErrUnsupported }

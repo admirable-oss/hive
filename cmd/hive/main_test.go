@@ -21,7 +21,7 @@ import (
 // tests. End-to-end tests exec it, and the CLI in turn spawns `hive daemon`
 // the way a user's shell would; plugins and agents call it as $HIVE_BIN.
 func TestMain(m *testing.M) {
-	if os.Getenv("HIVE_CLI_TEST_EXEC") == "1" || filepath.Base(os.Args[0]) == "hive" {
+	if name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe"); os.Getenv("HIVE_CLI_TEST_EXEC") == "1" || name == "hive" {
 		os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 	}
 	goleak.VerifyTestMain(m)

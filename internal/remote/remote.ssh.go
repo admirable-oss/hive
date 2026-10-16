@@ -19,7 +19,6 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -187,17 +186,11 @@ func (t Target) Dial(ctx context.Context) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	conn, theirs, err := sshTransport()
 	if err != nil {
 		return nil, err
 	}
-	local, theirs := os.NewFile(uintptr(fds[0]), "hive-proxy"), os.NewFile(uintptr(fds[1]), "ssh")
 	defer theirs.Close()
-	conn, err := net.FileConn(local)
-	_ = local.Close() // FileConn dups it
-	if err != nil {
-		return nil, err
-	}
 	c := &Conn{Conn: conn, host: t.Host, cmd: cmd, done: make(chan struct{})}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = theirs, theirs, &c.stderr
 	if err := cmd.Start(); err != nil {

@@ -4,12 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
-	"syscall"
 )
 
 // MaxSocketPath is a conservative unix socket path limit (macOS allows 104
@@ -34,9 +31,6 @@ func SocketPath(dir, name string) string {
 	return filepath.Join(shortSocketDir(), hex.EncodeToString(sum[:12])+".sock")
 }
 
-func shortSocketDir() string {
-	return "/tmp/hive-" + strconv.Itoa(os.Getuid())
-}
 
 // PrepareSocketDir makes sure the directory of socket path exists. The
 // shared /tmp fallback directory is created private (0700) and refused
@@ -49,13 +43,5 @@ func PrepareSocketDir(path string) error {
 	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
 		return err
 	}
-	fi, err := os.Lstat(dir)
-	if err != nil {
-		return err
-	}
-	st, ok := fi.Sys().(*syscall.Stat_t)
-	if !fi.IsDir() || fi.Mode().Perm()&0o077 != 0 || !ok || int(st.Uid) != os.Getuid() {
-		return fmt.Errorf("platform: %s must be a directory only you can access (mode 0700)", dir)
-	}
-	return nil
+	return CheckPrivateDir(dir)
 }

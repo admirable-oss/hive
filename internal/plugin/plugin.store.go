@@ -15,10 +15,10 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/jsonfile"
+	"github.com/admirable-oss/hive/internal/platform"
 )
 
 // Errors of the store.
@@ -90,12 +90,12 @@ func (s *Store) lock() (func(), error) {
 		s.mu.Unlock()
 		return nil, err
 	}
-	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
+	if err := platform.Lock(file); err != nil {
 		_ = file.Close()
 		s.mu.Unlock()
 		return nil, err
 	}
-	return func() { _ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN); _ = file.Close(); s.mu.Unlock() }, nil
+	return func() { _ = platform.Unlock(file); _ = file.Close(); s.mu.Unlock() }, nil
 }
 
 // Recover repairs an interrupted registry update/rollback before callers inspect the store.

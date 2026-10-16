@@ -1,4 +1,4 @@
-//go:build !darwin && !linux
+//go:build !darwin && !linux && !windows
 
 package platform
 
@@ -13,3 +13,6 @@ func processArgs(int) ([]string, error) { return nil, ErrUnsupported }
 func foregroundGroup(uintptr) (int, error) { return 0, ErrUnsupported }
 
 func bootTime() (time.Time, error) { return time.Time{}, ErrUnsupported }
+
+// NewestDescendant is Windows' stand-in for a terminal's foreground group.
+func NewestDescendant(int) (int, error) { return 0, ErrUnsupported }

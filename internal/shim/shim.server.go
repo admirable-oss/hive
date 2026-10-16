@@ -203,7 +203,7 @@ func (s *server) start(ctx context.Context) error {
 func startPlain(sp Spec) (*exec.Cmd, error) {
 	c := exec.Command(sp.Path, sp.Args...) //nolint:noctx // the agent outlives everything but the shim
 	c.Dir, c.Env = sp.WorkingDir, sp.Env
-	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	pgroup.Configure(c)
 	var files []*os.File
 	closeAll := func() {
 		for _, f := range files {
@@ -230,6 +230,11 @@ func startPlain(sp Spec) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := pgroup.Started(c); err != nil {
+		_ = c.Process.Kill()
+		_ = c.Wait()
+		return nil, err
+	}
 	return c, nil
 }
 
@@ -240,6 +245,7 @@ func (s *server) wait() {
 		err = s.sess.Wait()
 	} else {
 		err = s.cmd.Wait()
+		pgroup.Release(s.cmd.Process.Pid)
 	}
 	code := 0
 	if ec, ok := errors.AsType[interface {

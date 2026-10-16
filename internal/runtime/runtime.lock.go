@@ -3,9 +3,12 @@ package runtime
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	goruntime "runtime"
 	"strconv"
-	"syscall"
+
+	"github.com/admirable-oss/hive/internal/platform"
 )
 
 // pidFileName is the daemon's lock and PID file inside the storage root.
@@ -27,12 +30,14 @@ func acquireLock(path string) (*instanceLock, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	ok, err := platform.TryLock(f)
+	if err != nil {
 		_ = f.Close()
-		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, ErrAlreadyRunning
-		}
 		return nil, fmt.Errorf("lock %s: %w", path, err)
+	}
+	if !ok {
+		_ = f.Close()
+		return nil, ErrAlreadyRunning
 	}
 	if err := f.Truncate(0); err != nil {
 		return nil, errors.Join(err, f.Close())
@@ -44,16 +49,27 @@ func acquireLock(path string) (*instanceLock, error) {
 }
 
 // release removes the PID file and drops the lock. Removing first means a
-// new daemon never finds our PID in a file it has just locked.
+// new daemon never finds our PID in a file it has just locked. Windows
+// cannot remove an open file: there the file is closed (unlocking it)
+// first, and removed when no new daemon has claimed it meanwhile.
 func (l *instanceLock) release() error {
 	if l == nil || l.f == nil {
 		return nil
 	}
-	err := os.Remove(l.f.Name())
-	if errors.Is(err, os.ErrNotExist) {
-		err = nil
+	name := l.f.Name()
+	var err error
+	if goruntime.GOOS == "windows" {
+		err = l.f.Close()
+		if rerr := os.Remove(name); rerr != nil && !errors.Is(rerr, os.ErrNotExist) && !errors.Is(rerr, fs.ErrPermission) {
+			err = errors.Join(err, rerr)
+		}
+	} else {
+		err = os.Remove(name)
+		if errors.Is(err, os.ErrNotExist) {
+			err = nil
+		}
+		err = errors.Join(err, l.f.Close())
 	}
-	err = errors.Join(err, l.f.Close())
 	l.f = nil
 	return err
 }

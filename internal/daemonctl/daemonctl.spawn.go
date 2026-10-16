@@ -8,8 +8,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/admirable-oss/hive/internal/platform"
 )
 
 // SpawnOptions describes how to launch a detached daemon.
@@ -73,11 +74,11 @@ func Spawn(ctx context.Context, opts SpawnOptions) error {
 	// The daemon must not hold this terminal, or closing it would hang the
 	// daemon up. A new session also keeps Ctrl+C in this shell away from it.
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devnull, devnull, stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
+	platform.Detach(cmd)
+	cmd, err = platform.StartDetached(cmd)
+	if err != nil {
 		return fmt.Errorf("start daemon: %w", err)
 	}
-	pid := cmd.Process.Pid
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
@@ -93,12 +94,12 @@ func Spawn(ctx context.Context, opts SpawnOptions) error {
 			_ = cmd.Process.Release()
 			return nil
 		}
-		if exited, status := reaped(pid); exited {
+		if exited, code := reaped(cmd); exited {
 			// Lost a race with another client's daemon? Then it is up.
 			if opts.Ready(ctx) == nil {
 				return nil
 			}
-			return startupError(status, opts.StderrPath, opts.LogPath)
+			return startupError(code, opts.StderrPath, opts.LogPath)
 		}
 		select {
 		case <-ctx.Done():
@@ -109,25 +110,13 @@ func Spawn(ctx context.Context, opts SpawnOptions) error {
 	}
 }
 
-// reaped reports whether pid has exited, collecting it if so.
-func reaped(pid int) (bool, syscall.WaitStatus) {
-	var status syscall.WaitStatus
-	for {
-		got, err := syscall.Wait4(pid, &status, syscall.WNOHANG, nil)
-		if errors.Is(err, syscall.EINTR) {
-			continue
-		}
-		return err == nil && got == pid, status
-	}
-}
-
-func startupError(status syscall.WaitStatus, stderrPath, logPath string) error {
+func startupError(code int, stderrPath, logPath string) error {
 	msg := tailFile(stderrPath, 5)
 	if msg == "" {
 		msg = tailFile(logPath, 5)
 	}
 	if msg == "" {
-		msg = fmt.Sprintf("exit status %d", status.ExitStatus())
+		msg = fmt.Sprintf("exit status %d", code)
 	}
 	where := logPath
 	if where == "" {
