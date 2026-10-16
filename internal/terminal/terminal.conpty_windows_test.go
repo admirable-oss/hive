@@ -28,7 +28,12 @@ func openConPTY(t *testing.T, path string, args ...string) terminal.Session {
 
 func waitConScreen(t *testing.T, sess terminal.Session, want string) *vt.Screen {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	return waitConScreenFor(t, sess, want, 20*time.Second)
+}
+
+func waitConScreenFor(t *testing.T, sess terminal.Session, want string, limit time.Duration) *vt.Screen {
+	t.Helper()
+	deadline := time.Now().Add(limit)
 	for {
 		s, err := sess.Snapshot(context.Background())
 		if err != nil {
@@ -61,7 +66,9 @@ func TestConPTY_OutputAndExit(t *testing.T) {
 
 func TestConPTY_InputResizeAndUnicode(t *testing.T) {
 	sess := openConPTY(t, "powershell.exe", "-NoLogo", "-NoProfile", "-NoExit", "-Command", "Write-Output 'ready-ps'")
-	waitConScreen(t, sess, "ready-ps")
+	// PowerShell's first start on a fresh machine can take a while (.NET
+	// and module loading); CI saw it pass the 20 s used elsewhere.
+	waitConScreenFor(t, sess, "ready-ps", 90*time.Second)
 	if _, err := sess.Write([]byte("Write-Output ('typed-' + (2+3) + ' é✓')\r")); err != nil {
 		t.Fatal(err)
 	}
