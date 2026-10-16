@@ -323,9 +323,11 @@ func (h *Host) load(ctx context.Context, p Plugin) {
 		fail(problem)
 		return
 	}
-	l.strict = h.cfg.Isolation == IsolationStrict || (h.cfg.Isolation == IsolationAuto && m.Isolation == "strict")
+	// auto sandboxes a plugin that can run sandboxed, where a sandbox
+	// exists; strict, chosen by the user, never runs a plugin without one.
+	l.strict = h.cfg.Isolation == IsolationStrict || (h.cfg.Isolation == IsolationAuto && m.Isolation == "strict" && SandboxAvailable())
 	if l.strict && !SandboxAvailable() {
-		fail("strict isolation needs " + sandboxTool() + ", which is not available here")
+		fail("[plugins] isolation is strict, which needs " + sandboxTool() + ", not available here")
 		return
 	}
 	if m.Legacy() {

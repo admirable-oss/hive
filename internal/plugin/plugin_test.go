@@ -20,7 +20,6 @@ import (
 
 func TestMain(m *testing.M) { goleak.VerifyTestMain(m) }
 
-
 func TestManifest(t *testing.T) {
 	m, err := ParseManifest([]byte(sample))
 	if err != nil {

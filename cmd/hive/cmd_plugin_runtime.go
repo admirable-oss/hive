@@ -386,10 +386,11 @@ func (a *app) doctorPlugin(ctx context.Context, store *plugin.Store, p plugin.Pl
 	if len(g.Ungranted) > 0 {
 		add("warn", "permissions", "may ask for %s (not granted: `hive plugin grant %s …`)", strings.Join(g.Ungranted, ", "), p.ID)
 	}
-	strict := a.cfg.Plugins.Isolation == plugin.IsolationStrict || (a.cfg.Plugins.Isolation != plugin.IsolationStandard && m.Isolation == "strict")
+	forced := a.cfg.Plugins.Isolation == plugin.IsolationStrict
+	strict := forced || (a.cfg.Plugins.Isolation != plugin.IsolationStandard && m.Isolation == "strict" && plugin.SandboxAvailable())
 	switch {
-	case strict && !plugin.SandboxAvailable():
-		add("error", "isolation", "strict isolation is on, but this system has no sandbox tool (sandbox-exec on macOS, bwrap on Linux)")
+	case forced && !plugin.SandboxAvailable():
+		add("error", "isolation", "[plugins] isolation is strict, but this system has no sandbox tool (sandbox-exec on macOS, bwrap on Linux)")
 	case strict:
 		add("ok", "isolation", "runs sandboxed (strict)")
 	default:

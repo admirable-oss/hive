@@ -93,6 +93,9 @@ func (a *app) machines() *remote.Registry {
 // controlDir holds the sockets of shared SSH connections. It is kept short:
 // a unix socket path must fit in about 100 bytes.
 func (a *app) controlDir() string {
+	if goruntime.GOOS == "windows" {
+		return "" // Windows' OpenSSH has no connection sharing (ControlMaster)
+	}
 	dir := filepath.Join(a.base, "ssh")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return ""
