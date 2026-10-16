@@ -165,6 +165,8 @@ type Store struct {
 	loaded   bool
 	grants   map[string]*Grant
 	sessions map[string]*Session
+	subs     map[string]*Subscription // push devices, by ID
+	prefs    map[string]*Prefs        // by session
 }
 
 type accessFile struct {
@@ -270,6 +272,9 @@ func (s *Store) load() error {
 			s.sessions[x.ID] = x
 		}
 	}
+	if err := s.loadPush(); err != nil {
+		return err
+	}
 	s.loaded = true
 	return nil
 }
@@ -296,7 +301,10 @@ func (s *Store) save() error {
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return err
 	}
-	return jsonfile.Write(s.accessPath(), f)
+	if err := jsonfile.Write(s.accessPath(), f); err != nil {
+		return err
+	}
+	return s.savePush() // devices of sessions that ended go with them
 }
 
 func endOf(g *Grant) time.Time {

@@ -117,6 +117,18 @@ func (c *Config) schema() map[string]map[string]setter {
 			"tls_cert":     str(&c.Web.TLSCert),
 			"tls_key":      str(&c.Web.TLSKey),
 			"behind_proxy": boolean(&c.Web.BehindProxy),
+			"push":         boolean(&c.Web.Push),
+			"push_contact": func(raw any) error {
+				return setString(raw, func(v string) error {
+					v = strings.TrimSpace(v)
+					if v != "" && !strings.HasPrefix(v, "mailto:") && !strings.HasPrefix(v, "https://") {
+						return fmt.Errorf("%q is not a mailto: or https: URL", v)
+					}
+					c.Web.PushContact = v
+					return nil
+				})
+			},
+			"push_allow_any_endpoint": boolean(&c.Web.PushAllowAnyEndpoint),
 		},
 		"retention": {
 			"exited_processes": duration(&c.Retention.ExitedProcesses, time.Hour, 10*365*24*time.Hour),

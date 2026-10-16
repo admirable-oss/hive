@@ -50,6 +50,20 @@ type Config struct {
 	BehindProxy bool
 	Logger      *slog.Logger
 	Version     string
+	// Push configures notifications.
+	Push PushConfig
+}
+
+// PushConfig configures Web Push notifications.
+type PushConfig struct {
+	// Disabled turns notifications off.
+	Disabled bool
+	// Contact is how push services can reach the operator (a mailto: or
+	// https: URL); empty uses the public URL.
+	Contact string
+	// AllowAnyEndpoint accepts subscriptions to push services other than
+	// the browsers' own (tests, private push services).
+	AllowAnyEndpoint bool
 }
 
 // DefaultListen is where the web observer listens unless told otherwise.
@@ -128,6 +142,10 @@ type Server struct {
 	runtimes []Runtime
 	conns    map[string]*conn
 	streams  map[*stream]struct{}
+
+	vapid    *vapidKey // nil with notifications off
+	notifier *notifier
+	closed   sync.Once
 }
 
 // New opens the web observer's state.
@@ -153,7 +171,72 @@ func New(cfg Config) (*Server, error) {
 		_ = audit.Close()
 		return nil, err
 	}
+	if !cfg.Push.Disabled {
+		if s.vapid, err = loadVAPID(cfg.Dir); err != nil {
+			_ = audit.Close()
+			return nil, fmt.Errorf("web push key: %w", err)
+		}
+		contact := cfg.Push.Contact
+		if contact == "" {
+			contact = cfg.publicURL()
+		}
+		s.notifier = newNotifier(s, &pusher{key: s.vapid, contact: contact, client: &http.Client{Timeout: sendTimeout}, now: time.Now})
+		s.notifier.refresh()
+	}
 	return s, nil
+}
+
+// Close stops the server's background work: notifications and runtime
+// connections. Run calls it when it returns.
+func (s *Server) Close() {
+	s.closed.Do(func() {
+		if s.notifier != nil {
+			s.notifier.close()
+		}
+		s.closeAll()
+	})
+}
+
+// PushStatus reports notifications: the server's key, the devices, and
+// the runtimes held for them.
+func (s *Server) PushStatus() PushStatus {
+	if s.notifier == nil {
+		return PushStatus{Devices: []Subscription{}, Runtimes: map[string]bool{}}
+	}
+	return s.notifier.status()
+}
+
+// TestPush sends a test notification to every device of a grant or a
+// browser session.
+func (s *Server) TestPush(id string) (int, error) {
+	if s.notifier == nil {
+		return 0, errors.New("web: notifications are off")
+	}
+	gs, xs, err := s.store.Grants()
+	if err != nil {
+		return 0, err
+	}
+	sent := 0
+	for _, x := range xs {
+		if x.ID == id || x.Grant == id {
+			n, err := s.notifier.sendTest(x.ID)
+			if err != nil {
+				return sent, err
+			}
+			sent += n
+		}
+	}
+	if sent == 0 && !slices.ContainsFunc(gs, func(g Grant) bool { return g.ID == id }) && !slices.ContainsFunc(xs, func(x Session) bool { return x.ID == id }) {
+		return 0, fmt.Errorf("%w: no grant or session %s", ErrNotFound, id)
+	}
+	return sent, nil
+}
+
+// refreshPush re-evaluates which runtimes notifications need.
+func (s *Server) refreshPush() {
+	if s.notifier != nil {
+		s.notifier.refresh()
+	}
 }
 
 // Store is the server's state.
@@ -192,6 +275,7 @@ func (s *Server) Reload() error {
 	for _, st := range streams {
 		st.end("reload") // their runtimes may have changed: reconnect
 	}
+	s.refreshPush()
 	return nil
 }
 
@@ -245,6 +329,7 @@ func (s *Server) Revoke(id string) (Grant, []string, error) {
 	}
 	s.audit.Record(observer.AuditEntry{Action: "revoked", Credential: id, Name: g.Label, Detail: fmt.Sprintf("%d browser session(s) ended", len(ended))})
 	s.endSessions(ended, "revoked")
+	s.refreshPush() // their devices are gone with them
 	return g, ended, nil
 }
 
@@ -333,7 +418,7 @@ func (s *Server) Run(ctx context.Context) error {
 	case <-ctx.Done():
 	case err := <-errc:
 		_ = admin.Close()
-		s.closeAll()
+		s.Close()
 		return err
 	}
 	// Open streams are ended first, so Shutdown does not wait on them.
@@ -350,7 +435,7 @@ func (s *Server) Run(ctx context.Context) error {
 	defer cancel()
 	err = srv.Shutdown(sctx)
 	_ = admin.Close()
-	s.closeAll()
+	s.Close()
 	return err
 }
 

@@ -16,7 +16,7 @@
           src = self;
           # The hash of `go mod vendor`; after changing go.mod, update it with
           # `go run ./tools/nixhash` (a test fails until it matches).
-          vendorHash = "sha256-3UtOGgSlCpZXDamrH0rZwI6cFDjP48bgsnyTQW0UfuY=";
+          vendorHash = "sha256-N8d3HOq7STFI+b4CuDp9qAhZ0xdiGccuDfKFXo6hXsw=";
           subPackages = [ "cmd/hive" ];
           env.CGO_ENABLED = 0;
           ldflags = [

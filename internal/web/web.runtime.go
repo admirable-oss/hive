@@ -55,12 +55,15 @@ type conn struct {
 	client  *observer.Client
 	subs    map[chan struct{}]struct{}
 	watches map[string]*paneWatch
+	// listeners get every snapshot and event, in order (the notifier).
+	listeners map[int]func(observer.Update)
+	nextID    int
 }
 
 func newConn(rt Runtime, log *slog.Logger) *conn {
 	c := &conn{
 		rt: rt, model: NewModel(), log: log.With("runtime", rt.Name), now: time.Now,
-		subs: map[chan struct{}]struct{}{}, watches: map[string]*paneWatch{},
+		subs: map[chan struct{}]struct{}{}, watches: map[string]*paneWatch{}, listeners: map[int]func(observer.Update){},
 	}
 	if rt.Host != "" {
 		c.dial = remote.Target{Host: rt.Host, Session: rt.Session, SSH: rt.SSH, HivePath: rt.HivePath}.DialObserver
@@ -140,6 +143,33 @@ func (c *conn) Subscribe() (<-chan struct{}, func()) {
 		c.mu.Lock()
 		delete(c.subs, ch)
 		c.mu.Unlock()
+	}
+}
+
+// Listen calls fn with every snapshot and event this runtime sends, in
+// order, from the connection's goroutine (fn must not block for long).
+func (c *conn) Listen(fn func(observer.Update)) func() {
+	c.mu.Lock()
+	id := c.nextID
+	c.nextID++
+	c.listeners[id] = fn
+	c.mu.Unlock()
+	return func() {
+		c.mu.Lock()
+		delete(c.listeners, id)
+		c.mu.Unlock()
+	}
+}
+
+func (c *conn) emit(u observer.Update) {
+	c.mu.Lock()
+	fns := make([]func(observer.Update), 0, len(c.listeners))
+	for _, fn := range c.listeners {
+		fns = append(fns, fn)
+	}
+	c.mu.Unlock()
+	for _, fn := range fns {
+		fn(u)
 	}
 }
 
@@ -246,6 +276,7 @@ func (c *conn) session(ctx context.Context, epoch *string, since **uint64) (bool
 		}
 		*epoch, *since = snap.Epoch, &snap.Seq
 		c.model.Apply(observer.Update{Snapshot: &snap}, c.now())
+		c.emit(observer.Update{Snapshot: &snap})
 		return nil
 	}
 	if *since == nil {
@@ -295,6 +326,7 @@ func (c *conn) session(ctx context.Context, epoch *string, since **uint64) (bool
 		seq := ev.Seq
 		*since = &seq
 		c.model.Apply(observer.Update{Event: &ev}, c.now())
+		c.emit(observer.Update{Event: &ev})
 		if ev.Type == "process.output" {
 			c.screenChanged(ev)
 			continue

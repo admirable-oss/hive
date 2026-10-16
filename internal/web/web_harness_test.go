@@ -101,10 +101,11 @@ func newHarness(t *testing.T) *harness {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	h.srv, err = web.New(web.Config{Dir: h.dir, Listen: "127.0.0.1:0", Version: "test"})
+	h.srv, err = web.New(web.Config{Dir: h.dir, Listen: "127.0.0.1:0", Version: "test", Push: web.PushConfig{AllowAnyEndpoint: true, Contact: "mailto:test@example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(h.srv.Close)
 	h.ts = httptest.NewServer(h.srv.Handler())
 	t.Cleanup(h.ts.Close)
 	return h

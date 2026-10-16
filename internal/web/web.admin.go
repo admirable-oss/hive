@@ -21,6 +21,8 @@ type Shared struct {
 type GrantList struct {
 	Grants   []Grant   `json:"grants"`
 	Sessions []Session `json:"sessions"`
+	// Devices counts the devices getting notifications, by session.
+	Devices map[string]int `json:"devices"`
 }
 
 // Revoked says what a revoke ended.
@@ -51,10 +53,16 @@ func (s *Server) registerAdmin(r *protocol.Router) {
 	}))
 	r.MustRegister("web.grants", protocol.Method(func(context.Context, protocol.Empty) (GrantList, error) {
 		gs, xs, err := s.store.Grants()
-		return GrantList{Grants: gs, Sessions: xs}, err
+		devices := map[string]int{}
+		if subs, err := s.store.Subscriptions(""); err == nil {
+			for _, d := range subs {
+				devices[d.Session]++
+			}
+		}
+		return GrantList{Grants: gs, Sessions: xs, Devices: devices}, err
 	}))
 	r.MustRegister("web.revoke", protocol.Method(func(_ context.Context, p idParams) (Revoked, error) {
-		g, ended, err := s.Revoke(p.ID)
+		g, ended, err := s.Revoke(p.ID) //nolint:contextcheck // notifications outlive this request
 		if err != nil {
 			return Revoked{}, adminError(err)
 		}
@@ -70,8 +78,18 @@ func (s *Server) registerAdmin(r *protocol.Router) {
 		}
 		return entries, err
 	}))
+	r.MustRegister("web.push.status", protocol.Method(func(context.Context, protocol.Empty) (PushStatus, error) {
+		return s.PushStatus(), nil
+	}))
+	r.MustRegister("web.push.test", protocol.Method(func(_ context.Context, p idParams) (map[string]int, error) {
+		n, err := s.TestPush(p.ID)
+		if err != nil {
+			return nil, adminError(err)
+		}
+		return map[string]int{"devices": n}, nil
+	}))
 	r.MustRegister("web.reload", protocol.Method(func(context.Context, protocol.Empty) (Status, error) {
-		if err := s.Reload(); err != nil {
+		if err := s.Reload(); err != nil { //nolint:contextcheck // connections outlive this request
 			return Status{}, err
 		}
 		return s.Status(), nil

@@ -1,7 +1,7 @@
 // Hive web observer: keeps the page live. The server renders every part of
 // the page; this only swaps in the fragments it sends over one event stream,
 // shows whether the data is live, and closes the stream while the page is
-// hidden. It stores nothing but the colour theme.
+// hidden. It stores nothing but the colour theme and the screen text size.
 (function () {
   "use strict";
 
@@ -66,7 +66,10 @@
     var scroll = pre ? pre.scrollTop : 0;
     old.replaceWith(next);
     var npre = next.querySelector("pre.screen");
-    if (npre) npre.scrollTop = atBottom ? npre.scrollHeight : scroll;
+    if (npre) {
+      applyScreen(next);
+      npre.scrollTop = screenPrefs.follow || atBottom ? npre.scrollHeight : scroll;
+    }
     if (href) {
       var again = next.querySelector('[href="' + CSS.escape(href) + '"]');
       if (again) again.focus();
@@ -177,8 +180,121 @@
     form.submit();
   }
 
+  // --- the installed app: service worker ---
+  function registerWorker() {
+    if (!("serviceWorker" in navigator) || $("login")) return;
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+  }
+
+  // --- notifications on this device (Settings) ---
+  function b64(s) {
+    var pad = "=".repeat((4 - (s.length % 4)) % 4);
+    var raw = atob((s + pad).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, function (c) { return c.charCodeAt(0); });
+  }
+  function postJSON(url, body) {
+    return fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  }
+  function pushUI() {
+    var state = $("push-state"), on = $("push-on"), off = $("push-off"), test = $("push-test");
+    if (!state) return;
+    function show(text, canOn, canOff) {
+      state.textContent = text;
+      on.hidden = !canOn; off.hidden = !canOff; test.hidden = !canOff;
+    }
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+      var ios = /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone;
+      show(ios ? "Add Hive to the Home Screen to get notifications on this device." : "This browser cannot show notifications from Hive.", false, false);
+      return;
+    }
+    var key = null;
+    function refresh() {
+      fetch("/push/key", { credentials: "same-origin", cache: "no-store" }).then(function (r) { return r.json(); }).then(function (k) {
+        if (!k.enabled) { show("Notifications are off on this server.", false, false); return; }
+        key = k.key;
+        return navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+          var mine = sub && (k.endpoints || []).indexOf(sub.endpoint) >= 0;
+          if (Notification.permission === "denied") show("Notifications are blocked for this site in the browser's settings.", false, false);
+          else if (mine) show("This device gets notifications.", false, true);
+          else show("This device does not get notifications.", true, false);
+        });
+      }).catch(function () { show("Could not check notifications.", false, false); });
+    }
+    on.addEventListener("click", function () {
+      Notification.requestPermission().then(function (perm) {
+        if (perm !== "granted") { refresh(); return; }
+        return navigator.serviceWorker.ready.then(function (reg) {
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(key) });
+        }).then(function (sub) { return postJSON("/push/subscribe", sub.toJSON()); }).then(refresh);
+      }).catch(function (e) { state.textContent = "Could not turn notifications on: " + e.message; });
+    });
+    off.addEventListener("click", function () {
+      navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+        var endpoint = sub ? sub.endpoint : "";
+        return (sub ? sub.unsubscribe() : Promise.resolve()).then(function () { return postJSON("/push/unsubscribe", { endpoint: endpoint }); });
+      }).then(refresh);
+    });
+    test.addEventListener("click", function () {
+      postJSON("/push/test").then(function () { state.textContent = "A test notification is on its way."; });
+    });
+    refresh();
+  }
+
+  // --- screen view: size, fit, wrap, follow (no input ever reaches Hive) ---
+  var screenPrefs = { size: 13, wrap: false, follow: true };
+  try { screenPrefs.size = Number(localStorage.getItem("hive-screen-size")) || 13; } catch (e) {}
+  function applyScreen(root) {
+    (root || document).querySelectorAll("pre.screen").forEach(function (p) {
+      p.style.setProperty("--screen-size", screenPrefs.size + "px");
+      p.classList.toggle("wrap", screenPrefs.wrap);
+      if (screenPrefs.follow) p.scrollTop = p.scrollHeight;
+    });
+    document.querySelectorAll(".screen-tools").forEach(function (t) {
+      t.hidden = false;
+      var w = t.querySelector('[data-screen="wrap"]'), f = t.querySelector('[data-screen="follow"]');
+      if (w) w.setAttribute("aria-pressed", String(screenPrefs.wrap));
+      if (f) f.setAttribute("aria-pressed", String(screenPrefs.follow));
+    });
+  }
+  function screenTool(e) {
+    var b = e.target.closest("[data-screen]");
+    if (!b) return;
+    var pre = document.querySelector("#screen pre.screen");
+    switch (b.getAttribute("data-screen")) {
+      case "smaller": screenPrefs.size = Math.max(8, screenPrefs.size - 1); break;
+      case "larger": screenPrefs.size = Math.min(24, screenPrefs.size + 1); break;
+      case "fit":
+        if (pre) {
+          var cols = Number(pre.getAttribute("data-cols")) || 80;
+          screenPrefs.size = Math.max(6, Math.min(24, Math.floor((pre.clientWidth - 24) / (cols * 0.6))));
+          screenPrefs.wrap = false;
+        }
+        break;
+      case "wrap": screenPrefs.wrap = !screenPrefs.wrap; break;
+      case "follow": screenPrefs.follow = !screenPrefs.follow; break;
+    }
+    try { localStorage.setItem("hive-screen-size", String(screenPrefs.size)); } catch (err) {}
+    applyScreen();
+  }
+
+  // Back links return through history, so the list keeps its place.
+  function backLink(e) {
+    var a = e.target.closest("a[data-back]");
+    var nav = window.navigation;
+    if (!a || !nav || !nav.canGoBack || !nav.currentEntry) return;
+    var prev = nav.entries()[nav.currentEntry.index - 1];
+    if (!prev || new URL(prev.url).pathname !== new URL(a.href).pathname) return;
+    e.preventDefault();
+    history.back();
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     signInFromLink();
+    registerWorker();
+    pushUI();
+    applyScreen();
+    document.addEventListener("click", screenTool);
+    document.addEventListener("click", backLink);
     showTheme();
     var tb = $("theme");
     if (tb) tb.addEventListener("click", cycleTheme);
@@ -194,8 +310,6 @@
       if (e.key === "Escape" && e.target === q && q.value) { q.value = ""; applyFilters(); }
     });
     relativeTimes();
-    // An agent's prompt is at the bottom of its screen: start there.
-    document.querySelectorAll("pre.screen").forEach(function (p) { p.scrollTop = p.scrollHeight; });
     setInterval(function () {
       relativeTimes();
       if (es && lastMessage && Date.now() - lastMessage > STALE_AFTER) {

@@ -165,6 +165,7 @@ func TestClosePaneAsksFirst(t *testing.T) {
 	h := newHarness(t, 80, 12, Options{HideSidebar: true})
 	h.press("ctrl+b", "%")
 	h.waitFor("a split", func() bool { return len(h.panes()) == 2 })
+	h.waitFor("both panes to start", func() bool { return !strings.Contains(h.screen(), "starting…") })
 	h.press("ctrl+b", "x")
 	h.golden("confirm")
 	h.press("n")
@@ -767,7 +768,12 @@ func TestCtrlCQuitsOnlyWithNoPaneToTypeInto(t *testing.T) {
 	if h.a.Quit() {
 		t.Fatal("with a pane focused, ctrl+c belongs to the pane")
 	}
-	h.waitText("^C")
+	// The pane got it: the terminal echoes ^C, or its program was
+	// interrupted before the echo was drawn.
+	h.waitFor("ctrl+c to reach the pane", func() bool {
+		s := h.screen()
+		return strings.Contains(s, "^C") || strings.Contains(s, "[killed") || strings.Contains(s, "[exited")
+	})
 
 	c := client.NewService(client.Config{SocketPath: filepath.Join(t.TempDir(), "none.sock")})
 	t.Cleanup(func() { _ = c.Close() })

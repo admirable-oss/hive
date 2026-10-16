@@ -99,8 +99,18 @@ func TestM15WebObserver(t *testing.T) {
 	if list := c.must("observer", "list"); !strings.Contains(list, "hive-web:laptop") {
 		t.Fatalf("observer list:\n%s", list)
 	}
-	if grants := c.must("web", "grants"); !strings.Contains(grants, "phone") || !strings.Contains(grants, "SESSION") {
+	if grants := c.must("web", "grants"); !strings.Contains(grants, "phone") || !strings.Contains(grants, "NOTIFIED DEVICES") {
 		t.Fatalf("grants:\n%s", grants)
+	}
+	if st := c.must("web", "push", "status"); !strings.Contains(st, "VAPID public key") || !strings.Contains(st, "no devices") {
+		t.Fatalf("push status:\n%s", st)
+	}
+	if out := c.must("web", "push", "test", shared.Grant.ID); !strings.Contains(out, "0 device(s)") {
+		t.Fatalf("push test:\n%s", out)
+	}
+	// The installed app's pieces are served.
+	if at, body := fetch(t, browser, base+"/manifest.webmanifest"); at != "/manifest.webmanifest" || !strings.Contains(body, `"standalone"`) {
+		t.Fatalf("manifest: %s %s", at, body)
 	}
 
 	c.must("web", "revoke", shared.Grant.ID)

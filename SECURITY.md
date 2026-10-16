@@ -48,6 +48,7 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 - Browsers sign in with one-time links whose code travels in the URL fragment (never sent to a server or logged) and is exchanged for an HttpOnly, SameSite=Strict cookie. Links and access expire; `hive web revoke` signs browsers out at once. Only hashes of codes and cookies are stored.
 - It refuses to serve beyond this machine without TLS (its own, or a proxy's). Pages load nothing from elsewhere (Content-Security-Policy), are never cached, cannot be framed, and keep nothing in the browser but the theme.
 - Screens and output history are shown only when both the runtime and the link allow them; history is read on request and audited. The multiplexer shows when someone observes, and which screens are watched. See [docs/web.md](docs/web.md).
+- Notifications (Web Push) go from the web observer straight to the browser's push service, signed with its own key and encrypted for the device, so the push service cannot read them; no Hive service relays them. They name an agent at most (or nothing, if you choose), never screen contents, only for agents the link can see, and stop when the link is revoked or expires. The installed app caches only its own code, never pages or screens. See [docs/mobile.md](docs/mobile.md).
 
 **Installing hive elsewhere, plugins and updates need your yes, and updates are verified.**
 

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	g "maragu.dev/gomponents"
-	c "maragu.dev/gomponents/components"
 	h "maragu.dev/gomponents/html"
 
 	"github.com/admirable-oss/hive/internal/agent"
@@ -32,6 +31,7 @@ type page struct {
 	now      time.Time
 	path     string
 	query    url.Values
+	prefs    Prefs
 }
 
 // shown is a runtime as a page shows it: its configuration and a copy of
@@ -71,42 +71,53 @@ func fragment(id string, v uint64, children ...g.Node) g.Node {
 
 // layout wraps a page's content.
 func layout(p *page, title string, content ...g.Node) g.Node {
-	return c.HTML5(c.HTML5Props{
-		Title:    title + " · Hive",
-		Language: "en",
-		Head: g.Group{
-			h.Meta(h.Name("color-scheme"), h.Content("light dark")),
-			h.Meta(h.Name("referrer"), h.Content("no-referrer")),
-			h.Link(h.Rel("stylesheet"), h.Href(assetPath("app.css"))),
-			h.Script(h.Src(assetPath("theme.js"))),
-			h.Script(h.Src(assetPath("app.js")), h.Defer()),
-		},
-		Body: g.Group{
-			h.A(h.Class("skip"), h.Href("#main"), g.Text("Skip to content")),
-			h.Header(h.Class("top"),
-				h.A(h.Class("brand"), h.Href("/"), h.Aria("label", "Hive: all agents"), g.Text("Hive")),
-				h.Nav(h.Aria("label", "Runtimes"),
-					h.Ul(
-						h.Li(navLink("/", "Agents", p.path == "/")),
-						g.Map(p.runtimes, func(r *shown) g.Node {
-							href := "/r/" + r.rt.Name
-							return h.Li(navLink(href, r.rt.Name, strings.HasPrefix(p.path, href)))
-						}),
-					),
-				),
-				h.Div(h.Class("tools"),
-					connFragment(p),
-					h.Span(h.Class("ro"), h.Title("Nothing here can type into, start or stop an agent"), g.Text("Read-only")),
-					h.Button(h.Type("button"), h.Class("theme"), h.ID("theme"), h.Aria("label", "Colour theme"), g.Text("Theme")),
-					h.A(h.Href("/access"), g.Text("Access")),
+	return document(title,
+		h.A(h.Class("skip"), h.Href("#main"), g.Text("Skip to content")),
+		h.Header(h.Class("top"),
+			h.A(h.Class("brand"), h.Href("/attention"), h.Aria("label", "Hive: agents that need you"), g.Text("Hive")),
+			h.Nav(h.Class("topnav"), h.Aria("label", "Sections"),
+				h.Ul(
+					h.Li(navLink("/attention", "Attention", p.path == "/attention")),
+					h.Li(navLink("/", "Agents", p.path == "/")),
+					g.Map(p.runtimes, func(r *shown) g.Node {
+						href := "/r/" + r.rt.Name
+						return h.Li(navLink(href, r.rt.Name, strings.HasPrefix(p.path, href)))
+					}),
+					h.Li(navLink("/settings", "Settings", p.path == "/settings")),
 				),
 			),
-			h.Main(h.ID("main"), h.TabIndex("-1"), g.Group(content)),
-			h.Footer(
-				h.P(g.Textf("Observing read-only through “%s”. Access ends %s.", p.grant.Label, when(p.grant.ExpiresAt, p.now))),
+			h.Div(h.Class("tools"),
+				connFragment(p),
+				h.Span(h.Class("ro"), h.Title("Nothing here can type into, start or stop an agent"), g.Text("Read-only")),
+				h.Button(h.Type("button"), h.Class("theme"), h.ID("theme"), h.Aria("label", "Colour theme"), g.Text("Theme")),
 			),
-		},
-	})
+		),
+		h.Main(h.ID("main"), h.TabIndex("-1"),
+			backLink(p),
+			bannerFragment(p),
+			g.Group(content),
+		),
+		h.Footer(
+			h.P(g.Textf("Observing read-only through “%s”. Access ends %s. ", p.grant.Label, when(p.grant.ExpiresAt, p.now)), h.A(h.Href("/access"), g.Text("Access"))),
+		),
+		tabBar(p.path),
+	)
+}
+
+// backLink returns to where a page was opened from (?from=), keeping the
+// viewer's place when moving between sessions.
+func backLink(p *page) g.Node {
+	targets := map[string][2]string{
+		"attention":    {"/attention", "Attention"},
+		"notification": {"/attention", "Attention"},
+		"machines":     {"/machines", "Machines"},
+		"agents":       {"/", "Agents"},
+	}
+	t, ok := targets[p.query.Get("from")]
+	if !ok {
+		return nil
+	}
+	return h.P(h.Class("back"), h.A(h.Href(t[0]), h.Data("back", "1"), g.Text("‹ "+t[1])))
 }
 
 func navLink(href, text string, current bool) g.Node {
@@ -643,8 +654,10 @@ func paneFragments(p *page, r *shown, id string, scr screenState) []g.Node {
 				g.If(hasMeta, fact("Reported", metaNode(md))),
 				fact("Connection", runtimeState(r, p.now)),
 			)),
+			g.If(ok, followMuteControls(p, r, a, p.prefs, p.path)),
 		),
 		fragment("screen", scr.version, screenSection(p, r, scr)),
+		fragment("activity", r.v.Version, activityList(p, r, "", id)),
 	}
 }
 
@@ -663,10 +676,20 @@ func screenSection(p *page, r *shown, scr screenState) g.Node {
 		for last > 0 && strings.TrimSpace(lines[last-1]) == "" {
 			last--
 		}
+		stale := r.v.State != StateLive && r.v.State != StateIdle
 		body = g.Group{
-			h.Pre(h.Class("screen"), h.TabIndex("0"), h.Aria("label", fmt.Sprintf("Screen, %d by %d", scr.screen.Width, scr.screen.Height)),
+			h.Div(h.Class("screen-tools"), g.Attr("hidden"), h.Role("toolbar"), h.Aria("label", "Screen view"),
+				h.Button(h.Type("button"), h.Data("screen", "smaller"), h.Aria("label", "Smaller text"), g.Text("A−")),
+				h.Button(h.Type("button"), h.Data("screen", "larger"), h.Aria("label", "Larger text"), g.Text("A+")),
+				h.Button(h.Type("button"), h.Data("screen", "fit"), g.Text("Fit")),
+				h.Button(h.Type("button"), h.Data("screen", "wrap"), g.Attr("aria-pressed", "false"), g.Text("Wrap")),
+				h.Button(h.Type("button"), h.Data("screen", "follow"), g.Attr("aria-pressed", "true"), g.Text("Auto-scroll")),
+			),
+			h.Pre(h.Class("screen"), h.TabIndex("0"), h.Data("cols", fmt.Sprint(scr.screen.Width)),
+				h.Aria("label", fmt.Sprintf("Screen, %d by %d, read-only", scr.screen.Width, scr.screen.Height)),
 				g.Text(strings.Join(lines[:last], "\n"))),
-			g.If(scr.err != "", h.P(h.Class("muted"), g.Text("Not updating: "+scr.err))),
+			g.If(stale, h.P(h.Class("stale"), g.Text("As of "), timeEl(r.v.SyncedAt, p.now), g.Text(": the runtime is not connected, so this screen is not updating."))),
+			g.If(scr.err != "" && !stale, h.P(h.Class("muted"), g.Text("Not updating: "+scr.err))),
 		}
 	}
 	return h.Section(h.Aria("labelledby", "screen-h"), h.H2(h.ID("screen-h"), g.Text("Screen")), body)
@@ -729,33 +752,27 @@ func accessPage(p *page) g.Node {
 	)
 }
 
-func loginPage(reason string) g.Node {
+func loginPage(reason, next string) g.Node {
 	msg := map[string]string{
 		"revoked": "Your access was revoked.",
 		"expired": "Your access has expired.",
 		"refused": "That link is invalid, already used, or expired. Ask for a new one.",
 		"out":     "You are signed out.",
 	}[reason]
-	return c.HTML5(c.HTML5Props{
-		Title: "Sign in · Hive", Language: "en",
-		Head: g.Group{
-			h.Meta(h.Name("color-scheme"), h.Content("light dark")),
-			h.Meta(h.Name("referrer"), h.Content("no-referrer")),
-			h.Link(h.Rel("stylesheet"), h.Href(assetPath("app.css"))),
-			h.Script(h.Src(assetPath("theme.js"))),
-			h.Script(h.Src(assetPath("app.js")), h.Defer()),
-		},
-		Body: g.Group{h.Main(h.ID("main"), h.Class("login"),
+	return document("Sign in",
+		h.Main(h.ID("main"), h.Class("login"),
 			h.H1(g.Text("Hive")),
 			g.If(msg != "", h.P(h.Class("notice"), h.Role("status"), g.Text(msg))),
 			h.P(g.Text("Open the link you were sent, or paste its code. Access is read-only.")),
 			h.Form(h.ID("login"), h.Method("post"), h.Action("/login"),
 				h.Label(h.For("code"), g.Text("Access code")),
 				h.Input(h.Type("password"), h.ID("code"), h.Name("code"), h.AutoComplete("off"), h.Required(), h.SpellCheck("false")),
+				g.If(next != "", h.Input(h.Type("hidden"), h.Name("next"), h.Value(next))),
 				h.Button(h.Type("submit"), g.Text("Sign in")),
 			),
-		)},
-	})
+			h.P(h.Class("muted small"), g.Text("In the installed app on iPhone or iPad, paste the code: the app signs in separately from Safari.")),
+		),
+	)
 }
 
 func messagePage(p *page, title, text string) g.Node {

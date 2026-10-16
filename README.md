@@ -54,6 +54,7 @@ Hive is at **v1.0 release candidates** and built in public. The wire API, the CL
 | Hardening: frozen APIs, peer-credential checks on every socket, signed releases, 100 panes at under 16 ms a frame and under 1 % CPU idle, nightly fuzzing and chaos soaks ([security](SECURITY.md)) | ✅ working |
 | Observers: read-only, scoped, expiring credentials for dashboards and notifiers; screens and events with resync, locally or over SSH; audited ([docs](docs/observers.md)) | ✅ working |
 | Web observer: agents, states, screens and activity live in a browser, read-only; one-time share links, expiry and revocation, "observed" marks in the multiplexer ([docs](docs/web.md)) | ✅ working |
+| On your phone: an installable app with what needs you first, notifications when an agent is blocked or done (Web Push, end-to-end encrypted, no relay), deep links to the agent ([docs](docs/mobile.md)) | ✅ working |
 
 ## Quick start
 
@@ -140,6 +141,7 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive observer status \| snapshot \| screen \| events \| watch` | Act as an observer, with the token in `$HIVE_OBSERVER_TOKEN` |
 | `hive web runtime add \| list \| remove` · `hive web serve` | Let the web observer show a runtime; run it ([web observer](docs/web.md)) |
 | `hive web share \| grants \| revoke \| audit \| status` | One-time sign-in links for browsers, and who is signed in |
+| `hive web push status \| test` | Devices that get notifications, and a test notification |
 | `hive pane report-metadata` · `hive env report-metadata` · `hive metadata` | Tokens and titles in the sidebar, with a TTL |
 | `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip and agents |
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
@@ -293,6 +295,7 @@ hive ps start -t dev -- claude
   observer.sock                              the observer socket: read-only, token-authenticated (0600)
   observers/credentials.json  audit.log      observer credentials (token hashes only) and who used them
   web/                                       the web observer: runtimes.json, tokens/ (0600), access.json (hashes only),
+                                             push.json (devices, notification settings), vapid.key (0600),
                                              audit.log, web.log, web.sock (its admin socket)
   logs/plugins/<id>.log                      what each plugin's commands printed
   ssh/                                       shared SSH connections' sockets (ControlMaster)

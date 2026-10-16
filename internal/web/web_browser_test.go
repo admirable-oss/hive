@@ -90,13 +90,22 @@ func signInLink(h *harness, req web.ShareRequest) string {
 	return h.ts.URL + "/login#" + h.share(req)
 }
 
+// signIn opens a share link (which lands on Attention), then the agents.
+func signIn(h *harness, req web.ShareRequest) chromedp.Action[chromedp.Void] {
+	return chromedp.Steps(
+		chromedp.Navigate(signInLink(h, req)),
+		until(`location.pathname === '/attention'`),
+		chromedp.Navigate(h.ts.URL+"/"),
+	)
+}
+
 // TestBrowserFollowsAndSwitches: sign in from a link, follow an agent
 // live, move between runtime, environment and pane pages, and filter.
 func TestBrowserFollowsAndSwitches(t *testing.T) {
 	h := newHarness(t)
 	ctx := newBrowser(t)
 	run(ctx, t, 30*time.Second,
-		chromedp.Navigate(signInLink(h, web.ShareRequest{Label: "browser", Scope: observer.Scope{All: true}, Screens: true})),
+		signIn(h, web.ShareRequest{Label: "browser", Scope: observer.Scope{All: true}, Screens: true}),
 		waitText("#agents", "dev-agent"),
 		waitText("#agents", "ops-agent"),
 		waitText("#conn", "Live"),
@@ -156,7 +165,7 @@ func TestBrowserRevocationAndRestriction(t *testing.T) {
 	h := newHarness(t)
 	ctx := newBrowser(t)
 	run(ctx, t, 30*time.Second,
-		chromedp.Navigate(signInLink(h, web.ShareRequest{Label: "dev only", Scope: observer.Scope{Environments: []string{"dev"}}})),
+		signIn(h, web.ShareRequest{Label: "dev only", Scope: observer.Scope{Environments: []string{"dev"}}}),
 		waitText("#agents", "dev-agent"),
 	)
 	body := get(ctx, t, chromedp.Text(chromedp.CSS("main")))
@@ -190,7 +199,7 @@ func TestBrowserReconnects(t *testing.T) {
 	h := newHarness(t)
 	ctx := newBrowser(t)
 	run(ctx, t, 30*time.Second,
-		chromedp.Navigate(signInLink(h, web.ShareRequest{Label: "reconnect", Scope: observer.Scope{All: true}})),
+		signIn(h, web.ShareRequest{Label: "reconnect", Scope: observer.Scope{All: true}}),
 		waitText("#conn", "Live"),
 	)
 	h.stopDaemon()
@@ -208,7 +217,7 @@ func TestBrowserTheme(t *testing.T) {
 	h := newHarness(t)
 	ctx := newBrowser(t)
 	run(ctx, t, 30*time.Second,
-		chromedp.Navigate(signInLink(h, web.ShareRequest{Label: "theme", Scope: observer.Scope{All: true}})),
+		signIn(h, web.ShareRequest{Label: "theme", Scope: observer.Scope{All: true}}),
 		waitText("#agents", "dev-agent"),
 		chromedp.Click(chromedp.ID("theme")), // auto → light
 	)

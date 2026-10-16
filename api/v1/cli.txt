@@ -181,6 +181,9 @@ command hive web
 command hive web audit
 command hive web grants
 command hive web grants (alias list)
+command hive web push
+command hive web push status
+command hive web push test
 command hive web revoke
 command hive web runtime
 command hive web runtime add

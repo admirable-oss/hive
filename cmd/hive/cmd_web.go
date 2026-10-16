@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -46,8 +47,69 @@ access expires, and ` + "`hive web revoke`" + ` ends it at once. See docs/web.md
 		newWebRevokeCmd(a),
 		newWebAuditCmd(a),
 		newWebStatusCmd(a),
+		newWebPushCmd(a),
 	)
 	return cmd
+}
+
+func newWebPushCmd(a *app) *cobra.Command {
+	cmd := &cobra.Command{Use: "push", Short: "Notifications on phones and browsers (Web Push)"}
+	status := &cobra.Command{
+		Use:   "status",
+		Short: "Show the devices that get notifications, and their deliveries",
+		Args:  noArgs,
+		RunE: withTimeout(15*time.Second, func(ctx context.Context, _ *cobra.Command, _ []string) error {
+			var st web.PushStatus
+			if err := a.webAdmin(ctx, "web.push.status", nil, &st); err != nil {
+				return err
+			}
+			return a.emit(st, func() error {
+				if !st.Enabled {
+					fmt.Fprintln(a.out, "notifications are off (web.push = false)")
+					return nil
+				}
+				fmt.Fprintf(a.out, "notifications on; VAPID public key %s\n", st.PublicKey)
+				for rt, ready := range st.Runtimes {
+					state := "connecting"
+					if ready {
+						state = "watching"
+					}
+					fmt.Fprintf(a.out, "runtime %s: %s\n", rt, state)
+				}
+				if len(st.Devices) == 0 {
+					fmt.Fprintln(a.out, "no devices (turn notifications on in Settings, in a browser or the installed app)")
+					return nil
+				}
+				w := a.table()
+				fmt.Fprintln(w, "DEVICE\tSESSION\tPUSH SERVICE\tSINCE\tLAST DELIVERED\tFAILURES\tLAST ERROR")
+				for _, d := range st.Devices {
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\t%s\n", d.ID, d.Session, hostOnly(d.Endpoint), d.CreatedAt.Local().Format(time.DateTime), lastUsed(d.LastOK), d.Failures, dash(d.LastError))
+				}
+				return w.Flush()
+			})
+		}),
+	}
+	test := &cobra.Command{
+		Use:   "test <grant-or-session>",
+		Short: "Send a test notification to the devices of a grant or a browser session",
+		Args:  exactArgs(1),
+		RunE: withTimeout(15*time.Second, func(ctx context.Context, _ *cobra.Command, args []string) error {
+			var res map[string]int
+			if err := a.webAdmin(ctx, "web.push.test", map[string]string{"id": args[0]}, &res); err != nil {
+				return err
+			}
+			return a.done(map[string]any{"devices": res["devices"]}, "sent a test notification to %d device(s)", res["devices"])
+		}),
+	}
+	cmd.AddCommand(status, test)
+	return cmd
+}
+
+func hostOnly(endpoint string) string {
+	if u, err := url.Parse(endpoint); err == nil {
+		return u.Host
+	}
+	return endpoint
 }
 
 // webDir holds the web observer's state; it serves every session, so it
@@ -101,6 +163,7 @@ Settings come from [web] in the config file; flags override them.`,
 				BehindProxy: behindProxy || cfg.BehindProxy,
 				Logger:      log,
 				Version:     buildinfo.Get().Version,
+				Push:        web.PushConfig{Disabled: !cfg.Push, Contact: cfg.PushContact, AllowAnyEndpoint: cfg.PushAllowAnyEndpoint},
 			})
 			if errors.Is(err, web.ErrInsecure) {
 				return &usageError{err}
@@ -362,9 +425,9 @@ func newWebGrantsCmd(a *app) *cobra.Command {
 				if len(res.Sessions) > 0 {
 					fmt.Fprintln(a.out)
 					w = a.table()
-					fmt.Fprintln(w, "SESSION\tGRANT\tSIGNED IN\tLAST SEEN\tBROWSER")
+					fmt.Fprintln(w, "SESSION\tGRANT\tSIGNED IN\tLAST SEEN\tNOTIFIED DEVICES\tBROWSER")
 					for _, s := range res.Sessions {
-						fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.ID, s.Grant, s.CreatedAt.Local().Format(time.DateTime), s.LastSeenAt.Local().Format(time.DateTime), s.Client)
+						fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\n", s.ID, s.Grant, s.CreatedAt.Local().Format(time.DateTime), s.LastSeenAt.Local().Format(time.DateTime), res.Devices[s.ID], s.Client)
 					}
 					return w.Flush()
 				}
