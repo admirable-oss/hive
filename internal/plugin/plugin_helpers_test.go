@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -54,3 +55,19 @@ timeout = "10s"
 on = "worktree.created"
 command = ["./created.sh"]
 `
+
+// TestPlatformsAreEnforced: a plugin that does not list this system is
+// refused, with a reason; windows is a platform plugins may name.
+func TestPlatformsAreEnforced(t *testing.T) {
+	m, err := ParseManifest([]byte("id = \"p\"\nversion = \"1.0.0\"\nplatforms = [\"windows\"]\n[[actions]]\nid = \"a\"\ncommand = [\"x\"]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = m.Supported(t.Context(), "dev")
+	if (runtime.GOOS == "windows") != (err == nil) {
+		t.Fatalf("on %s: %v", runtime.GOOS, err)
+	}
+	if _, err := ParseManifest([]byte("id = \"p\"\nversion = \"1.0.0\"\nplatforms = [\"plan9\"]\n[[actions]]\nid = \"a\"\ncommand = [\"x\"]\n")); err == nil {
+		t.Fatal("plan9 accepted")
+	}
+}

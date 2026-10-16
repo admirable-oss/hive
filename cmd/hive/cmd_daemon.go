@@ -333,10 +333,11 @@ func newDaemonInstallCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Start the daemon at login and restart it if it crashes",
-		Long: `Install the daemon as a per-user service: a launchd agent on macOS or a
-systemd user service on Linux. Your current PATH is recorded in the service so
+		Long: `Install the daemon as a per-user service: a launchd agent on macOS, a
+systemd user service on Linux, or a Task Scheduler task that runs at logon on
+Windows. On macOS and Linux your current PATH is recorded in the service so
 agents find the same tools they do in your shell; re-run install after
-changing it.`,
+changing it. On Windows the task starts with your logon environment.`,
 		Args: noArgs,
 		RunE: withTimeout(30*time.Second, func(ctx context.Context, _ *cobra.Command, _ []string) error {
 			if executable == "" {

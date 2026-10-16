@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"text/tabwriter"
 	"text/template"
 	"time"
@@ -59,7 +60,7 @@ func newApp(getenv func(string) string, stdout, stderr io.Writer) (*app, error) 
 	}
 	base := getenv("HIVE_HOME")
 	if base == "" {
-		base = filepath.Join(home, ".hive")
+		base = defaultHome(getenv, home)
 	}
 	a := &app{
 		home:       home,
@@ -106,6 +107,18 @@ func (a *app) useSession(name string) error {
 // pluginSocketEnv names a plugin's own daemon socket in its commands'
 // environment.
 const pluginSocketEnv = "HIVE_PLUGIN_SOCKET"
+
+// defaultHome is where Hive keeps its data unless HIVE_HOME says: ~/.hive,
+// or on Windows %LOCALAPPDATA%\Hive (machine-local, not roaming: sockets,
+// logs and agents' state belong to this machine).
+func defaultHome(getenv func(string) string, home string) string {
+	if goruntime.GOOS == "windows" {
+		if local := getenv("LOCALAPPDATA"); local != "" {
+			return filepath.Join(local, "Hive")
+		}
+	}
+	return filepath.Join(home, ".hive")
+}
 
 // sessionArgs is the --session flag that selects a.session in a child hive.
 func (a *app) sessionArgs() []string {

@@ -61,3 +61,22 @@ func TestInputImageIsChecked(t *testing.T) {
 		}
 	}
 }
+
+// TestWindowsProgramNames: an agent is recognised by its program name
+// whatever the path separator, extension or case Windows gives it.
+func TestWindowsProgramNames(t *testing.T) {
+	m := &Manifest{ID: "claude", Name: "Claude", Detect: Detect{Process: []string{"claude"}}}
+	for _, argv := range [][]string{
+		{`C:\Users\me\AppData\Roaming\npm\claude.cmd`},
+		{`C:\Program Files\Claude\CLAUDE.EXE`, "--resume"},
+		{`C:\Program Files\nodejs\node.exe`, `C:\Users\me\bin\claude.js`},
+		{"claude.ps1"},
+	} {
+		if !m.Matches(argv) {
+			t.Errorf("%q not recognised", argv)
+		}
+	}
+	if m.Matches([]string{`C:\tools\claudette.exe`}) {
+		t.Error("claudette recognised as claude")
+	}
+}

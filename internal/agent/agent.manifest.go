@@ -111,7 +111,7 @@ func (m *Manifest) ResumeCommand(argv []string, sessionID string) (cmd []string,
 	switch {
 	case len(argv) == 0:
 		program = m.Start.Command[:min(1, len(m.Start.Command))]
-	case len(argv) > 1 && isInterpreter(filepath.Base(argv[0])):
+	case len(argv) > 1 && isInterpreter(argv[0]):
 		program = argv[:2]
 	default:
 		program = argv[:1]
@@ -258,11 +258,14 @@ func (m *Manifest) Matches(args []string) bool {
 	if len(args) == 0 {
 		return false
 	}
-	names := []string{filepath.Base(args[0])}
+	names := []string{programName(args[0])}
 	if len(args) > 1 && isInterpreter(names[0]) {
-		names = append(names, strings.TrimSuffix(filepath.Base(args[1]), filepath.Ext(args[1])), filepath.Base(args[1]))
+		base := baseName(args[1])
+		names = append(names, strings.TrimSuffix(base, filepath.Ext(base)), base)
 	}
-	found := slices.ContainsFunc(m.Detect.Process, func(p string) bool { return slices.Contains(names, p) })
+	found := slices.ContainsFunc(m.Detect.Process, func(p string) bool {
+		return slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(n, p) })
+	})
 	if !found {
 		return false
 	}
@@ -272,8 +275,34 @@ func (m *Manifest) Matches(args []string) bool {
 	return true
 }
 
+// baseName is the last element of a path written with either separator:
+// a Windows path ("C:\\Program Files\\nodejs\\node.exe") reads the same on
+// every host.
+func baseName(path string) string {
+	if i := strings.LastIndexAny(path, `/\`); i >= 0 {
+		return path[i+1:]
+	}
+	return path
+}
+
+// executableExts are the Windows executable extensions a program's name
+// is known without (claude.exe and claude.cmd are both claude).
+var executableExts = []string{".exe", ".cmd", ".bat", ".com", ".ps1"}
+
+// programName is a command's program name: its base name, without a
+// Windows executable extension.
+func programName(path string) string {
+	name := baseName(path)
+	ext := strings.ToLower(filepath.Ext(name))
+	if slices.Contains(executableExts, ext) {
+		name = name[:len(name)-len(ext)]
+	}
+	return name
+}
+
 // isInterpreter reports whether a program runs a script given as argv[1].
 func isInterpreter(name string) bool {
+	name = strings.ToLower(programName(name))
 	name = strings.TrimRight(name, "0123456789.")
 	switch name {
 	case "node", "nodejs", "bun", "deno", "python", "python3", "ruby",

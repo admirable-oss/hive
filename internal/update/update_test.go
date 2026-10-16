@@ -2,6 +2,7 @@ package update_test
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -16,6 +17,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -101,26 +103,85 @@ func TestInstallReplacesTheBinary(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A running process keeps the old file open; it must keep its contents.
-	old, err := os.Open(target)
-	if err != nil {
-		t.Fatal(err)
+	// (Windows: a running .exe can be renamed, but a file Go opened cannot,
+	// so there the reader is left out.)
+	var old *os.File
+	if runtime.GOOS != "windows" {
+		var err error
+		if old, err = os.Open(target); err != nil {
+			t.Fatal(err)
+		}
+		defer old.Close()
 	}
-	defer old.Close()
 	if err := update.Install(target, []byte("new")); err != nil {
 		t.Fatal(err)
 	}
 	if data, _ := os.ReadFile(target); string(data) != "new" {
 		t.Fatalf("target = %q", data)
 	}
-	if info, _ := os.Stat(target); info.Mode().Perm() != 0o755 {
-		t.Fatalf("mode = %v", info.Mode().Perm())
+	if old != nil {
+		if info, _ := os.Stat(target); info.Mode().Perm() != 0o755 {
+			t.Fatalf("mode = %v", info.Mode().Perm())
+		}
+		buf := make([]byte, 3)
+		if _, err := old.ReadAt(buf, 0); err != nil || string(buf) != "old" {
+			t.Fatalf("the old binary changed under its reader: %q, %v", buf, err)
+		}
 	}
-	buf := make([]byte, 3)
-	if _, err := old.ReadAt(buf, 0); err != nil || string(buf) != "old" {
-		t.Fatalf("the old binary changed under its reader: %q, %v", buf, err)
+	if entries, _ := os.ReadDir(filepath.Dir(target)); len(entries) != 2 {
+		t.Fatalf("want the binary and the one it replaced, got %v", entries)
 	}
-	if entries, _ := os.ReadDir(filepath.Dir(target)); len(entries) != 1 {
-		t.Fatalf("temporary files left: %v", entries)
+	if data, _ := os.ReadFile(update.Previous(target)); string(data) != "old" {
+		t.Fatalf("previous = %q", data)
+	}
+}
+
+// TestRollbackSwapsBack: a rollback puts the previous binary back and keeps
+// the newer one, so it can be undone the same way.
+func TestRollbackSwapsBack(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "hive")
+	if err := update.Rollback(target); err == nil {
+		t.Fatal("rolled back with nothing to roll back to")
+	}
+	if err := os.WriteFile(target, []byte("v1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := update.Install(target, []byte("v2")); err != nil {
+		t.Fatal(err)
+	}
+	if err := update.Rollback(target); err != nil {
+		t.Fatal(err)
+	}
+	cur, _ := os.ReadFile(target)
+	prev, _ := os.ReadFile(update.Previous(target))
+	if string(cur) != "v1" || string(prev) != "v2" {
+		t.Fatalf("after rollback: current %q, previous %q", cur, prev)
+	}
+	if err := update.Install(target, []byte("v3")); err != nil {
+		t.Fatal(err)
+	}
+	if prev, _ := os.ReadFile(update.Previous(target)); string(prev) != "v1" {
+		t.Fatalf("an update keeps the binary it replaced: %q", prev)
+	}
+}
+
+func TestExtractZip(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, body := range map[string]string{"LICENSE": "mit", "hive.exe": "MZ-windows-binary"} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write([]byte(body))
+	}
+	_ = zw.Close()
+	bin, err := update.Extract(buf.Bytes())
+	if err != nil || string(bin) != "MZ-windows-binary" {
+		t.Fatalf("extract = %q, %v", bin, err)
+	}
+	if got := update.Archive("v1.2.3", "windows", "amd64"); got != "hive_1.2.3_windows_amd64.zip" {
+		t.Fatalf("archive name %q", got)
 	}
 }
 

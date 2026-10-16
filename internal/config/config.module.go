@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -32,6 +33,11 @@ func ResolvePath(getenv func(string) string, home string) string {
 	}
 	if x := getenv("XDG_CONFIG_HOME"); x != "" {
 		return filepath.Join(x, "hive", "config.toml")
+	}
+	if goruntime.GOOS == "windows" {
+		if appData := getenv("APPDATA"); appData != "" {
+			return filepath.Join(appData, "Hive", "config.toml") // roams with the user
+		}
 	}
 	return filepath.Join(home, ".config", "hive", "config.toml")
 }

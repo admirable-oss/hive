@@ -31,7 +31,7 @@ func (ExecCommander) Run(ctx context.Context, name string, args ...string) ([]by
 }
 
 // ErrUnsupportedOS means Hive has no service integration for this OS.
-var ErrUnsupportedOS = errors.New("installing the daemon as a service is supported on macOS (launchd) and Linux (systemd)")
+var ErrUnsupportedOS = errors.New("installing the daemon as a service is supported on macOS (launchd), Linux (systemd) and Windows (Task Scheduler)")
 
 // Manager installs and removes the daemon's service definition.
 type Manager struct {
@@ -53,6 +53,10 @@ func (m Manager) Path() (string, error) {
 		return filepath.Join(m.Home, "Library", "LaunchAgents", Label+".plist"), nil
 	case "linux":
 		return filepath.Join(m.Home, ".config", "systemd", "user", Unit), nil
+	case "windows":
+		// The task lives in Task Scheduler; this is the definition Hive
+		// registered, kept to show and to re-register.
+		return filepath.Join(m.Home, "AppData", "Local", "Hive", "daemon-task.xml"), nil
 	}
 	return "", ErrUnsupportedOS
 }
@@ -64,6 +68,8 @@ func (m Manager) Render(spec UnitSpec) ([]byte, error) {
 		return LaunchdPlist(spec), nil
 	case "linux":
 		return SystemdUnit(spec), nil
+	case "windows":
+		return ScheduledTaskXML(spec), nil
 	}
 	return nil, ErrUnsupportedOS
 }
@@ -104,6 +110,15 @@ func (m Manager) Install(ctx context.Context, spec UnitSpec) (string, error) {
 		if _, err := m.Cmd.Run(ctx, "systemctl", "--user", "enable", "--now", Unit); err != nil {
 			return path, err
 		}
+	case "windows":
+		if _, err := m.Cmd.Run(ctx, "schtasks", "/Create", "/TN", TaskName, "/XML", path, "/F"); err != nil {
+			return path, err
+		}
+		// Start it now, not only at the next logon. A daemon already
+		// running keeps running (IgnoreNew).
+		if _, err := m.Cmd.Run(ctx, "schtasks", "/Run", "/TN", TaskName); err != nil {
+			return path, err
+		}
 	}
 	return path, nil
 }
@@ -120,6 +135,11 @@ func (m Manager) Uninstall(ctx context.Context) (string, error) {
 		_, _ = m.Cmd.Run(ctx, "launchctl", "bootout", "gui/"+strconv.Itoa(m.UID)+"/"+Label)
 	case "linux":
 		_, _ = m.Cmd.Run(ctx, "systemctl", "--user", "disable", "--now", Unit)
+	case "windows":
+		// Ending the task stops only the process it started; the daemon
+		// stops its agents' shims itself when asked (`hive stop`).
+		_, _ = m.Cmd.Run(ctx, "schtasks", "/End", "/TN", TaskName)
+		_, _ = m.Cmd.Run(ctx, "schtasks", "/Delete", "/TN", TaskName, "/F")
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return path, err
