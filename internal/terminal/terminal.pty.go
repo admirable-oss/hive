@@ -5,17 +5,35 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"sync"
 	"time"
-
-	"github.com/creack/pty"
 
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/pgroup"
 	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/vt"
 )
+
+// ptyDevice is the OS pseudo-terminal under a session and the process in
+// it: a Unix PTY, or a Windows pseudo console (ConPTY).
+type ptyDevice interface {
+	// Read returns the program's output; io.EOF (or an error) once every
+	// holder of the terminal has gone.
+	io.Reader
+	// Write types into the program's input.
+	io.Writer
+	Resize(Size) error
+	Pid() int
+	// Wait waits for the process; an error with ExitCode() reports a
+	// failure.
+	Wait() error
+	// Foreground returns the PID of the program in the foreground: the
+	// terminal's foreground group on Unix; on Windows the newest live
+	// descendant of the process.
+	Foreground() (int, error)
+	// Close releases the terminal once output has ended.
+	Close() error
+}
 
 const (
 	readChunk = 16 << 10
@@ -50,7 +68,7 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 		if cmd.LogMaxBytes > 0 {
 			logFile, err = logging.OpenRotating(cmd.LogPath, cmd.LogMaxBytes, 1)
 		} else {
-			logFile, err = os.OpenFile(cmd.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+			logFile, err = platform.OpenLog(cmd.LogPath)
 		}
 		if err != nil {
 			return nil, err
@@ -61,17 +79,15 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 	}
 
 	size := cmd.Size.Or(f.Size, DefaultSize)
-	c := exec.Command(cmd.Path, cmd.Args...) //nolint:noctx // agents outlive any request context
-	c.Dir = cmd.WorkingDir
-	c.Env = cmd.Env
-	if c.Env == nil {
-		c.Env = os.Environ()
+	env := cmd.Env
+	if env == nil {
+		env = os.Environ()
 	}
 	// Programs inside a Hive terminal see a capable xterm-compatible one.
-	c.Env = append(c.Env, "TERM=xterm-256color", "COLORTERM=truecolor", "TERM_PROGRAM=hive")
-	// pty.Start makes the child a session (and so process-group) leader,
-	// which is what lets Close stop the whole group.
-	ptmx, err := pty.StartWithSize(c, &pty.Winsize{Cols: size.Width, Rows: size.Height})
+	env = append(env, "TERM=xterm-256color", "COLORTERM=truecolor", "TERM_PROGRAM=hive")
+	// The child leads its own group (a session on Unix, a job on
+	// Windows), which is what lets Close stop the whole tree.
+	ptmx, err := openPTY(cmd, size, env)
 	if err != nil {
 		if logFile != nil {
 			_ = logFile.Close()
@@ -84,11 +100,10 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 		grace = pgroup.Grace
 	}
 	s := &ptySession{
-		cmd:      c,
 		ptmx:     ptmx,
 		logFile:  logFile,
 		grace:    grace,
-		log:      logging.OrDiscard(f.Logger).With("pid", c.Process.Pid),
+		log:      logging.OrDiscard(f.Logger).With("pid", ptmx.Pid()),
 		size:     size,
 		watchers: make(map[chan struct{}]struct{}),
 		waiters:  make(map[*waiter]struct{}),
@@ -112,8 +127,7 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 }
 
 type ptySession struct {
-	cmd     *exec.Cmd
-	ptmx    *os.File
+	ptmx    ptyDevice
 	logFile io.WriteCloser // written only by readLoop, so it needs no lock
 	grace   time.Duration
 	log     *slog.Logger
@@ -145,7 +159,7 @@ func (s *ptySession) Resize(size Size) error {
 	if size == s.size || s.ended {
 		return nil
 	}
-	if err := pty.Setsize(s.ptmx, &pty.Winsize{Cols: size.Width, Rows: size.Height}); err != nil {
+	if err := s.ptmx.Resize(size); err != nil {
 		return err
 	}
 	s.size = size
@@ -163,16 +177,11 @@ func (s *ptySession) Size() Size {
 // Wait is safe to call from several goroutines (the terminal service and the
 // process monitor both wait on the same session).
 func (s *ptySession) Wait() error {
-	s.waitOnce.Do(func() { s.waitErr = s.cmd.Wait() })
+	s.waitOnce.Do(func() { s.waitErr = s.ptmx.Wait() })
 	return s.waitErr
 }
 
-func (s *ptySession) Pid() int {
-	if s.cmd.Process == nil {
-		return 0
-	}
-	return s.cmd.Process.Pid
-}
+func (s *ptySession) Pid() int { return s.ptmx.Pid() }
 
 // Close asks the process group to stop (SIGTERM, then SIGKILL after the
 // grace period). The PTY itself is released by readLoop once output ends.
@@ -189,7 +198,7 @@ func (s *ptySession) Close() error {
 
 var _ ForegroundReader = (*ptySession)(nil)
 
-// Foreground asks the PTY which process group is in its foreground.
+// Foreground asks the terminal which program is in its foreground.
 func (s *ptySession) Foreground(context.Context) (Foreground, error) {
 	s.mu.Lock()
 	ended := s.ended
@@ -197,17 +206,9 @@ func (s *ptySession) Foreground(context.Context) (Foreground, error) {
 	if ended {
 		return Foreground{}, ErrEnded
 	}
-	raw, err := s.ptmx.SyscallConn() // unlike Fd, keeps the file non-blocking
+	pgid, err := s.ptmx.Foreground()
 	if err != nil {
 		return Foreground{}, err
-	}
-	var pgid int
-	var ferr error
-	if err := raw.Control(func(fd uintptr) { pgid, ferr = platform.ForegroundGroup(fd) }); err != nil {
-		return Foreground{}, err
-	}
-	if ferr != nil {
-		return Foreground{}, ferr
 	}
 	args, err := platform.ProcessArgs(pgid)
 	if err != nil {

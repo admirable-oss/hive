@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	goruntime "runtime"
 	"slices"
 	"strings"
 
@@ -44,7 +45,11 @@ func (s *FilesystemStore) dir(p Process) string {
 func (s *FilesystemStore) file(p Process) string { return filepath.Join(s.dir(p), "process.json") }
 
 func (s *FilesystemStore) LogPaths(p Process) (stdout, stderr string) {
-	return filepath.Join(s.dir(p), "stdout.log"), filepath.Join(s.dir(p), "stderr.log")
+	dir := s.dir(p)
+	if p.LogDir != "" {
+		dir = p.LogDir
+	}
+	return filepath.Join(dir, "stdout.log"), filepath.Join(dir, "stderr.log")
 }
 
 func (s *FilesystemStore) Create(_ context.Context, p Process) error {
@@ -71,10 +76,35 @@ func (s *FilesystemStore) Move(_ context.Context, p Process, envID string) (Proc
 		return Process{}, err
 	}
 	if err := os.Rename(from, s.dir(moved)); err != nil {
-		return Process{}, err
+		if goruntime.GOOS != "windows" {
+			return Process{}, err
+		}
+		// Windows refuses to rename a directory with open files in it (the
+		// running process's logs): move the record, and leave the logs.
+		return s.moveRecord(p, moved, from)
 	}
 	if err := jsonfile.Write(s.file(moved), moved); err != nil {
 		_ = os.Rename(s.dir(moved), from)
+		return Process{}, err
+	}
+	return moved, nil
+}
+
+// moveRecord moves only p's record to its new environment; its logs stay
+// in from, which the moved record names.
+func (s *FilesystemStore) moveRecord(p, moved Process, from string) (Process, error) {
+	if moved.LogDir == "" {
+		moved.LogDir = from
+	}
+	if err := os.MkdirAll(s.dir(moved), 0o755); err != nil {
+		return Process{}, err
+	}
+	if err := jsonfile.Write(s.file(moved), moved); err != nil {
+		_ = os.RemoveAll(s.dir(moved))
+		return Process{}, err
+	}
+	if err := os.Remove(s.file(p)); err != nil {
+		_ = os.RemoveAll(s.dir(moved))
 		return Process{}, err
 	}
 	return moved, nil
@@ -90,6 +120,11 @@ func (s *FilesystemStore) Update(_ context.Context, p Process) error {
 func (s *FilesystemStore) Delete(_ context.Context, p Process) error {
 	if !idPattern.MatchString(p.ID) || !environment.ValidID(p.EnvironmentID) {
 		return ErrNotFound
+	}
+	if p.LogDir != "" {
+		if err := os.RemoveAll(p.LogDir); err != nil {
+			return err
+		}
 	}
 	return os.RemoveAll(s.dir(p))
 }

@@ -1,9 +1,10 @@
+//go:build !windows
+
 package main
 
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -363,26 +364,4 @@ func resolved(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return p
-}
-
-func copyFile(t *testing.T, from, to string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	src, err := os.Open(from)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer src.Close()
-	dst, err := os.OpenFile(to, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := io.Copy(dst, src); err != nil {
-		t.Fatal(err)
-	}
-	if err := dst.Close(); err != nil {
-		t.Fatal(err)
-	}
 }

@@ -8,6 +8,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -21,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -151,9 +153,14 @@ func (s Source) LatestOn(ctx context.Context, channel string) (string, error) {
 	return best, nil
 }
 
-// Archive is the name of a release's archive for an OS and architecture.
+// Archive is the name of a release's archive for an OS and architecture:
+// a .zip for Windows, a .tar.gz elsewhere.
 func Archive(tag, goos, goarch string) string {
-	return fmt.Sprintf("hive_%s_%s_%s.tar.gz", strings.TrimPrefix(tag, "v"), goos, goarch)
+	ext := "tar.gz"
+	if goos == "windows" {
+		ext = "zip"
+	}
+	return fmt.Sprintf("hive_%s_%s_%s.%s", strings.TrimPrefix(tag, "v"), goos, goarch, ext)
 }
 
 // Fetch downloads release tag's archive for goos/goarch, checks it against
@@ -231,8 +238,12 @@ func checksumOf(sums []byte, name string) (string, error) {
 	return "", fmt.Errorf("the release's checksums.txt lists no %s (no build for this system?)", name)
 }
 
-// Extract returns the hive binary from a release archive (.tar.gz).
+// Extract returns the hive binary (hive, or hive.exe) from a release
+// archive: a .zip (Windows) or a .tar.gz.
 func Extract(archive []byte) ([]byte, error) {
+	if bytes.HasPrefix(archive, []byte("PK\x03\x04")) {
+		return extractZip(archive)
+	}
 	gz, err := gzip.NewReader(bytes.NewReader(archive))
 	if err != nil {
 		return nil, fmt.Errorf("read the archive: %w", err)
@@ -246,10 +257,33 @@ func Extract(archive []byte) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read the archive: %w", err)
 		}
-		if h.Typeflag == tar.TypeReg && filepath.Base(h.Name) == "hive" {
+		if h.Typeflag == tar.TypeReg && isBinaryName(h.Name) {
 			return io.ReadAll(io.LimitReader(tr, maxDownload))
 		}
 	}
+}
+
+func isBinaryName(name string) bool {
+	base := path.Base(strings.ReplaceAll(name, `\`, "/"))
+	return base == "hive" || base == "hive.exe"
+}
+
+func extractZip(archive []byte) ([]byte, error) {
+	zr, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+	if err != nil {
+		return nil, fmt.Errorf("read the archive: %w", err)
+	}
+	for _, f := range zr.File {
+		if f.FileInfo().Mode().IsRegular() && isBinaryName(f.Name) {
+			rc, err := f.Open()
+			if err != nil {
+				return nil, fmt.Errorf("read the archive: %w", err)
+			}
+			bin, err := io.ReadAll(io.LimitReader(rc, maxDownload))
+			return bin, errors.Join(err, rc.Close())
+		}
+	}
+	return nil, errors.New("the archive holds no hive binary")
 }
 
 // Install replaces the binary at target with bin (Stage, then Commit).
@@ -266,7 +300,8 @@ func Install(target string, bin []byte) error {
 // not Commit.
 func Stage(target string, bin []byte) (string, error) {
 	dir := filepath.Dir(target)
-	tmp, err := os.CreateTemp(dir, ".hive-update-*")
+	// Keep target's extension: Windows runs a program by it (.exe).
+	tmp, err := os.CreateTemp(dir, ".hive-update-*"+filepath.Ext(target))
 	if err != nil {
 		return "", fmt.Errorf("cannot write to %s (%w); update hive with the permissions it was installed with", dir, err)
 	}
@@ -285,12 +320,57 @@ func Stage(target string, bin []byte) (string, error) {
 	return tmp.Name(), nil
 }
 
-// Commit renames a staged binary over target, so target is never missing
-// or half written, and processes running the old binary keep it.
+// Previous is where Commit keeps the binary it replaced, for Rollback.
+func Previous(target string) string { return target + ".old" }
+
+// Commit puts a staged binary in place of target and keeps the old one at
+// Previous(target). The old binary is moved aside first: Windows cannot
+// replace a running .exe, but can rename it; on every system processes
+// running the old binary keep it. Target is never missing for longer
+// than between two renames, and never half written; if the second rename
+// fails, the old binary is put back.
 func Commit(staged, target string) error {
+	prev := Previous(target)
+	// An earlier update's leftover. On Windows it may still be running (a
+	// daemon not yet restarted): then the rename below replaces nothing
+	// and fails, and the update stops with the binary unchanged.
+	_ = os.Remove(prev)
+	movedAside := false
+	if _, err := os.Stat(target); err == nil {
+		if err := os.Rename(target, prev); err != nil {
+			_ = os.Remove(staged)
+			return fmt.Errorf("move %s aside: %w", target, err)
+		}
+		movedAside = true
+	}
 	if err := os.Rename(staged, target); err != nil {
+		if movedAside {
+			_ = os.Rename(prev, target)
+		}
 		_ = os.Remove(staged)
 		return err
+	}
+	return nil
+}
+
+// Rollback puts back the binary the last Commit replaced, keeping the
+// current one in its place, so a rollback can itself be rolled back.
+func Rollback(target string) error {
+	prev := Previous(target)
+	if _, err := os.Stat(prev); err != nil {
+		return fmt.Errorf("no earlier binary to roll back to (%s): %w", prev, err)
+	}
+	swap := target + ".rollback"
+	_ = os.Remove(swap)
+	if err := os.Rename(target, swap); err != nil {
+		return fmt.Errorf("move %s aside: %w", target, err)
+	}
+	if err := os.Rename(prev, target); err != nil {
+		_ = os.Rename(swap, target)
+		return err
+	}
+	if err := os.Rename(swap, prev); err != nil {
+		return fmt.Errorf("rolled back, but could not keep the newer binary as %s: %w", prev, err)
 	}
 	return nil
 }

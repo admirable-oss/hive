@@ -49,6 +49,7 @@ Hive is at **v1.0 release candidates** and built in public. The wire API, the CL
 | Housekeeping (`hive gc`, retention, output log rotation) and self-update (`hive update`, agents keep running) | ✅ working |
 | Remote machines over SSH: `--remote`, saved machines, every machine's agents in the sidebar, compressed and paced screens, clipboard back to you ([docs](https://hive.admir-saheta.com/docs/use/rc-ra/)) | ✅ working |
 | Plugins (startup, events, actions; install from git with a trust preview), key commands, sidebar tokens, status bar ([docs](https://hive.admir-saheta.com/docs/config/plugins/)) | ✅ working |
+| Windows (amd64): ConPTY terminals, job-object process trees, Task Scheduler login service, zip releases with update and rollback ([platforms](docs/platforms.md)) | ✅ working |
 | Plugin API 1: versioned contract, capabilities enforced per plugin socket, optional sandbox, health and restart limits, sidebar cards, tab-bar indicators, contextual actions, palette, settings forms, backups ([reference](docs/plugins/api.md)) | ✅ working |
 | Hardening: frozen APIs, peer-credential checks on every socket, signed releases, 100 panes at under 16 ms a frame and under 1 % CPU idle, nightly fuzzing and chaos soaks ([security](SECURITY.md)) | ✅ working |
 | Windows support | 🗺 planned |
@@ -69,6 +70,14 @@ brew install --cask admirable-oss/tap/hive               # macOS cask
 nix run github:admirable-oss/hive              # Nix (or nix profile install)
 go install github.com/admirable-oss/hive/cmd/hive@latest
 ```
+
+On Windows 10 1809 or later (amd64), in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/admirable-oss/hive/main/distribution/install.ps1 | iex
+```
+
+Agents there run in pseudo consoles (ConPTY); [docs/platforms.md](docs/platforms.md) has the support matrix, where Hive keeps its files on each system, and what differs on Windows.
 
 Release binaries are signed, and `hive update` checks the signature ([SECURITY.md](SECURITY.md)). To build from source, Go 1.26+ is required.
 

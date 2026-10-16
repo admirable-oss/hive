@@ -21,8 +21,8 @@ import (
 
 func newUpdateCmd(a *app) *cobra.Command {
 	var (
-		check, force, noRestart bool
-		tag, from, channel      string
+		check, force, noRestart, rollback bool
+		tag, from, channel                string
 	)
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -33,11 +33,15 @@ binary with it. Then every running daemon is restarted on the new binary.
 Agents keep running through the restart (their shims are separate processes),
 and the new daemon re-attaches to them, so no output is lost.
 
+The binary it replaces is kept beside it (hive.old, hive.exe.old on Windows):
+--rollback puts it back and restarts the daemons on it.
+
 A hive installed by Homebrew or Nix is updated by them instead.`,
 		Example: `  hive update --check
   hive update
   hive update --version v0.8.0
-  hive update --from ./dist/hive_0.8.0_linux_amd64.tar.gz`,
+  hive update --from ./dist/hive_0.8.0_linux_amd64.tar.gz
+  hive update --rollback`,
 		Args: noArgs,
 		RunE: withTimeout(10*time.Minute, func(ctx context.Context, _ *cobra.Command, _ []string) error {
 			target, err := os.Executable()
@@ -57,12 +61,30 @@ A hive installed by Homebrew or Nix is updated by them instead.`,
 			}
 			current := buildinfo.Get().Version
 
+			if rollback {
+				prev := update.Previous(target)
+				version, err := probeVersion(ctx, prev)
+				if err != nil {
+					return fmt.Errorf("the earlier binary %s does not run: %w", prev, err)
+				}
+				if err := update.Rollback(target); err != nil {
+					return err
+				}
+				restarted := []string{}
+				if !noRestart {
+					if restarted, err = a.restartDaemons(ctx, target); err != nil {
+						return err
+					}
+				}
+				return a.done(map[string]any{"rolled_back": true, "from": current, "to": version, "path": target, "restarted": restarted}, "rolled hive back %s → %s", current, version)
+			}
+
 			var bin []byte
 			if from != "" {
 				if bin, err = os.ReadFile(from); err != nil {
 					return err
 				}
-				if strings.HasSuffix(from, ".tar.gz") || strings.HasSuffix(from, ".tgz") {
+				if strings.HasSuffix(from, ".tar.gz") || strings.HasSuffix(from, ".tgz") || strings.HasSuffix(from, ".zip") {
 					if bin, err = update.Extract(bin); err != nil {
 						return err
 					}
@@ -136,6 +158,7 @@ A hive installed by Homebrew or Nix is updated by them instead.`,
 		}),
 	}
 	cmd.Flags().BoolVar(&check, "check", false, "only report whether a newer release exists")
+	cmd.Flags().BoolVar(&rollback, "rollback", false, "put back the binary the last update replaced")
 	cmd.Flags().StringVar(&tag, "version", "", "install this release (a tag, e.g. v0.8.0) instead of the latest")
 	cmd.Flags().StringVar(&channel, "channel", "", "stable, or preview for release candidates too (default update.channel)")
 	cmd.Flags().StringVar(&from, "from", "", "install this binary or release archive (.tar.gz) instead of downloading one")

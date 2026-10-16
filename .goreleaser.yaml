@@ -15,8 +15,12 @@ builds:
     binary: hive
     env:
       - CGO_ENABLED=0
-    goos: [darwin, linux]
+    goos: [darwin, linux, windows]
     goarch: [amd64, arm64]
+    # Windows: amd64 only, the architecture CI tests (docs/platforms.md).
+    ignore:
+      - goos: windows
+        goarch: arm64
     flags:
       - -trimpath
     ldflags:
@@ -29,6 +33,10 @@ builds:
 
 archives:
   - formats: [tar.gz]
+    # Windows gets a .zip with hive.exe (`hive update` reads either).
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE

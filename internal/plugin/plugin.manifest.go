@@ -53,7 +53,9 @@ type Manifest struct {
 	Configuration Configuration `toml:"configuration" json:"configuration,omitempty"`
 	// Migrations upgrade settings when Configuration.Version advances.
 	Migrations []Migration `toml:"migrations" json:"migrations,omitempty"`
-	// Platforms lists the systems it runs on (darwin, linux); empty: all.
+	// Platforms lists the systems it runs on (darwin, linux, windows);
+	// empty: all. Plugins whose commands are shell scripts should leave
+	// windows out.
 	Platforms []string `toml:"platforms" json:"platforms,omitempty"`
 	// Runtimes names executables needed to run the published plugin artifact.
 	// Plugin releases should include built output so installation never has to
@@ -359,8 +361,8 @@ func (m *Manifest) check() error {
 		}
 	}
 	for _, p := range m.Platforms {
-		if p != "darwin" && p != "linux" {
-			return fmt.Errorf("platforms: %q (want darwin or linux)", p)
+		if p != "darwin" && p != "linux" && p != "windows" {
+			return fmt.Errorf("platforms: %q (want darwin, linux or windows)", p)
 		}
 	}
 	for i, r := range m.Runtimes {

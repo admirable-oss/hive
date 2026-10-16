@@ -44,10 +44,13 @@ func SandboxAvailable() bool { return sandboxProbe() }
 
 // sandboxTool names what strict isolation needs on this system.
 func sandboxTool() string {
-	if runtime.GOOS == "linux" {
+	switch runtime.GOOS {
+	case "linux":
 		return "bubblewrap (bwrap)"
+	case "darwin":
+		return "sandbox-exec"
 	}
-	return "sandbox-exec"
+	return "a sandbox (none on " + runtime.GOOS + ")"
 }
 
 // sandboxArgv wraps argv to run under the system sandbox.

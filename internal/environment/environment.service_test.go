@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/admirable-oss/hive/internal/environment"
@@ -156,7 +157,7 @@ func TestStore_MigratesRecordsFromBeforeRootedEnvironments(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "old")
 	_ = os.MkdirAll(filepath.Join(dir, "workspace"), 0o755)
-	legacy := `{"id":"old","name":"Old","path":"` + filepath.Join(dir, "workspace") + `","status":"ready","created_at":"2026-01-01T00:00:00Z"}`
+	legacy := `{"id":"old","name":"Old","path":` + strconv.Quote(filepath.Join(dir, "workspace")) + `,"status":"ready","created_at":"2026-01-01T00:00:00Z"}`
 	if err := os.WriteFile(filepath.Join(dir, "environment.json"), []byte(legacy), 0o644); err != nil {
 		t.Fatal(err)
 	}

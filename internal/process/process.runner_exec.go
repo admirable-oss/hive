@@ -5,10 +5,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"syscall"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/pgroup"
+	"github.com/admirable-oss/hive/internal/platform"
 )
 
 // execRunner is the default Runner, backed by os/exec.
@@ -30,7 +30,7 @@ func NewExecRunner(grace time.Duration) Runner {
 func (r execRunner) Start(_ context.Context, cmd Command) (Handle, error) {
 	c := exec.Command(cmd.Path, cmd.Args...) //nolint:noctx // agents outlive any request context
 	c.Dir, c.Env = cmd.WorkingDir, cmd.Env
-	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	pgroup.Configure(c)
 
 	h := &execHandle{cmd: c, grace: r.grace}
 	for _, log := range []struct {
@@ -41,7 +41,7 @@ func (r execRunner) Start(_ context.Context, cmd Command) (Handle, error) {
 			continue
 		}
 		// Agent output can contain secrets, so logs are private.
-		f, err := os.OpenFile(log.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		f, err := platform.OpenLog(log.path)
 		if err != nil {
 			h.closeLogs()
 			return nil, err
@@ -51,6 +51,12 @@ func (r execRunner) Start(_ context.Context, cmd Command) (Handle, error) {
 	}
 
 	if err := c.Start(); err != nil {
+		h.closeLogs()
+		return nil, err
+	}
+	if err := pgroup.Started(c); err != nil {
+		_ = c.Process.Kill()
+		_ = c.Wait()
 		h.closeLogs()
 		return nil, err
 	}
@@ -72,6 +78,7 @@ func (h *execHandle) PID() int {
 
 func (h *execHandle) Wait() error {
 	err := h.cmd.Wait()
+	pgroup.Release(h.PID())
 	h.closeLogs()
 	return err
 }

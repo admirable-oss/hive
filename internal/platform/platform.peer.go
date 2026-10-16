@@ -1,3 +1,5 @@
+//go:build !windows
+
 package platform
 
 import (
@@ -6,9 +8,6 @@ import (
 	"net"
 	"os"
 )
-
-// ErrForeignPeer is returned for a connection from another user.
-var ErrForeignPeer = errors.New("platform: connection from another user")
 
 // PeerUID returns the user ID of the process at the other end of a unix
 // socket connection, as the kernel vouches for it (SO_PEERCRED on Linux,

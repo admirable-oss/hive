@@ -288,9 +288,10 @@ cannot promise follows from that:
     variables, with `HOME` and `TMPDIR` in its cache. Tokens and other
     variables from your environment are not passed.
 
-  Reads are not restricted, and the sandbox does not limit CPU or memory. If
-  strict isolation applies and no sandbox tool is available, the plugin does
-  not run (it is not silently run unsandboxed).
+  Reads are not restricted, and the sandbox does not limit CPU or memory.
+  Where no sandbox tool is available (Windows, or Linux without `bwrap`),
+  `auto` runs plugins standard; with `[plugins] isolation = "strict"` they do
+  not run at all (never silently unsandboxed).
 
 ## Lifecycle and health
 

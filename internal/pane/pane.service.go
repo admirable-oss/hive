@@ -110,10 +110,7 @@ func (s *Service) shell() []string {
 	if len(s.cfg.Shell) > 0 {
 		return s.cfg.Shell
 	}
-	if sh := os.Getenv("SHELL"); sh != "" {
-		return []string{sh, "-l"}
-	}
-	return []string{"/bin/sh"}
+	return defaultShell()
 }
 
 // --- state access (callers hold mu) ---

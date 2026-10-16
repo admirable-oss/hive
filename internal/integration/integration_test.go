@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -69,7 +70,7 @@ func TestInstallIsIdempotentAndUninstallRestoresTheOriginal(t *testing.T) {
 	if doc["model"] != "opus" || !strings.Contains(string(data), "say done") || !strings.Contains(string(data), Marker) {
 		t.Fatalf("installed settings lost something:\n%s", data)
 	}
-	if fi, _ := os.Stat(in.Path); fi.Mode().Perm() != 0o640 {
+	if fi, _ := os.Stat(in.Path); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o640 {
 		t.Fatalf("mode = %v", fi.Mode().Perm())
 	}
 
@@ -164,7 +165,7 @@ func TestFind(t *testing.T) {
 		return ""
 	})
 	in, err := Find(all, "codex")
-	if err != nil || in.Path != "/opt/codex/hooks.json" {
+	if err != nil || in.Path != filepath.FromSlash("/opt/codex/hooks.json") {
 		t.Fatalf("codex: %+v %v", in, err)
 	}
 	if _, err := Find(all, "vim"); !errors.Is(err, ErrUnknown) {

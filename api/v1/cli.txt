@@ -317,6 +317,7 @@ flag hive update --check bool
 flag hive update --force bool
 flag hive update --from string
 flag hive update --no-restart bool
+flag hive update --rollback bool
 flag hive update --version string
 flag hive worktree create --base string
 flag hive worktree create --env stringArray -e

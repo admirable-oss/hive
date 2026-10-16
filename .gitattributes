@@ -1,0 +1,4 @@
+# Byte-exact checkouts on every system: golden screens, terminal
+# recordings, frozen API surfaces and fixtures are compared byte for byte,
+# and Git for Windows would otherwise check them out with CRLF.
+* -text

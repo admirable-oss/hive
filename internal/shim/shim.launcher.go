@@ -11,12 +11,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/buildinfo"
 	"github.com/admirable-oss/hive/internal/jsonfile"
 	"github.com/admirable-oss/hive/internal/logging"
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/terminal"
 	"github.com/admirable-oss/hive/internal/vt"
@@ -201,8 +201,9 @@ func (l *Launcher) launch(ctx context.Context, spec Spec) (*Remote, error) {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devnull, devnull, stderr
 	// A new session: the shim survives the daemon's terminal, process group
 	// and service manager stopping the daemon.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
+	platform.Detach(cmd)
+	cmd, err = platform.StartDetached(cmd)
+	if err != nil {
 		cleanup()
 		return nil, fmt.Errorf("start shim: %w", err)
 	}

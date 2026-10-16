@@ -26,6 +26,8 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           version: v2.14.0
+      - name: lint the Windows build
+        run: GOOS=windows golangci-lint run ./...
 
   test:
     strategy:
@@ -46,6 +48,26 @@ jobs:
         run: go tool cover -func=coverage.out | tail -1
       - name: build
         run: make build && ./hive version
+
+  # Windows (amd64): the platform layer (ConPTY, job objects, AF_UNIX
+  # sockets, file locks) and the runtime on windows-latest. Unix-only tests
+  # carry //go:build !windows; Windows has its own (*_windows_test.go).
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test -count=1 -timeout 20m ./...
+      - name: build
+        shell: pwsh
+        run: |
+          go build -trimpath -o hive.exe ./cmd/hive
+          ./hive.exe version
 
   fuzz:
     runs-on: ubuntu-latest
@@ -80,5 +102,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: hive-snapshot
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
           retention-days: 7

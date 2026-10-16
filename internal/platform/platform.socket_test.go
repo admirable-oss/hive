@@ -1,3 +1,5 @@
+//go:build !windows
+
 package platform_test
 
 import (

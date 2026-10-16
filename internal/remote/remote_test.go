@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -99,7 +100,7 @@ func TestRegistry(t *testing.T) {
 	if _, err := r.Get("ci"); !errors.Is(err, ErrMachineNotFound) {
 		t.Fatalf("removed: %v", err)
 	}
-	if info, _ := os.Stat(r.path); info.Mode().Perm() != 0o600 {
+	if info, _ := os.Stat(r.path); runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("machines.json mode %v", info.Mode().Perm())
 	}
 }
@@ -115,6 +116,9 @@ func fakeSSH(t *testing.T, script string) []string {
 }
 
 func TestDialIsASocketToTheRemoteCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake ssh is a shell script")
+	}
 	// The "remote" end echoes what it reads, as a bridge would relay it.
 	tg := Target{Host: "box", SSH: fakeSSH(t, "exec cat")}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -139,6 +143,9 @@ func TestDialIsASocketToTheRemoteCommand(t *testing.T) {
 }
 
 func TestDialExplainsWhySSHFailed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake ssh is a shell script")
+	}
 	for _, tt := range []struct {
 		script, want string
 		is           error
@@ -160,6 +167,9 @@ func TestDialExplainsWhySSHFailed(t *testing.T) {
 }
 
 func TestShellAndInstall(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake ssh is a shell script")
+	}
 	home := t.TempDir()
 	// The fake runs the script locally with HOME set, like a login there.
 	tg := Target{Host: "box", SSH: fakeSSH(t, `for a; do last="$a"; done; HOME=`+home+` exec sh -c "$last"`)}

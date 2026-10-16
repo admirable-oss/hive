@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/charmbracelet/x/term"
@@ -136,14 +134,13 @@ func termAttach(ctx context.Context, a *app, id string) error {
 
 // followWindowSize keeps the view's size in step with this terminal.
 func followWindowSize(ctx context.Context, att *client.Attachment, fd uintptr) {
-	winch := make(chan os.Signal, 1)
-	signal.Notify(winch, syscall.SIGWINCH)
-	defer signal.Stop(winch)
+	resized, stop := windowResizes(ctx, fd)
+	defer stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-winch:
+		case <-resized:
 			if w, h, err := term.GetSize(fd); err == nil && w > 0 && h > 0 {
 				_ = att.Resize(ctx, uint16(w), uint16(h))
 			}

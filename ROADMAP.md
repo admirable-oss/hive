@@ -489,9 +489,13 @@ configuration, and declared capabilities.
 
 ---
 
-## M13 · Windows Foundation — `v1.0.4`
+## M13 · Windows Foundation — `v1.0.4` — **LIVE**
 
 Bring Hive to Windows.
+
+Support matrix, Windows installation, how Windows differs, agent and shell
+expectations, and tracked limitations: [docs/platforms.md](docs/platforms.md).
+CI runs every change on `windows-latest`.
 
 Windows support should extend Hive’s existing runtime model rather than
 introduce a separate, incompatible implementation.

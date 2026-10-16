@@ -74,3 +74,7 @@ func bootTime() (time.Time, error) {
 	}
 	return time.Time{}, errors.New("platform: btime missing from /proc/stat")
 }
+
+// NewestDescendant is Windows' stand-in for a terminal's foreground group;
+// Unix asks the terminal (ForegroundGroup).
+func NewestDescendant(int) (int, error) { return 0, ErrUnsupported }

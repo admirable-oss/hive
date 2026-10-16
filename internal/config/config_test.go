@@ -179,7 +179,7 @@ func TestResolvePath(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := config.ResolvePath(env(tt.env), "/home/u"); got != tt.want {
+			if got := config.ResolvePath(env(tt.env), "/home/u"); got != tt.want && got != filepath.FromSlash(tt.want) {
 				t.Fatalf("got %q, want %q", got, tt.want)
 			}
 		})
@@ -223,11 +223,11 @@ func TestDeprecatedKeysWarnButLoad(t *testing.T) {
 
 func TestWorkspaceSettings(t *testing.T) {
 	cfg := config.Defaults()
-	if got := cfg.WorktreeDir("/home/me", "/home/me/.hive"); got != "/home/me/.hive/worktrees" {
+	if got := cfg.WorktreeDir("/home/me", "/home/me/.hive"); got != filepath.FromSlash("/home/me/.hive/worktrees") {
 		t.Errorf("default worktree dir = %q", got)
 	}
 	cfg.Worktrees.Directory = "~/wt"
-	if got := cfg.WorktreeDir("/home/me", "/x"); got != "/home/me/wt" {
+	if got := cfg.WorktreeDir("/home/me", "/x"); got != filepath.FromSlash("/home/me/wt") {
 		t.Errorf("~ worktree dir = %q", got)
 	}
 	if cfg.ShellArgv() != nil {

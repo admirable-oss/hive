@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/buildinfo"
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/vt"
@@ -336,7 +336,7 @@ func (s *service) dial(ctx context.Context) (net.Conn, error) {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "unix", s.config.SocketPath)
 	if err != nil {
-		if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED) {
+		if platform.NotListening(err) {
 			return nil, fmt.Errorf("%w (%s)", ErrUnavailable, s.config.SocketPath)
 		}
 		return nil, fmt.Errorf("connect to runtime: %w", err)

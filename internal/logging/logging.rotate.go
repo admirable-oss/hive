@@ -39,7 +39,7 @@ func OpenRotating(path string, maxSize int64, backups int) (*RotatingFile, error
 }
 
 func (r *RotatingFile) open() error {
-	f, err := os.OpenFile(r.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := openLog(r.path)
 	if err != nil {
 		return err
 	}

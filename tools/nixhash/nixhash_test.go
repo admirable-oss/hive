@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"testing"
 )
 
@@ -32,6 +33,9 @@ func TestFlakeVendorHash(t *testing.T) {
 
 // TestNARHash pins the serialization on a small tree.
 func TestNARHash(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Nix hashes record the executable bit, which Windows files do not have")
+	}
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0o644); err != nil {
 		t.Fatal(err)

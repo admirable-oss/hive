@@ -19,12 +19,12 @@ func TestSocketPath(t *testing.T) {
 		{Options{Session: "work"}, "/h/sessions/work/hive.sock"}, // another session
 	} {
 		got, err := tc.opts.SocketPath()
-		if err != nil || filepath.Clean(got) != tc.want {
+		if err != nil || filepath.Clean(got) != filepath.FromSlash(tc.want) {
 			t.Errorf("%+v: %q %v, want %q", tc.opts, got, err, tc.want)
 		}
 	}
 	t.Setenv("HIVE_SOCKET_PATH", "")
-	if got, _ := (Options{}).SocketPath(); got != "/h/hive.sock" {
+	if got, _ := (Options{}).SocketPath(); got != filepath.FromSlash("/h/hive.sock") {
 		t.Errorf("outside a pane: %q", got)
 	}
 }

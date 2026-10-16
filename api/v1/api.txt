@@ -833,6 +833,7 @@ type process.Process.env: map[string]string
 type process.Process.environment_id: string
 type process.Process.exit_code: integer
 type process.Process.id: string
+type process.Process.log_dir: string
 type process.Process.lost: boolean
 type process.Process.pid: integer
 type process.Process.started_at: string

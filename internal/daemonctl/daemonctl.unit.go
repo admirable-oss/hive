@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
-	"path/filepath"
+	"path"
 	"strings"
 	"text/template"
 )
@@ -65,7 +65,7 @@ func systemdQuote(s string) string {
 var funcs = template.FuncMap{
 	"xml":  xmlEscape,
 	"sq":   systemdQuote,
-	"join": filepath.Join,
+	"join": path.Join, // launchd and systemd are Unix: always /
 }
 
 var plistTmpl = template.Must(template.New("plist").Funcs(funcs).Parse(`<?xml version="1.0" encoding="UTF-8"?>
