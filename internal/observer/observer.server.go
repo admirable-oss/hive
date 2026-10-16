@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"net"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -81,6 +84,24 @@ type Config struct {
 	// MaxConnections bounds open connections; zero means
 	// DefaultMaxConnections.
 	MaxConnections int
+	// OnActivity, when set, is told whenever observers connect or leave,
+	// or start or stop watching a screen: what the daemon shows its users
+	// so they know they are being observed.
+	OnActivity func(Activity)
+}
+
+// Activity is who observes the daemon now.
+type Activity struct {
+	Observers []ActiveObserver `json:"observers"`
+	// Watched counts the screen watches open on each pane, by pane ID.
+	Watched map[string]int `json:"watched"`
+}
+
+// ActiveObserver is a credential with open connections.
+type ActiveObserver struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Connections int    `json:"connections"`
 }
 
 // Server answers observers on the observer socket.
@@ -91,6 +112,7 @@ type Server struct {
 
 	mu       sync.Mutex
 	sessions map[*session]struct{}
+	watched  map[string]int // pane → open watches
 }
 
 // NewServer returns a server; Serve each accepted connection.
@@ -98,7 +120,7 @@ func NewServer(cfg Config) *Server {
 	if cfg.MaxConnections <= 0 {
 		cfg.MaxConnections = DefaultMaxConnections
 	}
-	s := &Server{cfg: cfg, log: logging.OrDiscard(cfg.Logger), router: protocol.NewRouter(), sessions: map[*session]struct{}{}}
+	s := &Server{cfg: cfg, log: logging.OrDiscard(cfg.Logger), router: protocol.NewRouter(), sessions: map[*session]struct{}{}, watched: map[string]int{}}
 	s.register(s.router)
 	return s
 }
@@ -132,9 +154,26 @@ func (s *Server) Serve(ctx context.Context, conn net.Conn, info protocol.ServerI
 		s.mu.Lock()
 		delete(s.sessions, c)
 		s.mu.Unlock()
+		authenticated := c.current() != nil
 		c.end("closed")
+		if authenticated {
+			s.changed()
+		}
 	}()
 	_ = protocol.ServeConn(ctx, deadlineConn{Conn: conn}, c, info)
+}
+
+// Close ends every connection: the daemon is stopping.
+func (s *Server) Close() {
+	s.mu.Lock()
+	all := make([]*session, 0, len(s.sessions))
+	for c := range s.sessions {
+		all = append(all, c)
+	}
+	s.mu.Unlock()
+	for _, c := range all {
+		c.end("the daemon stopped")
+	}
 }
 
 // Revoked ends every connection of credential id.
@@ -154,6 +193,48 @@ func (s *Server) sessionsOf(id string) []*session {
 		}
 	}
 	return out
+}
+
+// Activity reports who observes now.
+func (s *Server) Activity() Activity {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a := Activity{Observers: []ActiveObserver{}, Watched: map[string]int{}}
+	byID := map[string]int{}
+	for c := range s.sessions {
+		cred := c.current()
+		if cred == nil {
+			continue
+		}
+		i, ok := byID[cred.ID]
+		if !ok {
+			i = len(a.Observers)
+			byID[cred.ID] = i
+			a.Observers = append(a.Observers, ActiveObserver{ID: cred.ID, Name: cred.Name})
+		}
+		a.Observers[i].Connections++
+	}
+	slices.SortFunc(a.Observers, func(x, y ActiveObserver) int { return strings.Compare(x.Name+x.ID, y.Name+y.ID) })
+	maps.Copy(a.Watched, s.watched)
+	return a
+}
+
+// changed tells OnActivity what observes now.
+func (s *Server) changed() {
+	if s.cfg.OnActivity != nil {
+		s.cfg.OnActivity(s.Activity())
+	}
+}
+
+// watching counts a screen watch on pane (delta +1 or -1).
+func (s *Server) watching(pane string, delta int) {
+	s.mu.Lock()
+	s.watched[pane] += delta
+	if s.watched[pane] <= 0 {
+		delete(s.watched, pane)
+	}
+	s.mu.Unlock()
+	s.changed()
 }
 
 // Connections counts open authenticated connections by credential.
@@ -301,6 +382,7 @@ func (c *session) authenticate(token, client string) (Credential, error) {
 	c.cred, c.client = &cred, client
 	c.expiry = time.AfterFunc(time.Until(cred.ExpiresAt), func() { c.end("expired") })
 	c.s.cfg.Audit.Record(AuditEntry{Action: AuditConnected, Credential: cred.ID, Name: cred.Name, Client: client})
+	go c.s.changed() // c.mu is held
 	return cred, nil
 }
 

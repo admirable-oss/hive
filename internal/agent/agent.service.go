@@ -66,6 +66,7 @@ type Locator interface {
 // Location is an agent's place in the workspace.
 type Location struct {
 	PaneID, TabID, Name string
+	EnvironmentID       string
 }
 
 // Events receives what the service publishes.
@@ -459,6 +460,12 @@ func (s *Service) unlockAndPublish(ctx context.Context) {
 	loc, _ := s.locate.Locate(ctx)
 	for _, a := range batch {
 		a.withLocation(loc)
+		if a.EnvironmentID == "" {
+			// Not in a pane: its process says where it runs.
+			if p, err := s.procs.Get(ctx, a.ID); err == nil {
+				a.EnvironmentID = p.EnvironmentID
+			}
+		}
 		s.events.Publish(EventState, a)
 	}
 }
@@ -710,6 +717,9 @@ func RollupOf(list []Agent) Rollups {
 func (a *Agent) withLocation(loc map[string]Location) {
 	if l, ok := loc[a.ID]; ok {
 		a.PaneID, a.TabID = l.PaneID, l.TabID
+		if l.EnvironmentID != "" {
+			a.EnvironmentID = l.EnvironmentID
+		}
 		if l.Name != "" {
 			a.Name = l.Name
 		}

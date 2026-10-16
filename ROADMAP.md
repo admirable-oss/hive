@@ -621,9 +621,15 @@ alter layouts, launch processes, or inspect unrelated sessions.
 
 ---
 
-## M15 · Web Observer — `v1.0.6`
+## M15 · Web Observer — `v1.0.6` — **LIVE**
 
 Check on your agents from anywhere.
+
+Setup, sharing and access, the app, privacy, deployment (TLS, reverse
+proxies, health checks), compatibility and limits:
+[docs/web.md](docs/web.md). Built in Go with
+[gomponents](https://www.gomponents.com/); browser tests drive headless
+Chrome in CI.
 
 Build a browser-based companion around the Observer API. The initial experience
 is intentionally read-only: users can inspect agent progress without turning

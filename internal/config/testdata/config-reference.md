@@ -109,6 +109,16 @@ the defaults, so a typo never stops the daemon.
 | `history_events` | `2048` | Events kept for observers to catch up with after a reconnect. |
 | `max_connections` | `32` | Open observer connections allowed, all credentials together. |
 
+## `[web]`
+
+| Key | Default | Description |
+|---|---|---|
+| `listen` | `"127.0.0.1:8484"` | The web observer (`hive web serve`): read-only agent status in a browser. Its HTTP address. Beyond this machine it needs TLS or a proxy that terminates it. |
+| `public_url` | `""` | Where browsers reach it, for share links ("" derives it from listen). |
+| `tls_cert` | `""` | A certificate and key to serve HTTPS. |
+| `tls_key` | `""` | A certificate and key to serve HTTPS. |
+| `behind_proxy` | `false` | A reverse proxy in front terminates TLS (cookies are then Secure). |
+
 ## `[worktrees]`
 
 | Key | Default | Description |

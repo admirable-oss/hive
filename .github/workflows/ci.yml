@@ -43,6 +43,10 @@ jobs:
       - name: vet
         run: go vet ./...
       - name: test (race, goleak)
+        # Both runner images ship Chrome: the web observer's browser tests
+        # must run, not skip.
+        env:
+          HIVE_BROWSER_TESTS: require
         run: go test -race -count=1 -timeout 10m -coverprofile=coverage.out ./...
       - name: coverage
         run: go tool cover -func=coverage.out | tail -1

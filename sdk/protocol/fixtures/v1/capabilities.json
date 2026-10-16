@@ -109,6 +109,7 @@
     "layout.export",
     "metadata.list",
     "metadata.report",
+    "observer.activity",
     "pane.close",
     "pane.focus",
     "pane.get",

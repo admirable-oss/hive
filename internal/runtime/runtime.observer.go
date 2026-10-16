@@ -34,6 +34,10 @@ type ObserversConfig struct {
 	MaxConnections int
 }
 
+// EventObserverActivity says who observes now: observer.Activity. The
+// multiplexer shows it, so people know when they are being watched.
+const EventObserverActivity = "observer.activity"
+
 // ObserverSocketPath is where the daemon storing its data in root listens
 // for observers.
 func ObserverSocketPath(root string) string {
@@ -70,6 +74,7 @@ func newObservers(cfg Config, log *slog.Logger, bus *event.Bus, envs environment
 	src.Panes = panes
 	o.server = observer.NewServer(observer.Config{
 		Store: o.store, History: o.history, Sources: src, Logger: log, MaxConnections: cfg.Observers.MaxConnections,
+		OnActivity: func(a observer.Activity) { bus.Publish(EventObserverActivity, a) },
 	})
 	return o
 }
@@ -109,7 +114,10 @@ func (o *observers) run(ctx context.Context) {
 		_ = ln.Close()
 		return
 	}
-	stop := context.AfterFunc(ctx, func() { _ = ln.Close() })
+	stop := context.AfterFunc(ctx, func() {
+		_ = ln.Close()
+		o.server.Close() // observers do not hold the daemon up
+	})
 	defer stop()
 	defer os.Remove(o.path)
 	info := protocol.ServerInfo{Version: buildinfo.Get().Version}
@@ -240,6 +248,9 @@ func registerObservers(r *protocol.Router, o *observers, envs environment.Servic
 			return ObserverValidation{State: "invalid"}, nil
 		}
 		return ObserverValidation{}, err
+	}))
+	r.MustRegister("observer.activity", protocol.Method(func(context.Context, protocol.Empty) (observer.Activity, error) {
+		return o.server.Activity(), nil
 	}))
 	r.MustRegister("observer.audit", protocol.Method(func(_ context.Context, p observerAuditParams) ([]observer.AuditEntry, error) {
 		entries, err := o.auditLog().Read(p.Limit, p.Credential)

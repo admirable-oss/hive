@@ -86,6 +86,7 @@ method layout.apply
 method layout.export
 method metadata.list
 method metadata.report
+method observer.activity
 method observer.audit
 method observer.create
 method observer.get
@@ -147,6 +148,8 @@ method worktree.create
 method worktree.list
 method worktree.open
 method worktree.remove
+observer.activity params: protocol.Empty
+observer.activity result: observer.Activity
 observer.audit params: runtime.observerAuditParams
 observer.audit result: []observer.AuditEntry
 observer.create params: runtime.ObserverCreateParams
@@ -468,6 +471,13 @@ type metadata.Token.source: string
 type metadata.Token.text: string
 type metadata.Token.until: string
 type metadata.Token: object
+type observer.ActiveObserver.connections: integer
+type observer.ActiveObserver.id: string
+type observer.ActiveObserver.name: string
+type observer.ActiveObserver: object
+type observer.Activity.observers: []observer.ActiveObserver
+type observer.Activity.watched: map[string]integer
+type observer.Activity: object
 type observer.AuditEntry.action: string
 type observer.AuditEntry.client: string
 type observer.AuditEntry.credential: string

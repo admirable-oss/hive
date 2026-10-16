@@ -59,4 +59,9 @@ ui.sidebar
 ui.sidebar_width
 ui.status_right
 update.channel
+web.behind_proxy
+web.listen
+web.public_url
+web.tls_cert
+web.tls_key
 worktrees.directory

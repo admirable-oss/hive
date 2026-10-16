@@ -44,7 +44,8 @@ const Version2 = "2"
 //	8 extensibility: plugin.*, metadata.*, worktree.created/removed (M8)
 //	9 hardening: debug.pprof, debug.stats (M9)
 //	10 observers: observer.*, the observer socket's observe.* (M14)
-const APILevel = 10
+//	11 observer activity: observer.activity (method and event) (M15)
+const APILevel = 11
 
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.

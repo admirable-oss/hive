@@ -177,6 +177,20 @@ command hive ui
 command hive ui (alias tui)
 command hive update
 command hive version
+command hive web
+command hive web audit
+command hive web grants
+command hive web grants (alias list)
+command hive web revoke
+command hive web runtime
+command hive web runtime add
+command hive web runtime list
+command hive web runtime list (alias ls)
+command hive web runtime remove
+command hive web runtime remove (alias rm)
+command hive web serve
+command hive web share
+command hive web status
 command hive worktree
 command hive worktree (alias wt)
 command hive worktree create
@@ -352,6 +366,28 @@ flag hive update --from string
 flag hive update --no-restart bool
 flag hive update --rollback bool
 flag hive update --version string
+flag hive web audit --grant string
+flag hive web audit --limit int
+flag hive web runtime add --all bool
+flag hive web runtime add --env stringArray
+flag hive web runtime add --expires duration
+flag hive web runtime add --pane stringArray
+flag hive web runtime add --screens bool
+flag hive web serve --behind-proxy bool
+flag hive web serve --listen string
+flag hive web serve --public-url string
+flag hive web serve --tls-cert string
+flag hive web serve --tls-key string
+flag hive web share --all bool
+flag hive web share --env stringArray
+flag hive web share --expires duration
+flag hive web share --history bool
+flag hive web share --label string
+flag hive web share --link-expires duration
+flag hive web share --pane stringArray
+flag hive web share --runtime stringArray
+flag hive web share --screens bool
+flag hive web share --uses int
 flag hive worktree create --base string
 flag hive worktree create --env stringArray -e
 flag hive worktree create --id string

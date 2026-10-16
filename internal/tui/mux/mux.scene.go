@@ -100,6 +100,9 @@ func (a *App) modeIndicator() []compositor.Span {
 	if !a.ws.live && a.ws.snap != nil {
 		out = append(out, compositor.Span{Text: "offline ", Style: uv.Style{Fg: a.theme.Error}})
 	}
+	if o := a.observedBy(); o != "" {
+		out = append(out, compositor.Span{Text: "◉ observed by " + o + " ", Style: uv.Style{Fg: a.theme.Warning}})
+	}
 	switch {
 	case a.ui.overview != nil:
 		return append(out, badge("OVERVIEW", a.theme.Info)...)
@@ -117,6 +120,23 @@ func (a *App) modeIndicator() []compositor.Span {
 		out = append(out, compositor.Span{Text: hint, Style: uv.Style{Fg: a.theme.Muted}})
 	}
 	return out
+}
+
+// observedBy names the observers connected now ("" for none): read-only
+// viewers (hive observer, the web observer), shown so nobody is watched
+// without knowing.
+func (a *App) observedBy() string {
+	if a.ws.snap == nil {
+		return ""
+	}
+	var names []string
+	for _, o := range a.ws.snap.observed.Observers {
+		names = append(names, o.Name)
+	}
+	if len(names) > 2 {
+		return fmt.Sprintf("%s +%d", strings.Join(names[:2], ", "), len(names)-2)
+	}
+	return strings.Join(names, ", ")
 }
 
 // gitSummary is "main ↑1↓2 *": branch, ahead/behind, and a mark when the
@@ -421,6 +441,9 @@ func (a *App) drawPane(t *pane.Tab, p *pane.Pane, w, h int) compositor.Pane {
 	cp.Title = a.paneTitle(p, scr)
 	if t.Zoomed == p.ID {
 		cp.Badges = append(cp.Badges, compositor.Span{Text: "[zoom]", Style: uv.Style{Fg: a.theme.Accent}})
+	}
+	if s := a.ws.snap; s != nil && s.observed.Watched[p.ID] > 0 {
+		cp.Badges = append(cp.Badges, compositor.Span{Text: "[watched]", Style: uv.Style{Fg: a.theme.Warning}})
 	}
 	if c := a.ui.copy; c != nil && c.paneID == p.ID {
 		if c.c == nil {

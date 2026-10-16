@@ -24,6 +24,7 @@ type Config struct {
 	Images    Images
 	Plugins   Plugins
 	Observers Observers
+	Web       Web
 	Update    Update
 	Notify    notify.Config
 	UI        UI
@@ -180,6 +181,20 @@ type Observers struct {
 	MaxConnections int
 }
 
+// Web configures the web observer (`hive web serve`).
+type Web struct {
+	// Listen is its HTTP address.
+	Listen string
+	// PublicURL is where browsers reach it, for share links ("" derives
+	// it from Listen).
+	PublicURL string
+	// TLSCert and TLSKey serve HTTPS; BehindProxy says a proxy in front
+	// terminates TLS. One of them is needed to listen beyond this machine.
+	TLSCert     string
+	TLSKey      string
+	BehindProxy bool
+}
+
 // Plugin isolation modes.
 var pluginIsolations = []string{"auto", "standard", "strict"}
 
@@ -286,6 +301,7 @@ func Defaults() Config {
 		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},
 		Plugins:   Plugins{Allow: []string{}, Deny: []string{}, Isolation: "auto", RestartLimit: 5, RestartWindow: 10 * time.Minute, Hidden: []string{}},
 		Observers: Observers{Enabled: true, HistoryEvents: 2048, MaxConnections: 32},
+		Web:       Web{Listen: "127.0.0.1:8484"},
 		Update:    Update{Channel: "stable"},
 		Notify:    notify.Defaults(),
 		UI:        UI{Sidebar: true, SidebarWidth: 28, Mouse: true, Clipboard: "auto"},
