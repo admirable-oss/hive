@@ -73,6 +73,19 @@ command hive machine rename
 command hive machine status
 command hive mcp
 command hive metadata
+command hive observer
+command hive observer audit
+command hive observer create
+command hive observer events
+command hive observer list
+command hive observer list (alias ls)
+command hive observer revoke
+command hive observer screen
+command hive observer show
+command hive observer snapshot
+command hive observer status
+command hive observer validate
+command hive observer watch
 command hive pane
 command hive pane close
 command hive pane focus
@@ -231,6 +244,25 @@ flag hive layout export --output string -o
 flag hive machine add --hive-path string
 flag hive machine add --no-check bool
 flag hive machine add --session string
+flag hive observer audit --credential string
+flag hive observer audit --limit int
+flag hive observer create --all bool
+flag hive observer create --env stringArray
+flag hive observer create --expires duration
+flag hive observer create --pane stringArray
+flag hive observer create --screens bool
+flag hive observer events --epoch string
+flag hive observer events --since uint64
+flag hive observer events --token-file string
+flag hive observer screen --ansi bool
+flag hive observer screen --scrollback int
+flag hive observer screen --token-file string
+flag hive observer snapshot --token-file string
+flag hive observer status --token-file string
+flag hive observer validate --token-file string
+flag hive observer watch --ansi bool
+flag hive observer watch --interval duration
+flag hive observer watch --token-file string
 flag hive pane focus --direction string -d
 flag hive pane list --env string
 flag hive pane list --tab string
@@ -303,6 +335,7 @@ flag hive process logs --stderr bool
 flag hive process start --height uint16
 flag hive process start --terminal bool -t
 flag hive process start --width uint16
+flag hive proxy --observer bool
 flag hive session restore --fresh bool
 flag hive session stop --keep-agents bool
 flag hive tab create --cwd string

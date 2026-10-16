@@ -86,6 +86,12 @@ method layout.apply
 method layout.export
 method metadata.list
 method metadata.report
+method observer.audit
+method observer.create
+method observer.get
+method observer.list
+method observer.revoke
+method observer.validate
 method pane.close
 method pane.focus
 method pane.get
@@ -141,6 +147,18 @@ method worktree.create
 method worktree.list
 method worktree.open
 method worktree.remove
+observer.audit params: runtime.observerAuditParams
+observer.audit result: []observer.AuditEntry
+observer.create params: runtime.ObserverCreateParams
+observer.create result: runtime.ObserverCreated
+observer.get params: runtime.observerRef
+observer.get result: runtime.ObserverInfo
+observer.list params: protocol.Empty
+observer.list result: runtime.ObserverList
+observer.revoke params: runtime.observerRef
+observer.revoke result: observer.Credential
+observer.validate params: runtime.observerValidateParams
+observer.validate result: runtime.ObserverValidation
 pane.close params: pane.idParams
 pane.close result: protocol.Empty
 pane.focus params: pane.focusParams
@@ -450,6 +468,27 @@ type metadata.Token.source: string
 type metadata.Token.text: string
 type metadata.Token.until: string
 type metadata.Token: object
+type observer.AuditEntry.action: string
+type observer.AuditEntry.client: string
+type observer.AuditEntry.credential: string
+type observer.AuditEntry.detail: string
+type observer.AuditEntry.name: string
+type observer.AuditEntry.time: string
+type observer.AuditEntry: object
+type observer.Credential.created_at: string
+type observer.Credential.expires_at: string
+type observer.Credential.id: string
+type observer.Credential.last_used_at: string
+type observer.Credential.name: string
+type observer.Credential.revoked_at: string
+type observer.Credential.scope: observer.Scope
+type observer.Credential.screens: boolean
+type observer.Credential.state: string
+type observer.Credential: object
+type observer.Scope.all: boolean
+type observer.Scope.environments: []string
+type observer.Scope.panes: []string
+type observer.Scope: object
 type pane.ApplyResult.created_environments: []string
 type pane.ApplyResult.panes: integer
 type pane.ApplyResult.tabs: []pane.Tab
@@ -891,6 +930,34 @@ type runtime.AgentStarted.environment: environment.Environment
 type runtime.AgentStarted.pane: pane.Pane
 type runtime.AgentStarted.tab: pane.Tab
 type runtime.AgentStarted: object
+type runtime.ObserverCreateParams.name: string
+type runtime.ObserverCreateParams.scope: observer.Scope
+type runtime.ObserverCreateParams.screens: boolean
+type runtime.ObserverCreateParams.ttl_seconds: integer
+type runtime.ObserverCreateParams: object
+type runtime.ObserverCreated.credential: observer.Credential
+type runtime.ObserverCreated.socket: string
+type runtime.ObserverCreated.token: string
+type runtime.ObserverCreated: object
+type runtime.ObserverInfo.connections: integer
+type runtime.ObserverInfo.created_at: string
+type runtime.ObserverInfo.expires_at: string
+type runtime.ObserverInfo.id: string
+type runtime.ObserverInfo.last_used_at: string
+type runtime.ObserverInfo.name: string
+type runtime.ObserverInfo.revoked_at: string
+type runtime.ObserverInfo.scope: observer.Scope
+type runtime.ObserverInfo.screens: boolean
+type runtime.ObserverInfo.state: string
+type runtime.ObserverInfo: object
+type runtime.ObserverList.credentials: []runtime.ObserverInfo
+type runtime.ObserverList.enabled: boolean
+type runtime.ObserverList.socket: string
+type runtime.ObserverList: object
+type runtime.ObserverValidation.credential: observer.Credential
+type runtime.ObserverValidation.state: string
+type runtime.ObserverValidation.valid: boolean
+type runtime.ObserverValidation: object
 type runtime.PluginRunRequest.action: string
 type runtime.PluginRunRequest.environment: string
 type runtime.PluginRunRequest.pane: string
@@ -946,6 +1013,13 @@ type runtime.agentIDParams: object
 type runtime.agentRenameParams.id: string
 type runtime.agentRenameParams.name: string
 type runtime.agentRenameParams: object
+type runtime.observerAuditParams.credential: string
+type runtime.observerAuditParams.limit: integer
+type runtime.observerAuditParams: object
+type runtime.observerRef.id: string
+type runtime.observerRef: object
+type runtime.observerValidateParams.token: string
+type runtime.observerValidateParams: object
 type runtime.pluginConfigSet.plugin: string
 type runtime.pluginConfigSet.set: map[string]any
 type runtime.pluginConfigSet.unset: []string

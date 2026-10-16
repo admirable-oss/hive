@@ -147,6 +147,15 @@ restart_window = {{dur .Plugins.RestartWindow}}
 # (` + "`hive plugin contributions`" + ` lists them).
 hidden = {{list .Plugins.Hidden}}
 
+[observers]
+# Serve the observer socket: read-only access for dashboards and notifiers
+# holding a credential (` + "`hive observer create`" + `). Off, nobody can observe.
+enabled = {{.Observers.Enabled}}
+# Events kept for observers to catch up with after a reconnect.
+history_events = {{.Observers.HistoryEvents}}
+# Open observer connections allowed, all credentials together.
+max_connections = {{.Observers.MaxConnections}}
+
 [worktrees]
 # Where ` + "`hive worktree create`" + ` puts checkouts, as <directory>/<repo>/<branch>
 # ("" means ~/.hive/worktrees, or $HIVE_HOME/worktrees).

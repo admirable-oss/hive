@@ -23,6 +23,9 @@ notify.sound
 notify.system
 notify.terminal
 notify.toast
+observers.enabled
+observers.history_events
+observers.max_connections
 plugins.allow
 plugins.deny
 plugins.hidden

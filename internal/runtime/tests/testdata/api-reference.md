@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 9. Clients speak newline-delimited JSON over the daemon's unix
+API level 10. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -294,6 +294,58 @@ Result: [\[\]metadata.Entry](#metadataentry)
 | `ttl` | `integer` | nanoseconds |
 
 Result: [metadata.Entry](#metadataentry)
+
+## observer
+
+### `observer.audit`
+
+| Param | Type | |
+|---|---|---|
+| `credential` | `string` |  |
+| `limit` | `integer` |  |
+
+Result: [\[\]observer.AuditEntry](#observerauditentry)
+
+### `observer.create`
+
+| Param | Type | |
+|---|---|---|
+| `name` | `string` |  |
+| `scope` | [observer.Scope](#observerscope) |  |
+| `screens` | `boolean` |  |
+| `ttl_seconds` | `integer` |  |
+
+Result: [runtime.ObserverCreated](#runtimeobservercreated)
+
+### `observer.get`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` |  |
+
+Result: [runtime.ObserverInfo](#runtimeobserverinfo)
+
+### `observer.list`
+
+No params.
+
+Result: [runtime.ObserverList](#runtimeobserverlist)
+
+### `observer.revoke`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` |  |
+
+Result: [observer.Credential](#observercredential)
+
+### `observer.validate`
+
+| Param | Type | |
+|---|---|---|
+| `token` | `string` |  |
+
+Result: [runtime.ObserverValidation](#runtimeobservervalidation)
 
 ## pane
 
@@ -1200,6 +1252,39 @@ Result: [protocol.Empty](#protocolempty)
 | `text` | `string` |  |
 | `until` | `string` |  |
 
+### observer.AuditEntry
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `client` | `string` |  |
+| `credential` | `string` |  |
+| `detail` | `string` |  |
+| `name` | `string` |  |
+| `time` | `string` |  |
+
+### observer.Credential
+
+| Field | Type | |
+|---|---|---|
+| `created_at` | `string` |  |
+| `expires_at` | `string` |  |
+| `id` | `string` |  |
+| `last_used_at` | `string` |  |
+| `name` | `string` |  |
+| `revoked_at` | `string` |  |
+| `scope` | [observer.Scope](#observerscope) |  |
+| `screens` | `boolean` |  |
+| `state` | `string` |  |
+
+### observer.Scope
+
+| Field | Type | |
+|---|---|---|
+| `all` | `boolean` |  |
+| `environments` | `[]string` |  |
+| `panes` | `[]string` |  |
+
 ### pane.ApplyResult
 
 | Field | Type | |
@@ -1960,6 +2045,54 @@ An object.
 | `pane` | [pane.Pane](#panepane) |  |
 | `tab` | [pane.Tab](#panetab) |  |
 
+### runtime.ObserverCreateParams
+
+| Field | Type | |
+|---|---|---|
+| `name` | `string` |  |
+| `scope` | [observer.Scope](#observerscope) |  |
+| `screens` | `boolean` |  |
+| `ttl_seconds` | `integer` |  |
+
+### runtime.ObserverCreated
+
+| Field | Type | |
+|---|---|---|
+| `credential` | [observer.Credential](#observercredential) |  |
+| `socket` | `string` |  |
+| `token` | `string` |  |
+
+### runtime.ObserverInfo
+
+| Field | Type | |
+|---|---|---|
+| `connections` | `integer` |  |
+| `created_at` | `string` |  |
+| `expires_at` | `string` |  |
+| `id` | `string` |  |
+| `last_used_at` | `string` |  |
+| `name` | `string` |  |
+| `revoked_at` | `string` |  |
+| `scope` | [observer.Scope](#observerscope) |  |
+| `screens` | `boolean` |  |
+| `state` | `string` |  |
+
+### runtime.ObserverList
+
+| Field | Type | |
+|---|---|---|
+| `credentials` | [\[\]runtime.ObserverInfo](#runtimeobserverinfo) |  |
+| `enabled` | `boolean` |  |
+| `socket` | `string` |  |
+
+### runtime.ObserverValidation
+
+| Field | Type | |
+|---|---|---|
+| `credential` | [observer.Credential](#observercredential) |  |
+| `state` | `string` |  |
+| `valid` | `boolean` |  |
+
 ### runtime.PluginRunRequest
 
 | Field | Type | |
@@ -2054,6 +2187,25 @@ An object.
 |---|---|---|
 | `id` | `string` |  |
 | `name` | `string` |  |
+
+### runtime.observerAuditParams
+
+| Field | Type | |
+|---|---|---|
+| `credential` | `string` |  |
+| `limit` | `integer` |  |
+
+### runtime.observerRef
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` |  |
+
+### runtime.observerValidateParams
+
+| Field | Type | |
+|---|---|---|
+| `token` | `string` |  |
 
 ### runtime.pluginConfigSet
 

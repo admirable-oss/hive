@@ -182,7 +182,17 @@ func cmpStr(a, b string) string {
 // of a socket pair whose other end is ssh's stdin and stdout), so deadlines
 // work; closing it ends ssh.
 func (t Target) Dial(ctx context.Context) (net.Conn, error) {
-	cmd, err := t.Command(context.WithoutCancel(ctx), false, "proxy")
+	return t.dial(ctx, "proxy")
+}
+
+// DialObserver connects to the host's observer socket (`hive proxy
+// --observer`): what an observer token works on, and nothing else does.
+func (t Target) DialObserver(ctx context.Context) (net.Conn, error) {
+	return t.dial(ctx, "proxy", "--observer")
+}
+
+func (t Target) dial(ctx context.Context, args ...string) (net.Conn, error) {
+	cmd, err := t.Command(context.WithoutCancel(ctx), false, args...)
 	if err != nil {
 		return nil, err
 	}

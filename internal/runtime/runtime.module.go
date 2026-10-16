@@ -15,6 +15,7 @@ import (
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/metadata"
+	"github.com/admirable-oss/hive/internal/observer"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/process"
@@ -123,6 +124,14 @@ func NewModule(cfg Config) *Module {
 	plugins := newPluginHost(cfg, log.With("module", "plugin"), router, bus)
 	server.Go(plugins.Run)
 	server.Go(func(ctx context.Context) { forwardEvents(ctx, bus, plugins) })
+	obs := newObservers(cfg, log.With("module", "observer"), bus, guardedEnvs, panes, observer.Sources{
+		Agents: agents, Terminals: terms, Metadata: meta.List,
+		Info: func() observer.Info {
+			snap := server.Snapshot()
+			return observer.Info{Version: snap.Version, Session: snap.Session, StartedAt: snap.StartedAt, AgentsSurviveRestart: snap.AgentsSurviveRestart}
+		},
+	})
+	server.Go(obs.run)
 
 	Register(router, server)
 	environment.Register(router, guardedEnvs)
@@ -151,6 +160,7 @@ func NewModule(cfg Config) *Module {
 	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)
 	registerPlugins(router, plugins, plugin.NewStore(cfg.pluginDir()))
 	registerDebug(router, server)
+	registerObservers(router, obs, guardedEnvs, panes)
 	registerAPI(router, server, guardedEnvs, panes, procs, agents) // last: it describes the others
 
 	return &Module{

@@ -138,7 +138,16 @@ func (o Options) SocketPath() (string, error) {
 			return p, nil
 		}
 	}
-	home := o.Home
+	root, err := sessionRoot(o.Home, o.Session)
+	if err != nil {
+		return "", err
+	}
+	return platform.SocketPath(root, "hive.sock"), nil
+}
+
+// sessionRoot is where session name keeps its data under home, both
+// defaulting as the hive command does.
+func sessionRoot(home, name string) (string, error) {
 	if home == "" {
 		home = os.Getenv("HIVE_HOME")
 	}
@@ -149,15 +158,10 @@ func (o Options) SocketPath() (string, error) {
 		}
 		home = filepath.Join(h, ".hive")
 	}
-	name := o.Session
 	if name == "" {
 		name = os.Getenv(session.EnvVar)
 	}
-	root, err := session.Root(home, name)
-	if err != nil {
-		return "", err
-	}
-	return platform.SocketPath(root, "hive.sock"), nil
+	return session.Root(home, name)
 }
 
 // Client is a connection to a Hive daemon. It is safe for concurrent use.

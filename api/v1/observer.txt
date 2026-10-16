@@ -1,0 +1,250 @@
+event agent.state
+event environment.created
+event environment.git
+event environment.removed
+event environment.updated
+event layout.updated
+event metadata.changed
+event observer.resync
+event pane.closed
+event pane.created
+event pane.focused
+event pane.moved
+event pane.updated
+event process.exited
+event process.output
+event process.recovered
+event process.started
+event tab.closed
+event tab.created
+event tab.updated
+event worktree.created
+event worktree.removed
+method observe.auth
+method observe.history
+method observe.output
+method observe.pane
+method observe.schema
+method observe.screen
+method observe.snapshot
+method observe.status
+observe.auth params: observer.AuthRequest
+observe.auth result: observer.AuthResult
+observe.events params: observer.EventsRequest
+observe.events result: observer.EventsResult
+observe.history params: observer.HistoryRequest
+observe.history result: observer.Page
+observe.output params: observer.OutputRequest
+observe.output result: observer.OutputResult
+observe.pane params: observer.PaneRequest
+observe.pane result: observer.PaneResult
+observe.schema params: protocol.Empty
+observe.schema result: protocol.Schema
+observe.screen params: observer.ScreenRequest
+observe.screen result: observer.Screen
+observe.snapshot params: protocol.Empty
+observe.snapshot result: observer.Snapshot
+observe.status params: protocol.Empty
+observe.status result: observer.Status
+observe.watch params: observer.WatchRequest
+observe.watch result: observer.WatchResult
+pipe method observe.events
+pipe method observe.watch
+type environment.Worktree.branch: string
+type environment.Worktree.repo: string
+type environment.Worktree: object
+type git.Status.ahead: integer
+type git.Status.behind: integer
+type git.Status.branch: string
+type git.Status.conflicts: integer
+type git.Status.detached: boolean
+type git.Status.head: string
+type git.Status.modified: integer
+type git.Status.root: string
+type git.Status.staged: integer
+type git.Status.untracked: integer
+type git.Status.upstream: string
+type git.Status: object
+type metadata.Token.key: string
+type metadata.Token.source: string
+type metadata.Token.text: string
+type metadata.Token.until: string
+type metadata.Token: object
+type observer.Agent.completion_seq: integer
+type observer.Agent.environment_id: string
+type observer.Agent.id: string
+type observer.Agent.kind: string
+type observer.Agent.last_output: string
+type observer.Agent.name: string
+type observer.Agent.pane_id: string
+type observer.Agent.reason: string
+type observer.Agent.since: string
+type observer.Agent.source: string
+type observer.Agent.state: string
+type observer.Agent.state_seq: integer
+type observer.Agent.tab_id: string
+type observer.Agent: object
+type observer.AuthRequest.token: string
+type observer.AuthRequest: object
+type observer.AuthResult.credential: observer.Credential
+type observer.AuthResult.epoch: string
+type observer.AuthResult.seq: integer
+type observer.AuthResult: object
+type observer.Credential.created_at: string
+type observer.Credential.expires_at: string
+type observer.Credential.id: string
+type observer.Credential.last_used_at: string
+type observer.Credential.name: string
+type observer.Credential.revoked_at: string
+type observer.Credential.scope: observer.Scope
+type observer.Credential.screens: boolean
+type observer.Credential.state: string
+type observer.Credential: object
+type observer.Cursor.visible: boolean
+type observer.Cursor.x: integer
+type observer.Cursor.y: integer
+type observer.Cursor: object
+type observer.Environment.created_at: string
+type observer.Environment.git: git.Status
+type observer.Environment.id: string
+type observer.Environment.name: string
+type observer.Environment.path: string
+type observer.Environment.status: string
+type observer.Environment.worktree: environment.Worktree
+type observer.Environment: object
+type observer.Event.data: any
+type observer.Event.seq: integer
+type observer.Event.time: string
+type observer.Event.type: string
+type observer.Event: object
+type observer.EventsRequest.epoch: string
+type observer.EventsRequest.since: integer
+type observer.EventsRequest: object
+type observer.EventsResult.epoch: string
+type observer.EventsResult.seq: integer
+type observer.EventsResult: object
+type observer.HistoryRequest.epoch: string
+type observer.HistoryRequest.limit: integer
+type observer.HistoryRequest.since: integer
+type observer.HistoryRequest: object
+type observer.Metadata.environment: string
+type observer.Metadata.pane: string
+type observer.Metadata.title: string
+type observer.Metadata.tokens: []metadata.Token
+type observer.Metadata: object
+type observer.OutputRequest.ansi: boolean
+type observer.OutputRequest.lines: integer
+type observer.OutputRequest.pane: string
+type observer.OutputRequest: object
+type observer.OutputResult.lines: []string
+type observer.OutputResult.pane: string
+type observer.OutputResult: object
+type observer.Page.epoch: string
+type observer.Page.events: []observer.Event
+type observer.Page.last: integer
+type observer.Page.more: boolean
+type observer.Page.next: integer
+type observer.Page.resync: observer.ResyncData
+type observer.Page: object
+type observer.Pane.created_at: string
+type observer.Pane.environment_id: string
+type observer.Pane.focused: boolean
+type observer.Pane.id: string
+type observer.Pane.name: string
+type observer.Pane.popup: boolean
+type observer.Pane.process: observer.Process
+type observer.Pane.process_id: string
+type observer.Pane.rect: observer.Rect
+type observer.Pane.tab_id: string
+type observer.Pane.zoomed: boolean
+type observer.Pane: object
+type observer.PaneRequest.pane: string
+type observer.PaneRequest: object
+type observer.PaneResult.agent: observer.Agent
+type observer.PaneResult.metadata: observer.Metadata
+type observer.PaneResult.pane: observer.Pane
+type observer.PaneResult: object
+type observer.Process.ended_at: string
+type observer.Process.environment_id: string
+type observer.Process.exit_code: integer
+type observer.Process.id: string
+type observer.Process.pane_id: string
+type observer.Process.program: string
+type observer.Process.started_at: string
+type observer.Process.status: string
+type observer.Process.terminal: boolean
+type observer.Process: object
+type observer.Rect.h: integer
+type observer.Rect.w: integer
+type observer.Rect.x: integer
+type observer.Rect.y: integer
+type observer.Rect: object
+type observer.ResyncData.epoch: string
+type observer.ResyncData.reason: string
+type observer.ResyncData: object
+type observer.Scope.all: boolean
+type observer.Scope.environments: []string
+type observer.Scope.panes: []string
+type observer.Scope: object
+type observer.Screen.alt_screen: boolean
+type observer.Screen.cursor: observer.Cursor
+type observer.Screen.height: integer
+type observer.Screen.lines: []string
+type observer.Screen.pane: string
+type observer.Screen.scrollback: []string
+type observer.Screen.title: string
+type observer.Screen.width: integer
+type observer.Screen: object
+type observer.ScreenRequest.ansi: boolean
+type observer.ScreenRequest.pane: string
+type observer.ScreenRequest.scrollback: integer
+type observer.ScreenRequest: object
+type observer.Snapshot.agents: []observer.Agent
+type observer.Snapshot.environments: []observer.Environment
+type observer.Snapshot.epoch: string
+type observer.Snapshot.metadata: []observer.Metadata
+type observer.Snapshot.panes: []observer.Pane
+type observer.Snapshot.seq: integer
+type observer.Snapshot.tabs: []observer.Tab
+type observer.Snapshot: object
+type observer.Status.agents: integer
+type observer.Status.agents_survive_restart: boolean
+type observer.Status.api_level: integer
+type observer.Status.credential: observer.Credential
+type observer.Status.environments: integer
+type observer.Status.epoch: string
+type observer.Status.panes: integer
+type observer.Status.seq: integer
+type observer.Status.session: string
+type observer.Status.started_at: string
+type observer.Status.version: string
+type observer.Status: object
+type observer.Tab.active: boolean
+type observer.Tab.created_at: string
+type observer.Tab.environment_id: string
+type observer.Tab.focused: string
+type observer.Tab.height: integer
+type observer.Tab.id: string
+type observer.Tab.name: string
+type observer.Tab.panes: []string
+type observer.Tab.popups: []string
+type observer.Tab.width: integer
+type observer.Tab.zoomed: string
+type observer.Tab: object
+type observer.WatchRequest.ansi: boolean
+type observer.WatchRequest.interval_ms: integer
+type observer.WatchRequest.pane: string
+type observer.WatchRequest: object
+type observer.WatchResult.pane: string
+type observer.WatchResult.process_id: string
+type observer.WatchResult: object
+type protocol.Empty: object
+type protocol.MethodSchema.name: string
+type protocol.MethodSchema.params: any
+type protocol.MethodSchema.pipe: boolean
+type protocol.MethodSchema.result: any
+type protocol.MethodSchema: object
+type protocol.Schema.$defs: map[string]any
+type protocol.Schema.api_level: integer
+type protocol.Schema.methods: []protocol.MethodSchema
+type protocol.Schema: object
