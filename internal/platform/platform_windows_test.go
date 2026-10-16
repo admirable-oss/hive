@@ -103,7 +103,10 @@ func TestWindowsNewestDescendant(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run(); _ = cmd.Wait() }()
+	defer func() {
+		_ = exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
+		_ = cmd.Wait()
+	}()
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		pid, err := platform.NewestDescendant(cmd.Process.Pid)

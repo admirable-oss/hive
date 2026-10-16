@@ -1,4 +1,4 @@
-//go:build (!race) && !windows
+//go:build !race && !windows
 
 package runtime_test
 

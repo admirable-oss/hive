@@ -14,7 +14,7 @@ func reaped(cmd *exec.Cmd) (bool, int) {
 	if err != nil {
 		return false, 0
 	}
-	defer windows.CloseHandle(h)
+	defer func() { _ = windows.CloseHandle(h) }()
 	var code uint32
 	if windows.GetExitCodeProcess(h, &code) != nil || code == 259 { // STILL_ACTIVE
 		return false, 0

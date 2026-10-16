@@ -34,7 +34,7 @@ func PeerPID(conn net.Conn) (int, error) {
 	var opErr error
 	if err := raw.Control(func(fd uintptr) {
 		var n uint32
-		opErr = windows.WSAIoctl(windows.Handle(fd), sioAFUnixGetPeerPID, nil, 0, (*byte)(unsafe.Pointer(&pid)), uint32(unsafe.Sizeof(pid)), &n, nil, 0)
+		opErr = windows.WSAIoctl(windows.Handle(fd), sioAFUnixGetPeerPID, nil, 0, (*byte)(unsafe.Pointer(&pid)), uint32(unsafe.Sizeof(pid)), &n, nil, 0) //nolint:gosec // WSAIoctl writes a DWORD into pid
 	}); err != nil {
 		return 0, err
 	}
@@ -73,7 +73,7 @@ func sameUser(pid uint32) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer windows.CloseHandle(h)
+	defer func() { _ = windows.CloseHandle(h) }()
 	var tok windows.Token
 	if err := windows.OpenProcessToken(h, windows.TOKEN_QUERY, &tok); err != nil {
 		return false, err

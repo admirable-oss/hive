@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -176,7 +177,7 @@ func TestImage_PathDeliverySavesPrivateFileAndPastesPath(t *testing.T) {
 	}
 	for _, p := range []string{r.dir, receipt.Path} {
 		fi, err := os.Stat(p)
-		if err != nil || fi.Mode().Perm()&0o077 != 0 {
+		if err != nil || (runtime.GOOS != "windows" && fi.Mode().Perm()&0o077 != 0) {
 			t.Fatalf("%s is open to others: %v %v", p, fi.Mode(), err)
 		}
 	}

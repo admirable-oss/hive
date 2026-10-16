@@ -27,7 +27,7 @@ func lookupProcess(pid int) (ProcessInfo, error) {
 	if err != nil {
 		return ProcessInfo{}, err
 	}
-	defer windows.CloseHandle(h)
+	defer func() { _ = windows.CloseHandle(h) }()
 	var code uint32
 	if err := windows.GetExitCodeProcess(h, &code); err != nil {
 		return ProcessInfo{}, err
@@ -52,11 +52,11 @@ func processArgs(pid int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer windows.CloseHandle(h)
+	defer func() { _ = windows.CloseHandle(h) }()
 	buf := make([]byte, 4096)
 	for {
 		var n uint32
-		err := windows.NtQueryInformationProcess(h, processCommandLineInformation, unsafe.Pointer(&buf[0]), uint32(len(buf)), &n)
+		err := windows.NtQueryInformationProcess(h, processCommandLineInformation, unsafe.Pointer(&buf[0]), uint32(len(buf)), &n) //nolint:gosec // writes at most len(buf) bytes
 		if err == nil {
 			break
 		}
@@ -66,11 +66,11 @@ func processArgs(pid int) ([]string, error) {
 		}
 		return nil, err
 	}
-	us := (*windows.NTUnicodeString)(unsafe.Pointer(&buf[0]))
+	us := (*windows.NTUnicodeString)(unsafe.Pointer(&buf[0])) //nolint:gosec // the call wrote a UNICODE_STRING at the start of buf
 	if us.Buffer == nil || us.Length == 0 {
 		return nil, ErrNoProcess
 	}
-	return windows.DecomposeCommandLine(windows.UTF16ToString(unsafe.Slice(us.Buffer, us.Length/2)))
+	return windows.DecomposeCommandLine(windows.UTF16ToString(unsafe.Slice(us.Buffer, us.Length/2))) //nolint:gosec // Buffer points into buf, Length bytes long
 }
 
 // The working directory of another process is in its memory (PEB); Hive
@@ -96,7 +96,7 @@ func NewestDescendant(pid int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer windows.CloseHandle(snap)
+	defer func() { _ = windows.CloseHandle(snap) }()
 	children := map[uint32][]uint32{}
 	var e windows.ProcessEntry32
 	e.Size = uint32(unsafe.Sizeof(e))

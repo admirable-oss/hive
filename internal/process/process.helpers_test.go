@@ -39,13 +39,6 @@ func (h *fakeHandle) Kill() error {
 	return nil
 }
 
-type testExitError struct {
-	code int
-}
-
-func (e testExitError) Error() string { return "exit status" }
-func (e testExitError) ExitCode() int { return e.code }
-
 type fakeRunner struct {
 	mu    sync.Mutex
 	start func(ctx context.Context, cmd process.Command) (process.Handle, error)

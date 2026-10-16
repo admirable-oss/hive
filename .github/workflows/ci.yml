@@ -26,6 +26,8 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           version: v2.14.0
+      - name: lint the Windows build
+        run: GOOS=windows golangci-lint run ./...
 
   test:
     strategy:

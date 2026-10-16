@@ -72,5 +72,25 @@ func startDetached(cmd *exec.Cmd) (*exec.Cmd, error) {
 	attr := *cmd.SysProcAttr
 	attr.CreationFlags &^= windows.CREATE_BREAKAWAY_FROM_JOB
 	retry.SysProcAttr = &attr
-	return retry, retry.Start()
+	err = retry.Start()
+	return retry, err
+}
+
+func openLog(path string) (*os.File, error) {
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return nil, err
+	}
+	h, err := windows.CreateFile(p, windows.FILE_APPEND_DATA|windows.SYNCHRONIZE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
+		nil, windows.OPEN_ALWAYS, windows.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	return os.NewFile(uintptr(h), path), nil
+}
+
+func notListening(err error) bool {
+	return errors.Is(err, windows.WSAECONNREFUSED) || errors.Is(err, windows.ERROR_FILE_NOT_FOUND) ||
+		errors.Is(err, windows.ERROR_PATH_NOT_FOUND) || errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED)
 }

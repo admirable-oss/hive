@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/pgroup"
+	"github.com/admirable-oss/hive/internal/platform"
 )
 
 // execRunner is the default Runner, backed by os/exec.
@@ -40,7 +41,7 @@ func (r execRunner) Start(_ context.Context, cmd Command) (Handle, error) {
 			continue
 		}
 		// Agent output can contain secrets, so logs are private.
-		f, err := os.OpenFile(log.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		f, err := platform.OpenLog(log.path)
 		if err != nil {
 			h.closeLogs()
 			return nil, err

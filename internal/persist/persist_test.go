@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -45,7 +46,7 @@ func TestSaveRotatesAndKeepsTheLastFew(t *testing.T) {
 			t.Fatalf("rotated[%d] is not %s:\n%s", i, want, data)
 		}
 	}
-	if info, _ := os.Stat(st.Path()); info.Mode().Perm() != 0o600 {
+	if info, _ := os.Stat(st.Path()); runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("session.json mode %v, want 0600", info.Mode().Perm())
 	}
 }
@@ -168,10 +169,10 @@ func TestHistory(t *testing.T) {
 	if got, err := h.Read("p1"); err != nil || string(got) != "one" {
 		t.Fatalf("read = %q, %v", got, err)
 	}
-	if info, _ := os.Stat(filepath.Join(dir, "p1.txt")); info.Mode().Perm() != 0o600 {
+	if info, _ := os.Stat(filepath.Join(dir, "p1.txt")); runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("history mode %v", info.Mode().Perm())
 	}
-	if info, _ := os.Stat(dir); info.Mode().Perm() != 0o700 {
+	if info, _ := os.Stat(dir); runtime.GOOS != "windows" && info.Mode().Perm() != 0o700 {
 		t.Fatalf("history dir mode %v", info.Mode().Perm())
 	}
 	removed, err := h.Prune(func(id string) bool { return id == "p1" }, false)

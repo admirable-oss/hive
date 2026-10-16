@@ -217,7 +217,7 @@ func startPlain(sp Spec) (*exec.Cmd, error) {
 		if out.path == "" {
 			continue
 		}
-		f, err := os.OpenFile(out.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		f, err := platform.OpenLog(out.path)
 		if err != nil {
 			closeAll()
 			return nil, err

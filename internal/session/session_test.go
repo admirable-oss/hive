@@ -22,7 +22,7 @@ func TestRoot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		got, err := session.Root("/b", tt.name)
-		if err != nil || got != tt.want {
+		if err != nil || got != filepath.FromSlash(tt.want) {
 			t.Errorf("Root(%q) = %q, %v; want %q", tt.name, got, err, tt.want)
 		}
 	}

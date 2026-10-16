@@ -72,7 +72,8 @@ func (g *Git) Root(ctx context.Context, dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(out)), nil
+	// Git prints C:/Users/… on Windows.
+	return filepath.FromSlash(strings.TrimSpace(string(out))), nil
 }
 
 // Dirs returns the working tree's git directory and the repository's common

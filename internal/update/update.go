@@ -279,8 +279,8 @@ func extractZip(archive []byte) ([]byte, error) {
 			if err != nil {
 				return nil, fmt.Errorf("read the archive: %w", err)
 			}
-			defer rc.Close()
-			return io.ReadAll(io.LimitReader(rc, maxDownload))
+			bin, err := io.ReadAll(io.LimitReader(rc, maxDownload))
+			return bin, errors.Join(err, rc.Close())
 		}
 	}
 	return nil, errors.New("the archive holds no hive binary")

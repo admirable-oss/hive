@@ -53,8 +53,16 @@ func openPTY(cmd Command, size Size, env []string) (ptyDevice, error) {
 		closeHandles(inRead, inWrite)
 		return nil, fmt.Errorf("create output pipe: %w", err)
 	}
+	// A restored pane shows replayed text before its program starts.
+	// ConPTY clears the screen when it starts, unless told to inherit the
+	// cursor: then it asks where the cursor is (the emulator answers) and
+	// starts there, below the replay.
+	var consoleFlags uint32
+	if len(cmd.Replay) > 0 {
+		consoleFlags |= pseudoConsoleInheritCursor
+	}
 	var console windows.Handle
-	if err := windows.CreatePseudoConsole(coord(size), inRead, outWrite, 0, &console); err != nil {
+	if err := windows.CreatePseudoConsole(coord(size), inRead, outWrite, consoleFlags, &console); err != nil {
 		closeHandles(inRead, inWrite, outRead, outWrite)
 		return nil, fmt.Errorf("create pseudo console (Windows 10 1809 or later): %w", err)
 	}
@@ -74,14 +82,14 @@ func openPTY(cmd Command, size Size, env []string) (ptyDevice, error) {
 	}
 	defer attrs.Delete()
 	// The attribute's value is the console handle itself.
-	if err := attrs.Update(windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, *(*unsafe.Pointer)(unsafe.Pointer(&console)), unsafe.Sizeof(console)); err != nil {
+	if err := attrs.Update(windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, *(*unsafe.Pointer)(unsafe.Pointer(&console)), unsafe.Sizeof(console)); err != nil { //nolint:gosec // the attribute's value is the handle itself
 		return fail(err)
 	}
 	var si windows.StartupInfoEx
-	si.StartupInfo.Cb = uint32(unsafe.Sizeof(si))
+	si.Cb = uint32(unsafe.Sizeof(si))
 	// Std handles must not be inherited from the (detached, redirected)
 	// daemon or shim, or the program would write there, not to the console.
-	si.StartupInfo.Flags = windows.STARTF_USESTDHANDLES
+	si.Flags = windows.STARTF_USESTDHANDLES
 	si.ProcThreadAttributeList = attrs.List()
 
 	cmdLine, err := windows.UTF16PtrFromString(line)
@@ -103,7 +111,7 @@ func openPTY(cmd Command, size Size, env []string) (ptyDevice, error) {
 	if err := windows.CreateProcess(nil, cmdLine, nil, nil, false, flags, &block[0], dir, &si.StartupInfo, &pi); err != nil {
 		return fail(fmt.Errorf("start %s: %w", cmd.Path, err))
 	}
-	defer windows.CloseHandle(pi.Thread)
+	defer func() { _ = windows.CloseHandle(pi.Thread) }()
 	job, err := pgroup.NewJob()
 	if err == nil {
 		if aerr := windows.AssignProcessToJobObject(job, pi.Process); aerr != nil {
@@ -130,6 +138,9 @@ func openPTY(cmd Command, size Size, env []string) (ptyDevice, error) {
 	}()
 	return p, nil
 }
+
+// pseudoConsoleInheritCursor is PSEUDOCONSOLE_INHERIT_CURSOR.
+const pseudoConsoleInheritCursor = 0x1
 
 func coord(size Size) windows.Coord {
 	return windows.Coord{X: int16(size.Width), Y: int16(size.Height)}

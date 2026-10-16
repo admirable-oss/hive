@@ -42,4 +42,15 @@ func detach(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Setsid = true
 }
 
-func startDetached(cmd *exec.Cmd) (*exec.Cmd, error) { return cmd, cmd.Start() }
+func startDetached(cmd *exec.Cmd) (*exec.Cmd, error) {
+	err := cmd.Start()
+	return cmd, err
+}
+
+func openLog(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+}
+
+func notListening(err error) bool {
+	return errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED)
+}

@@ -31,7 +31,6 @@ func SocketPath(dir, name string) string {
 	return filepath.Join(shortSocketDir(), hex.EncodeToString(sum[:12])+".sock")
 }
 
-
 // PrepareSocketDir makes sure the directory of socket path exists. The
 // shared /tmp fallback directory is created private (0700) and refused
 // when anyone else could have planted it or can write into it.

@@ -38,7 +38,7 @@ func NewJob() (windows.Handle, error) {
 	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{
 		BasicLimitInformation: windows.JOBOBJECT_BASIC_LIMIT_INFORMATION{LimitFlags: windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE},
 	}
-	if _, err := windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info))); err != nil {
+	if _, err := windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info))); err != nil { //nolint:gosec // Win32 reads info as JOBOBJECT_EXTENDED_LIMIT_INFORMATION
 		_ = windows.CloseHandle(job)
 		return 0, err
 	}
@@ -70,7 +70,7 @@ func started(cmd *exec.Cmd) error {
 		_ = windows.CloseHandle(job)
 		return err
 	}
-	defer windows.CloseHandle(h)
+	defer func() { _ = windows.CloseHandle(h) }()
 	// A process in a job that forbids nesting cannot join ours; it is then
 	// stopped by its tree (taskkill) instead.
 	if err := windows.AssignProcessToJobObject(job, h); err != nil {
@@ -160,7 +160,7 @@ func Alive(pgid int) bool {
 	jobs.Unlock()
 	if tracked {
 		var info jobAccounting
-		if windows.QueryInformationJobObject(job, windows.JobObjectBasicAccountingInformation, uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info)), nil) == nil {
+		if windows.QueryInformationJobObject(job, windows.JobObjectBasicAccountingInformation, uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info)), nil) == nil { //nolint:gosec // Win32 fills info, a JOBOBJECT_BASIC_ACCOUNTING_INFORMATION
 			return info.ActiveProcesses > 0
 		}
 	}
@@ -168,7 +168,7 @@ func Alive(pgid int) bool {
 	if err != nil {
 		return errors.Is(err, windows.ERROR_ACCESS_DENIED)
 	}
-	defer windows.CloseHandle(h)
+	defer func() { _ = windows.CloseHandle(h) }()
 	var code uint32
 	return windows.GetExitCodeProcess(h, &code) == nil && code == 259 // STILL_ACTIVE
 }

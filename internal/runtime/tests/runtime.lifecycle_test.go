@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -120,7 +121,7 @@ func TestRuntime_PIDFileAndSocketPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
+	if perm := info.Mode().Perm(); goruntime.GOOS != "windows" && perm != 0o600 {
 		t.Fatalf("socket mode = %v, want 0600", perm)
 	}
 

@@ -65,7 +65,7 @@ func TestStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Root != dir || st.Branch != "main" || st.Head == "" || st.Dirty() {
+	if !samePath(t, st.Root, dir) || st.Branch != "main" || st.Head == "" || st.Dirty() {
 		t.Fatalf("clean repo: %+v", st)
 	}
 
@@ -78,7 +78,7 @@ func TestStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Root != dir || st.Modified != 1 || st.Untracked != 1 || st.Staged != 1 || !st.Dirty() {
+	if !samePath(t, st.Root, dir) || st.Modified != 1 || st.Untracked != 1 || st.Staged != 1 || !st.Dirty() {
 		t.Fatalf("dirty repo: %+v", st)
 	}
 
@@ -220,4 +220,13 @@ func TestWatcherNoticesBranchChangesQuickly(t *testing.T) {
 	if w.Status(dir) != nil {
 		t.Fatal("an unwatched directory has no status")
 	}
+}
+
+// samePath reports whether a and b name the same directory (Windows may
+// spell one with 8.3 short names).
+func samePath(t *testing.T, a, b string) bool {
+	t.Helper()
+	fa, errA := os.Stat(a)
+	fb, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(fa, fb)
 }

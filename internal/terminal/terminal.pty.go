@@ -68,7 +68,7 @@ func (f PTYFactory) Open(_ context.Context, cmd Command) (Session, error) {
 		if cmd.LogMaxBytes > 0 {
 			logFile, err = logging.OpenRotating(cmd.LogPath, cmd.LogMaxBytes, 1)
 		} else {
-			logFile, err = os.OpenFile(cmd.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+			logFile, err = platform.OpenLog(cmd.LogPath)
 		}
 		if err != nil {
 			return nil, err

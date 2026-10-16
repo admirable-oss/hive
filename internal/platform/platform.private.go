@@ -45,3 +45,14 @@ func Detach(cmd *exec.Cmd) { detach(cmd) }
 // their shells in one) refuses the first attempt, and a copy of cmd then
 // starts inside that job.
 func StartDetached(cmd *exec.Cmd) (*exec.Cmd, error) { return startDetached(cmd) }
+
+// OpenLog opens path for appending, creating it private (0600) when it is
+// new. On Windows it is opened so that it can be renamed or deleted while
+// open, as on Unix: a running agent's log directory can then be moved, and
+// a rotated log renamed.
+func OpenLog(path string) (*os.File, error) { return openLog(path) }
+
+// NotListening reports whether a dial error means no one listens at a
+// socket path (absent, or left by a process that died): not running,
+// rather than broken.
+func NotListening(err error) bool { return notListening(err) }

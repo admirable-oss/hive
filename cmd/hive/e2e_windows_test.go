@@ -49,6 +49,7 @@ func TestWindowsCoreWorkflow(t *testing.T) {
 	c.must("terminal", "input", p.ID, "echo typed-into-conpty\r")
 	screen("typed-into-conpty")
 	c.must("terminal", "resize", p.ID, "90", "25")
+	c.waitFor("the daemon's pid file", func() bool { return c.pid() != 0 })
 
 	// The daemon restarts; the agent's shim keeps it running and the new
 	// daemon re-attaches.
