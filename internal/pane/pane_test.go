@@ -56,24 +56,49 @@ func (w *world) env(t *testing.T, id string) {
 // runAndWait runs cmd in a pane's shell and waits for a line matching pattern.
 func (w *world) runAndWait(t *testing.T, paneID, cmd, pattern string) string {
 	t.Helper()
+	line, err := w.run(t, paneID, cmd, pattern, 5*time.Second)
+	if err != nil {
+		w.fatalScreen(t, paneID, cmd, pattern, err)
+	}
+	return line
+}
+
+// waitSize checks a pane's size just after a resize. A shell can lose a key
+// that races the resize (MSYS bash under ConPTY drops one), so the command
+// is retried.
+func (w *world) waitSize(t *testing.T, paneID, pattern string) {
+	t.Helper()
+	var err error
+	for range 5 {
+		if _, err = w.run(t, paneID, "stty size", pattern, 2*time.Second); err == nil {
+			return
+		}
+	}
+	w.fatalScreen(t, paneID, "stty size", pattern, err)
+}
+
+func (w *world) run(t *testing.T, paneID, cmd, pattern string, limit time.Duration) (string, error) {
+	t.Helper()
 	ctx := context.Background()
 	done := make(chan struct{})
 	var line string
 	var err error
 	go func() {
 		defer close(done)
-		line, err = w.panes.WaitOutput(ctx, paneID, terminal.WaitRequest{Pattern: pattern}, 5*time.Second)
+		line, err = w.panes.WaitOutput(ctx, paneID, terminal.WaitRequest{Pattern: pattern}, limit)
 	}()
 	time.Sleep(30 * time.Millisecond)
 	if rerr := w.panes.Run(ctx, paneID, cmd); rerr != nil {
 		t.Fatal(rerr)
 	}
 	<-done
-	if err != nil {
-		lines, _ := w.panes.Read(ctx, paneID, terminal.ReadRequest{})
-		t.Fatalf("waiting for %q after %q: %v\nscreen:\n%s", pattern, cmd, err, strings.Join(lines, "\n"))
-	}
-	return line
+	return line, err
+}
+
+func (w *world) fatalScreen(t *testing.T, paneID, cmd, pattern string, err error) {
+	t.Helper()
+	lines, _ := w.panes.Read(context.Background(), paneID, terminal.ReadRequest{})
+	t.Fatalf("waiting for %q after %q: %v\nscreen:\n%s", pattern, cmd, err, strings.Join(lines, "\n"))
 }
 
 func TestTabsSplitsAndPaneSizes(t *testing.T) {
@@ -104,7 +129,7 @@ func TestTabsSplitsAndPaneSizes(t *testing.T) {
 	if _, err := w.panes.Zoom(ctx, first.ID, nil); err != nil {
 		t.Fatal(err)
 	}
-	w.runAndWait(t, first.ID, "stty size", `^24 81$`)
+	w.waitSize(t, first.ID, `^24 81$`)
 	if p, _ := w.panes.Pane(ctx, second.ID); p.Rect != nil {
 		t.Fatal("a pane hidden by zoom has no area")
 	}
@@ -116,7 +141,7 @@ func TestTabsSplitsAndPaneSizes(t *testing.T) {
 	if _, err := w.panes.Resize(ctx, first.ID, layout.Right, 10); err != nil {
 		t.Fatal(err)
 	}
-	w.runAndWait(t, first.ID, "stty size", `^24 50$`)
+	w.waitSize(t, first.ID, `^24 50$`)
 	if p, err := w.panes.FocusDirection(ctx, second.ID, layout.Left); err != nil || p.ID != first.ID {
 		t.Fatalf("focus left: %+v, %v", p, err)
 	}
@@ -199,7 +224,7 @@ func TestMovingAPaneKeepsItsProcess(t *testing.T) {
 		t.Fatalf("moved pane = %+v (process %+v)", moved, moved.Process)
 	}
 	// It still runs and takes input, at its new size (24 rows split in two).
-	w.runAndWait(t, mover.ID, "stty size", `^11 81$`)
+	w.waitSize(t, mover.ID, `^11 81$`)
 	if got, _ := w.panes.Tab(ctx, src.ID); len(got.Layout.Panes()) != 1 || got.Layout.Panes()[0] != stay.ID {
 		t.Fatalf("source tab after the move: %+v", got)
 	}
