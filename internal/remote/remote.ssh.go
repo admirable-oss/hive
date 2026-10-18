@@ -40,6 +40,9 @@ type Target struct {
 	// ControlDir holds the shared connections' sockets (ControlPath);
 	// empty turns sharing off.
 	ControlDir string
+	// HostKeyAlias, when set, is the name ssh checks the host key under
+	// instead of the host (see Machine.Target).
+	HostKeyAlias string
 }
 
 // ErrInvalidHost is returned for an empty host or one that looks like an
@@ -73,6 +76,9 @@ func (t Target) args(tty bool, script string) []string {
 		"-o", "ServerAliveInterval=15",
 		"-o", "ServerAliveCountMax=3",
 	)
+	if t.HostKeyAlias != "" {
+		argv = append(argv, "-o", "HostKeyAlias="+t.HostKeyAlias)
+	}
 	if t.ControlDir != "" {
 		argv = append(argv,
 			"-o", "ControlMaster=auto",

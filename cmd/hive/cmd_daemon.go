@@ -206,6 +206,7 @@ func runDaemon(ctx context.Context, a *app) error {
 		log.Error("daemon failed to start", "err", err)
 		return err
 	}
+	stopAdvertising := a.advertise(ctx, log)
 	if interactive {
 		fmt.Fprintf(a.errOut, "hive daemon running on %s (logs: %s).\nPress Ctrl+C to stop the daemon; agents keep running (`hive stop` stops them too).\n", a.socket, a.daemonLog())
 	}
@@ -225,6 +226,7 @@ func runDaemon(ctx context.Context, a *app) error {
 	// ctx is already cancelled when a signal arrived; shutdown gets its own
 	// budget. Agents keep running; `hive stop` (runtime.shutdown) is what
 	// stops them.
+	stopAdvertising() // goodbye first: the machine is going away
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.cfg.Daemon.ShutdownTimeout)
 	defer cancel()
 	err = mod.Service.Stop(stopCtx)

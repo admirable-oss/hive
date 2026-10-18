@@ -26,17 +26,75 @@ type Machine struct {
 	// them out).
 	Disabled bool      `json:"disabled,omitempty"`
 	AddedAt  time.Time `json:"added_at"`
+
+	// ID and PublicKey are the runtime identity pinned when the machine
+	// was paired or trusted (see package discovery); empty for a machine
+	// saved without one.
+	ID        string    `json:"id,omitempty"`
+	PublicKey string    `json:"public_key,omitempty"`
+	Platform  string    `json:"platform,omitempty"`
+	TrustedAt time.Time `json:"trusted_at,omitzero"`
+	// Discovered says its address came from local discovery, which keeps
+	// it current when the machine moves. ssh then files its host key under
+	// HostKeyAlias rather than that address.
+	Discovered   bool   `json:"discovered,omitempty"`
+	HostKeyAlias string `json:"host_key_alias,omitempty"`
+	// IdentityChanged says it proved an identity other than the pinned
+	// one. It is not connected to until `hive machine trust` accepts the
+	// new identity.
+	IdentityChanged bool `json:"identity_changed,omitempty"`
+}
+
+// Machine states, from most to least trusted.
+const (
+	// StateTrusted machines have a pinned identity.
+	StateTrusted = "trusted"
+	// StateConfigured machines were saved without an identity: ssh alone
+	// says who they are.
+	StateConfigured = "configured"
+	// StateChanged machines proved another identity than the pinned one.
+	StateChanged = "changed"
+	// StateDisabled machines are kept but not connected to.
+	StateDisabled = "disabled"
+	// StateDiscovered runtimes were found nearby but are not saved.
+	StateDiscovered = "discovered"
+)
+
+// State is how far m is trusted.
+func (m Machine) State() string {
+	switch {
+	case m.Disabled:
+		return StateDisabled
+	case m.IdentityChanged:
+		return StateChanged
+	case m.ID != "":
+		return StateTrusted
+	}
+	return StateConfigured
 }
 
 // Target is how to reach m; controlDir is as in Target.
 func (m Machine) Target(controlDir string) Target {
-	return Target{Host: m.Host, Session: m.Session, HivePath: m.HivePath, ControlDir: controlDir}
+	return Target{Host: m.Host, Session: m.Session, HivePath: m.HivePath, ControlDir: controlDir, HostKeyAlias: m.HostKeyAlias}
+}
+
+// HostKeyAlias is the name ssh files a discovered machine's host key
+// under: the identity it was paired with, which stays when its address
+// changes.
+func HostKeyAlias(id string) string { return "hive-" + id }
+
+// Trust pins a proven identity on m.
+func (m *Machine) Trust(id, publicKey, platform string) {
+	m.ID, m.PublicKey, m.Platform = id, publicKey, platform
+	m.TrustedAt = time.Now().UTC().Truncate(time.Second)
+	m.IdentityChanged = false
 }
 
 // Errors of the registry.
 var (
 	ErrMachineNotFound = errors.New("no such machine")
 	ErrMachineExists   = errors.New("a machine with that name exists")
+	ErrAlreadyPaired   = errors.New("that machine is already paired")
 	ErrInvalidName     = errors.New("invalid machine name (letters, digits, '.', '_' and '-', up to 64 characters)")
 )
 
@@ -107,6 +165,18 @@ func (r *Registry) Get(name string) (Machine, error) {
 	return Machine{}, fmt.Errorf("%w %q (see `hive machine list`)", ErrMachineNotFound, name)
 }
 
+// FindID returns the machine whose pinned identity is id.
+func (r *Registry) FindID(id string) (Machine, bool, error) {
+	ms, err := r.List()
+	if err != nil || id == "" {
+		return Machine{}, false, err
+	}
+	if i := slices.IndexFunc(ms, func(m Machine) bool { return m.ID == id }); i >= 0 {
+		return ms[i], true, nil
+	}
+	return Machine{}, false, nil
+}
+
 // Add saves a new machine.
 func (r *Registry) Add(m Machine) (Machine, error) {
 	if err := ValidName(m.Name); err != nil {
@@ -123,6 +193,9 @@ func (r *Registry) Add(m Machine) (Machine, error) {
 	}
 	if slices.ContainsFunc(ms, func(x Machine) bool { return x.Name == m.Name }) {
 		return Machine{}, fmt.Errorf("%w: %q", ErrMachineExists, m.Name)
+	}
+	if i := slices.IndexFunc(ms, func(x Machine) bool { return m.ID != "" && x.ID == m.ID }); i >= 0 {
+		return Machine{}, fmt.Errorf("%w: it is saved as %q", ErrAlreadyPaired, ms[i].Name)
 	}
 	if m.AddedAt.IsZero() {
 		m.AddedAt = time.Now()

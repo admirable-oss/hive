@@ -110,6 +110,23 @@ frame_budget_kb = {{.Remote.FrameBudgetKB}}
 # limit). Keys typed meanwhile go between its pieces.
 image_budget_kb = {{.Remote.ImageBudgetKB}}
 
+[discovery]
+# Announce this machine on local networks (multicast DNS), so
+# ` + "`hive machine discover`" + ` finds it elsewhere. The announcement has a name,
+# an identity, the ssh port and Hive's API level, nothing else; it opens no port
+# and grants nothing. Pairing still needs ssh access and your confirmation.
+advertise = {{.Discovery.Advertise}}
+# The name it is announced under ("" is the host name).
+name = {{q .Discovery.Name}}
+# The port ssh listens on here, which the announcement gives.
+ssh_port = {{.Discovery.SSHPort}}
+# Network interfaces to announce and look on (empty: every one that is up and
+# multicast, except VPN tunnels and loopback).
+interfaces = {{list .Discovery.Interfaces}}
+# Let ` + "`hive machine discover`" + ` look for runtimes. Off, saved machines and
+# pairing by address keep working.
+browse = {{.Discovery.Browse}}
+
 [images]
 # The largest image pasted with prefix I, in KiB. The UI reads no more from the
 # clipboard, and the daemon (with its own config) accepts no more.

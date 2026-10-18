@@ -133,6 +133,9 @@ func (a *app) useRemote(r remoteArgs) error {
 		if m.Disabled {
 			return fmt.Errorf("machine %q is disabled (`hive machine enable %s`)", m.Name, m.Name)
 		}
+		if m.IdentityChanged {
+			return fmt.Errorf("machine %q proved another identity than the one it was paired with; check it, then `hive machine trust %s`", m.Name, m.Name)
+		}
 		t = m.Target("")
 		a.remoteName = m.Name
 	default:

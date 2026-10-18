@@ -69,7 +69,7 @@ func (a *app) otherMachines() []mux.Machine {
 		fmt.Fprintf(a.errOut, "hive: warning: %v\n", err)
 	}
 	for _, m := range saved {
-		if m.Disabled || m.Name == a.remoteName {
+		if m.Disabled || m.IdentityChanged || m.Name == a.remoteName {
 			continue
 		}
 		out = append(out, mux.Machine{Name: m.Name, Client: a.remoteClient(a.target(m.Target("")), "tui")})

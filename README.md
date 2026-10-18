@@ -55,6 +55,7 @@ Hive is at **v1.0 release candidates** and built in public. The wire API, the CL
 | Observers: read-only, scoped, expiring credentials for dashboards and notifiers; screens and events with resync, locally or over SSH; audited ([docs](docs/observers.md)) | ✅ working |
 | Web observer: agents, states, screens and activity live in a browser, read-only; one-time share links, expiry and revocation, "observed" marks in the multiplexer ([docs](docs/web.md)) | ✅ working |
 | On your phone: an installable app with what needs you first, notifications when an agent is blocked or done (Web Push, end-to-end encrypted, no relay), deep links to the agent ([docs](docs/mobile.md)) | ✅ working |
+| Local discovery: opt-in mDNS announcements, pairing that proves each machine's identity over SSH before you confirm, identity changes caught and held until you accept them ([docs](docs/discovery.md)) | ✅ working |
 
 ## Quick start
 
@@ -143,7 +144,8 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive web share \| grants \| revoke \| audit \| status` | One-time sign-in links for browsers, and who is signed in |
 | `hive web push status \| test` | Devices that get notifications, and a test notification |
 | `hive pane report-metadata` · `hive env report-metadata` · `hive metadata` | Tokens and titles in the sidebar, with a TTL |
-| `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip and agents |
+| `hive machine add \| list \| rename \| enable \| disable \| remove \| status \| reconnect` | Save other machines; `status` shows their daemons, round trip, agents and whether their identity checks out |
+| `hive machine discover \| pair \| trust \| revoke \| identity` | Find runtimes on the local network, pair with one after checking its identity, accept or revoke an identity ([discovery](docs/discovery.md)) |
 | `hive gc [--dry-run] [--older-than d]` | Remove old process records and logs, and leftovers; running agents are never touched |
 | `hive update [--check] [--version v] [--channel stable\|preview] [--from file]` | Update hive to the latest signed release and restart the daemon; agents keep running |
 | `hive config path \| show \| default \| init \| validate \| reset-keys` | Inspect and create the configuration file; put the default key bindings back |
@@ -289,6 +291,7 @@ hive ps start -t dev -- claude
   snapshots/session-<time>.json              the 48 before it
   history/<pane>.txt                         panes' recent text, only with session.replay_history
   machines.json                              saved machines (hive machine), shared by every session
+  identity.json                              this installation's identity key (pairing pins it), 0600
   plugins/<id>/  plugins/registry.json       installed plugins (shared by every session); plugins/.data/<id>/ their data,
                                              .config/<id>/ their settings, .cache/<id>/ their caches
   <session>/p/<hash>.sock                    each running plugin's own daemon socket, scoped to its capabilities

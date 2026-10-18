@@ -63,14 +63,19 @@ command hive machine
 command hive machine (alias machines)
 command hive machine add
 command hive machine disable
+command hive machine discover
 command hive machine enable
+command hive machine identity
 command hive machine list
 command hive machine list (alias ls)
+command hive machine pair
 command hive machine reconnect
 command hive machine remove
 command hive machine remove (alias rm)
 command hive machine rename
+command hive machine revoke
 command hive machine status
+command hive machine trust
 command hive mcp
 command hive metadata
 command hive observer
@@ -261,6 +266,22 @@ flag hive layout export --output string -o
 flag hive machine add --hive-path string
 flag hive machine add --no-check bool
 flag hive machine add --session string
+flag hive machine discover --address stringSlice
+flag hive machine discover --interface stringSlice
+flag hive machine discover --timeout duration
+flag hive machine identity --prove string
+flag hive machine list --address stringSlice
+flag hive machine list --discover bool
+flag hive machine list --interface stringSlice
+flag hive machine list --timeout duration
+flag hive machine pair --address stringSlice
+flag hive machine pair --as string
+flag hive machine pair --hive-path string
+flag hive machine pair --host string
+flag hive machine pair --interface stringSlice
+flag hive machine pair --session string
+flag hive machine pair --timeout duration
+flag hive machine pair --user string
 flag hive observer audit --credential string
 flag hive observer audit --limit int
 flag hive observer create --all bool

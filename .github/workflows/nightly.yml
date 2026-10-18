@@ -38,6 +38,7 @@ jobs:
           - ./internal/vt:FuzzKittyGraphicsParser
           - ./internal/plugin:FuzzParseManifest
           - ./internal/agent:FuzzParseManifest
+          - ./internal/discovery:FuzzParseMessage
     runs-on: ubuntu-latest
     timeout-minutes: 355
     steps:
