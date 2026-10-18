@@ -752,9 +752,15 @@ or completed session without receiving unintended control permissions.
 
 ---
 
-## M17 · Local Discovery — `v1.0.8`
+## M17 · Local Discovery — `v1.0.8` — **LIVE**
 
 Find your machines. Trust them explicitly.
+
+Opt-in mDNS announcements (DNS-SD, `_hive._tcp`) from the daemon, a runtime
+identity (an ed25519 key) that pairing proves over SSH and pins, identity
+changes held until accepted, and direct queries where multicast does not
+reach. Setup, pairing, states, network behaviour, untrusted networks and
+limits: [docs/discovery.md](docs/discovery.md).
 
 Make it easier to discover Hive runtimes on a local network without turning
 discovery into automatic access or implicit trust.

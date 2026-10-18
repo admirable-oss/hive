@@ -28,12 +28,13 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 
 - Every socket lives in a directory only you can enter (0700) and is itself 0600.
 - Each connection's peer is checked by the kernel's credentials: `SO_PEERCRED` on Linux, `LOCAL_PEERCRED` (`getpeereid`) on macOS. A connection from another user is refused and logged, even if a socket path were reachable some other way.
-- No Hive process listens on a network port.
+- The daemon listens on no network port. The exception is local discovery, when you turn it on (`discovery.advertise`): then the daemon answers mDNS questions on UDP 5353 with an announcement, and does nothing else on that port.
 
 **Remote machines are reached only through your own ssh.**
 
 - `hive --remote` and saved machines run `ssh <host> hive proxy`, so authentication, host keys, `~/.ssh/config` and agent forwarding are ssh's, as you set them up.
 - The remote daemon is as private as the local one.
+- Discovering a machine grants nothing. An announcement has a name, an identity ID, the ssh port and the API level. It has no user names, sessions, agents or credentials. Pairing connects over ssh, and has the machine sign a fresh challenge with its identity key (ed25519, kept 0600 in `identity.json`). Pairing refuses a machine that cannot prove the identity it announced, and saves a machine only after you confirm. A paired machine that later proves another identity is not used until you accept the new one (`hive machine trust`). An announcement never moves a paired machine to a new address unless the machine proves its identity there. See [docs/discovery.md](docs/discovery.md).
 
 **Observers read, and only what their credential allows.**
 

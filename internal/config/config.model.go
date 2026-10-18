@@ -21,6 +21,7 @@ type Config struct {
 	Session   Session
 	Retention Retention
 	Remote    Remote
+	Discovery Discovery
 	Images    Images
 	Plugins   Plugins
 	Observers Observers
@@ -129,6 +130,26 @@ type Remote struct {
 	// remote daemon, in KiB per second (0: no limit), so typing stays
 	// responsive meanwhile.
 	ImageBudgetKB int
+}
+
+// Discovery configures finding Hive runtimes on the local network (`hive
+// machine discover`, `hive machine pair`).
+type Discovery struct {
+	// Advertise makes the daemon announce this machine on local networks
+	// (multicast DNS). Off by default.
+	Advertise bool
+	// Name is the name it is announced under ("" is the host name).
+	Name string
+	// SSHPort is the port ssh listens on here, which the announcement
+	// gives.
+	SSHPort int
+	// Interfaces limits announcing and looking to these network
+	// interfaces (empty: every one that is up and multicast, except VPN
+	// tunnels and loopback).
+	Interfaces []string
+	// Browse lets `hive machine discover` look for runtimes. Off, saved
+	// machines and pairing by address keep working.
+	Browse bool
 }
 
 // Images bounds pasted images (prefix I) and what is kept of them.
@@ -306,6 +327,7 @@ func Defaults() Config {
 		},
 		Retention: Retention{ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour},
 		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48, ImageBudgetKB: 1024},
+		Discovery: Discovery{SSHPort: 22, Interfaces: []string{}, Browse: true},
 		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},
 		Plugins:   Plugins{Allow: []string{}, Deny: []string{}, Isolation: "auto", RestartLimit: 5, RestartWindow: 10 * time.Minute, Hidden: []string{}},
 		Observers: Observers{Enabled: true, HistoryEvents: 2048, MaxConnections: 32},

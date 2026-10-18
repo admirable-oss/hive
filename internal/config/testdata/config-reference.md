@@ -80,6 +80,16 @@ the defaults, so a typo never stops the daemon.
 | `frame_budget_kb` | `48` | How much of agents' screens a remote daemon sends this client, in KiB per second (0: no limit). Screens update less often when it is reached. |
 | `image_budget_kb` | `1024` | How fast a pasted image is sent to a remote daemon, in KiB per second (0: no limit). Keys typed meanwhile go between its pieces. |
 
+## `[discovery]`
+
+| Key | Default | Description |
+|---|---|---|
+| `advertise` | `false` | Announce this machine on local networks (multicast DNS), so `hive machine discover` finds it elsewhere. The announcement has a name, an identity, the ssh port and Hive's API level, nothing else; it opens no port and grants nothing. Pairing still needs ssh access and your confirmation. |
+| `name` | `""` | The name it is announced under ("" is the host name). |
+| `ssh_port` | `22` | The port ssh listens on here, which the announcement gives. |
+| `interfaces` | `[]` | Network interfaces to announce and look on (empty: every one that is up and multicast, except VPN tunnels and loopback). |
+| `browse` | `true` | Let `hive machine discover` look for runtimes. Off, saved machines and pairing by address keep working. |
+
 ## `[images]`
 
 | Key | Default | Description |

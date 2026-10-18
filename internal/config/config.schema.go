@@ -82,6 +82,22 @@ func (c *Config) schema() map[string]map[string]setter {
 			"frame_budget_kb": integer(&c.Remote.FrameBudgetKB, 0, 1<<20),
 			"image_budget_kb": integer(&c.Remote.ImageBudgetKB, 0, 1<<20),
 		},
+		"discovery": {
+			"advertise": boolean(&c.Discovery.Advertise),
+			"name": func(raw any) error {
+				return setString(raw, func(v string) error {
+					v = strings.TrimSpace(v)
+					if len(v) > 63 || strings.ContainsAny(v, ".\n\t") {
+						return fmt.Errorf("%q: up to 63 characters, without dots", v)
+					}
+					c.Discovery.Name = v
+					return nil
+				})
+			},
+			"ssh_port":   integer(&c.Discovery.SSHPort, 1, 65535),
+			"interfaces": nameList(&c.Discovery.Interfaces, "a list of interface names"),
+			"browse":     boolean(&c.Discovery.Browse),
+		},
 		"images": {
 			"max_kb":         integer(&c.Images.MaxKB, 1, 16<<10),
 			"max_megapixels": integer(&c.Images.MaxMegapixels, 1, 64),
@@ -298,6 +314,26 @@ func stateList(dst *[]string) setter {
 			s, ok := item.(string)
 			if !ok || !slices.Contains(notifyStates, s) {
 				return fmt.Errorf("%v is not one of %s", item, strings.Join(notifyStates, ", "))
+			}
+			out = append(out, s)
+		}
+		*dst = out
+		return nil
+	}
+}
+
+// nameList reads a list of non-empty strings; [] is an empty, non-nil list.
+func nameList(dst *[]string, what string) setter {
+	return func(raw any) error {
+		list, ok := raw.([]any)
+		if !ok {
+			return typeError(what, raw)
+		}
+		out := []string{}
+		for _, item := range list {
+			s, ok := item.(string)
+			if s = strings.TrimSpace(s); !ok || s == "" {
+				return typeError(what, raw)
 			}
 			out = append(out, s)
 		}

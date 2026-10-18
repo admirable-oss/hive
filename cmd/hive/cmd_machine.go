@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/discovery"
 	"github.com/admirable-oss/hive/internal/remote"
 )
 
@@ -24,31 +25,73 @@ func newMachineCmd(a *app) *cobra.Command {
 keys and agent apply). Run any command on one with --machine <name>, and the
 multiplexer's sidebar lists every enabled machine's agents beside this one's.
 Connecting to a machine starts its daemon, and offers to install hive there
-when it is missing or older than this one.`,
+when it is missing or older than this one.
+
+Machines on the local network can be found (discover) and paired (pair):
+pairing pins the machine's identity, which is checked again by status, trust
+and reconnect. A machine that proves another identity is not connected to
+until you accept it (trust). See docs/discovery.md.`,
 		Example: `  hive machine add gpu me@gpu-box.local
+  hive machine discover
+  hive machine pair studio
   hive --machine gpu agent list
   hive machine status`,
 	}
+	var (
+		discover bool
+		bf       browseFlags
+	)
 	list := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Short:   "List saved machines",
-		Args:    noArgs,
-		RunE: func(*cobra.Command, []string) error {
+		Short:   "List saved machines (and, with --discover, runtimes nearby)",
+		Long: `List saved machines and their state: trusted (paired: its identity is pinned),
+configured (saved without an identity), changed (it proved another identity:
+not connected to until ` + "`hive machine trust`" + `), or disabled. With --discover,
+the local network is asked too: saved machines found are marked nearby, and
+runtimes not saved are listed as discovered. ` + "`hive machine status`" + ` connects
+to them.`,
+		Args: noArgs,
+		RunE: withTimeout(machineTimeout, func(ctx context.Context, _ *cobra.Command, _ []string) error {
 			ms, err := a.machines().List()
 			if err != nil {
 				return err
 			}
-			return a.emit(ms, func() error {
+			var near []nearbyRuntime
+			if discover {
+				res, err := a.browse(ctx, bf)
+				if err != nil {
+					return err
+				}
+				near = a.nearby(ctx, res)
+				if ms, err = a.machines().List(); err != nil { // addresses may have moved
+					return err
+				}
+			}
+			entries := machineEntries(ms, near)
+			return a.emit(entries, func() error {
 				w := a.table()
-				fmt.Fprintln(w, "NAME\tHOST\tSESSION\tENABLED")
-				for _, m := range ms {
-					fmt.Fprintf(w, "%s\t%s\t%s\t%v\n", m.Name, m.Host, cmpStr(m.Session, "default"), !m.Disabled)
+				fmt.Fprintln(w, "NAME\tHOST\tSESSION\tSTATE\tIDENTITY")
+				for _, e := range entries {
+					state, id := e.State, discovery.ShortID(e.ID)
+					if e.Announcement != nil {
+						id = discovery.ShortID(e.Announcement.ID) + " (announced)"
+					}
+					if e.Nearby && e.Announcement == nil {
+						state += ", nearby"
+					}
+					session := cmpStr(e.Session, "default")
+					if e.Announcement != nil {
+						session = "-"
+					}
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.Name, e.Host, session, state, cmpStr(id, "-"))
 				}
 				return w.Flush()
 			})
-		},
+		}),
 	}
+	list.Flags().BoolVar(&discover, "discover", false, "ask the local network for runtimes too")
+	bf.add(list)
 	enable := func(on bool) *cobra.Command {
 		use, short := "enable <name>", "Connect to a machine again (and list its agents in the UI)"
 		if !on {
@@ -72,6 +115,7 @@ when it is missing or older than this one.`,
 		}
 	}
 	cmd.AddCommand(newMachineAddCmd(a), list,
+		newMachineDiscoverCmd(a), newMachinePairCmd(a), newMachineTrustCmd(a), newMachineRevokeCmd(a), newMachineIdentityCmd(a),
 		&cobra.Command{
 			Use:   "rename <name> <new-name>",
 			Short: "Rename a saved machine",
@@ -183,8 +227,20 @@ type machineState struct {
 	Agents    int     `json:"agents"`
 	// State is the most urgent of its agents' states (blocked, working, …).
 	State string `json:"state,omitempty"`
-	Error string `json:"error,omitempty"`
+	// Identity is what its identity proof says: verified (the pinned
+	// one), changed (another), unpinned (none is pinned), or unverified.
+	Identity   string `json:"identity,omitempty"`
+	IdentityID string `json:"identity_id,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
+
+// Identity verdicts of `machine status`.
+const (
+	identityVerified   = "verified"
+	identityChanged    = "changed"
+	identityUnpinned   = "unpinned"
+	identityUnverified = "unverified"
+)
 
 func newMachineStatusCmd(a *app) *cobra.Command {
 	return &cobra.Command{
@@ -251,12 +307,26 @@ func machineStatus(ctx context.Context, a *app, m remote.Machine) machineState {
 	if res, err := client.NewAgents(c).List(ctx, false); err == nil {
 		st.Agents, st.State = len(res.Agents), string(res.Rollups.Session)
 	}
+	st.Identity = identityUnverified
+	p, err := a.target(m.Target("")).Identify(ctx)
+	switch {
+	case err != nil:
+	case m.ID == "":
+		st.Identity, st.IdentityID = identityUnpinned, p.ID
+	case p.ID == m.ID:
+		st.Identity, st.IdentityID = identityVerified, p.ID
+	default:
+		st.Identity, st.IdentityID = identityChanged, p.ID
+		if saved, err := a.machines().Update(m.Name, func(x *remote.Machine) error { x.IdentityChanged = true; return nil }); err == nil {
+			st.Machine = saved
+		}
+	}
 	return st
 }
 
 func printMachineStatus(a *app, states []machineState) error {
 	w := a.table()
-	fmt.Fprintln(w, "NAME\tHOST\tSTATUS\tRTT\tVERSION\tAGENTS")
+	fmt.Fprintln(w, "NAME\tHOST\tSTATUS\tRTT\tVERSION\tAGENTS\tIDENTITY")
 	for _, s := range states {
 		status, rtt := "reachable", fmt.Sprintf("%.1f ms", s.RTTMS)
 		if !s.Reachable {
@@ -266,7 +336,20 @@ func printMachineStatus(a *app, states []machineState) error {
 		if s.State != "" {
 			agents += " (" + s.State + ")"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", s.Name, s.Host, status, rtt, cmpStr(s.Version, "-"), agents)
+		identity := cmpStr(s.Identity, "-")
+		if s.Identity == identityChanged {
+			identity = "CHANGED (hive machine trust " + s.Name + ")"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Name, s.Host, status, rtt, cmpStr(s.Version, "-"), agents, identity)
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	for _, s := range states {
+		if s.Identity == identityChanged {
+			fmt.Fprintf(a.errOut, "hive: machine %q proved another identity (%s) than the one it was paired with; it is not connected to until `hive machine trust %s` accepts it\n",
+				s.Name, discovery.ShortID(s.IdentityID), s.Name)
+		}
+	}
+	return nil
 }

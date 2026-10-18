@@ -1,5 +1,10 @@
 daemon.autostart
 daemon.shutdown_timeout
+discovery.advertise
+discovery.browse
+discovery.interfaces
+discovery.name
+discovery.ssh_port
 git.refresh_interval
 images.keep
 images.log_graphics

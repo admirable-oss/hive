@@ -189,3 +189,50 @@ func TestShellAndInstall(t *testing.T) {
 		t.Fatalf("probe after install = %+v, %v", p, err)
 	}
 }
+
+func TestMachineIdentityAndState(t *testing.T) {
+	r := NewRegistry(filepath.Join(t.TempDir(), "machines.json"))
+	m := Machine{Name: "studio", Host: "192.168.1.7", Discovered: true, HostKeyAlias: HostKeyAlias("aaaabbbbccccddddeeeeffffgg")}
+	if m.State() != StateConfigured {
+		t.Fatalf("state %q", m.State())
+	}
+	m.Trust("aaaabbbbccccddddeeeeffffgg", "key", "linux/amd64")
+	if m.State() != StateTrusted || m.TrustedAt.IsZero() {
+		t.Fatalf("trusted: %+v", m)
+	}
+	if _, err := r.Add(m); err != nil {
+		t.Fatal(err)
+	}
+	twin := m
+	twin.Name = "twin"
+	if _, err := r.Add(twin); !errors.Is(err, ErrAlreadyPaired) {
+		t.Fatalf("one identity saved twice: %v", err)
+	}
+	got, ok, err := r.FindID(m.ID)
+	if err != nil || !ok || got.Name != "studio" {
+		t.Fatalf("FindID: %+v %v %v", got, ok, err)
+	}
+	if _, ok, _ := r.FindID(""); ok {
+		t.Fatal("an empty ID matched")
+	}
+	got.IdentityChanged = true
+	if got.State() != StateChanged {
+		t.Fatal(got.State())
+	}
+	got.Disabled = true
+	if got.State() != StateDisabled {
+		t.Fatal(got.State())
+	}
+
+	cmd, err := m.Target("").Command(context.Background(), false, "version")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(cmd.Args, "HostKeyAlias=hive-aaaabbbbccccddddeeeeffffgg") {
+		t.Fatalf("ssh does not check the host key by identity: %q", cmd.Args)
+	}
+	plain, _ := Machine{Host: "box"}.Target("").Command(context.Background(), false, "version")
+	if slices.ContainsFunc(plain.Args, func(a string) bool { return strings.HasPrefix(a, "HostKeyAlias") }) {
+		t.Fatalf("a machine saved by host got an alias: %q", plain.Args)
+	}
+}

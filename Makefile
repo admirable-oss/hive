@@ -29,7 +29,8 @@ FUZZ_TARGETS := \
 	./internal/vt:FuzzDecodeFrame \
 	./internal/vt:FuzzKittyGraphicsParser \
 	./internal/plugin:FuzzParseManifest \
-	./internal/agent:FuzzParseManifest
+	./internal/agent:FuzzParseManifest \
+	./internal/discovery:FuzzParseMessage
 
 .DEFAULT_GOAL := help
 
