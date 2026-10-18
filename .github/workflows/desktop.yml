@@ -1,0 +1,202 @@
+name: desktop
+
+# The desktop app (desktop/, M18) is its own Go module: it needs cgo and the
+# platform webviews (Wails), which the CLI does not, so it builds here on
+# native runners and leaves ci.yml, goreleaser and the Nix flake alone.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - desktop/**
+      - pkg/**
+      - internal/**
+      - cmd/hive/**
+      - go.mod
+      - go.sum
+      - .github/workflows/desktop.yml
+  pull_request:
+    paths:
+      - desktop/**
+      - pkg/**
+      - internal/**
+      - cmd/hive/**
+      - go.mod
+      - go.sum
+      - .github/workflows/desktop.yml
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Build installable packages (unsigned previews)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WAILS_VERSION: v3.0.0-beta.32
+  # The webviews' build dependencies on Linux (GTK4, WebKitGTK 6.0).
+  LINUX_DEPS: build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop/frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+      - run: npm ci
+      - name: lint
+        run: npm run lint
+      - name: typecheck
+        run: npm run typecheck
+      - name: test
+        run: npm test
+      - name: build
+        run: npm run build
+
+  go:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+      - name: install the webview's build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
+      - name: go mod tidy is clean
+        run: go mod tidy -diff
+      - name: build the frontend
+        working-directory: desktop/frontend
+        run: npm ci && npm run build
+      - name: bindings are up to date
+        if: runner.os == 'macOS'
+        run: |
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
+          wails3 generate bindings -f '-tags production -trimpath -buildvcs=false -ldflags="-w -s"' -clean=true -ts
+          git diff --exit-code -- frontend/bindings
+          test -z "$(git status --porcelain -- frontend/bindings)" || { git status --porcelain -- frontend/bindings; echo "::error::regenerate the bindings (wails3 task common:generate:bindings)"; exit 1; }
+      - name: build hive for the tests
+        working-directory: .
+        run: go build -o "$RUNNER_TEMP/hive$([ "$RUNNER_OS" = Windows ] && echo .exe)" ./cmd/hive
+      - name: vet
+        run: go vet . ./internal/...
+      - name: test
+        env:
+          HIVE_BIN: ${{ runner.temp }}/hive${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            go test -count=1 -timeout 10m ./internal/...
+          else
+            go test -race -count=1 -timeout 10m ./internal/...
+          fi
+      - name: end-to-end (server build, headless Chrome)
+        if: runner.os != 'Windows'
+        env:
+          HIVE_DESKTOP_E2E: require
+        run: go test -count=1 -timeout 10m -run TestDesktopEndToEnd .
+      - name: build the app
+        run: go build -tags production -o "$RUNNER_TEMP/hive-desktop$([ "$RUNNER_OS" = Windows ] && echo .exe)" .
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - name: install the webview's build dependencies
+        run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.14.0
+          working-directory: desktop
+          # Packages by name: frontend/node_modules holds Go files too.
+          args: . ./internal/...
+      - name: lint the Windows build
+        working-directory: desktop
+        run: GOOS=windows golangci-lint run . ./internal/...
+
+  package:
+    if: github.event_name == 'workflow_dispatch' && inputs.package
+    needs: [frontend, go]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+          - os: windows-latest
+          - os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: desktop/go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: install the webview's build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
+      - run: go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
+      - name: build the hive CLI to bundle
+        working-directory: .
+        run: |
+          exe=hive; [ "$RUNNER_OS" = Windows ] && exe=hive.exe
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/admirable-oss/hive/internal/buildinfo.version=$(git describe --tags --always)" -o "$RUNNER_TEMP/$exe" ./cmd/hive
+          echo "HIVE_CLI=$RUNNER_TEMP/$exe" >> "$GITHUB_ENV"
+      - name: package
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            wails3 package
+          else
+            wails3 package HIVE_CLI="$HIVE_CLI"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hive-desktop-${{ runner.os }}
+          path: |
+            desktop/bin/*.app
+            desktop/bin/*.exe
+            desktop/bin/*.AppImage
+            desktop/bin/*.deb
+            desktop/bin/*.rpm
+          retention-days: 14

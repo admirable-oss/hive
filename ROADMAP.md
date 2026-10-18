@@ -820,9 +820,14 @@ a connection or exposes session contents.
 
 ---
 
-## M18 · Desktop App — `v1.0.9`
+## M18 · Desktop App — `v1.0.9` — **IN PROGRESS (preview)**
 
 Hive on your desktop, with the runtime you already trust underneath.
+
+**Status:** a first version is in `desktop/`, with its own CI
+(`.github/workflows/desktop.yml`). Install, use, security and limits:
+[docs/desktop.md](docs/desktop.md). The exit criteria are not met yet: see
+[M18 progress](#m18-progress) below.
 
 A native desktop client for macOS, Windows and Linux. It is built with
 [Wails](https://wails.io) (Go) and React (TypeScript), and talks to the same
@@ -901,7 +906,9 @@ Checked against the Wails repository and documentation on 2026-10-19.
      covered by generated bindings. No method runs shell commands.
    - Stream screens as frames from the daemon (deltas, keyframes, frame
      budgets), the way the TUI consumes them. Carry frames on a binary channel
-     from the app's asset server, not as JSON events, and measure both.
+     from the app's asset server, not as JSON events, and measure both. The
+     first version sends JSON events of changed lines, coalesced to one per
+     pane per frame; the binary channel is next if measurements call for it.
    - Locate the `hive` binary (bundled with the app or on `PATH`), check its API
      level against the app's, and start the daemon with the CLI's autostart
      rules when it is not running.
@@ -913,7 +920,9 @@ Checked against the Wails repository and documentation on 2026-10-19.
      done, idle), rollups, and metadata tokens from plugins.
    - Tabs and panes laid out from the daemon's layout (split, resize, zoom,
      swap, move), with drag and drop that applies through the layout API.
-   - A terminal view that renders Hive's frames on a canvas:
+   - A terminal view that renders Hive's frames. The first version uses DOM
+     rows of runs sized in cells (`ch`), which keeps text selectable and
+     accessible; a canvas comes later if measurements call for it. It has:
      - cursor, selection, copy, search and scrollback;
      - links, including OSC 8;
      - Kitty, iTerm2 and Sixel images, within the bounds set in M11.
@@ -1011,6 +1020,69 @@ Checked against the Wails repository and documentation on 2026-10-19.
    - Accessibility checks (axe) on the main views, light and dark.
    - `docs/desktop.md`: install, requirements per platform, the Wails and webview
      versions, keyboard shortcuts, updates, limitations and troubleshooting.
+
+### M18 progress
+
+- [x] `desktop/` module: Wails v3 (pinned `v3.0.0-beta.32`) and React 19 with
+  TypeScript, Vite, ESLint and Vitest. The `hive` binary stays pure Go.
+- [x] `pkg/hiveapi` grew what a GUI needs: frames, input, status and the
+  API level, tabs and pane layout. These are additive and frozen in
+  `api/v1/hiveapi.txt`.
+- [x] Engine (`desktop/internal/core`):
+  - connects and reconnects, starting the daemon through the login shell;
+  - checks the API level and reads the config through `hive config show`;
+  - builds a view model with no secrets;
+  - streams per-pane views, shared between windows and paced to the frame
+    budget;
+  - pastes safely and validates every input.
+- [x] Workspace UI:
+  - sidebar ("Needs you", environments, branches, tabs) and tab bar;
+  - panes laid out as the daemon arranges them, with the tab claiming the
+    window's size;
+  - terminal with true colour, attributes, wide characters, OSC 8 links,
+    cursor shapes, IME, bracketed paste and the application cursor mode;
+  - command palette;
+  - dialogs: new agent (worktree too), prompt, new environment, confirm;
+  - light and dark themes from `[theme]`.
+- [x] Desktop integration:
+  - tray or menu bar item listing who needs you, and the macOS dock badge;
+  - native notifications (`notify.on`, quiet for the focused pane, none when
+    `notify.system` is on);
+  - `hive://` links, a single instance, menus with shortcuts that leave
+    terminal keys alone;
+  - pop-out pane windows; closing the window hides it to the tray.
+- [x] Security:
+  - Content-Security-Policy, and links limited to `http`, `https` and
+    `mailto`;
+  - one bound service with typed methods; system services are not exposed to
+    the page;
+  - documented in `SECURITY.md`.
+- [x] Tests:
+  - Go tests of the engine against a real daemon (start, stream, type, paste,
+    split, survive the app, reconnect after a daemon restart);
+  - Vitest with Testing Library;
+  - an end-to-end test of a server build in headless Chrome;
+  - CI on macOS, Linux and Windows, including a check that bindings are up to
+    date.
+- [x] Packaging tasks: a `.app` with `hive` bundled, an NSIS installer with
+  `hive.exe`, AppImage, DEB and RPM. CI builds unsigned previews on demand.
+- [ ] Signing:
+  - Developer ID signing and notarization;
+  - Windows code signing;
+  - signed Linux packages;
+  - the Homebrew cask;
+  - attaching packages to tagged releases with `checksums.txt` and the
+    release signature.
+- [ ] In-app updates (Wails updater), with signature verification and
+  rollback.
+- [ ] Machines (M7, M17) in the app: saved machines, discovery, pairing, and
+  identity changes. Also the read-only observer window (M14).
+- [ ] Terminal: Kitty, iTerm2 and Sixel images; scrollback and search; mouse
+  reporting; the Option-as-Meta setting.
+- [ ] Start at login, restoring window positions, file drops.
+- [ ] Measured budgets (keystroke-to-screen, 16 panes at 60 fps, idle CPU,
+  memory), then the binary frame channel if needed. Accessibility checks
+  (axe).
 
 **✅ Acceptance:** on macOS, Windows and Linux, a signed desktop app installs,
 connects to the local daemon (starting it when needed), shows every

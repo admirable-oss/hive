@@ -51,6 +51,16 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 - Screens and output history are shown only when both the runtime and the link allow them; history is read on request and audited. The multiplexer shows when someone observes, and which screens are watched. See [docs/web.md](docs/web.md).
 - Notifications (Web Push) go from the web observer straight to the browser's push service, signed with its own key and encrypted for the device, so the push service cannot read them; no Hive service relays them. They name an agent at most (or nothing, if you choose), never screen contents, only for agents the link can see, and stop when the link is revoked or expires. The installed app caches only its own code, never pages or screens. See [docs/mobile.md](docs/mobile.md).
 
+**The desktop app has the CLI's trust, and no more reach.**
+
+- The app (preview, [docs/desktop.md](docs/desktop.md)) talks to the daemon over its local socket, as `hive` does. It opens no network port and sends no telemetry.
+- Its webview loads only the app's own code: a Content-Security-Policy allows no remote scripts, styles, frames or connections.
+- The page can call one Go service of typed methods. Each method checks its input before it reaches the daemon, and none of them runs commands or reads files.
+- Links open in the browser, and only `http`, `https` and `mailto` links open.
+- The page is never given environment variables, command lines or arguments, and keeps no terminal contents in storage.
+- A pasted text cannot end its own bracketed paste.
+- The app's test build (`-tags server`) serves the app over HTTP without authentication. It listens on localhost and is never released.
+
 **Installing hive elsewhere, plugins and updates need your yes, and updates are verified.**
 
 - `hive update` downloads the release, checks the archive against `checksums.txt`, and checks `checksums.txt` against its ed25519 signature (`checksums.txt.sig`) with the release key built into your binary. An unsigned or wrongly signed release is not installed. Builds from source carry no release key and check only the checksum (they say so).
