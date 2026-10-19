@@ -60,6 +60,8 @@ type Environment struct {
 	State  string `json:"state,omitempty"`
 	// Worktree is set for an environment made for a git worktree.
 	Worktree bool `json:"worktree,omitempty"`
+	// Machine is the saved machine it is on ("" for this computer).
+	Machine string `json:"machine,omitempty"`
 }
 
 // Tab is a tab of an environment.
@@ -116,6 +118,8 @@ type Agent struct {
 	Since         time.Time `json:"since"`
 	Reason        string    `json:"reason,omitempty"`
 	StateSeq      uint64    `json:"state_seq"`
+	// Machine is the saved machine it runs on ("" for this computer).
+	Machine string `json:"machine,omitempty"`
 }
 
 // Manifest is an agent Hive can start.

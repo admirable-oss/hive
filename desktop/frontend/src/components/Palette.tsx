@@ -44,6 +44,10 @@ const actions: [string, string][] = [
   ["Close pane", "close-pane"],
   ["Next agent needing you", "next-attention"],
   ["Toggle sidebar", "toggle-sidebar"],
+  ["Search scrollback…", "history"],
+  ["Machines…", "machines"],
+  ["Start Hive when I log in (on/off)", "toggle-login"],
+  ["Option key types Alt in terminals (on/off)", "toggle-option-meta"],
 ];
 
 // Palette goes to any agent or pane, or runs an action.

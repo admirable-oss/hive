@@ -4,14 +4,30 @@ import { Events, System } from "@wailsio/runtime";
 import * as Service from "../bindings/github.com/admirable-oss/hive/desktop/hiveservice";
 import type {
   Connection,
+  Discovery,
+  IdentityCheck,
+  MachineStatus,
   Manifest,
+  PairRequest,
   ScreenUpdate,
   Settings,
   StartAgentRequest,
   Workspace,
 } from "../bindings/github.com/admirable-oss/hive/desktop/internal/core/models";
 
-export type { Connection, Manifest, ScreenUpdate, Settings, StartAgentRequest, Workspace };
+export type {
+  Connection,
+  Discovery,
+  IdentityCheck,
+  MachineStatus,
+  Manifest,
+  PairRequest,
+  ScreenUpdate,
+  Settings,
+  StartAgentRequest,
+  Workspace,
+};
+export type { Nearby } from "../bindings/github.com/admirable-oss/hive/desktop/internal/core/models";
 export type {
   Agent,
   Environment,
@@ -49,12 +65,23 @@ export const api = {
   closePane: (pane: string) => Service.ClosePane(pane),
   renamePane: (pane: string, name: string) => Service.RenamePane(pane, name),
   popOut: (pane: string) => Service.PopOut(pane),
-  manifests: (): Promise<Manifest[]> => Service.Manifests(),
+  manifests: (machine: string): Promise<Manifest[]> => Service.Manifests(machine),
   startAgent: (req: StartAgentRequest) => Service.StartAgent(req),
   prompt: (agent: string, text: string) => Service.Prompt(agent, text),
   stopAgent: (agent: string) => Service.StopAgent(agent),
-  createEnvironment: (id: string, dir: string) => Service.CreateEnvironment(id, dir),
+  createEnvironment: (machine: string, id: string, dir: string) => Service.CreateEnvironment(machine, id, dir),
+  machines: (): Promise<MachineStatus[]> => Service.Machines(),
+  refreshMachines: () => Service.RefreshMachines(),
+  discover: (): Promise<Discovery> => Service.Discover(),
+  checkPair: (req: PairRequest): Promise<IdentityCheck> => Service.CheckPair(req),
+  pair: (req: PairRequest, expectID: string) => Service.Pair(req, expectID),
+  checkTrust: (name: string): Promise<IdentityCheck> => Service.CheckTrust(name),
+  trust: (name: string, expectID: string) => Service.Trust(name, expectID),
+  machineAction: (name: string, action: "enable" | "disable" | "revoke" | "remove") => Service.MachineAction(name, action),
   openLink: (url: string) => Service.OpenLink(url),
+  history: (pane: string, lines: number): Promise<string[]> => Service.History(pane, lines),
+  startAtLogin: (): Promise<boolean> => Service.StartAtLogin(),
+  setStartAtLogin: (on: boolean) => Service.SetStartAtLogin(on),
 };
 
 export type Api = typeof api;
@@ -64,8 +91,10 @@ export interface Listeners {
   workspace: (w: Workspace) => void;
   screen: (u: ScreenUpdate) => void;
   settings: (s: Settings) => void;
+  machines: (m: MachineStatus[]) => void;
   focus: (pane: string) => void;
   command: (name: string) => void;
+  drop: (paths: string[]) => void;
 }
 
 // listen subscribes to the app's events; the returned function stops.
@@ -75,10 +104,20 @@ export function listen(l: Listeners): () => void {
     Events.On("hive:workspace", (e) => l.workspace(e.data)),
     Events.On("hive:screen", (e) => l.screen(e.data)),
     Events.On("hive:settings", (e) => l.settings(e.data)),
+    Events.On("hive:machines", (e) => l.machines(e.data ?? [])),
     Events.On("hive:focus", (e) => l.focus(e.data.pane)),
     Events.On("hive:command", (e) => l.command(e.data.command)),
+    Events.On("hive:drop", (e) => l.drop(e.data.paths ?? [])),
   ];
   return () => offs.forEach((off) => off());
+}
+
+export function isWindows(): boolean {
+  try {
+    return System.IsWindows();
+  } catch {
+    return /Win/.test(navigator.platform);
+  }
 }
 
 export function isMac(): boolean {

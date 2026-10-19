@@ -84,7 +84,7 @@ export function PaneGrid({ tab }: { tab: Tab }) {
               style={{ left: r.x * sx, top: r.y * sy, width: r.w * sx, height: r.h * sy }}
               aria-label={p.name || "pane"}
             >
-              <Terminal pane={p} cols={r.w} rows={r.h} focused={p.id === focused} onFocus={() => focus(p)} />
+              <Terminal pane={p} cols={r.w} rows={r.h} cell={cell} focused={p.id === focused} onFocus={() => focus(p)} />
             </section>
           );
         })}
@@ -105,7 +105,7 @@ export function SinglePane({ pane }: { pane: Pane }) {
       </span>
       {area.cols > 1 && (
         <section className="pane is-focused" style={{ inset: 0 }}>
-          <Terminal pane={pane} cols={area.cols} rows={area.rows} focused onFocus={() => {}} />
+          <Terminal pane={pane} cols={area.cols} rows={area.rows} cell={cell} focused onFocus={() => {}} />
         </section>
       )}
     </div>

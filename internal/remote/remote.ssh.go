@@ -249,6 +249,15 @@ func (c *Conn) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// CloseWrite says this side is done sending; ssh passes the end of input
+// on, and the daemon's answers keep coming.
+func (c *Conn) CloseWrite() error {
+	if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return cw.CloseWrite()
+	}
+	return c.Close()
+}
+
 // Close closes the connection; ssh sees its input end and exits.
 func (c *Conn) Close() error {
 	err := c.Conn.Close()

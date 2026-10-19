@@ -17,19 +17,24 @@ function configure() {
     Object.freeze(Object.assign($Create.Events, {
         "hive:command": $$createType0,
         "hive:connection": $$createType1,
-        "hive:focus": $$createType2,
-        "hive:screen": $$createType3,
-        "hive:settings": $$createType4,
-        "hive:workspace": $$createType5,
+        "hive:drop": $$createType2,
+        "hive:focus": $$createType3,
+        "hive:machines": $$createType5,
+        "hive:screen": $$createType6,
+        "hive:settings": $$createType7,
+        "hive:workspace": $$createType8,
     }));
 }
 
 // Private type creation functions
 const $$createType0 = main$0.CommandRequest.createFrom;
 const $$createType1 = core$0.Connection.createFrom;
-const $$createType2 = main$0.FocusRequest.createFrom;
-const $$createType3 = core$0.ScreenUpdate.createFrom;
-const $$createType4 = core$0.Settings.createFrom;
-const $$createType5 = core$0.Workspace.createFrom;
+const $$createType2 = main$0.DropRequest.createFrom;
+const $$createType3 = main$0.FocusRequest.createFrom;
+const $$createType4 = core$0.MachineStatus.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = core$0.ScreenUpdate.createFrom;
+const $$createType7 = core$0.Settings.createFrom;
+const $$createType8 = core$0.Workspace.createFrom;
 
 configure();

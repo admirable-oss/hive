@@ -17,7 +17,9 @@ declare module "@wailsio/runtime" {
         interface CustomEvents {
             "hive:command": main$0.CommandRequest;
             "hive:connection": core$0.Connection;
+            "hive:drop": main$0.DropRequest;
             "hive:focus": main$0.FocusRequest;
+            "hive:machines": core$0.MachineStatus[];
             "hive:screen": core$0.ScreenUpdate;
             "hive:settings": core$0.Settings;
             "hive:workspace": core$0.Workspace;

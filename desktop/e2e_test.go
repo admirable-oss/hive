@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 )
 
@@ -183,6 +184,35 @@ func TestDesktopEndToEnd(t *testing.T) {
 			_ = os.WriteFile(filepath.Join(shots, "desktop.png"), png, 0o644)
 		}
 	}
+	// Accessibility, in a real browser and both colour schemes: no serious
+	// or critical axe violations, colour contrast included. Terminal screens
+	// are left out: their colours are the programs'.
+	axeSrc, err := os.ReadFile("frontend/node_modules/axe-core/axe.min.js")
+	if err != nil {
+		t.Fatalf("axe-core (npm ci in frontend): %v", err)
+	}
+	if _, err := chromedp.Run(ctx, chromedp.Evaluate[bool](string(axeSrc)+";true")); err != nil {
+		t.Fatalf("load axe: %v", err)
+	}
+	for _, scheme := range []string{"dark", "light"} {
+		_, err := chromedp.Call(ctx, emulation.SetEmulatedMedia, emulation.SetEmulatedMediaParams{
+			Features: []*emulation.MediaFeature{{Name: "prefers-color-scheme", Value: scheme}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		step(10*time.Second, until(`document.querySelector('.app').dataset.scheme === '`+scheme+`'`))
+		found, err := chromedp.Run(ctx, chromedp.Evaluate[string](`axe.run({include: [['#root']], exclude: [['.term-screen']]}, {resultTypes: ['violations']}).then(r =>
+			JSON.stringify(r.violations.filter(v => v.impact === 'serious' || v.impact === 'critical')
+				.map(v => v.id + ' (' + v.nodes.length + '): ' + v.nodes.slice(0, 3).map(n => n.target.join(' ')).join(', '))))`, chromedp.EvalAwaitPromise))
+		if err != nil {
+			t.Fatalf("axe: %v", err)
+		}
+		if found != "[]" {
+			t.Errorf("accessibility, %s scheme: %s", scheme, found)
+		}
+	}
+
 	// Splitting goes through the daemon, and the new pane shows up.
 	step(10*time.Second, chromedp.Click(chromedp.CSS(`button[aria-label="Split right"]`)))
 	tctx, tcancel := context.WithTimeout(ctx, 30*time.Second)

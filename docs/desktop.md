@@ -42,9 +42,7 @@ launcher, the app otherwise has a bare environment.
 | Webview | WebKit (built in) | WebView2 (preinstalled on 10 and 11) | WebKitGTK |
 | Architectures | arm64, amd64 | amd64 | amd64, arm64 |
 
-Remote machines (`hive --remote`, saved machines) are not in the app yet; the
-CLI and `hive ui` have them. Windows is a client only, as everywhere in Hive
-([platforms](platforms.md)).
+Windows is a client only, as everywhere in Hive ([platforms](platforms.md)).
 
 ## Use
 
@@ -66,8 +64,14 @@ CLI and `hive ui` have them. Windows is a client only, as everywhere in Hive
     worktree branch.
   - **Prompt** sends a prompt to the agent in the focused pane. The app refuses
     if that agent is blocked: answer it in its pane first.
+- **Scrollback.** ⌘F (Ctrl+Shift+F) opens the pane's scrollback as text,
+  searchable. Enter goes to the previous match, Shift+Enter to the next.
+- **Mouse.** Programs that ask for the mouse (editors, `htop`, some agents)
+  get clicks, drags and the wheel. Hold Shift to select text instead.
+- **Drops.** Drop files on the window to paste their paths, quoted for the
+  shell, into the focused pane.
 - **Windows.** **Open in a new window** (⧉) shows a pane on its own, for a
-  second screen.
+  second screen. The main window reopens where you left it.
 - **Closing the window** keeps Hive in the tray or menu bar. **Quit** ends the
   app; agents keep running.
 
@@ -87,8 +91,35 @@ and T mean things to shells.
 | Close pane | ⌘W | Ctrl+Shift+W |
 | Next agent needing you | ⌘J | Ctrl+Shift+J |
 | Toggle sidebar | ⌘B | Ctrl+Shift+B |
+| Search scrollback | ⌘F | Ctrl+Shift+F |
 
-On macOS, Option types characters (such as `ƒ`). It is not sent as Alt.
+On macOS, Option types characters (such as `ƒ`) by default. To make it Alt
+in terminals instead, use **View → Option Key Types Alt** (or the palette). The
+command palette also turns **Start Hive at Login** on or off.
+
+## Machines
+
+The sidebar shows the agents of your saved machines (M7) beside this
+computer's, under each machine's name, live. The app reaches each machine the
+way `hive --machine` does: through `hive machine proxy <name>`, over ssh, with
+your keys and `~/.ssh/config`. It connects only to machines that are enabled
+and whose identity has not changed.
+
+**Machines…** (in the sidebar, the File menu or the palette) does the
+following:
+- **Lists** the saved machines with their trust and connection, and lets you
+  enable, disable or forget each one.
+- **Finds** runtimes on the local network ([discovery](discovery.md)).
+- **Pairs** a runtime found nearby, or any ssh destination.
+- **Reviews** a machine whose identity changed, or one saved without an
+  identity.
+
+Pairing and trusting take two steps:
+1. The app has the machine prove its identity, and shows what it proved:
+   address, name, platform, identity and fingerprint. For a changed identity it
+   also shows the old fingerprint. Nothing is saved yet.
+2. When you confirm, the app trusts exactly the identity you saw. If another
+   identity answers by then, nothing is saved.
 
 ### Notifications and the tray
 
@@ -136,15 +167,34 @@ second settings file:
 - **Pastes.** A pasted text cannot end its own bracketed paste: any end marker
   inside it is removed.
 
+## Performance
+
+These numbers come from a MacBook Pro (Apple silicon), measured by
+`go test -bench . ./internal/core/` and the end-to-end test.
+
+| | |
+|---|---|
+| Encoding a streaming frame (3 changed lines of a 220×50 screen) | 32 µs |
+| Encoding a whole busy 220×50 screen (a keyframe) | 0.55 ms |
+| Updates per pane | at most one per frame (16 ms), coalesced |
+
+At these rates, 16 panes streaming at 60 updates a second take about 3 % of one
+core in the app's Go side. Keystroke-to-screen latency in the native webviews
+is not measured yet.
+
 ## Status and limits
 
-The app is the first part of [M18](../ROADMAP.md). What works:
-- the workspace and live terminals;
+The app is [M18](../ROADMAP.md), in progress. What works:
+- the workspace and live terminals, including scrollback search, mouse
+  reporting and focus events;
 - agents and prompts;
 - layout: split, zoom, close, new tab, pop-out windows;
+- saved machines, discovery, pairing and identity review;
 - notifications, the tray, the dock badge;
 - `hive://` links and a single instance;
-- builds for macOS, Windows and Linux, tested in CI.
+- file drops, start at login, restored window position;
+- builds for macOS, Windows and Linux, tested in CI;
+- accessibility checks: axe, in both colour schemes, in a real browser.
 
 Not yet:
 - **Signed releases.** That means Developer ID signing and notarization,
@@ -152,12 +202,10 @@ Not yet:
   packages to tagged releases. CI builds unsigned packages on demand.
 - **In-app updates,** which will check the release signature as `hive update`
   does.
-- **Remote and paired machines** (M7, M17), and a read-only observer window
-  (M14).
-- **Terminal features:** images (Kitty, iTerm2, Sixel), scrollback and search,
-  and mouse reporting to programs. `hive ui` has these.
-- **App features:** start at login, restoring window positions, file drops,
-  and an Option-as-Meta setting.
+- **A read-only observer window** (M14).
+- **Terminal images** (Kitty, iTerm2, Sixel). `hive ui` has them.
+- **Latency in the native webviews,** measured; then the binary frame channel,
+  if the numbers call for it.
 
 ## Development
 

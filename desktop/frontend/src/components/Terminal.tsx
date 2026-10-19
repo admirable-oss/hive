@@ -1,8 +1,8 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef } from "react";
 import { api, isMac, type Line, type Pane } from "../api";
-import { encodeKey, ModeBracketedPaste } from "../keys";
+import { encodeKey, encodeMouse, focusReport, ModeBracketedPaste, mouseWanted, type MouseKind } from "../keys";
 import { lineText } from "../screen";
-import { store, useScreen } from "../store";
+import { store, useScreen, useStore } from "../store";
 import { color } from "../theme";
 import { usePalette } from "./theme";
 
@@ -70,16 +70,20 @@ interface Props {
   rows: number;
   focused: boolean;
   onFocus: () => void;
+  // cell is the size of one character cell, for mouse reports.
+  cell: { w: number; h: number };
 }
 
 // Terminal shows a pane's screen and types into it.
-export function Terminal({ pane, cols, rows, focused, onFocus }: Props) {
+export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
   const screen = useScreen(pane.id);
   const pal = usePalette();
   const input = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
   const mac = isMac();
-  const [optionIsMeta] = useState(false);
+  const optionIsMeta = useStore((s) => s.ui.optionIsMeta);
+  const modes = screen?.modes ?? 0;
+  const lastMove = useRef("");
 
   useEffect(() => {
     if (cols >= 2 && rows >= 1) api.openView(pane.id, cols, rows).catch(store.fail);
@@ -92,8 +96,48 @@ export function Terminal({ pane, cols, rows, focused, onFocus }: Props) {
     }
   }, [focused]);
 
-  const send = (data: string) => {
+  const send = (data: string | null) => {
     if (data) api.input(pane.id, data).catch(store.fail);
+  };
+
+  // Programs that ask for focus events (editors, some agents) hear when
+  // this pane gains or loses focus.
+  const reportedFocus = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (reportedFocus.current === focused) return;
+    reportedFocus.current = focused;
+    const r = focusReport(focused, modes);
+    if (r) api.input(pane.id, r).catch(() => {});
+  }, [focused, modes, pane.id]);
+
+  // Mouse reports go to programs that ask for them; Shift keeps the
+  // mouse for selecting text, as terminals do.
+  const reporting = mouseWanted(modes);
+  const mouse = (kind: MouseKind, e: React.MouseEvent, button = e.button) => {
+    if (!reporting || e.shiftKey) return false;
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(cols - 1, Math.floor((e.clientX - r.left) / cell.w)));
+    const y = Math.max(0, Math.min(rows - 1, Math.floor((e.clientY - r.top) / cell.h)));
+    if (kind === "move") {
+      const key = `${x},${y},${e.buttons}`;
+      if (key === lastMove.current) return true; // the same cell: nothing new
+      lastMove.current = key;
+    }
+    const report = encodeMouse(
+      {
+        kind,
+        button,
+        x,
+        y,
+        shift: e.shiftKey,
+        alt: e.altKey,
+        ctrl: e.ctrlKey,
+        buttons: e.buttons,
+      },
+      modes,
+    );
+    send(report);
+    return true;
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -109,7 +153,12 @@ export function Terminal({ pane, cols, rows, focused, onFocus }: Props) {
       api.pasteClipboard(pane.id).catch(store.fail);
       return;
     }
-    const bytes = encodeKey(e, screen?.modes ?? 0, mac, optionIsMeta);
+    if ((mac ? e.metaKey : e.ctrlKey && e.shiftKey) && (e.key === "f" || e.key === "F")) {
+      e.preventDefault();
+      store.setUI({ history: pane.id });
+      return;
+    }
+    const bytes = encodeKey(e, modes, mac, optionIsMeta);
     if (bytes !== null) {
       e.preventDefault();
       send(bytes);
@@ -145,7 +194,27 @@ export function Terminal({ pane, cols, rows, focused, onFocus }: Props) {
       data-pane={pane.id}
       data-bracketed={bracketed || undefined}
     >
-      <div className="term-screen" role="log" aria-label={`Terminal: ${title}`} aria-live="off">
+      <div
+        className={"term-screen" + (reporting ? " reporting" : "")}
+        role="log"
+        aria-label={`Terminal: ${title}`}
+        aria-live="off"
+        onMouseDown={(e) => {
+          if (mouse("press", e)) {
+            e.preventDefault();
+            onFocus();
+            input.current?.focus({ preventScroll: true });
+          }
+        }}
+        onMouseUp={(e) => void mouse("release", e)}
+        onMouseMove={(e) => void mouse("move", e)}
+        onWheel={(e) => {
+          if (reporting && !e.shiftKey) mouse(e.deltaY < 0 ? "wheel-up" : "wheel-down", e, 0);
+        }}
+        onContextMenu={(e) => {
+          if (reporting && !e.shiftKey) e.preventDefault();
+        }}
+      >
         {(screen?.lines ?? []).map((l, y) => (
           <Row key={y} line={l} pal={pal} />
         ))}

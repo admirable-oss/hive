@@ -26,6 +26,34 @@ export class CommandRequest {
     }
 }
 
+/**
+ * DropRequest is files dropped on a window.
+ */
+export class DropRequest {
+    "paths": string[];
+
+    /** Creates a new DropRequest instance. */
+    constructor($$source: Partial<DropRequest> = {}) {
+        if (!("paths" in $$source)) {
+            this["paths"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DropRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DropRequest {
+        const $$createField0_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("paths" in $$parsedSource) {
+            $$parsedSource["paths"] = $$createField0_0($$parsedSource["paths"]);
+        }
+        return new DropRequest($$parsedSource as Partial<DropRequest>);
+    }
+}
+
 export class FocusRequest {
     "pane": string;
 
@@ -46,3 +74,6 @@ export class FocusRequest {
         return new FocusRequest($$parsedSource as Partial<FocusRequest>);
     }
 }
+
+// Private type creation functions
+const $$createType0 = $Create.Array($Create.Any);

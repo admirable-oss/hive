@@ -3,6 +3,7 @@ import { api, isMac } from "../api";
 import { runCommand } from "../commands";
 import { currentTab, store, useStore } from "../store";
 import { Dialogs, Toasts } from "./Dialogs";
+import { History } from "./History";
 import { Palette } from "./Palette";
 import { PaneGrid, SinglePane } from "./PaneGrid";
 import { Sidebar } from "./Sidebar";
@@ -88,6 +89,7 @@ export function App() {
         {tab ? <PaneGrid key={tab.id} tab={tab} /> : <Empty />}
       </main>
       {palette && <Palette />}
+      <History />
       <Dialogs />
       <Toasts />
     </div>

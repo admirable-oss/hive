@@ -8,5 +8,6 @@ export {
 
 export {
     CommandRequest,
+    DropRequest,
     FocusRequest
 } from "./models.js";

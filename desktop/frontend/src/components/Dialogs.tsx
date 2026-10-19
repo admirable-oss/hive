@@ -1,32 +1,8 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { Modal } from "./Modal";
 import { api, type Manifest } from "../api";
 import { currentEnv, store, useStore, type Dialog as DialogState } from "../store";
-
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  const id = useId();
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>("[autofocus], input, textarea, select, button")?.focus();
-    return () => prev?.focus?.();
-  }, []);
-  return (
-    <div className="overlay" onMouseDown={onClose}>
-      <div
-        className="dialog"
-        role="dialog"
-        aria-modal
-        aria-labelledby={id}
-        ref={ref}
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
-      >
-        <h2 id={id}>{title}</h2>
-        {children}
-      </div>
-    </div>
-  );
-}
+import { IdentitySheet, Machines } from "./Machines";
 
 const close = () => store.setUI({ dialog: undefined });
 
@@ -39,15 +15,16 @@ function NewAgent({ env: initial }: { env?: string }) {
   const [worktree, setWorktree] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const machine = envs.find((e) => e.id === env)?.machine ?? "";
   useEffect(() => {
     api
-      .manifests()
+      .manifests(machine)
       .then((ms) => {
-        setManifests(ms);
-        setKind((k) => k || ms.find((m) => m.id === "claude")?.id || ms[0]?.id || "");
+        setManifests(ms ?? []);
+        setKind((k) => (ms ?? []).find((m) => m.id === k)?.id || (ms ?? []).find((m) => m.id === "claude")?.id || ms?.[0]?.id || "");
       })
       .catch(store.fail);
-  }, []);
+  }, [machine]);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -80,7 +57,7 @@ function NewAgent({ env: initial }: { env?: string }) {
           <select value={env} onChange={(e) => setEnv(e.target.value)} required>
             {envs.map((e) => (
               <option key={e.id} value={e.id}>
-                {e.name}
+                {e.machine ? `${e.name} (${e.machine})` : e.name}
               </option>
             ))}
           </select>
@@ -176,21 +153,36 @@ function Prompt({ agent: initial }: { agent?: string }) {
 }
 
 function NewEnvironment() {
+  const machines = useStore((s) => s.machines).filter((m) => m.connection.state === "connected");
+  const [machine, setMachine] = useState("");
   const [id, setId] = useState("");
   const [dir, setDir] = useState("");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     api
-      .createEnvironment(id.trim(), dir.trim())
+      .createEnvironment(machine, id.trim(), dir.trim())
       .then(() => {
         close();
-        store.setUI({ env: id.trim(), tab: undefined });
+        store.setUI({ env: machine ? `${machine}/${id.trim()}` : id.trim(), tab: undefined });
       })
       .catch(store.fail);
   };
   return (
     <Modal title="New environment" onClose={close}>
       <form onSubmit={submit}>
+        {machines.length > 0 && (
+          <label>
+            Machine
+            <select value={machine} onChange={(e) => setMachine(e.target.value)}>
+              <option value="">This computer</option>
+              {machines.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Name
           <input autoFocus value={id} onChange={(e) => setId(e.target.value)} pattern="[A-Za-z0-9][A-Za-z0-9._-]*" required />
@@ -245,6 +237,10 @@ export function Dialogs() {
       return <NewEnvironment />;
     case "confirm":
       return <Confirm d={d} />;
+    case "machines":
+      return <Machines />;
+    case "identity":
+      return <IdentitySheet d={d} />;
   }
 }
 

@@ -4,6 +4,7 @@ go 1.26.6
 
 require (
 	github.com/admirable-oss/hive v0.0.0
+	github.com/chromedp/cdproto v0.157.8
 	github.com/chromedp/chromedp v0.21.0
 	github.com/wailsapp/wails/v3 v3.0.0-beta.32
 )
@@ -19,7 +20,6 @@ require (
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/vt v0.0.0-20261004011457-ad85c59fdf4e // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
-	github.com/chromedp/cdproto v0.157.8 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/coder/websocket v1.8.14 // indirect

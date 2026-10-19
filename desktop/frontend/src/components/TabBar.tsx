@@ -28,12 +28,13 @@ export function TabBar({ mac }: { mac: boolean }) {
             {t.name || "shell"}
           </button>
         ))}
-        {env && (
-          <button className="icon" aria-label="New tab" title="New tab" onClick={() => api.newTab(env).then((p) => store.reveal(p)).catch(store.fail)}>
-            +
-          </button>
-        )}
       </div>
+      {env && (
+        <button className="icon" aria-label="New tab" title="New tab" onClick={() => api.newTab(env).then((p) => store.reveal(p)).catch(store.fail)}>
+          +
+        </button>
+      )}
+      <span className="tabbar-gap" />
       <div className="actions">
         {agent && (
           <button onClick={() => store.setUI({ dialog: { kind: "prompt", agent: agent.id } })} title="Send a prompt to this agent">

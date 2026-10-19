@@ -17,6 +17,25 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as core$0 from "./internal/core/models.js";
 
 /**
+ * CheckPair proves the identity of a runtime or host before pairing,
+ * saving nothing.
+ */
+export function CheckPair(req: core$0.PairRequest): $CancellablePromise<core$0.IdentityCheck> {
+    return $Call.ByID(2730525321, req).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
+ * CheckTrust proves a saved machine's identity, saving nothing.
+ */
+export function CheckTrust(name: string): $CancellablePromise<core$0.IdentityCheck> {
+    return $Call.ByID(1644724141, name).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * ClosePane closes a pane and stops its process.
  */
 export function ClosePane(paneID: string): $CancellablePromise<void> {
@@ -42,7 +61,7 @@ export function CloseView(viewer: string, paneID: string): $CancellablePromise<v
  */
 export function Connection(): $CancellablePromise<core$0.Connection> {
     return $Call.ByID(437067979).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
 }
 
@@ -54,10 +73,20 @@ export function Copy(text: string): $CancellablePromise<void> {
 }
 
 /**
- * CreateEnvironment makes an environment for a directory.
+ * CreateEnvironment makes an environment for a directory on a machine
+ * ("" for this computer).
  */
-export function CreateEnvironment(id: string, dir: string): $CancellablePromise<void> {
-    return $Call.ByID(2543111508, id, dir);
+export function CreateEnvironment(machine: string, id: string, dir: string): $CancellablePromise<void> {
+    return $Call.ByID(2543111508, machine, id, dir);
+}
+
+/**
+ * Discover looks for Hive runtimes on the local network.
+ */
+export function Discover(): $CancellablePromise<core$0.Discovery> {
+    return $Call.ByID(4043157768).then(($result: any) => {
+        return $$createType2($result);
+    });
 }
 
 /**
@@ -75,6 +104,15 @@ export function FocusTab(tabID: string): $CancellablePromise<void> {
 }
 
 /**
+ * History returns a pane's scrollback and screen as text (its last lines).
+ */
+export function History(paneID: string, lines: number): $CancellablePromise<string[]> {
+    return $Call.ByID(1715230469, paneID, lines).then(($result: any) => {
+        return $$createType3($result);
+    });
+}
+
+/**
  * Input types bytes into a pane.
  */
 export function Input(paneID: string, data: string): $CancellablePromise<void> {
@@ -82,11 +120,28 @@ export function Input(paneID: string, data: string): $CancellablePromise<void> {
 }
 
 /**
- * Manifests lists the agents Hive can start.
+ * MachineAction enables, disables, revokes or removes a saved machine.
  */
-export function Manifests(): $CancellablePromise<core$0.Manifest[]> {
-    return $Call.ByID(3955373223).then(($result: any) => {
-        return $$createType2($result);
+export function MachineAction(name: string, action: string): $CancellablePromise<void> {
+    return $Call.ByID(3292678194, name, action);
+}
+
+/**
+ * Machines are the saved machines and how the app is connected to them.
+ */
+export function Machines(): $CancellablePromise<core$0.MachineStatus[]> {
+    return $Call.ByID(1926130017).then(($result: any) => {
+        return $$createType5($result);
+    });
+}
+
+/**
+ * Manifests lists the agents a machine's Hive can start ("" for this
+ * computer).
+ */
+export function Manifests(machine: string): $CancellablePromise<core$0.Manifest[]> {
+    return $Call.ByID(3955373223, machine).then(($result: any) => {
+        return $$createType7($result);
     });
 }
 
@@ -111,6 +166,13 @@ export function OpenLink(link: string): $CancellablePromise<void> {
  */
 export function OpenView(viewer: string, paneID: string, cols: number, rows: number): $CancellablePromise<void> {
     return $Call.ByID(1695171618, viewer, paneID, cols, rows);
+}
+
+/**
+ * Pair saves a machine if it proves the identity the user confirmed.
+ */
+export function Pair(req: core$0.PairRequest, expectID: string): $CancellablePromise<void> {
+    return $Call.ByID(65660651, req, expectID);
 }
 
 /**
@@ -139,6 +201,13 @@ export function PopOut(paneID: string): $CancellablePromise<void> {
  */
 export function Prompt(agentID: string, text: string): $CancellablePromise<string> {
     return $Call.ByID(772037881, agentID, text);
+}
+
+/**
+ * RefreshMachines reads the saved machines again.
+ */
+export function RefreshMachines(): $CancellablePromise<void> {
+    return $Call.ByID(2691694716);
 }
 
 /**
@@ -177,11 +246,18 @@ export function Retry(): $CancellablePromise<void> {
 }
 
 /**
+ * SetStartAtLogin makes the app start when you log in, or not.
+ */
+export function SetStartAtLogin(on: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1986874763, on);
+}
+
+/**
  * Settings are the parts of the Hive configuration the app follows.
  */
 export function Settings(): $CancellablePromise<core$0.Settings> {
     return $Call.ByID(1996682342).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType8($result);
     });
 }
 
@@ -200,6 +276,13 @@ export function StartAgent(req: core$0.StartAgentRequest): $CancellablePromise<s
 }
 
 /**
+ * StartAtLogin says whether the app starts when you log in.
+ */
+export function StartAtLogin(): $CancellablePromise<boolean> {
+    return $Call.ByID(3079390409);
+}
+
+/**
  * StopAgent stops an agent.
  */
 export function StopAgent(agentID: string): $CancellablePromise<void> {
@@ -207,11 +290,18 @@ export function StopAgent(agentID: string): $CancellablePromise<void> {
 }
 
 /**
+ * Trust pins the identity the user confirmed for a saved machine.
+ */
+export function Trust(name: string, expectID: string): $CancellablePromise<void> {
+    return $Call.ByID(3228132703, name, expectID);
+}
+
+/**
  * Workspace is the daemon's environments, tabs, panes and agents.
  */
 export function Workspace(): $CancellablePromise<core$0.Workspace> {
     return $Call.ByID(2298421584).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType9($result);
     });
 }
 
@@ -223,8 +313,13 @@ export function ZoomPane(paneID: string): $CancellablePromise<void> {
 }
 
 // Private type creation functions
-const $$createType0 = core$0.Connection.createFrom;
-const $$createType1 = core$0.Manifest.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = core$0.Settings.createFrom;
-const $$createType4 = core$0.Workspace.createFrom;
+const $$createType0 = core$0.IdentityCheck.createFrom;
+const $$createType1 = core$0.Connection.createFrom;
+const $$createType2 = core$0.Discovery.createFrom;
+const $$createType3 = $Create.Array($Create.Any);
+const $$createType4 = core$0.MachineStatus.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = core$0.Manifest.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = core$0.Settings.createFrom;
+const $$createType9 = core$0.Workspace.createFrom;

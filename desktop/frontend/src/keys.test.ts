@@ -53,3 +53,38 @@ describe("encodeKey", () => {
     expect(encodeKey(k("C", { ctrlKey: true, shiftKey: true }), 0, false)).toBeNull();
   });
 });
+
+import { encodeMouse, focusReport, ModeFocusEvents, ModeMouseAny, ModeMouseButton, ModeMouseNormal, ModeMouseSGR, ModeMouseX10, quotePaths } from "./keys";
+
+const press = { kind: "press" as const, button: 0, x: 4, y: 2, shift: false, alt: false, ctrl: false, buttons: 1 };
+
+describe("encodeMouse", () => {
+  it("sends nothing unless asked", () => {
+    expect(encodeMouse(press, 0)).toBeNull();
+  });
+  it("encodes SGR reports", () => {
+    expect(encodeMouse(press, ModeMouseNormal | ModeMouseSGR)).toBe("\x1b[<0;5;3M");
+    expect(encodeMouse({ ...press, kind: "release" }, ModeMouseNormal | ModeMouseSGR)).toBe("\x1b[<0;5;3m");
+    expect(encodeMouse({ ...press, kind: "wheel-up" }, ModeMouseNormal | ModeMouseSGR)).toBe("\x1b[<64;5;3M");
+    expect(encodeMouse({ ...press, ctrl: true }, ModeMouseNormal | ModeMouseSGR)).toBe("\x1b[<16;5;3M");
+  });
+  it("reports moves only as the mode says", () => {
+    const move = { ...press, kind: "move" as const, buttons: 0 };
+    expect(encodeMouse(move, ModeMouseNormal | ModeMouseSGR)).toBeNull();
+    expect(encodeMouse({ ...move, buttons: 1 }, ModeMouseButton | ModeMouseSGR)).toBe("\x1b[<32;5;3M");
+    expect(encodeMouse(move, ModeMouseAny | ModeMouseSGR)).toBe("\x1b[<35;5;3M");
+  });
+  it("uses the legacy encoding without SGR, within its range", () => {
+    expect(encodeMouse(press, ModeMouseNormal)).toBe("\x1b[M" + String.fromCharCode(32, 37, 35));
+    expect(encodeMouse({ ...press, x: 300 }, ModeMouseNormal)).toBeNull();
+    expect(encodeMouse({ ...press, kind: "release" }, ModeMouseX10)).toBeNull();
+  });
+  it("reports focus when asked", () => {
+    expect(focusReport(true, ModeFocusEvents)).toBe("\x1b[I");
+    expect(focusReport(false, 0)).toBeNull();
+  });
+  it("quotes dropped paths for the shell", () => {
+    expect(quotePaths(["/tmp/a.png", "/Users/me/My Shot's.png"], false)).toBe(`/tmp/a.png '/Users/me/My Shot'\\''s.png'`);
+    expect(quotePaths(['C:\\a b\\"x".txt'], true)).toBe(`"C:\\a b\\""x"".txt"`);
+  });
+});

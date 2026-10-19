@@ -1075,14 +1075,23 @@ Checked against the Wails repository and documentation on 2026-10-19.
     release signature.
 - [ ] In-app updates (Wails updater), with signature verification and
   rollback.
-- [ ] Machines (M7, M17) in the app: saved machines, discovery, pairing, and
-  identity changes. Also the read-only observer window (M14).
-- [ ] Terminal: Kitty, iTerm2 and Sixel images; scrollback and search; mouse
-  reporting; the Option-as-Meta setting.
-- [ ] Start at login, restoring window positions, file drops.
-- [ ] Measured budgets (keystroke-to-screen, 16 panes at 60 fps, idle CPU,
-  memory), then the binary frame channel if needed. Accessibility checks
-  (axe).
+- [x] Machines (M7, M17) in the app:
+  - every enabled, trusted machine's agents in the sidebar, reached through
+    `hive machine proxy`;
+  - discovery, and pairing by discovery or ssh;
+  - review of a changed identity: the app shows the proof first
+    (`--check`), then confirms exactly that identity (`--expect-id`).
+- [ ] The read-only observer window (M14).
+- [x] Terminal: scrollback and search, mouse reporting (SGR and legacy),
+  focus events, the Option-as-Meta setting.
+- [ ] Terminal: Kitty, iTerm2 and Sixel images.
+- [x] Start at login, restoring the window position, file drops (paths
+  quoted for the shell).
+- [x] Accessibility: axe in jsdom and in a real browser, in both colour
+  schemes, with colour contrast checked.
+- [x] Frame encoding measured: 32 µs a streaming frame, 0.55 ms a keyframe.
+- [ ] Keystroke-to-screen latency, idle CPU and memory measured in the native
+  webviews; then the binary frame channel if needed.
 
 **✅ Acceptance:** on macOS, Windows and Linux, a signed desktop app installs,
 connects to the local daemon (starting it when needed), shows every

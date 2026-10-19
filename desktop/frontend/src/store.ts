@@ -1,11 +1,15 @@
 import { useSyncExternalStore } from "react";
-import type { Agent, Connection, Pane, ScreenUpdate, Settings, Tab, Workspace } from "./api";
+import type { Agent, Connection, IdentityCheck, MachineStatus, Pane, PairRequest, ScreenUpdate, Settings, Tab, Workspace } from "./api";
 import { applyUpdate, type Screen } from "./screen";
 
 export type Dialog =
   | { kind: "new-agent"; env?: string }
   | { kind: "prompt"; agent?: string }
   | { kind: "new-environment" }
+  | { kind: "machines" }
+  // identity shows a proven identity before it is trusted: for pairing
+  // (pair set) or for a saved machine (machine set).
+  | { kind: "identity"; check: IdentityCheck; pair?: PairRequest; machine?: string }
   | { kind: "confirm"; title: string; body: string; action: string; run: () => void };
 
 export interface Toast {
@@ -15,6 +19,10 @@ export interface Toast {
 }
 
 export interface UI {
+  // history is the pane whose scrollback is open.
+  history?: string;
+  // optionIsMeta makes macOS's Option key Alt in terminals.
+  optionIsMeta: boolean;
   env?: string;
   tab?: string;
   pane?: string;
@@ -28,6 +36,7 @@ export interface State {
   connection: Connection;
   workspace: Workspace;
   settings: Settings;
+  machines: MachineStatus[];
   ui: UI;
 }
 
@@ -38,8 +47,27 @@ export function initialState(): State {
     connection: { state: "connecting", session: "default" },
     workspace: emptyWorkspace,
     settings: { notify_on: ["blocked", "done"], system_notifications: false, theme: "auto", prefix: ["ctrl+b"] },
-    ui: { sidebar: true, palette: false, toasts: [] },
+    machines: [],
+    ui: { sidebar: true, palette: false, toasts: [], optionIsMeta: readPref("hive.optionIsMeta") === "1" },
   };
+}
+
+// Per-window preferences live in the webview's storage: nothing that
+// matters if lost, and never terminal contents.
+export function readPref(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+export function writePref(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // private mode, or storage refused: the preference lasts this session
+  }
 }
 
 type Listener = () => void;

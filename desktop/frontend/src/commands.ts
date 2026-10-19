@@ -1,5 +1,5 @@
 import { api } from "./api";
-import { attention, currentEnv, currentPane, currentTab, show, store } from "./store";
+import { attention, currentEnv, currentPane, currentTab, show, store, writePref } from "./store";
 
 // runCommand runs a named command: from a menu, the palette or a key.
 export function runCommand(name: string) {
@@ -15,6 +15,9 @@ export function runCommand(name: string) {
       break;
     case "new-environment":
       store.setUI({ dialog: { kind: "new-environment" } });
+      break;
+    case "machines":
+      store.setUI({ dialog: { kind: "machines" } });
       break;
     case "prompt": {
       const agent = s.workspace.agents.find((a) => a.pane_id === pane?.id);
@@ -68,6 +71,22 @@ export function runCommand(name: string) {
     }
     case "toggle-sidebar":
       store.setUI({ sidebar: !s.ui.sidebar });
+      break;
+    case "history":
+      if (pane) store.setUI({ history: pane.id });
+      break;
+    case "toggle-option-meta": {
+      const on = !s.ui.optionIsMeta;
+      writePref("hive.optionIsMeta", on ? "1" : "0");
+      store.setUI({ optionIsMeta: on });
+      store.toast(on ? "Option now types Alt (Meta) in terminals." : "Option now types characters, as macOS does.");
+      break;
+    }
+    case "toggle-login":
+      api
+        .startAtLogin()
+        .then((on) => api.setStartAtLogin(!on).then(() => store.toast(on ? "Hive no longer starts when you log in." : "Hive starts when you log in.")))
+        .catch(fail);
       break;
   }
 }

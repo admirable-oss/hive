@@ -11,7 +11,7 @@ import (
 // pass-through to the hub, which validates its input before anything
 // reaches the daemon; nothing here runs commands or reads files.
 type HiveService struct {
-	hub   *core.Hub
+	hub   *core.Fleet
 	shell shell
 }
 
@@ -21,6 +21,8 @@ type shell interface {
 	setClipboard(text string)
 	clipboard() string
 	popOut(paneID string) error
+	startAtLogin() (bool, error)
+	setStartAtLogin(on bool) error
 }
 
 // Connection is how the app is connected to the daemon.
@@ -100,8 +102,22 @@ func (s *HiveService) RenamePane(paneID, name string) error { return s.hub.Renam
 // PopOut opens a pane in a window of its own.
 func (s *HiveService) PopOut(paneID string) error { return s.shell.popOut(paneID) }
 
-// Manifests lists the agents Hive can start.
-func (s *HiveService) Manifests() ([]core.Manifest, error) { return s.hub.Manifests() }
+// History returns a pane's scrollback and screen as text (its last lines).
+func (s *HiveService) History(paneID string, lines int) ([]string, error) {
+	return s.hub.History(paneID, lines)
+}
+
+// StartAtLogin says whether the app starts when you log in.
+func (s *HiveService) StartAtLogin() (bool, error) { return s.shell.startAtLogin() }
+
+// SetStartAtLogin makes the app start when you log in, or not.
+func (s *HiveService) SetStartAtLogin(on bool) error { return s.shell.setStartAtLogin(on) }
+
+// Manifests lists the agents a machine's Hive can start ("" for this
+// computer).
+func (s *HiveService) Manifests(machine string) ([]core.Manifest, error) {
+	return s.hub.Manifests(machine)
+}
 
 // StartAgent starts an agent and returns its pane.
 func (s *HiveService) StartAgent(req core.StartAgentRequest) (string, error) {
@@ -116,9 +132,43 @@ func (s *HiveService) Prompt(agentID, text string) (string, error) {
 // StopAgent stops an agent.
 func (s *HiveService) StopAgent(agentID string) error { return s.hub.StopAgent(agentID) }
 
-// CreateEnvironment makes an environment for a directory.
-func (s *HiveService) CreateEnvironment(id, dir string) error {
-	return s.hub.CreateEnvironment(id, dir)
+// CreateEnvironment makes an environment for a directory on a machine
+// ("" for this computer).
+func (s *HiveService) CreateEnvironment(machine, id, dir string) error {
+	return s.hub.CreateEnvironment(machine, id, dir)
+}
+
+// Machines are the saved machines and how the app is connected to them.
+func (s *HiveService) Machines() []core.MachineStatus { return s.hub.Machines() }
+
+// RefreshMachines reads the saved machines again.
+func (s *HiveService) RefreshMachines() { s.hub.RefreshMachines() }
+
+// Discover looks for Hive runtimes on the local network.
+func (s *HiveService) Discover() (core.Discovery, error) { return s.hub.Discover() }
+
+// CheckPair proves the identity of a runtime or host before pairing,
+// saving nothing.
+func (s *HiveService) CheckPair(req core.PairRequest) (core.IdentityCheck, error) {
+	return s.hub.CheckPair(req)
+}
+
+// Pair saves a machine if it proves the identity the user confirmed.
+func (s *HiveService) Pair(req core.PairRequest, expectID string) error {
+	return s.hub.Pair(req, expectID)
+}
+
+// CheckTrust proves a saved machine's identity, saving nothing.
+func (s *HiveService) CheckTrust(name string) (core.IdentityCheck, error) {
+	return s.hub.CheckTrust(name)
+}
+
+// Trust pins the identity the user confirmed for a saved machine.
+func (s *HiveService) Trust(name, expectID string) error { return s.hub.Trust(name, expectID) }
+
+// MachineAction enables, disables, revokes or removes a saved machine.
+func (s *HiveService) MachineAction(name, action string) error {
+	return s.hub.MachineAction(name, action)
 }
 
 // OpenLink opens a link from a terminal in the system browser. Only web

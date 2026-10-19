@@ -36,7 +36,15 @@ const (
 	eventFocus = "hive:focus"
 	// eventCommand runs a frontend command from a menu ({"command": name}).
 	eventCommand = "hive:command"
+	// eventDrop carries files dropped on a window ({"paths": […]}), which
+	// the frontend pastes into the focused pane.
+	eventDrop = "hive:drop"
 )
+
+// DropRequest is files dropped on a window.
+type DropRequest struct {
+	Paths []string `json:"paths"`
+}
 
 type FocusRequest struct {
 	Pane string `json:"pane"`
@@ -51,14 +59,16 @@ func init() {
 	application.RegisterEvent[core.Workspace](core.EventWorkspace)
 	application.RegisterEvent[core.ScreenUpdate](core.EventScreen)
 	application.RegisterEvent[core.Settings](core.EventSettings)
+	application.RegisterEvent[[]core.MachineStatus](core.EventMachines)
 	application.RegisterEvent[FocusRequest](eventFocus)
 	application.RegisterEvent[CommandRequest](eventCommand)
+	application.RegisterEvent[DropRequest](eventDrop)
 }
 
 // desktop is the app around the hub.
 type desktop struct {
 	app     *application.App
-	hub     *core.Hub
+	hub     *core.Fleet
 	main    *application.WebviewWindow
 	tray    *application.SystemTray
 	dock    *dock.DockService
@@ -79,7 +89,7 @@ type desktop struct {
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	d := &desktop{log: log, dock: dock.New(), notes: notifications.New(), trayKick: make(chan struct{}, 1)}
-	d.hub = core.New(core.Config{
+	d.hub = core.NewFleet(core.Config{
 		Home: os.Getenv("HIVE_HOME"), Session: os.Getenv("HIVE_SESSION"),
 		LoginShell: true, Emitter: d, Notify: d.notify, Logger: log,
 		Clipboard: func(text string) { d.app.Clipboard.SetText(text) },
@@ -91,7 +101,7 @@ func main() {
 		Name:        "Hive",
 		Description: "Coding agents that keep working when you close the window",
 		Services: []application.Service{
-			application.NewService(&lifecycle{hub: d.hub}),
+			application.NewService(&lifecycle{hub: d.hub, onQuit: d.rememberWindow}),
 			application.NewService(svc),
 			application.NewService(&optional{name: "notifications", svc: d.notes, log: log, failed: &d.noNotes}),
 			application.NewService(&optional{name: "the dock badge", svc: d.dock, log: log, failed: new(atomic.Bool)}),
@@ -149,7 +159,10 @@ func main() {
 
 // lifecycle starts the hub with the app and closes it on quit; agents
 // keep running with the daemon.
-type lifecycle struct{ hub *core.Hub }
+type lifecycle struct {
+	hub    *core.Fleet
+	onQuit func()
+}
 
 func (l *lifecycle) ServiceStartup(context.Context, application.ServiceOptions) error {
 	l.hub.Start()
@@ -157,6 +170,9 @@ func (l *lifecycle) ServiceStartup(context.Context, application.ServiceOptions) 
 }
 
 func (l *lifecycle) ServiceShutdown() error {
+	if l.onQuit != nil {
+		l.onQuit()
+	}
 	l.hub.Close()
 	return nil
 }
@@ -197,6 +213,7 @@ func (d *desktop) newWindow(name, title, page string, w, h int) *application.Web
 	win := d.app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name: name, Title: title, URL: page, Width: w, Height: h, MinWidth: 560, MinHeight: 360,
 		BackgroundColour: application.NewRGB(0x0d, 0x11, 0x17),
+		EnableFileDrop:   true,
 		Mac: application.MacWindow{
 			TitleBar:                application.MacTitleBarHiddenInset,
 			InvisibleTitleBarHeight: 38,
@@ -208,9 +225,18 @@ func (d *desktop) newWindow(name, title, page string, w, h int) *application.Web
 			d.focused.Store(0)
 		}
 	})
+	win.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
+		if paths := e.Context().DroppedFiles(); len(paths) > 0 {
+			win.EmitEvent(eventDrop, DropRequest{Paths: paths})
+		}
+	})
 	if name == "main" {
+		if st, ok := loadWindowState(); ok && !serverBuild {
+			win.SetBounds(application.Rect{X: st.X, Y: st.Y, Width: st.Width, Height: st.Height})
+		}
 		win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 			e.Cancel()
+			d.rememberWindow()
 			win.Hide()
 		})
 	}
@@ -315,6 +341,24 @@ func (d *desktop) notify(n core.Notification) {
 
 func (d *desktop) openURL(u string) error { return d.app.Browser.OpenURL(u) }
 
+// rememberWindow keeps the main window's bounds for the next launch.
+func (d *desktop) rememberWindow() {
+	if d.main == nil || serverBuild {
+		return
+	}
+	b := d.main.Bounds()
+	saveWindowState(windowState{X: b.X, Y: b.Y, Width: b.Width, Height: b.Height})
+}
+
+func (d *desktop) startAtLogin() (bool, error) { return d.app.Autostart.IsEnabled() }
+
+func (d *desktop) setStartAtLogin(on bool) error {
+	if on {
+		return d.app.Autostart.Enable()
+	}
+	return d.app.Autostart.Disable()
+}
+
 func (d *desktop) setClipboard(text string) { d.app.Clipboard.SetText(text) }
 
 func (d *desktop) clipboard() string {
@@ -367,6 +411,7 @@ func (d *desktop) menu() *application.Menu {
 	file.Add("New Agent…").SetAccelerator(accel("N")).OnClick(d.command("new-agent"))
 	file.Add("New Tab").SetAccelerator(accel("T")).OnClick(d.command("new-tab"))
 	file.Add("New Environment…").OnClick(d.command("new-environment"))
+	file.Add("Machines…").OnClick(d.command("machines"))
 	file.AddSeparator()
 	file.Add("Close Pane").SetAccelerator(accel("W")).OnClick(d.command("close-pane"))
 	if runtime.GOOS != "darwin" {
@@ -376,6 +421,7 @@ func (d *desktop) menu() *application.Menu {
 	m.AddRole(application.EditMenu)
 	view := m.AddSubmenu("View")
 	view.Add("Command Palette…").SetAccelerator(accel("K")).OnClick(d.command("palette"))
+	view.Add("Search Scrollback…").SetAccelerator(accel("F")).OnClick(d.command("history"))
 	view.Add("Prompt Agent…").SetAccelerator(accel("P")).OnClick(d.command("prompt"))
 	view.AddSeparator()
 	view.Add("Split Right").SetAccelerator(accel("D")).OnClick(d.command("split-right"))
@@ -385,6 +431,11 @@ func (d *desktop) menu() *application.Menu {
 	view.AddSeparator()
 	view.Add("Next Agent Needing You").SetAccelerator(accel("J")).OnClick(d.command("next-attention"))
 	view.Add("Toggle Sidebar").SetAccelerator(accel("B")).OnClick(d.command("toggle-sidebar"))
+	view.AddSeparator()
+	view.Add("Start Hive at Login").OnClick(d.command("toggle-login"))
+	if runtime.GOOS == "darwin" {
+		view.Add("Option Key Types Alt").OnClick(d.command("toggle-option-meta"))
+	}
 	m.AddRole(application.WindowMenu)
 	return m
 }

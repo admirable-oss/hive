@@ -69,6 +69,7 @@ command hive machine identity
 command hive machine list
 command hive machine list (alias ls)
 command hive machine pair
+command hive machine proxy
 command hive machine reconnect
 command hive machine remove
 command hive machine remove (alias rm)
@@ -276,12 +277,16 @@ flag hive machine list --interface stringSlice
 flag hive machine list --timeout duration
 flag hive machine pair --address stringSlice
 flag hive machine pair --as string
+flag hive machine pair --check bool
+flag hive machine pair --expect-id string
 flag hive machine pair --hive-path string
 flag hive machine pair --host string
 flag hive machine pair --interface stringSlice
 flag hive machine pair --session string
 flag hive machine pair --timeout duration
 flag hive machine pair --user string
+flag hive machine trust --check bool
+flag hive machine trust --expect-id string
 flag hive observer audit --credential string
 flag hive observer audit --limit int
 flag hive observer create --all bool

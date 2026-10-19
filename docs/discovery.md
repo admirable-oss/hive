@@ -49,6 +49,7 @@ studio   q3xdk2ab   192.168.1.7 +1    new: hive machine pair studio
   name already in use is renamed: "studio (2)".
 - `hive machine list --discover` shows saved machines and runtimes nearby
   together.
+- The [desktop app](desktop.md) does all of this too, under **Machines…**.
 
 ## Pair
 
@@ -110,6 +111,17 @@ reinstalled hive there.
 `hive machine revoke <name>` forgets a machine's identity and disables the
 machine. To use it again, run `hive machine trust` and then
 `hive machine enable`. `hive machine remove` forgets the machine entirely.
+
+### For programs
+
+Programs, such as the [desktop app](desktop.md), use the same commands:
+- `hive machine pair … --check` and `hive machine trust <name> --check` prove
+  the identity and print it as JSON. Nothing is saved.
+- Adding `--yes --expect-id <id>` then confirms exactly that identity. Any
+  other identity is refused.
+- `hive machine proxy <name>` bridges standard input and output to a saved
+  machine's daemon. It refuses machines that are disabled or whose identity
+  changed. Pass it to the Go SDK as `hiveapi.Options.Dial`.
 
 ## Machine states
 

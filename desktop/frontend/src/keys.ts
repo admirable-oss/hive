@@ -103,3 +103,77 @@ export function encodeKey(e: KeyPress, modes: number, mac: boolean, optionIsMeta
   if (alt && e.key.length === 1) return ESC + e.key;
   return null;
 }
+
+// Mouse modes a program can ask for, and how reports are encoded.
+export const ModeFocusEvents = 1 << 3;
+export const ModeMouseX10 = 1 << 4;
+export const ModeMouseNormal = 1 << 5;
+export const ModeMouseButton = 1 << 6;
+export const ModeMouseAny = 1 << 7;
+export const ModeMouseSGR = 1 << 9;
+
+export type MouseKind = "press" | "release" | "move" | "wheel-up" | "wheel-down";
+
+export interface MouseReport {
+  kind: MouseKind;
+  button: number; // 0 left, 1 middle, 2 right
+  x: number; // cell, from 0
+  y: number;
+  shift: boolean;
+  alt: boolean;
+  ctrl: boolean;
+  buttons: number; // pressed buttons, for moves
+}
+
+// mouseWanted says the program asked for mouse reports.
+export function mouseWanted(modes: number): boolean {
+  return (modes & (ModeMouseX10 | ModeMouseNormal | ModeMouseButton | ModeMouseAny)) !== 0;
+}
+
+// encodeMouse returns the report for a mouse event, as xterm sends it, or
+// null when the program did not ask for this kind of event.
+export function encodeMouse(m: MouseReport, modes: number): string | null {
+  if (!mouseWanted(modes)) return null;
+  const x10 = (modes & ModeMouseX10) !== 0 && (modes & (ModeMouseNormal | ModeMouseButton | ModeMouseAny)) === 0;
+  let code: number;
+  switch (m.kind) {
+    case "wheel-up":
+      if (x10) return null;
+      code = 64;
+      break;
+    case "wheel-down":
+      if (x10) return null;
+      code = 65;
+      break;
+    case "move": {
+      const dragging = m.buttons !== 0;
+      if (!((modes & ModeMouseAny) !== 0 || ((modes & ModeMouseButton) !== 0 && dragging))) return null;
+      code = 32 + (dragging ? (m.buttons & 1 ? 0 : m.buttons & 4 ? 1 : 2) : 3);
+      break;
+    }
+    case "release":
+      if (x10) return null;
+      code = (modes & ModeMouseSGR) !== 0 ? m.button : 3;
+      break;
+    default:
+      code = m.button;
+  }
+  if (!x10) code += (m.shift ? 4 : 0) + (m.alt ? 8 : 0) + (m.ctrl ? 16 : 0);
+  const x = m.x + 1,
+    y = m.y + 1;
+  if ((modes & ModeMouseSGR) !== 0) return `\x1b[<${code};${x};${y}${m.kind === "release" ? "m" : "M"}`;
+  if (x > 223 || y > 223) return null; // the legacy encoding cannot say it
+  return `\x1b[M${String.fromCharCode(32 + code, 32 + x, 32 + y)}`;
+}
+
+// focusReport is what a program that asked for focus events gets.
+export function focusReport(focused: boolean, modes: number): string | null {
+  return (modes & ModeFocusEvents) !== 0 ? (focused ? "\x1b[I" : "\x1b[O") : null;
+}
+
+// quotePaths quotes dropped file paths for a shell.
+export function quotePaths(paths: string[], windows: boolean): string {
+  return paths
+    .map((p) => (windows ? `"${p.replace(/"/g, '""')}"` : /^[A-Za-z0-9_./:@%+=,-]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`))
+    .join(" ");
+}

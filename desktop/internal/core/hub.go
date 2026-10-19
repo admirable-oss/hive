@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -59,6 +60,10 @@ type Config struct {
 	Logger  *slog.Logger
 	// Name is the client name in the daemon's logs.
 	Name string
+	// Dial reaches the daemon some other way (a saved machine's, through
+	// `hive machine proxy`); such a hub neither starts a daemon nor reads
+	// the configuration.
+	Dial func(ctx context.Context) (net.Conn, error)
 }
 
 // Limits on what the frontend may send.
@@ -213,7 +218,11 @@ func (h *Hub) loop() {
 			return
 		case <-h.retry:
 		case <-time.After(backoff):
-			backoff = min(backoff*2, 10*time.Second)
+			ceiling := 10 * time.Second
+			if h.cfg.Dial != nil {
+				ceiling = time.Minute // a machine away: ssh tries are slow and noisy
+			}
+			backoff = min(backoff*2, ceiling)
 		}
 	}
 }
@@ -222,11 +231,15 @@ var errOutdated = errors.New("the hive daemon is older than this app")
 
 // connect reaches the daemon, starting it when none answers.
 func (h *Hub) connect(ctx context.Context) (*hiveapi.Client, error) {
-	opts := hiveapi.Options{Home: h.cfg.Home, Session: h.cfg.Session, Name: h.cfg.Name}
-	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	opts := hiveapi.Options{Home: h.cfg.Home, Session: h.cfg.Session, Name: h.cfg.Name, Dial: h.cfg.Dial}
+	timeout := 5 * time.Second
+	if h.cfg.Dial != nil {
+		timeout = 45 * time.Second // ssh, and maybe the daemon starting there
+	}
+	cctx, cancel := context.WithTimeout(ctx, timeout)
 	c, err := hiveapi.ConnectContext(cctx, opts)
 	cancel()
-	if errors.Is(err, hiveapi.ErrUnavailable) {
+	if errors.Is(err, hiveapi.ErrUnavailable) && h.cfg.Dial == nil {
 		h.setConn(Connection{State: StateConnecting, Message: "starting the hive daemon"})
 		sctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		err = h.startDaemon(sctx)
@@ -250,13 +263,15 @@ func (h *Hub) connect(ctx context.Context) (*hiveapi.Client, error) {
 		_ = c.Close()
 		return nil, fmt.Errorf("%w (hive %s; update it with `hive update`)", errOutdated, st.Version)
 	}
-	if s, err := h.readSettings(ctx); err == nil {
-		h.mu.Lock()
-		h.settings = s
-		h.mu.Unlock()
-		h.emit(EventSettings, s)
-	} else {
-		h.log.Warn("cannot read hive's configuration; using defaults", "err", err)
+	if h.cfg.Dial == nil {
+		if s, err := h.readSettings(ctx); err == nil {
+			h.mu.Lock()
+			h.settings = s
+			h.mu.Unlock()
+			h.emit(EventSettings, s)
+		} else {
+			h.log.Warn("cannot read hive's configuration; using defaults", "err", err)
+		}
 	}
 	h.mu.Lock()
 	h.client = c
@@ -974,6 +989,27 @@ func (h *Hub) CloseTab(tabID string) error {
 		return err
 	}
 	return h.call(func(ctx context.Context, c *hiveapi.Client) error { return c.CloseTab(ctx, tabID) })
+}
+
+// maxHistory bounds the lines History returns.
+const maxHistory = 20000
+
+// History returns a pane's recent lines: its scrollback and screen, as
+// text, the last lines of it.
+func (h *Hub) History(paneID string, lines int) ([]string, error) {
+	if err := validID(paneID); err != nil {
+		return nil, err
+	}
+	if lines < 1 || lines > maxHistory {
+		lines = maxHistory
+	}
+	out := []string{}
+	err := h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		got, err := c.ReadPane(ctx, paneID, hiveapi.ReadOptions{Source: "recent", Lines: lines})
+		out = append(out, got...)
+		return err
+	})
+	return out, err
 }
 
 // CreateEnvironment makes an environment for a directory ("" for a

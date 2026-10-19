@@ -40,6 +40,7 @@ field ObserverOptions.RemoteSession string
 field ObserverOptions.Session string
 field ObserverOptions.Socket string
 field ObserverOptions.Token string
+field Options.Dial func(ctx context.Context) (net.Conn, error)
 field Options.Home string
 field Options.Name string
 field Options.Session string

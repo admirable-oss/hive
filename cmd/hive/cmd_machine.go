@@ -115,7 +115,7 @@ to them.`,
 		}
 	}
 	cmd.AddCommand(newMachineAddCmd(a), list,
-		newMachineDiscoverCmd(a), newMachinePairCmd(a), newMachineTrustCmd(a), newMachineRevokeCmd(a), newMachineIdentityCmd(a),
+		newMachineDiscoverCmd(a), newMachinePairCmd(a), newMachineTrustCmd(a), newMachineRevokeCmd(a), newMachineIdentityCmd(a), newMachineProxyCmd(a),
 		&cobra.Command{
 			Use:   "rename <name> <new-name>",
 			Short: "Rename a saved machine",

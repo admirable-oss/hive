@@ -20,6 +20,11 @@ export class Agent {
     "reason"?: string;
     "state_seq": number;
 
+    /**
+     * Machine is the saved machine it runs on ("" for this computer).
+     */
+    "machine"?: string;
+
     /** Creates a new Agent instance. */
     constructor($$source: Partial<Agent> = {}) {
         if (!("id" in $$source)) {
@@ -133,6 +138,50 @@ export class CursorState {
 }
 
 /**
+ * Discovery is what a search found, and why it may have found nothing.
+ */
+export class Discovery {
+    "runtimes": Nearby[];
+    "interfaces": string[];
+    "errors": string[];
+
+    /** Creates a new Discovery instance. */
+    constructor($$source: Partial<Discovery> = {}) {
+        if (!("runtimes" in $$source)) {
+            this["runtimes"] = [];
+        }
+        if (!("interfaces" in $$source)) {
+            this["interfaces"] = [];
+        }
+        if (!("errors" in $$source)) {
+            this["errors"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Discovery instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Discovery {
+        const $$createField0_0 = $$createType1;
+        const $$createField1_0 = $$createType2;
+        const $$createField2_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("runtimes" in $$parsedSource) {
+            $$parsedSource["runtimes"] = $$createField0_0($$parsedSource["runtimes"]);
+        }
+        if ("interfaces" in $$parsedSource) {
+            $$parsedSource["interfaces"] = $$createField1_0($$parsedSource["interfaces"]);
+        }
+        if ("errors" in $$parsedSource) {
+            $$parsedSource["errors"] = $$createField2_0($$parsedSource["errors"]);
+        }
+        return new Discovery($$parsedSource as Partial<Discovery>);
+    }
+}
+
+/**
  * Environment is a place agents work in.
  */
 export class Environment {
@@ -147,6 +196,11 @@ export class Environment {
      * Worktree is set for an environment made for a git worktree.
      */
     "worktree"?: boolean;
+
+    /**
+     * Machine is the saved machine it is on ("" for this computer).
+     */
+    "machine"?: string;
 
     /** Creates a new Environment instance. */
     constructor($$source: Partial<Environment> = {}) {
@@ -173,6 +227,48 @@ export class Environment {
 }
 
 /**
+ * IdentityCheck is a machine's proven identity, shown before the user
+ * trusts it (`--check`).
+ */
+export class IdentityCheck {
+    "machine": {"name": string, "host": string};
+    "proof": {"id": string, "name": string, "hostname": string, "platform": string, "version": string};
+    "fingerprint": string;
+
+    /**
+     * Trust is new, verified, unpinned or changed.
+     */
+    "trust": string;
+    "pinned"?: string;
+
+    /** Creates a new IdentityCheck instance. */
+    constructor($$source: Partial<IdentityCheck> = {}) {
+        if (!("machine" in $$source)) {
+            this["machine"] = {"name": "", "host": ""};
+        }
+        if (!("proof" in $$source)) {
+            this["proof"] = {"id": "", "name": "", "hostname": "", "platform": "", "version": ""};
+        }
+        if (!("fingerprint" in $$source)) {
+            this["fingerprint"] = "";
+        }
+        if (!("trust" in $$source)) {
+            this["trust"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new IdentityCheck instance from a string or object.
+     */
+    static createFrom($$source: any = {}): IdentityCheck {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new IdentityCheck($$parsedSource as Partial<IdentityCheck>);
+    }
+}
+
+/**
  * Line is one screen line as runs of cells styled alike.
  */
 export class Line {
@@ -195,12 +291,68 @@ export class Line {
      * Creates a new Line instance from a string or object.
      */
     static createFrom($$source: any = {}): Line {
-        const $$createField1_0 = $$createType1;
+        const $$createField1_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("runs" in $$parsedSource) {
             $$parsedSource["runs"] = $$createField1_0($$parsedSource["runs"]);
         }
         return new Line($$parsedSource as Partial<Line>);
+    }
+}
+
+/**
+ * MachineStatus is a saved machine and how the app is connected to it.
+ */
+export class MachineStatus {
+    "name": string;
+    "host": string;
+
+    /**
+     * trusted, configured, changed, disabled
+     */
+    "state": string;
+    "id"?: string;
+    "platform"?: string;
+    "disabled"?: boolean;
+    "identity_changed"?: boolean;
+    "connection": Connection;
+    "counts": { [_ in string]?: number };
+
+    /** Creates a new MachineStatus instance. */
+    constructor($$source: Partial<MachineStatus> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("host" in $$source)) {
+            this["host"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("connection" in $$source)) {
+            this["connection"] = (new Connection());
+        }
+        if (!("counts" in $$source)) {
+            this["counts"] = {};
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MachineStatus instance from a string or object.
+     */
+    static createFrom($$source: any = {}): MachineStatus {
+        const $$createField7_0 = $$createType5;
+        const $$createField8_0 = $$createType6;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("connection" in $$parsedSource) {
+            $$parsedSource["connection"] = $$createField7_0($$parsedSource["connection"]);
+        }
+        if ("counts" in $$parsedSource) {
+            $$parsedSource["counts"] = $$createField8_0($$parsedSource["counts"]);
+        }
+        return new MachineStatus($$parsedSource as Partial<MachineStatus>);
     }
 }
 
@@ -229,6 +381,86 @@ export class Manifest {
     static createFrom($$source: any = {}): Manifest {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new Manifest($$parsedSource as Partial<Manifest>);
+    }
+}
+
+/**
+ * Nearby is a runtime `hive machine discover` found.
+ */
+export class Nearby {
+    "name": string;
+    "id": string;
+    "addresses": string[];
+    "port": number;
+
+    /**
+     * discovered, or the saved machine's state
+     */
+    "state": string;
+    "machine"?: string;
+    "note"?: string;
+    "duplicate_name"?: boolean;
+
+    /** Creates a new Nearby instance. */
+    constructor($$source: Partial<Nearby> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("addresses" in $$source)) {
+            this["addresses"] = [];
+        }
+        if (!("port" in $$source)) {
+            this["port"] = 0;
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Nearby instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Nearby {
+        const $$createField2_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("addresses" in $$parsedSource) {
+            $$parsedSource["addresses"] = $$createField2_0($$parsedSource["addresses"]);
+        }
+        return new Nearby($$parsedSource as Partial<Nearby>);
+    }
+}
+
+/**
+ * PairRequest names what to pair: a nearby runtime (its ID) or an ssh
+ * destination (Host).
+ */
+export class PairRequest {
+    "id"?: string;
+    "host"?: string;
+    "user"?: string;
+
+    /**
+     * As is the name to save it under ("" for its own).
+     */
+    "as"?: string;
+
+    /** Creates a new PairRequest instance. */
+    constructor($$source: Partial<PairRequest> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PairRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PairRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PairRequest($$parsedSource as Partial<PairRequest>);
     }
 }
 
@@ -287,7 +519,7 @@ export class Pane {
      * Creates a new Pane instance from a string or object.
      */
     static createFrom($$source: any = {}): Pane {
-        const $$createField5_0 = $$createType3;
+        const $$createField5_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rect" in $$parsedSource) {
             $$parsedSource["rect"] = $$createField5_0($$parsedSource["rect"]);
@@ -444,8 +676,8 @@ export class ScreenUpdate {
      * Creates a new ScreenUpdate instance from a string or object.
      */
     static createFrom($$source: any = {}): ScreenUpdate {
-        const $$createField5_0 = $$createType4;
-        const $$createField8_0 = $$createType6;
+        const $$createField5_0 = $$createType9;
+        const $$createField8_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cursor" in $$parsedSource) {
             $$parsedSource["cursor"] = $$createField5_0($$parsedSource["cursor"]);
@@ -505,8 +737,8 @@ export class Settings {
      * Creates a new Settings instance from a string or object.
      */
     static createFrom($$source: any = {}): Settings {
-        const $$createField0_0 = $$createType7;
-        const $$createField3_0 = $$createType7;
+        const $$createField0_0 = $$createType2;
+        const $$createField3_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("notify_on" in $$parsedSource) {
             $$parsedSource["notify_on"] = $$createField0_0($$parsedSource["notify_on"]);
@@ -649,11 +881,11 @@ export class Workspace {
      * Creates a new Workspace instance from a string or object.
      */
     static createFrom($$source: any = {}): Workspace {
-        const $$createField0_0 = $$createType9;
-        const $$createField1_0 = $$createType11;
-        const $$createField2_0 = $$createType13;
-        const $$createField3_0 = $$createType15;
-        const $$createField5_0 = $$createType16;
+        const $$createField0_0 = $$createType13;
+        const $$createField1_0 = $$createType15;
+        const $$createField2_0 = $$createType17;
+        const $$createField3_0 = $$createType19;
+        const $$createField5_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("environments" in $$parsedSource) {
             $$parsedSource["environments"] = $$createField0_0($$parsedSource["environments"]);
@@ -675,20 +907,23 @@ export class Workspace {
 }
 
 // Private type creation functions
-const $$createType0 = Run.createFrom;
+const $$createType0 = Nearby.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = Rect.createFrom;
-const $$createType3 = $Create.Nullable($$createType2);
-const $$createType4 = CursorState.createFrom;
-const $$createType5 = Line.createFrom;
-const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = $Create.Array($Create.Any);
-const $$createType8 = Environment.createFrom;
-const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = Tab.createFrom;
+const $$createType2 = $Create.Array($Create.Any);
+const $$createType3 = Run.createFrom;
+const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = Connection.createFrom;
+const $$createType6 = $Create.Map($Create.Any, $Create.Any);
+const $$createType7 = Rect.createFrom;
+const $$createType8 = $Create.Nullable($$createType7);
+const $$createType9 = CursorState.createFrom;
+const $$createType10 = Line.createFrom;
 const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = Pane.createFrom;
+const $$createType12 = Environment.createFrom;
 const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = Agent.createFrom;
+const $$createType14 = Tab.createFrom;
 const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = $Create.Map($Create.Any, $Create.Any);
+const $$createType16 = Pane.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = Agent.createFrom;
+const $$createType19 = $Create.Array($$createType18);
