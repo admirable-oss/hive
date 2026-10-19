@@ -19,7 +19,10 @@ declare module "@wailsio/runtime" {
             "hive:connection": core$0.Connection;
             "hive:drop": main$0.DropRequest;
             "hive:focus": main$0.FocusRequest;
+            "hive:image": core$0.ImageUpdate;
             "hive:machines": core$0.MachineStatus[];
+            "hive:observe:screen": core$0.ObservedScreen;
+            "hive:observe:view": core$0.ObservedView;
             "hive:screen": core$0.ScreenUpdate;
             "hive:settings": core$0.Settings;
             "hive:workspace": core$0.Workspace;

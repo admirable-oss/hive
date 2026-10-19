@@ -46,6 +46,7 @@ const actions: [string, string][] = [
   ["Toggle sidebar", "toggle-sidebar"],
   ["Search scrollback…", "history"],
   ["Machines…", "machines"],
+  ["Open an observer window (read-only)…", "observe"],
   ["Start Hive when I log in (on/off)", "toggle-login"],
   ["Option key types Alt in terminals (on/off)", "toggle-option-meta"],
 ];

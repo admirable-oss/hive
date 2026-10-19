@@ -269,6 +269,70 @@ export class IdentityCheck {
 }
 
 /**
+ * ImageUpdate is a change to the images over a pane (Kitty graphics an
+ * agent printed): show one, remove one image's placements, or clear all.
+ */
+export class ImageUpdate {
+    "pane": string;
+
+    /**
+     * place, delete, clear
+     */
+    "op": string;
+
+    /**
+     * Key names a placement; Image the image it shows.
+     */
+    "key"?: string;
+    "image"?: number;
+
+    /**
+     * X, Y, Cols and Rows place it on the screen, in cells.
+     */
+    "x": number;
+    "y": number;
+    "cols": number;
+    "rows": number;
+
+    /**
+     * Src is the image as a data: URL of a PNG Hive encoded itself.
+     */
+    "src"?: string;
+
+    /** Creates a new ImageUpdate instance. */
+    constructor($$source: Partial<ImageUpdate> = {}) {
+        if (!("pane" in $$source)) {
+            this["pane"] = "";
+        }
+        if (!("op" in $$source)) {
+            this["op"] = "";
+        }
+        if (!("x" in $$source)) {
+            this["x"] = 0;
+        }
+        if (!("y" in $$source)) {
+            this["y"] = 0;
+        }
+        if (!("cols" in $$source)) {
+            this["cols"] = 0;
+        }
+        if (!("rows" in $$source)) {
+            this["rows"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ImageUpdate instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ImageUpdate {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ImageUpdate($$parsedSource as Partial<ImageUpdate>);
+    }
+}
+
+/**
  * Line is one screen line as runs of cells styled alike.
  */
 export class Line {
@@ -436,6 +500,221 @@ export class Nearby {
 }
 
 /**
+ * ObserveRequest is what an observer window may see.
+ */
+export class ObserveRequest {
+    /**
+     * All, or the listed environments of this computer.
+     */
+    "all": boolean;
+    "environments"?: string[];
+
+    /**
+     * Screens lets it show screen contents, not only states.
+     */
+    "screens": boolean;
+
+    /**
+     * Hours is how long the credential lasts (1 to 168).
+     */
+    "hours": number;
+
+    /** Creates a new ObserveRequest instance. */
+    constructor($$source: Partial<ObserveRequest> = {}) {
+        if (!("all" in $$source)) {
+            this["all"] = false;
+        }
+        if (!("screens" in $$source)) {
+            this["screens"] = false;
+        }
+        if (!("hours" in $$source)) {
+            this["hours"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ObserveRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ObserveRequest {
+        const $$createField1_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("environments" in $$parsedSource) {
+            $$parsedSource["environments"] = $$createField1_0($$parsedSource["environments"]);
+        }
+        return new ObserveRequest($$parsedSource as Partial<ObserveRequest>);
+    }
+}
+
+/**
+ * ObservedRow is a line of text.
+ */
+export class ObservedRow {
+    "y": number;
+    "text": string;
+
+    /** Creates a new ObservedRow instance. */
+    constructor($$source: Partial<ObservedRow> = {}) {
+        if (!("y" in $$source)) {
+            this["y"] = 0;
+        }
+        if (!("text" in $$source)) {
+            this["text"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ObservedRow instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ObservedRow {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ObservedRow($$parsedSource as Partial<ObservedRow>);
+    }
+}
+
+/**
+ * ObservedScreen is a watched pane's screen, as text.
+ */
+export class ObservedScreen {
+    "pane": string;
+    "keyframe": boolean;
+    "width": number;
+    "height": number;
+    "lines": ObservedRow[];
+    "cursor": CursorState;
+    "ended"?: boolean;
+
+    /** Creates a new ObservedScreen instance. */
+    constructor($$source: Partial<ObservedScreen> = {}) {
+        if (!("pane" in $$source)) {
+            this["pane"] = "";
+        }
+        if (!("keyframe" in $$source)) {
+            this["keyframe"] = false;
+        }
+        if (!("width" in $$source)) {
+            this["width"] = 0;
+        }
+        if (!("height" in $$source)) {
+            this["height"] = 0;
+        }
+        if (!("lines" in $$source)) {
+            this["lines"] = [];
+        }
+        if (!("cursor" in $$source)) {
+            this["cursor"] = (new CursorState());
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ObservedScreen instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ObservedScreen {
+        const $$createField4_0 = $$createType8;
+        const $$createField5_0 = $$createType9;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("lines" in $$parsedSource) {
+            $$parsedSource["lines"] = $$createField4_0($$parsedSource["lines"]);
+        }
+        if ("cursor" in $$parsedSource) {
+            $$parsedSource["cursor"] = $$createField5_0($$parsedSource["cursor"]);
+        }
+        return new ObservedScreen($$parsedSource as Partial<ObservedScreen>);
+    }
+}
+
+/**
+ * ObservedView is what an observer window shows: no command lines,
+ * environment variables or paths beyond the environment's own.
+ */
+export class ObservedView {
+    "observer": Observer;
+
+    /**
+     * connecting, connected, ended
+     */
+    "state": string;
+    "message"?: string;
+    "workspace": Workspace;
+
+    /** Creates a new ObservedView instance. */
+    constructor($$source: Partial<ObservedView> = {}) {
+        if (!("observer" in $$source)) {
+            this["observer"] = (new Observer());
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("workspace" in $$source)) {
+            this["workspace"] = (new Workspace());
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ObservedView instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ObservedView {
+        const $$createField0_0 = $$createType10;
+        const $$createField3_0 = $$createType11;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("observer" in $$parsedSource) {
+            $$parsedSource["observer"] = $$createField0_0($$parsedSource["observer"]);
+        }
+        if ("workspace" in $$parsedSource) {
+            $$parsedSource["workspace"] = $$createField3_0($$parsedSource["workspace"]);
+        }
+        return new ObservedView($$parsedSource as Partial<ObservedView>);
+    }
+}
+
+/**
+ * Observer is a credential made for an observer window.
+ */
+export class Observer {
+    "id": string;
+    "name": string;
+    "scope": string;
+    "screens": boolean;
+    "expires_at": string;
+
+    /** Creates a new Observer instance. */
+    constructor($$source: Partial<Observer> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("scope" in $$source)) {
+            this["scope"] = "";
+        }
+        if (!("screens" in $$source)) {
+            this["screens"] = false;
+        }
+        if (!("expires_at" in $$source)) {
+            this["expires_at"] = "0001-01-01T00:00:00.000Z";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Observer instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Observer {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Observer($$parsedSource as Partial<Observer>);
+    }
+}
+
+/**
  * PairRequest names what to pair: a nearby runtime (its ID) or an ssh
  * destination (Host).
  */
@@ -519,7 +798,7 @@ export class Pane {
      * Creates a new Pane instance from a string or object.
      */
     static createFrom($$source: any = {}): Pane {
-        const $$createField5_0 = $$createType8;
+        const $$createField5_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rect" in $$parsedSource) {
             $$parsedSource["rect"] = $$createField5_0($$parsedSource["rect"]);
@@ -677,7 +956,7 @@ export class ScreenUpdate {
      */
     static createFrom($$source: any = {}): ScreenUpdate {
         const $$createField5_0 = $$createType9;
-        const $$createField8_0 = $$createType11;
+        const $$createField8_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cursor" in $$parsedSource) {
             $$parsedSource["cursor"] = $$createField5_0($$parsedSource["cursor"]);
@@ -881,10 +1160,10 @@ export class Workspace {
      * Creates a new Workspace instance from a string or object.
      */
     static createFrom($$source: any = {}): Workspace {
-        const $$createField0_0 = $$createType13;
-        const $$createField1_0 = $$createType15;
-        const $$createField2_0 = $$createType17;
-        const $$createField3_0 = $$createType19;
+        const $$createField0_0 = $$createType17;
+        const $$createField1_0 = $$createType19;
+        const $$createField2_0 = $$createType21;
+        const $$createField3_0 = $$createType23;
         const $$createField5_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("environments" in $$parsedSource) {
@@ -914,16 +1193,20 @@ const $$createType3 = Run.createFrom;
 const $$createType4 = $Create.Array($$createType3);
 const $$createType5 = Connection.createFrom;
 const $$createType6 = $Create.Map($Create.Any, $Create.Any);
-const $$createType7 = Rect.createFrom;
-const $$createType8 = $Create.Nullable($$createType7);
+const $$createType7 = ObservedRow.createFrom;
+const $$createType8 = $Create.Array($$createType7);
 const $$createType9 = CursorState.createFrom;
-const $$createType10 = Line.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = Environment.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = Tab.createFrom;
+const $$createType10 = Observer.createFrom;
+const $$createType11 = Workspace.createFrom;
+const $$createType12 = Rect.createFrom;
+const $$createType13 = $Create.Nullable($$createType12);
+const $$createType14 = Line.createFrom;
 const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = Pane.createFrom;
+const $$createType16 = Environment.createFrom;
 const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = Agent.createFrom;
+const $$createType18 = Tab.createFrom;
 const $$createType19 = $Create.Array($$createType18);
+const $$createType20 = Pane.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = Agent.createFrom;
+const $$createType23 = $Create.Array($$createType22);

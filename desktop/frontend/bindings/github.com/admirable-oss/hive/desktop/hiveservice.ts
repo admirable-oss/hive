@@ -161,6 +161,15 @@ export function OpenLink(link: string): $CancellablePromise<void> {
 }
 
 /**
+ * OpenObserver opens a read-only window for shared screens: it gets a
+ * scoped, expiring observer credential of its own (revoked when it
+ * closes) and has no way to type or act.
+ */
+export function OpenObserver(req: core$0.ObserveRequest): $CancellablePromise<string> {
+    return $Call.ByID(3166996649, req);
+}
+
+/**
  * OpenView streams a pane's screen at cols × rows to viewer (a window's
  * own ID).
  */

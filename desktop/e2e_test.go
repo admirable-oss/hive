@@ -3,8 +3,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"net"
 	"net/http"
 	"os"
@@ -51,6 +56,17 @@ func freePort(t *testing.T) int {
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port
 }
+
+// tinyPNG is a 6×3 PNG, as a program would print it (base64).
+var tinyPNG = func() string {
+	img := image.NewNRGBA(image.Rect(0, 0, 6, 3))
+	for x := range 6 {
+		img.Set(x, 1, color.NRGBA{0xf2, 0xc6, 0x6d, 0xff})
+	}
+	var b bytes.Buffer
+	_ = png.Encode(&b, img)
+	return base64.StdEncoding.EncodeToString(b.Bytes())
+}()
 
 func until(expr string) chromedp.Action[chromedp.Void] {
 	return chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
@@ -177,6 +193,12 @@ func TestDesktopEndToEnd(t *testing.T) {
 		chromedp.SendKeys(chromedp.CSS(`.pane.is-focused .term-input`), "echo e2e-$((6*7))"),
 		chromedp.KeyEvent("\r"),
 		text(".term-row", "e2e-42"),
+	)
+	// An image a program prints shows over its cells.
+	step(30*time.Second,
+		chromedp.SendKeys(chromedp.CSS(`.pane.is-focused .term-input`), `printf '\033_Ga=T,f=100,i=7,c=8,r=4;`+tinyPNG+`\033\\'`),
+		chromedp.KeyEvent("\r"),
+		until(`[...document.querySelectorAll('.term-image')].some(i => i.src.startsWith('data:image/png;base64,') && i.complete && i.naturalWidth === 6)`),
 	)
 	if shots := os.Getenv("HIVE_DESKTOP_SHOTS"); shots != "" {
 		png, err := chromedp.Run(ctx, chromedp.FullScreenshot(90))

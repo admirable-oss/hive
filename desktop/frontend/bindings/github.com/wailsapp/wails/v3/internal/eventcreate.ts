@@ -19,10 +19,13 @@ function configure() {
         "hive:connection": $$createType1,
         "hive:drop": $$createType2,
         "hive:focus": $$createType3,
-        "hive:machines": $$createType5,
-        "hive:screen": $$createType6,
-        "hive:settings": $$createType7,
-        "hive:workspace": $$createType8,
+        "hive:image": $$createType4,
+        "hive:machines": $$createType6,
+        "hive:observe:screen": $$createType7,
+        "hive:observe:view": $$createType8,
+        "hive:screen": $$createType9,
+        "hive:settings": $$createType10,
+        "hive:workspace": $$createType11,
     }));
 }
 
@@ -31,10 +34,13 @@ const $$createType0 = main$0.CommandRequest.createFrom;
 const $$createType1 = core$0.Connection.createFrom;
 const $$createType2 = main$0.DropRequest.createFrom;
 const $$createType3 = main$0.FocusRequest.createFrom;
-const $$createType4 = core$0.MachineStatus.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = core$0.ScreenUpdate.createFrom;
-const $$createType7 = core$0.Settings.createFrom;
-const $$createType8 = core$0.Workspace.createFrom;
+const $$createType4 = core$0.ImageUpdate.createFrom;
+const $$createType5 = core$0.MachineStatus.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = core$0.ObservedScreen.createFrom;
+const $$createType8 = core$0.ObservedView.createFrom;
+const $$createType9 = core$0.ScreenUpdate.createFrom;
+const $$createType10 = core$0.Settings.createFrom;
+const $$createType11 = core$0.Workspace.createFrom;
 
 configure();

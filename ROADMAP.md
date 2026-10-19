@@ -1081,10 +1081,17 @@ Checked against the Wails repository and documentation on 2026-10-19.
   - discovery, and pairing by discovery or ssh;
   - review of a changed identity: the app shows the proof first
     (`--check`), then confirms exactly that identity (`--expect-id`).
-- [ ] The read-only observer window (M14).
+- [x] The read-only observer window (M14):
+  - its own scoped, expiring credential, made through the control
+    connection and revoked when the window closes;
+  - it reads only through the observer socket;
+  - the control service refuses every call from it.
 - [x] Terminal: scrollback and search, mouse reporting (SGR and legacy),
   focus events, the Option-as-Meta setting.
-- [ ] Terminal: Kitty, iTerm2 and Sixel images.
+- [x] Terminal images: Kitty graphics from agents, assembled, validated and
+  re-encoded as PNG in Go (`hiveapi.KittyImages`), shown over their cells,
+  support queries answered. iTerm2 and Sixel are output formats `hive ui`
+  writes to outer terminals; agents send Kitty, which is what the app reads.
 - [x] Start at login, restoring the window position, file drops (paths
   quoted for the shell).
 - [x] Accessibility: axe in jsdom and in a real browser, in both colour

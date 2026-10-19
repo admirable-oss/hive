@@ -6,6 +6,10 @@ const CodePermissionDenied
 const CodeTimeout
 const CodeUnavailable
 const Down
+const ImageClear
+const ImageDelete
+const ImagePlace
+const ImageReply
 const Left
 const ModeAltScreen
 const ModeAppCursorKeys
@@ -32,6 +36,15 @@ const UntilExited
 const UntilIdle
 const UntilWorking
 const Up
+field ImageOp.Cols int
+field ImageOp.Image uint32
+field ImageOp.Kind string
+field ImageOp.PNG []byte
+field ImageOp.Placement uint32
+field ImageOp.Reply []byte
+field ImageOp.Rows int
+field ImageOp.X int
+field ImageOp.Y int
 field ObserverOptions.Dial func(ctx context.Context) (net.Conn, error)
 field ObserverOptions.Home string
 field ObserverOptions.Host string
@@ -65,6 +78,7 @@ func (c *Client) FocusAgent(ctx context.Context, id string) (Agent, error)
 func (c *Client) FocusPane(ctx context.Context, id string, d Direction) (Pane, error)
 func (c *Client) FocusTab(ctx context.Context, id string) (Tab, error)
 func (c *Client) Frames(ctx context.Context, processID string, width, height int) (*FrameStream, error)
+func (c *Client) Graphics(ctx context.Context, processID string, width, height int) (*GraphicsStream, error)
 func (c *Client) Input(ctx context.Context, processID string, data []byte) error
 func (c *Client) Manifests(ctx context.Context) ([]Manifest, error)
 func (c *Client) Panes(ctx context.Context, envID, tabID string) ([]Pane, error)
@@ -90,6 +104,7 @@ func (c *Client) StopAgent(ctx context.Context, id string) (Agent, error)
 func (c *Client) Tabs(ctx context.Context, environmentID string) ([]Tab, error)
 func (c *Client) Wait(ctx context.Context, id string, opts WaitOptions) (WaitResult, error)
 func (c *Client) ZoomPane(ctx context.Context, id string, on *bool) (Pane, error)
+func (k *KittyImages) Push(ev GraphicsEvent) []ImageOp
 func (o ObserverOptions) SocketPath() (string, error)
 func (o Options) SocketPath() (string, error)
 func Connect(opts Options) (*Client, error)
@@ -118,7 +133,11 @@ type EventsRequest = observer.EventsRequest
 type Explanation = agent.Explanation
 type Frame = vt.Frame
 type FrameStream = client.FrameStream
+type GraphicsEvent = vt.GraphicsEvent
+type GraphicsStream = client.GraphicsStream
 type HistoryRequest = observer.HistoryRequest
+type ImageOp struct
+type KittyImages struct
 type LineUpdate = vt.LineUpdate
 type Manifest = agent.Manifest
 type Modes = vt.Modes

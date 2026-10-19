@@ -58,3 +58,23 @@ describe("store", () => {
     expect(lost).toEqual(["p1"]);
   });
 });
+
+describe("images", () => {
+  it("places, replaces, deletes and clears", () => {
+    const s = new Store();
+    let calls = 0;
+    s.subscribeScreen("p1", () => calls++);
+    const img = (key: string, image: number) => ({ pane: "p1", op: "place", key, image, x: 0, y: 0, cols: 2, rows: 1, src: "data:image/png;base64,AA" });
+    s.applyImage(img("7:1", 7));
+    s.applyImage(img("7:1", 7));
+    s.applyImage(img("8:1", 8));
+    expect(s.imagesOf("p1")?.map((i) => i.key)).toEqual(["7:1", "8:1"]);
+    s.applyImage({ pane: "p1", op: "delete", image: 7, x: 0, y: 0, cols: 0, rows: 0 });
+    expect(s.imagesOf("p1")?.map((i) => i.key)).toEqual(["8:1"]);
+    s.applyImage({ pane: "p1", op: "clear", x: 0, y: 0, cols: 0, rows: 0 });
+    expect(s.imagesOf("p1")).toEqual([]);
+    expect(calls).toBe(5);
+    for (let i = 0; i < 40; i++) s.applyImage(img(`${i}:1`, i));
+    expect(s.imagesOf("p1")).toHaveLength(32);
+  });
+});

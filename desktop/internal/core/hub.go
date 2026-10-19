@@ -583,6 +583,7 @@ func (h *Hub) runView(ctx context.Context, c *hiveapi.Client, v *view, cols, row
 	}
 	stop := context.AfterFunc(ctx, func() { _ = fs.Close() })
 	defer stop()
+	h.followImages(ctx, c, v, cols, rows)
 	frames := make(chan struct{}, 1)
 	readerDone := make(chan struct{})
 	go func() {
@@ -603,6 +604,9 @@ func (h *Hub) runView(ctx context.Context, c *hiveapi.Client, v *view, cols, row
 				v.screen = &hiveapi.TerminalScreen{}
 			}
 			resized := f.Cols != v.screen.Cols || f.Rows != v.screen.Rows
+			// Most of the screen changing at once is a scroll: images
+			// anchored to cells no longer belong there (as in hive ui).
+			scrolled := !f.Keyframe && f.Rows > 2 && len(f.Lines) >= max(3, f.Rows/2)
 			v.screen.Apply(f)
 			if f.Keyframe || resized {
 				v.full = true
@@ -611,6 +615,9 @@ func (h *Hub) runView(ctx context.Context, c *hiveapi.Client, v *view, cols, row
 				v.dirty[l.Y] = true
 			}
 			v.mu.Unlock()
+			if scrolled {
+				h.emit(EventImage, ImageUpdate{Pane: v.pane, Op: hiveapi.ImageClear})
+			}
 			if cb := f.Clipboard; cb != nil && h.cfg.Clipboard != nil {
 				if text, err := base64.StdEncoding.DecodeString(cb.Data); err == nil {
 					h.cfg.Clipboard(string(text))
@@ -676,6 +683,49 @@ func (h *Hub) runView(ctx context.Context, c *hiveapi.Client, v *view, cols, row
 			}
 		}
 	}
+}
+
+// followImages turns a pane's Kitty graphics into image updates, for as
+// long as the view lasts. A daemon without a graphics stream shows none.
+func (h *Hub) followImages(ctx context.Context, c *hiveapi.Client, v *view, cols, rows int) {
+	gs, err := c.Graphics(ctx, v.proc, cols, rows)
+	if err != nil {
+		return
+	}
+	h.wg.Go(func() {
+		stop := context.AfterFunc(ctx, func() { _ = gs.Close() })
+		defer stop()
+		var images hiveapi.KittyImages
+		seq := 0
+		for {
+			ev, err := gs.Next()
+			if err != nil {
+				return
+			}
+			for _, op := range images.Push(ev) {
+				switch op.Kind {
+				case hiveapi.ImageReply:
+					select {
+					case v.ops <- viewOp{data: op.Reply}:
+					default:
+					}
+				case hiveapi.ImagePlace:
+					p := op.Placement
+					if p == 0 {
+						seq++
+						p = 1<<31 | uint32(seq)
+					}
+					h.emit(EventImage, ImageUpdate{
+						Pane: v.pane, Op: op.Kind, Key: fmt.Sprintf("%d:%d", op.Image, p), Image: op.Image,
+						X: op.X, Y: op.Y, Cols: op.Cols, Rows: op.Rows,
+						Src: "data:image/png;base64," + base64.StdEncoding.EncodeToString(op.PNG),
+					})
+				default:
+					h.emit(EventImage, ImageUpdate{Pane: v.pane, Op: op.Kind, Image: op.Image})
+				}
+			}
+		}
+	})
 }
 
 // take builds the update owed to the frontend, if any.

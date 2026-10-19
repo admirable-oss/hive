@@ -58,11 +58,14 @@ func init() {
 	application.RegisterEvent[core.Connection](core.EventConnection)
 	application.RegisterEvent[core.Workspace](core.EventWorkspace)
 	application.RegisterEvent[core.ScreenUpdate](core.EventScreen)
+	application.RegisterEvent[core.ImageUpdate](core.EventImage)
 	application.RegisterEvent[core.Settings](core.EventSettings)
 	application.RegisterEvent[[]core.MachineStatus](core.EventMachines)
 	application.RegisterEvent[FocusRequest](eventFocus)
 	application.RegisterEvent[CommandRequest](eventCommand)
 	application.RegisterEvent[DropRequest](eventDrop)
+	application.RegisterEvent[core.ObservedView](core.EventObserveView)
+	application.RegisterEvent[core.ObservedScreen](core.EventObserveScreen)
 }
 
 // desktop is the app around the hub.
@@ -84,11 +87,14 @@ type desktop struct {
 	// it. The hub never waits on the tray.
 	trayWS   *core.Workspace
 	trayKick chan struct{}
+
+	obs observers
 }
 
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	d := &desktop{log: log, dock: dock.New(), notes: notifications.New(), trayKick: make(chan struct{}, 1)}
+	d.obs.all = map[string]*core.Observation{}
 	d.hub = core.NewFleet(core.Config{
 		Home: os.Getenv("HIVE_HOME"), Session: os.Getenv("HIVE_SESSION"),
 		LoginShell: true, Emitter: d, Notify: d.notify, Logger: log,
@@ -101,8 +107,9 @@ func main() {
 		Name:        "Hive",
 		Description: "Coding agents that keep working when you close the window",
 		Services: []application.Service{
-			application.NewService(&lifecycle{hub: d.hub, onQuit: d.rememberWindow}),
+			application.NewService(&lifecycle{hub: d.hub, onQuit: func() { d.rememberWindow(); d.closeObservers() }}),
 			application.NewService(svc),
+			application.NewService(&ObserverService{d: d}),
 			application.NewService(&optional{name: "notifications", svc: d.notes, log: log, failed: &d.noNotes}),
 			application.NewService(&optional{name: "the dock badge", svc: d.dock, log: log, failed: new(atomic.Bool)}),
 		},
@@ -428,6 +435,7 @@ func (d *desktop) menu() *application.Menu {
 	view.Add("Split Down").SetAccelerator(accel("E")).OnClick(d.command("split-down"))
 	view.Add("Zoom Pane").SetAccelerator(accel("Z")).OnClick(d.command("zoom"))
 	view.Add("Open Pane in New Window").OnClick(d.command("pop-out"))
+	view.Add("Open Observer Window…").OnClick(d.command("observe"))
 	view.AddSeparator()
 	view.Add("Next Agent Needing You").SetAccelerator(accel("J")).OnClick(d.command("next-attention"))
 	view.Add("Toggle Sidebar").SetAccelerator(accel("B")).OnClick(d.command("toggle-sidebar"))

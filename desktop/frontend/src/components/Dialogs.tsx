@@ -3,6 +3,7 @@ import { Modal } from "./Modal";
 import { api, type Manifest } from "../api";
 import { currentEnv, store, useStore, type Dialog as DialogState } from "../store";
 import { IdentitySheet, Machines } from "./Machines";
+import { ObserveDialog } from "./ObserveDialog";
 
 const close = () => store.setUI({ dialog: undefined });
 
@@ -239,6 +240,8 @@ export function Dialogs() {
       return <Confirm d={d} />;
     case "machines":
       return <Machines />;
+    case "observe":
+      return <ObserveDialog />;
     case "identity":
       return <IdentitySheet d={d} />;
   }

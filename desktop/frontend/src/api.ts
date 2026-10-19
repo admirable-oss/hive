@@ -1,10 +1,15 @@
 // The one place the frontend reaches Go: the generated bindings of
 // HiveService and the app's events. Tests replace this module.
-import { Events, System } from "@wailsio/runtime";
+import { Events, System, Window } from "@wailsio/runtime";
 import * as Service from "../bindings/github.com/admirable-oss/hive/desktop/hiveservice";
+import * as Observer from "../bindings/github.com/admirable-oss/hive/desktop/observerservice";
 import type {
   Connection,
   Discovery,
+  ImageUpdate,
+  ObserveRequest,
+  ObservedScreen,
+  ObservedView,
   IdentityCheck,
   MachineStatus,
   Manifest,
@@ -18,6 +23,10 @@ import type {
 export type {
   Connection,
   Discovery,
+  ImageUpdate,
+  ObserveRequest,
+  ObservedScreen,
+  ObservedView,
   IdentityCheck,
   MachineStatus,
   Manifest,
@@ -82,6 +91,7 @@ export const api = {
   history: (pane: string, lines: number): Promise<string[]> => Service.History(pane, lines),
   startAtLogin: (): Promise<boolean> => Service.StartAtLogin(),
   setStartAtLogin: (on: boolean) => Service.SetStartAtLogin(on),
+  openObserver: (req: ObserveRequest) => Service.OpenObserver(req),
 };
 
 export type Api = typeof api;
@@ -90,6 +100,7 @@ export interface Listeners {
   connection: (c: Connection) => void;
   workspace: (w: Workspace) => void;
   screen: (u: ScreenUpdate) => void;
+  image: (u: ImageUpdate) => void;
   settings: (s: Settings) => void;
   machines: (m: MachineStatus[]) => void;
   focus: (pane: string) => void;
@@ -103,11 +114,33 @@ export function listen(l: Listeners): () => void {
     Events.On("hive:connection", (e) => l.connection(e.data)),
     Events.On("hive:workspace", (e) => l.workspace(e.data)),
     Events.On("hive:screen", (e) => l.screen(e.data)),
+    Events.On("hive:image", (e) => l.image(e.data)),
     Events.On("hive:settings", (e) => l.settings(e.data)),
     Events.On("hive:machines", (e) => l.machines(e.data ?? [])),
     Events.On("hive:focus", (e) => l.focus(e.data.pane)),
     Events.On("hive:command", (e) => l.command(e.data.command)),
     Events.On("hive:drop", (e) => l.drop(e.data.paths ?? [])),
+  ];
+  return () => offs.forEach((off) => off());
+}
+
+// observerApi is all an observer window calls: it can only look.
+export const observerApi = {
+  view: (): Promise<ObservedView> => Observer.View(),
+  watch: (pane: string) => Observer.Watch(pane),
+  unwatch: (pane: string) => Observer.Unwatch(pane),
+};
+
+// listenObserved follows this observer window's own events.
+export function listenObserved(view: (v: ObservedView) => void, screen: (s: ObservedScreen) => void): () => void {
+  let me = "";
+  Window.Name()
+    .then((n) => (me = n))
+    .catch(() => {});
+  const mine = (sender?: string) => !me || sender === me;
+  const offs = [
+    Events.On("hive:observe:view", (e) => mine(e.sender) && view(e.data)),
+    Events.On("hive:observe:screen", (e) => mine(e.sender) && screen(e.data)),
   ];
   return () => offs.forEach((off) => off());
 }

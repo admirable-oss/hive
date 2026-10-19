@@ -59,6 +59,8 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 - Links open in the browser, and only `http`, `https` and `mailto` links open.
 - The page is never given environment variables, command lines or arguments, and keeps no terminal contents in storage.
 - A pasted text cannot end its own bracketed paste.
+- Images that agents print are decoded and encoded again as PNG in Go, within the daemon's limits, before the webview shows them. The webview never decodes an agent's bytes as they were sent.
+- An observer window gets an observer credential of its own (scoped and expiring), reads only through the observer socket, and the control service refuses its calls. Closing the window revokes the credential.
 - The app's test build (`-tags server`) serves the app over HTTP without authentication. It listens on localhost and is never released.
 
 **Installing hive elsewhere, plugins and updates need your yes, and updates are verified.**

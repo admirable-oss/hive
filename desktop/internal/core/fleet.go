@@ -241,6 +241,9 @@ func (e machineEmitter) Emit(name string, data any) {
 	case ScreenUpdate:
 		v.Pane = qualify(m, v.Pane)
 		f.emit(name, v)
+	case ImageUpdate:
+		v.Pane = qualify(m, v.Pane)
+		f.emit(name, v)
 	default:
 		if m == "" {
 			f.emit(name, data) // settings: this computer's

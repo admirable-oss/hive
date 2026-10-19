@@ -4,6 +4,7 @@ import { api, isWindows, listen } from "./api";
 import { quotePaths } from "./keys";
 import { runCommand } from "./commands";
 import { App, PaneWindow } from "./components/App";
+import { ObserverWindow } from "./components/ObserverWindow";
 import { currentPane, show, store } from "./store";
 import "./styles.css";
 
@@ -14,6 +15,7 @@ export function boot() {
     connection: (c) => store.set((s) => ({ ...s, connection: c })),
     workspace: (w) => store.setWorkspace(w),
     screen: (u) => store.applyScreen(u),
+    image: (u) => store.applyImage(u),
     settings: (st) => store.set((s) => ({ ...s, settings: st })),
     machines: (m) => store.set((s) => ({ ...s, machines: m })),
     focus: (pane) => show(store, pane),
@@ -30,7 +32,12 @@ export function boot() {
 }
 
 const route = /^#\/pane\/(.+)$/.exec(window.location.hash);
-boot();
+const observing = window.location.hash === "#/observe";
+// An observer window loads nothing of the control side: no workspace, no
+// screens, no commands.
+if (!observing) boot();
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>{route ? <PaneWindow pane={decodeURIComponent(route[1])} /> : <App />}</StrictMode>,
+  <StrictMode>
+    {observing ? <ObserverWindow /> : route ? <PaneWindow pane={decodeURIComponent(route[1])} /> : <App />}
+  </StrictMode>,
 );

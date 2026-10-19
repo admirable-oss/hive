@@ -2,7 +2,7 @@ import { memo, useEffect, useLayoutEffect, useRef } from "react";
 import { api, isMac, type Line, type Pane } from "../api";
 import { encodeKey, encodeMouse, focusReport, ModeBracketedPaste, mouseWanted, type MouseKind } from "../keys";
 import { lineText } from "../screen";
-import { store, useScreen, useStore } from "../store";
+import { store, useImages, useScreen, useStore } from "../store";
 import { color } from "../theme";
 import { usePalette } from "./theme";
 
@@ -77,6 +77,7 @@ interface Props {
 // Terminal shows a pane's screen and types into it.
 export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
   const screen = useScreen(pane.id);
+  const images = useImages(pane.id);
   const pal = usePalette();
   const input = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
@@ -217,6 +218,16 @@ export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
       >
         {(screen?.lines ?? []).map((l, y) => (
           <Row key={y} line={l} pal={pal} />
+        ))}
+        {(images ?? []).map((img) => (
+          <img
+            key={img.key}
+            className="term-image"
+            src={img.src}
+            alt=""
+            draggable={false}
+            style={{ left: `${img.x}ch`, top: `calc(${img.y} * var(--cell-h))`, width: `${img.cols}ch`, height: `calc(${img.rows} * var(--cell-h))` }}
+          />
         ))}
         {cursor?.visible && focused && !screen?.ended && (
           <div

@@ -27,6 +27,26 @@ type ScreenUpdate struct {
 	Ended bool `json:"ended,omitempty"`
 }
 
+// EventImage carries an ImageUpdate.
+const EventImage = "hive:image"
+
+// ImageUpdate is a change to the images over a pane (Kitty graphics an
+// agent printed): show one, remove one image's placements, or clear all.
+type ImageUpdate struct {
+	Pane string `json:"pane"`
+	Op   string `json:"op"` // place, delete, clear
+	// Key names a placement; Image the image it shows.
+	Key   string `json:"key,omitempty"`
+	Image uint32 `json:"image,omitempty"`
+	// X, Y, Cols and Rows place it on the screen, in cells.
+	X    int `json:"x"`
+	Y    int `json:"y"`
+	Cols int `json:"cols"`
+	Rows int `json:"rows"`
+	// Src is the image as a data: URL of a PNG Hive encoded itself.
+	Src string `json:"src,omitempty"`
+}
+
 // The terminal modes an update carries.
 const (
 	ModeAppCursorKeys  = uint32(hiveapi.ModeAppCursorKeys)

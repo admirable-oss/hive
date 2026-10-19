@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { Agent, Connection, IdentityCheck, MachineStatus, Pane, PairRequest, ScreenUpdate, Settings, Tab, Workspace } from "./api";
+import type { Agent, Connection, IdentityCheck, ImageUpdate, MachineStatus, Pane, PairRequest, ScreenUpdate, Settings, Tab, Workspace } from "./api";
 import { applyUpdate, type Screen } from "./screen";
 
 export type Dialog =
@@ -7,6 +7,7 @@ export type Dialog =
   | { kind: "prompt"; agent?: string }
   | { kind: "new-environment" }
   | { kind: "machines" }
+  | { kind: "observe" }
   // identity shows a proven identity before it is trusted: for pairing
   // (pair set) or for a saved machine (machine set).
   | { kind: "identity"; check: IdentityCheck; pair?: PairRequest; machine?: string }
@@ -77,6 +78,8 @@ type Listener = () => void;
 export class Store {
   state: State = initialState();
   private screens = new Map<string, Screen>();
+  // images are what agents printed over each pane, by placement.
+  private images = new Map<string, ImageUpdate[]>();
   private listeners = new Set<Listener>();
   private screenListeners = new Map<string, Set<Listener>>();
   private toastSeq = 0;
@@ -105,6 +108,9 @@ export class Store {
   setWorkspace(w: Workspace) {
     for (const pane of this.screens.keys()) {
       if (!w.panes.some((p) => p.id === pane)) this.screens.delete(pane);
+    }
+    for (const pane of this.images.keys()) {
+      if (!w.panes.some((p) => p.id === pane)) this.images.delete(pane);
     }
     this.set((s) => ({ ...s, workspace: w }));
     if (this.pending && w.panes.some((p) => p.id === this.pending)) {
@@ -150,6 +156,29 @@ export class Store {
     };
   }
 
+  imagesOf(pane: string): ImageUpdate[] | undefined {
+    return this.images.get(pane);
+  }
+
+  // applyImage keeps at most 32 placements a pane, the newest.
+  applyImage(u: ImageUpdate) {
+    const now = this.images.get(u.pane) ?? [];
+    let next: ImageUpdate[];
+    switch (u.op) {
+      case "place":
+        next = [...now.filter((i) => i.key !== u.key), u].slice(-32);
+        break;
+      case "delete":
+        next = now.filter((i) => i.image !== u.image);
+        break;
+      default:
+        next = [];
+    }
+    if (next.length === 0 && now.length === 0) return;
+    this.images.set(u.pane, next);
+    this.screenListeners.get(u.pane)?.forEach((l) => l());
+  }
+
   applyScreen(u: ScreenUpdate) {
     const { screen, lost } = applyUpdate(this.screens.get(u.pane), u);
     this.screens.set(u.pane, screen);
@@ -162,6 +191,13 @@ export const store = new Store();
 
 export function useStore<T>(select: (s: State) => T, s: Store = store): T {
   return useSyncExternalStore(s.subscribe, () => select(s.state));
+}
+
+export function useImages(pane: string, s: Store = store): ImageUpdate[] | undefined {
+  return useSyncExternalStore(
+    (l) => s.subscribeScreen(pane, l),
+    () => s.imagesOf(pane),
+  );
 }
 
 export function useScreen(pane: string, s: Store = store): Screen | undefined {

@@ -68,6 +68,11 @@ Windows is a client only, as everywhere in Hive ([platforms](platforms.md)).
   searchable. Enter goes to the previous match, Shift+Enter to the next.
 - **Mouse.** Programs that ask for the mouse (editors, `htop`, some agents)
   get clicks, drags and the wheel. Hold Shift to select text instead.
+- **Images.** Images agents print (the Kitty graphics protocol, as
+  [in `hive ui`](plugins/image-graphics.md)) show over their cells. Hive decodes
+  each one and encodes it again as a PNG before the window sees it, within the
+  daemon's size limits. Images are cleared when the screen scrolls, as in
+  `hive ui`.
 - **Drops.** Drop files on the window to paste their paths, quoted for the
   shell, into the focused pane.
 - **Windows.** **Open in a new window** (⧉) shows a pane on its own, for a
@@ -96,6 +101,24 @@ and T mean things to shells.
 On macOS, Option types characters (such as `ƒ`) by default. To make it Alt
 in terminals instead, use **View → Option Key Types Alt** (or the palette). The
 command palette also turns **Start Hive at Login** on or off.
+
+## Observer window
+
+**View → Open Observer Window…** opens a read-only window for a shared screen
+or a second monitor. It shows agents with their states and, if you allow it,
+their screens.
+
+- **You choose what it may see:** everything on this computer or some
+  environments, screens or states only, and for how long (1 hour to 7 days).
+- **It gets its own observer credential** ([observers](observers.md)), made
+  through your control connection. The window reads only through the daemon's
+  read-only observer socket. The token stays in the app's Go side, and closing
+  the window (or quitting) revokes the credential.
+- **It cannot act.** It has no input, and the control service refuses every
+  call from it.
+
+This keeps a shared screen from typing into agents. It is not a sandbox
+against the app itself, which holds full control of Hive anyway.
 
 ## Machines
 
@@ -186,7 +209,8 @@ is not measured yet.
 
 The app is [M18](../ROADMAP.md), in progress. What works:
 - the workspace and live terminals, including scrollback search, mouse
-  reporting and focus events;
+  reporting, focus events and images (Kitty graphics);
+- a read-only observer window with its own expiring credential;
 - agents and prompts;
 - layout: split, zoom, close, new tab, pop-out windows;
 - saved machines, discovery, pairing and identity review;
@@ -202,8 +226,6 @@ Not yet:
   packages to tagged releases. CI builds unsigned packages on demand.
 - **In-app updates,** which will check the release signature as `hive update`
   does.
-- **A read-only observer window** (M14).
-- **Terminal images** (Kitty, iTerm2, Sixel). `hive ui` has them.
 - **Latency in the native webviews,** measured; then the binary frame channel,
   if the numbers call for it.
 

@@ -149,6 +149,11 @@ linters:
       # they name.
       - path: ^tools/
         linters: [gosec, noctx]
+      # The desktop app's bound methods take Wails' call context only to
+      # learn which window called (observer windows may not control); the
+      # work runs on the app's own context.
+      - path: desktop/(service|observer)\.go
+        linters: [contextcheck]
 
 formatters:
   enable:
