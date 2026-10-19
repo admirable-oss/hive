@@ -1,4 +1,11 @@
+import { AnimatePresence, motion } from "framer-motion";
+import { Fingerprint, Loader2, Radar, Server, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { api, type Discovery, type IdentityCheck, type MachineStatus, type Nearby, type PairRequest } from "../api";
 import { store, useStore, type Dialog } from "../store";
 import { close, Modal } from "./Modal";
@@ -9,7 +16,7 @@ import { close, Modal } from "./Modal";
 
 const stateText: Record<string, string> = {
   trusted: "trusted",
-  configured: "saved without an identity",
+  configured: "no identity pinned",
   changed: "identity changed",
   disabled: "disabled",
 };
@@ -22,6 +29,13 @@ const connText: Record<string, string> = {
   off: "not connected",
 };
 
+const connDot: Record<string, string> = {
+  connected: "bg-done",
+  connecting: "bg-working animate-pulse",
+  offline: "bg-destructive",
+  outdated: "bg-destructive",
+};
+
 function busyRun(setBusy: (b: boolean) => void, p: Promise<unknown>) {
   setBusy(true);
   p.catch(store.fail).finally(() => setBusy(false));
@@ -32,34 +46,49 @@ function review(check: Promise<IdentityCheck>, target: Partial<Extract<Dialog, {
   return check.then((c) => store.setUI({ dialog: { kind: "identity", check: c, ...target } }));
 }
 
+function Row({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.li layout initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-lg border bg-card/50 p-3">
+      {children}
+    </motion.li>
+  );
+}
+
 function SavedRow({ m }: { m: MachineStatus }) {
   const [busy, setBusy] = useState(false);
   const blocked = m.counts?.blocked ?? 0;
   const conn = m.connection?.state ?? "off";
   return (
-    <li className="machine-row">
-      <div className="machine-main">
-        <span className={`conn-dot conn-${conn}`} aria-hidden />
-        <strong>{m.name}</strong>
-        <span className="item-meta">{m.host}</span>
+    <Row>
+      <div className="flex items-center gap-2">
+        <span aria-hidden className={cn("size-2 rounded-full ring-1 ring-idle", connDot[conn] ?? "bg-transparent")} />
+        <span className="font-medium">{m.name}</span>
+        <span className="truncate font-mono text-xs text-muted-foreground">{m.host}</span>
+        <span className="flex-1" />
+        <Badge variant={m.state === "changed" ? "destructive" : m.state === "trusted" ? "secondary" : "outline"}>
+          {m.state === "trusted" ? <ShieldCheck /> : m.state === "changed" ? <ShieldAlert /> : null}
+          {stateText[m.state] ?? m.state}
+        </Badge>
       </div>
-      <div className="machine-meta">
-        <span className={m.state === "changed" ? "warn" : "quiet"}>{stateText[m.state] ?? m.state}</span>
-        <span className="quiet">· {connText[conn] ?? conn}</span>
-        {m.connection?.message && conn !== "connected" && <span className="quiet"> · {m.connection.message}</span>}
-        {blocked > 0 && <span className="warn"> · {blocked} need you</span>}
-      </div>
-      <div className="machine-actions">
+      <p className="mt-1 ml-4 text-xs text-muted-foreground">
+        {connText[conn] ?? conn}
+        {m.connection?.message && conn !== "connected" ? ` · ${m.connection.message}` : ""}
+        {blocked > 0 && <span className="text-blocked"> · {blocked} need you</span>}
+      </p>
+      <div className="mt-2 ml-4 flex flex-wrap gap-1.5">
         {(m.state === "changed" || m.state === "configured") && (
-          <button className={m.state === "changed" ? "primary" : undefined} disabled={busy} onClick={() => busyRun(setBusy, review(api.checkTrust(m.name), { machine: m.name }))}>
+          <Button size="xs" variant={m.state === "changed" ? "default" : "outline"} disabled={busy} onClick={() => busyRun(setBusy, review(api.checkTrust(m.name), { machine: m.name }))}>
+            {busy && <Loader2 className="animate-spin" />}
             {m.state === "changed" ? "Review identity…" : "Pin identity…"}
-          </button>
+          </Button>
         )}
-        <button disabled={busy} onClick={() => busyRun(setBusy, api.machineAction(m.name, m.disabled ? "enable" : "disable"))}>
+        <Button size="xs" variant="outline" disabled={busy} onClick={() => busyRun(setBusy, api.machineAction(m.name, m.disabled ? "enable" : "disable"))}>
           {m.disabled ? "Enable" : "Disable"}
-        </button>
-        <button
-          className="danger-quiet"
+        </Button>
+        <Button
+          size="xs"
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
           disabled={busy}
           onClick={() =>
             store.setUI({
@@ -74,9 +103,9 @@ function SavedRow({ m }: { m: MachineStatus }) {
           }
         >
           Forget
-        </button>
+        </Button>
       </div>
-    </li>
+    </Row>
   );
 }
 
@@ -85,26 +114,40 @@ function NearbyRow({ r }: { r: Nearby }) {
   const [as, setAs] = useState("");
   const saved = r.state !== "discovered";
   return (
-    <li className="machine-row">
-      <div className="machine-main">
-        <strong>{r.name}</strong>
-        <code className="item-meta">{r.id.slice(0, 8)}</code>
-        <span className="item-meta">{(r.addresses ?? [])[0] ?? ""}</span>
+    <Row>
+      <div className="flex items-center gap-2">
+        <Server className="size-3.5 text-muted-foreground" />
+        <span className="font-medium">{r.name}</span>
+        <code className="text-xs text-muted-foreground">{r.id.slice(0, 8)}</code>
+        <span className="font-mono text-xs text-muted-foreground">{(r.addresses ?? [])[0] ?? ""}</span>
+        <span className="flex-1" />
+        <Badge variant="outline">{saved ? `saved as ${r.machine}` : "not paired"}</Badge>
       </div>
-      <div className="machine-meta">
-        {saved ? <span className="quiet">saved as {r.machine}</span> : <span className="quiet">not paired</span>}
-        {r.duplicate_name && <span className="warn"> · another runtime has this name</span>}
-        {r.note && <span className="quiet"> · {r.note}</span>}
-      </div>
+      {(r.duplicate_name || r.note) && (
+        <p className="mt-1 ml-5 text-xs text-muted-foreground">
+          {r.duplicate_name && <span className="text-blocked">another runtime has this name</span>}
+          {r.note && <span> {r.note}</span>}
+        </p>
+      )}
       {!saved && (
-        <div className="machine-actions">
-          <input aria-label={`Name for ${r.name}`} placeholder="save as (optional)" value={as} onChange={(e) => setAs(e.target.value)} />
-          <button className="primary" disabled={busy} onClick={() => busyRun(setBusy, review(api.checkPair({ id: r.id, as: as.trim() || undefined }), { pair: { id: r.id, as: as.trim() || undefined } }))}>
+        <div className="mt-2 ml-5 flex gap-1.5">
+          <Input className="h-7 text-xs" aria-label={`Name for ${r.name}`} placeholder="save as (optional)" value={as} onChange={(e) => setAs(e.target.value)} />
+          <Button size="sm" className="h-7" disabled={busy} onClick={() => busyRun(setBusy, review(api.checkPair({ id: r.id, as: as.trim() || undefined }), { pair: { id: r.id, as: as.trim() || undefined } }))}>
+            {busy && <Loader2 className="animate-spin" />}
             Pair…
-          </button>
+          </Button>
         </div>
       )}
-    </li>
+    </Row>
+  );
+}
+
+function Heading({ id, children, action }: { id: string; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <h3 id={id} className="mb-2 flex items-center justify-between text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+      {children}
+      {action}
+    </h3>
   );
 }
 
@@ -129,54 +172,66 @@ export function Machines() {
     busyRun(setBusy, review(api.checkPair(req), { pair: req }));
   };
   return (
-    <Modal title="Machines" onClose={close}>
-      <section aria-labelledby="saved-machines">
-        <h3 id="saved-machines">Saved</h3>
-        {machines.length === 0 ? (
-          <p className="quiet">No other machines yet. Find one nearby, or pair one by its ssh address.</p>
-        ) : (
-          <ul className="machine-list">
-            {machines.map((m) => (
-              <SavedRow key={m.name} m={m} />
-            ))}
-          </ul>
-        )}
-      </section>
-      <section aria-labelledby="nearby-machines">
-        <h3 id="nearby-machines">
-          Nearby
-          <button onClick={discover} disabled={looking}>
-            {looking ? "Looking…" : found ? "Look again" : "Find machines nearby"}
-          </button>
-        </h3>
-        {found && found.runtimes.length === 0 && (
-          <p className="quiet">
-            None answered{found.interfaces.length > 0 ? ` on ${found.interfaces.join(", ")}` : ""}. Machines announce themselves only
-            with <code>discovery.advertise = true</code>, and multicast must reach them; otherwise pair by address below.
-          </p>
-        )}
-        {found && found.runtimes.length > 0 && (
-          <ul className="machine-list">
-            {found.runtimes.map((r) => (
-              <NearbyRow key={r.id} r={r} />
-            ))}
-          </ul>
-        )}
-      </section>
-      <section aria-labelledby="pair-host">
-        <h3 id="pair-host">Pair by ssh</h3>
-        <form className="inline-form" onSubmit={pairHost}>
-          <input aria-label="ssh destination" placeholder="me@10.8.0.12" value={host} onChange={(e) => setHost(e.target.value)} required />
-          <input aria-label="Save as" placeholder="save as (optional)" value={as} onChange={(e) => setAs(e.target.value)} />
-          <button className="primary" type="submit" disabled={busy || !host.trim()}>
-            Check…
-          </button>
-        </form>
-        <p className="quiet">Hive connects with your ssh keys and config, and shows the identity it proves before saving anything.</p>
-      </section>
-      <div className="buttons">
-        <button onClick={close}>Done</button>
+    <Modal title="Machines" description="Other computers running Hive. Their agents appear in the sidebar once they are trusted." className="sm:max-w-2xl">
+      <div className="grid max-h-[62vh] gap-5 overflow-y-auto pr-1">
+        <section aria-labelledby="saved-machines">
+          <Heading id="saved-machines">Saved</Heading>
+          {machines.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No other machines yet. Find one nearby, or pair one by its ssh address.</p>
+          ) : (
+            <ul className="grid gap-2">
+              <AnimatePresence initial={false}>
+                {machines.map((m) => (
+                  <SavedRow key={m.name} m={m} />
+                ))}
+              </AnimatePresence>
+            </ul>
+          )}
+        </section>
+        <section aria-labelledby="nearby-machines">
+          <Heading
+            id="nearby-machines"
+            action={
+              <Button size="xs" variant="outline" onClick={discover} disabled={looking}>
+                {looking ? <Loader2 className="animate-spin" /> : <Radar />}
+                {looking ? "Looking…" : found ? "Look again" : "Find machines nearby"}
+              </Button>
+            }
+          >
+            Nearby
+          </Heading>
+          {found && found.runtimes.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              None answered{found.interfaces.length > 0 ? ` on ${found.interfaces.join(", ")}` : ""}. Machines announce themselves only with{" "}
+              <code className="text-xs">discovery.advertise = true</code>, and multicast must reach them; otherwise pair by address below.
+            </p>
+          )}
+          {found && found.runtimes.length > 0 && (
+            <ul className="grid gap-2">
+              {found.runtimes.map((r) => (
+                <NearbyRow key={r.id} r={r} />
+              ))}
+            </ul>
+          )}
+        </section>
+        <section aria-labelledby="pair-host">
+          <Heading id="pair-host">Pair by ssh</Heading>
+          <form className="flex gap-2" onSubmit={pairHost}>
+            <Input className="flex-1 font-mono" aria-label="ssh destination" placeholder="me@10.8.0.12" value={host} onChange={(e) => setHost(e.target.value)} required />
+            <Input className="w-40" aria-label="Save as" placeholder="save as (optional)" value={as} onChange={(e) => setAs(e.target.value)} />
+            <Button type="submit" disabled={busy || !host.trim()}>
+              {busy && <Loader2 className="animate-spin" />}
+              Check…
+            </Button>
+          </form>
+          <p className="mt-1.5 text-xs text-muted-foreground">Hive connects with your ssh keys and config, and shows the identity it proves before saving anything.</p>
+        </section>
       </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={close}>
+          Done
+        </Button>
+      </DialogFooter>
     </Modal>
   );
 }
@@ -202,51 +257,57 @@ export function IdentitySheet({ d }: { d: Extract<Dialog, { kind: "identity" }> 
         store.fail(err);
       });
   };
+  const rows: [string, React.ReactNode][] = [
+    ["Address", <span className="font-mono">{check.machine.host}</span>],
+    ["Name", <>{check.proof.name} {check.proof.hostname && <span className="text-muted-foreground">(host {check.proof.hostname})</span>}</>],
+    ["Platform", `${check.proof.platform}, hive ${check.proof.version}`],
+    ["Identity", <code>{check.proof.id}</code>],
+  ];
   return (
     <Modal title={changed ? `${d.machine}: identity changed` : d.pair ? "Pair with this machine?" : `${d.machine}: identity`} onClose={back}>
       {changed && (
-        <p className="warn" role="alert">
-          This machine proved a different identity than the one it was paired with. If Hive was not reinstalled there and its home
-          not removed, another computer may be answering at its address. Trust it only if you know why it changed.
-        </p>
+        <div role="alert" className="flex gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+          <p>
+            This machine proved a different identity than the one it was paired with. If Hive was not reinstalled there and its home not removed, another
+            computer may be answering at its address. Trust it only if you know why it changed.
+          </p>
+        </div>
       )}
-      <dl className="identity">
-        <dt>Address</dt>
-        <dd>{check.machine.host}</dd>
-        <dt>Name</dt>
-        <dd>
-          {check.proof.name} {check.proof.hostname && <span className="quiet">(host {check.proof.hostname})</span>}
-        </dd>
-        <dt>Platform</dt>
-        <dd>
-          {check.proof.platform}, hive {check.proof.version}
-        </dd>
-        <dt>Identity</dt>
-        <dd>
-          <code>{check.proof.id}</code>
-        </dd>
-        <dt>Fingerprint</dt>
-        <dd>
-          <code>{check.fingerprint}</code>
-        </dd>
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-muted-foreground">{k}</dt>
+            <dd className="min-w-0 break-all">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="rounded-lg border bg-muted/40 p-3">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Fingerprint className="size-3.5" /> Fingerprint
+        </div>
+        <code className="block font-mono text-sm break-all">{check.fingerprint}</code>
         {changed && check.pinned && (
           <>
-            <dt>Was</dt>
-            <dd>
-              <code>{check.pinned}</code>
-            </dd>
+            <div className="mt-2 mb-1 text-xs font-medium text-muted-foreground">Was</div>
+            <code className="block font-mono text-sm break-all text-muted-foreground line-through">{check.pinned}</code>
           </>
         )}
-      </dl>
-      <p className="quiet">To compare, run <code>hive machine identity</code> on that machine.</p>
-      <div className="buttons">
-        <button onClick={back}>{verified ? "Close" : "Cancel"}</button>
-        {!verified && (
-          <button className={changed ? "danger" : "primary"} disabled={busy} onClick={confirm}>
-            {changed ? "Trust the new identity" : d.pair ? `Trust and save as ${check.machine.name}` : "Pin this identity"}
-          </button>
-        )}
       </div>
+      <p className="text-xs text-muted-foreground">
+        To compare, run <code>hive machine identity</code> on that machine.
+      </p>
+      <DialogFooter>
+        <Button variant="outline" onClick={back}>
+          {verified ? "Close" : "Cancel"}
+        </Button>
+        {!verified && (
+          <Button variant={changed ? "destructive" : "default"} disabled={busy} onClick={confirm}>
+            {busy && <Loader2 className="animate-spin" />}
+            {changed ? "Trust the new identity" : d.pair ? `Trust and save as ${check.machine.name}` : "Pin this identity"}
+          </Button>
+        )}
+      </DialogFooter>
     </Modal>
   );
 }

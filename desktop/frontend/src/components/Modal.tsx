@@ -1,31 +1,32 @@
-import { useEffect, useId, useRef } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { store } from "../store";
 
 export const close = () => store.setUI({ dialog: undefined });
 
-export function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  const id = useId();
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>("[autofocus], input, textarea, select, button")?.focus();
-    return () => prev?.focus?.();
-  }, []);
+// Modal is a dialog the store opens (ui.dialog); closing it clears that.
+export function Modal({
+  title,
+  description,
+  children,
+  onClose = close,
+  className,
+}: {
+  title: string;
+  description?: React.ReactNode;
+  children: React.ReactNode;
+  onClose?: () => void;
+  className?: string;
+}) {
   return (
-    <div className="overlay" onMouseDown={onClose}>
-      <div
-        className="dialog"
-        role="dialog"
-        aria-modal
-        aria-labelledby={id}
-        ref={ref}
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
-      >
-        <h2 id={id}>{title}</h2>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className={cn("sm:max-w-lg", className)} onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {description ? <DialogDescription>{description}</DialogDescription> : <DialogDescription className="sr-only">{title}</DialogDescription>}
+        </DialogHeader>
         {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
-

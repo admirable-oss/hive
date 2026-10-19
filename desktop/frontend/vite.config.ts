@@ -1,5 +1,7 @@
 /// <reference types="vitest/config" />
 import { writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import wails from "@wailsio/runtime/plugins/vite";
@@ -53,8 +55,10 @@ export default defineConfig(({ mode }) => ({
     port: Number(process.env.WAILS_VITE_PORT) || 9245,
     strictPort: true,
   },
-  plugins: [react(), wails("./bindings"), keepDist(), ...(mode === "production" ? [contentSecurityPolicy()] : [])],
-  build: { target: "es2022" },
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  plugins: [react(), tailwindcss(), wails("./bindings"), keepDist(), ...(mode === "production" ? [contentSecurityPolicy()] : [])],
+  // The bundle loads from the app's own disk, not a network: one chunk is fine.
+  build: { target: "es2022", chunkSizeWarningLimit: 1500 },
   test: {
     environment: "jsdom",
     globals: true,

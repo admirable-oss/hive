@@ -63,7 +63,7 @@ describe("images", () => {
   it("places, replaces, deletes and clears", () => {
     const s = new Store();
     let calls = 0;
-    s.subscribeScreen("p1", () => calls++);
+    s.panes.subscribe(() => calls++);
     const img = (key: string, image: number) => ({ pane: "p1", op: "place", key, image, x: 0, y: 0, cols: 2, rows: 1, src: "data:image/png;base64,AA" });
     s.applyImage(img("7:1", 7));
     s.applyImage(img("7:1", 7));

@@ -181,22 +181,22 @@ func TestDesktopEndToEnd(t *testing.T) {
 
 	step(45*time.Second,
 		chromedp.Navigate(url),
-		text(".conn", "default"), // connected, to the default session
-		text(".sidebar", "Demo"),
-		text(".tab", "work"),
+		text("nav [role=status]", "default"), // connected, to the default session
+		text("nav", "Demo"),
+		text("[role=tab]", "work"),
 		until(`document.querySelector('.term-row')`),
 	)
 	// The shell is up once its prompt is on the screen; then type into it.
 	step(30*time.Second,
 		until(`[...document.querySelectorAll('.term-row')].some(r => r.textContent.trim() !== '')`),
-		chromedp.Focus(chromedp.CSS(`.pane.is-focused .term-input`)),
-		chromedp.SendKeys(chromedp.CSS(`.pane.is-focused .term-input`), "echo e2e-$((6*7))"),
+		chromedp.Focus(chromedp.CSS(`section[data-focused] textarea`)),
+		chromedp.SendKeys(chromedp.CSS(`section[data-focused] textarea`), "echo e2e-$((6*7))"),
 		chromedp.KeyEvent("\r"),
 		text(".term-row", "e2e-42"),
 	)
 	// An image a program prints shows over its cells.
 	step(30*time.Second,
-		chromedp.SendKeys(chromedp.CSS(`.pane.is-focused .term-input`), `printf '\033_Ga=T,f=100,i=7,c=8,r=4;`+tinyPNG+`\033\\'`),
+		chromedp.SendKeys(chromedp.CSS(`section[data-focused] textarea`), `printf '\033_Ga=T,f=100,i=7,c=8,r=4;`+tinyPNG+`\033\\'`),
 		chromedp.KeyEvent("\r"),
 		until(`[...document.querySelectorAll('.term-image')].some(i => i.src.startsWith('data:image/png;base64,') && i.complete && i.naturalWidth === 6)`),
 	)
@@ -223,7 +223,7 @@ func TestDesktopEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		step(10*time.Second, until(`document.querySelector('.app').dataset.scheme === '`+scheme+`'`))
+		step(10*time.Second, until(`document.querySelector('[data-scheme]').dataset.scheme === '`+scheme+`'`))
 		found, err := chromedp.Run(ctx, chromedp.Evaluate[string](`axe.run({include: [['#root']], exclude: [['.term-screen']]}, {resultTypes: ['violations']}).then(r =>
 			JSON.stringify(r.violations.filter(v => v.impact === 'serious' || v.impact === 'critical')
 				.map(v => v.id + ' (' + v.nodes.length + '): ' + v.nodes.slice(0, 3).map(n => n.target.join(' ')).join(', '))))`, chromedp.EvalAwaitPromise))
@@ -238,10 +238,10 @@ func TestDesktopEndToEnd(t *testing.T) {
 	// Splitting goes through the daemon, and the new pane shows up.
 	step(10*time.Second, chromedp.Click(chromedp.CSS(`button[aria-label="Split right"]`)))
 	tctx, tcancel := context.WithTimeout(ctx, 30*time.Second)
-	err = chromedp.Do(tctx, until(`document.querySelectorAll('.pane').length === 2`))
+	err = chromedp.Do(tctx, until(`document.querySelectorAll('section[data-pane]').length === 2`))
 	tcancel()
 	if err != nil {
-		n, _ := chromedp.Run(ctx, chromedp.Evaluate[string](`document.querySelectorAll('.pane').length + ' panes; ' + document.querySelector('.toasts').textContent`))
+		n, _ := chromedp.Run(ctx, chromedp.Evaluate[string](`document.querySelectorAll('section[data-pane]').length + ' panes; ' + document.body.innerText.slice(-300)`))
 		t.Fatalf("no second pane: %v (page: %s)\ndaemon: %s", err, n, hiveRun("pane", "list", "--json"))
 	}
 	if out := hiveRun("pane", "list", "--json"); strings.Count(out, `"tab_id"`) < 2 {
