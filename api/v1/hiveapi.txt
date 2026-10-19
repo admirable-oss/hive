@@ -1,9 +1,19 @@
+const APILevel
 const CodeConflict
 const CodeInvalidParams
 const CodeNotFound
 const CodePermissionDenied
 const CodeTimeout
 const CodeUnavailable
+const Down
+const ImageClear
+const ImageDelete
+const ImagePlace
+const ImageReply
+const Left
+const ModeAltScreen
+const ModeAppCursorKeys
+const ModeBracketedPaste
 const ObserverResync
 const ObserverTokenEnv
 const OutcomeBlocked
@@ -12,6 +22,7 @@ const OutcomeReached
 const OutcomeStalled
 const OutcomeStarted
 const OutcomeTimeout
+const Right
 const StateBlocked
 const StateDone
 const StateExited
@@ -24,6 +35,16 @@ const UntilDone
 const UntilExited
 const UntilIdle
 const UntilWorking
+const Up
+field ImageOp.Cols int
+field ImageOp.Image uint32
+field ImageOp.Kind string
+field ImageOp.PNG []byte
+field ImageOp.Placement uint32
+field ImageOp.Reply []byte
+field ImageOp.Rows int
+field ImageOp.X int
+field ImageOp.Y int
 field ObserverOptions.Dial func(ctx context.Context) (net.Conn, error)
 field ObserverOptions.Home string
 field ObserverOptions.Host string
@@ -32,6 +53,7 @@ field ObserverOptions.RemoteSession string
 field ObserverOptions.Session string
 field ObserverOptions.Socket string
 field ObserverOptions.Token string
+field Options.Dial func(ctx context.Context) (net.Conn, error)
 field Options.Home string
 field Options.Name string
 field Options.Session string
@@ -45,11 +67,19 @@ func (c *Client) AgentDirectory(ctx context.Context, all bool) (AgentList, error
 func (c *Client) Agents(ctx context.Context, all bool) ([]Agent, error)
 func (c *Client) Call(ctx context.Context, method string, params, result any) error
 func (c *Client) Close() error
+func (c *Client) ClosePane(ctx context.Context, id string) error
+func (c *Client) CloseTab(ctx context.Context, id string) error
 func (c *Client) CreateEnvironment(ctx context.Context, id, dir string, vars map[string]string) (Environment, error)
+func (c *Client) CreateTab(ctx context.Context, req CreateTabRequest) (TabCreated, error)
 func (c *Client) Environments(ctx context.Context) ([]Environment, error)
 func (c *Client) Events(ctx context.Context, types ...string) (*EventStream, error)
 func (c *Client) Explain(ctx context.Context, id string) (Explanation, error)
 func (c *Client) FocusAgent(ctx context.Context, id string) (Agent, error)
+func (c *Client) FocusPane(ctx context.Context, id string, d Direction) (Pane, error)
+func (c *Client) FocusTab(ctx context.Context, id string) (Tab, error)
+func (c *Client) Frames(ctx context.Context, processID string, width, height int) (*FrameStream, error)
+func (c *Client) Graphics(ctx context.Context, processID string, width, height int) (*GraphicsStream, error)
+func (c *Client) Input(ctx context.Context, processID string, data []byte) error
 func (c *Client) Manifests(ctx context.Context) ([]Manifest, error)
 func (c *Client) Panes(ctx context.Context, envID, tabID string) ([]Pane, error)
 func (c *Client) Popup(ctx context.Context, options PopupOptions) (Pane, error)
@@ -58,15 +88,23 @@ func (c *Client) Prompt(ctx context.Context, id, text string, opts PromptOptions
 func (c *Client) Read(ctx context.Context, id string, opts ReadOptions) ([]string, error)
 func (c *Client) ReadPane(ctx context.Context, id string, opts ReadOptions) ([]string, error)
 func (c *Client) RenameAgent(ctx context.Context, id, name string) (Agent, error)
+func (c *Client) RenamePane(ctx context.Context, id, name string) (Pane, error)
 func (c *Client) RenameTab(ctx context.Context, id, name string) (Tab, error)
+func (c *Client) ResizePane(ctx context.Context, id string, d Direction, cells int) (Pane, error)
+func (c *Client) ResizeTab(ctx context.Context, id string, width, height int) (Tab, error)
 func (c *Client) RunInPane(ctx context.Context, id, command string) error
 func (c *Client) Schema(ctx context.Context) (Schema, error)
 func (c *Client) SendKeys(ctx context.Context, id string, keys ...string) error
+func (c *Client) SendText(ctx context.Context, paneID, text string, paste bool) error
 func (c *Client) Snapshot(ctx context.Context) (Snapshot, error)
+func (c *Client) SplitPane(ctx context.Context, req SplitRequest) (Pane, error)
 func (c *Client) StartAgent(ctx context.Context, req StartAgent) (AgentStarted, error)
+func (c *Client) Status(ctx context.Context) (Status, error)
 func (c *Client) StopAgent(ctx context.Context, id string) (Agent, error)
 func (c *Client) Tabs(ctx context.Context, environmentID string) ([]Tab, error)
 func (c *Client) Wait(ctx context.Context, id string, opts WaitOptions) (WaitResult, error)
+func (c *Client) ZoomPane(ctx context.Context, id string, on *bool) (Pane, error)
+func (k *KittyImages) Push(ev GraphicsEvent) []ImageOp
 func (o ObserverOptions) SocketPath() (string, error)
 func (o Options) SocketPath() (string, error)
 func Connect(opts Options) (*Client, error)
@@ -79,15 +117,30 @@ type Agent = agent.Agent
 type AgentList = agent.ListResult
 type AgentStarted = client.AgentStarted
 type AgentStatus = agent.Status
+type Cell = vt.Cell
+type CellStyle = vt.Style
 type Client struct
+type Color = vt.Color
+type CreateTabRequest = pane.CreateTabRequest
+type Cursor = vt.Cursor
+type CursorShape = vt.CursorShape
+type Direction = layout.Direction
 type Environment = environment.Environment
 type Error = protocol.Error
 type Event = event.Event
 type EventStream = client.EventStream
 type EventsRequest = observer.EventsRequest
 type Explanation = agent.Explanation
+type Frame = vt.Frame
+type FrameStream = client.FrameStream
+type GraphicsEvent = vt.GraphicsEvent
+type GraphicsStream = client.GraphicsStream
 type HistoryRequest = observer.HistoryRequest
+type ImageOp struct
+type KittyImages struct
+type LineUpdate = vt.LineUpdate
 type Manifest = agent.Manifest
+type Modes = vt.Modes
 type ObservedAgent = observer.Agent
 type ObservedEnvironment = observer.Environment
 type ObservedMetadata = observer.Metadata
@@ -115,6 +168,7 @@ type Process = process.Process
 type PromptOptions = client.PromptOptions
 type PromptResult = agent.PromptResult
 type ReadOptions = client.ReadRequest
+type Rect = layout.Rect
 type Rollups = agent.Rollups
 type Schema = protocol.Schema
 type Screen = observer.Screen
@@ -123,9 +177,13 @@ type ScreenStream = observer.ScreenStream
 type ScreenUpdate = observer.ScreenUpdate
 type Snapshot = client.APISnapshot
 type Spec = pane.Spec
+type SplitRequest = pane.SplitRequest
 type StartAgent = client.AgentStartRequest
 type State = agent.State
+type Status = client.Status
 type Tab = pane.Tab
+type TabCreated = client.TabCreated
+type TerminalScreen = vt.Screen
 type Until = agent.Until
 type WaitOptions = client.WaitOptions
 type WaitResult = agent.WaitResult

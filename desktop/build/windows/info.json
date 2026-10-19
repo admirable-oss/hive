@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "0.0.1"
+	},
+	"info": {
+		"0409": {
+			"ProductVersion": "0.0.1",
+			"CompanyName": "Admirable OSS",
+			"FileDescription": "Coding agents that keep working when you close the window",
+			"LegalCopyright": "(c) 2026, Admirable OSS (MIT)",
+			"ProductName": "Hive",
+			"Comments": "The Hive desktop app"
+		}
+	}
+}

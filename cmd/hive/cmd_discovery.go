@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	goruntime "runtime"
@@ -414,6 +416,7 @@ func newMachinePairCmd(a *app) *cobra.Command {
 		as, user string
 		host     string
 		m        remote.Machine
+		cf       checkFlags
 	)
 	cmd := &cobra.Command{
 		Use:   "pair <name|id>",
@@ -498,6 +501,9 @@ way, which also pins the identity of a machine on a network without multicast.`,
 			if old, ok, _ := a.machines().FindID(p.ID); ok {
 				return fmt.Errorf("%w: it is saved as %q", remote.ErrAlreadyPaired, old.Name)
 			}
+			if done, err := cf.handle(a, m, p, "new"); done {
+				return err
+			}
 			a.showProof(m, p, "new: not paired before")
 			if !a.confirm(fmt.Sprintf("trust this machine and save it as %q?", m.Name)) {
 				return errors.New("not paired; run again with --yes to pair without asking")
@@ -512,6 +518,7 @@ way, which also pins the identity of a machine on a network without multicast.`,
 		}),
 	}
 	f.add(cmd)
+	cf.add(cmd)
 	cmd.Flags().StringVar(&as, "as", "", "the name to save it under (default: its discovery name)")
 	cmd.Flags().StringVar(&user, "user", "", "the ssh user there (default: ssh's)")
 	cmd.Flags().StringVar(&host, "host", "", "pair this ssh destination instead of a discovered runtime")
@@ -534,7 +541,8 @@ func (a *app) showProof(m remote.Machine, p discovery.Proof, trust string) {
 }
 
 func newMachineTrustCmd(a *app) *cobra.Command {
-	return &cobra.Command{
+	var cf checkFlags
+	cmd := &cobra.Command{
 		Use:   "trust <name>",
 		Short: "Check a saved machine's identity, and pin it (or accept a changed one)",
 		Long: `Connect to a saved machine and have it prove its identity. A machine saved
@@ -550,6 +558,16 @@ accept the new one. --yes accepts without asking.`,
 			}
 			p, err := a.target(m.Target("")).Identify(ctx)
 			if err != nil {
+				return err
+			}
+			trust := "changed"
+			switch {
+			case p.ID == m.ID:
+				trust = "verified"
+			case m.ID == "":
+				trust = "unpinned"
+			}
+			if done, err := cf.handle(a, m, p, trust); done {
 				return err
 			}
 			switch {
@@ -581,6 +599,90 @@ accept the new one. --yes accepts without asking.`,
 			}
 			return a.done(map[string]any{"machine": saved, "changed": true}, "trusted machine %q as %s%s", saved.Name, discovery.ShortID(saved.ID), note)
 		}),
+	}
+	cf.add(cmd)
+	return cmd
+}
+
+// checkFlags let a program (the desktop app) show a machine's identity
+// before the user confirms it, and confirm exactly that identity: --check
+// proves it and prints it without saving anything; --expect-id refuses any
+// other identity when it is then confirmed (with --yes).
+type checkFlags struct {
+	check    bool
+	expectID string
+}
+
+func (c *checkFlags) add(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&c.check, "check", false, "prove its identity and print it (JSON), saving nothing")
+	cmd.Flags().StringVar(&c.expectID, "expect-id", "", "refuse unless it proves this identity (the one a --check showed)")
+}
+
+// identityCheck is what --check prints.
+type identityCheck struct {
+	Machine     remote.Machine  `json:"machine"`
+	Proof       discovery.Proof `json:"proof"`
+	Fingerprint string          `json:"fingerprint"`
+	// Trust is new (pairing), verified (the pinned identity), unpinned
+	// (none was pinned) or changed (another than the pinned one).
+	Trust string `json:"trust"`
+	// Pinned is the fingerprint pinned before, when it changed.
+	Pinned string `json:"pinned,omitempty"`
+}
+
+// handle prints the check, or refuses an unexpected identity; done says
+// the command is over.
+func (c *checkFlags) handle(a *app, m remote.Machine, p discovery.Proof, trust string) (done bool, err error) {
+	if c.expectID != "" && p.ID != c.expectID {
+		return true, fmt.Errorf("%s answered as %s, not the identity confirmed (%s); nothing was saved",
+			m.Host, discovery.ShortID(p.ID), discovery.ShortID(c.expectID))
+	}
+	if !c.check {
+		return false, nil
+	}
+	v := identityCheck{Machine: m, Proof: p, Fingerprint: discovery.Fingerprint(p.Key()), Trust: trust}
+	if trust == "changed" {
+		v.Pinned = fingerprintOf(m.PublicKey)
+	}
+	return true, a.printJSON(v)
+}
+
+func newMachineProxyCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "proxy <name>",
+		Short: "Bridge standard input and output to a saved machine's daemon (for programs)",
+		Long: `Connect standard input and output to a saved machine's daemon, over ssh, as
+` + "`--machine`" + ` does: what programs such as the desktop app talk to a machine
+through. A disabled machine, or one whose identity changed, is refused.`,
+		Args: exactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.machines().Get(args[0])
+			if err != nil {
+				return err
+			}
+			switch {
+			case m.Disabled:
+				return fmt.Errorf("machine %q is disabled (`hive machine enable %s`)", m.Name, m.Name)
+			case m.IdentityChanged:
+				return fmt.Errorf("machine %q proved another identity than the one it was paired with; check it, then `hive machine trust %s`", m.Name, m.Name)
+			}
+			conn, err := a.target(m.Target("")).Dial(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer conn.Close()
+			go func() {
+				_, _ = io.Copy(conn, os.Stdin)
+				if cw, ok := conn.(interface{ CloseWrite() error }); ok {
+					_ = cw.CloseWrite()
+				}
+			}()
+			_, err = io.Copy(a.out, conn)
+			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+				err = nil
+			}
+			return err
+		},
 	}
 }
 

@@ -22,6 +22,7 @@ underneath — `internal/platform`, `internal/pgroup` and the terminal device in
 | Strict plugin isolation | `sandbox-exec` | `bwrap` | not available |
 | Remote machines (`--remote`) | client and host | client and host | client only |
 | Local discovery ([docs](discovery.md)) | announce, discover, pair | announce, discover, pair | discover and pair only |
+| Desktop app, preview ([docs](desktop.md)) | WebKit; 13 and later | GTK 4, WebKitGTK 6.0 | WebView2 (amd64) |
 
 **Architecture policy.** A platform/architecture pair is *supported* when CI
 builds and tests it on every change and releases ship it. Windows arm64 is not

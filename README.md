@@ -56,6 +56,7 @@ Hive is at **v1.0 release candidates** and built in public. The wire API, the CL
 | Web observer: agents, states, screens and activity live in a browser, read-only; one-time share links, expiry and revocation, "observed" marks in the multiplexer ([docs](docs/web.md)) | ✅ working |
 | On your phone: an installable app with what needs you first, notifications when an agent is blocked or done (Web Push, end-to-end encrypted, no relay), deep links to the agent ([docs](docs/mobile.md)) | ✅ working |
 | Local discovery: opt-in mDNS announcements, pairing that proves each machine's identity over SSH before you confirm, identity changes caught and held until you accept them ([docs](docs/discovery.md)) | ✅ working |
+| Desktop app (preview): environments, agents and live terminals in a window, a tray that counts who needs you, native notifications, `hive://` links; macOS, Windows, Linux, on Wails ([docs](docs/desktop.md)) | 🧪 preview |
 
 ## Quick start
 

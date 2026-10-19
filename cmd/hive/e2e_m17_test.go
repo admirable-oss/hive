@@ -4,15 +4,18 @@ package main
 
 import (
 	"context"
+	"io"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/admirable-oss/hive/internal/discovery"
 	"github.com/admirable-oss/hive/internal/remote"
+	"github.com/admirable-oss/hive/pkg/hiveapi"
 )
 
 // freeUDP returns a loopback address with a free UDP port.
@@ -246,4 +249,78 @@ func TestM17ManualPairingAndDiscoveryOff(t *testing.T) {
 		t.Fatalf("trusted: %+v", list[1])
 	}
 	c.must("--machine", "b", "env", "list")
+}
+
+// procDial dials a daemon through a command's standard input and output
+// (`hive machine proxy <name>`), as the desktop app does.
+func procDial(c *cli, args ...string) func(context.Context) (net.Conn, error) {
+	return func(context.Context) (net.Conn, error) {
+		cmd := exec.Command(os.Args[0], args...)
+		cmd.Env = append(os.Environ(), "HIVE_CLI_TEST_EXEC=1", "HIVE_HOME="+c.home, "HIVE_CONFIG="+c.cfg, "GORACE=atexit_sleep_ms=0")
+		cmd.Env = append(cmd.Env, c.env...)
+		ours, theirs := net.Pipe()
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			return nil, err
+		}
+		cmd.Stdout = theirs
+		if err := cmd.Start(); err != nil {
+			return nil, err
+		}
+		go func() {
+			_, _ = io.Copy(stdin, theirs)
+			_ = stdin.Close()
+		}()
+		go func() {
+			_ = cmd.Wait()
+			_ = theirs.Close()
+		}()
+		return ours, nil
+	}
+}
+
+// TestM17ConfirmExactlyWhatWasShownAndProxy: a program shows a machine's
+// identity (--check, saving nothing), then pairs only that identity
+// (--expect-id); it reaches the machine's daemon through `hive machine
+// proxy`, which refuses machines that are disabled.
+func TestM17ConfirmExactlyWhatWasShownAndProxy(t *testing.T) {
+	c := newCLI(t)
+	root := c.fakeHosts()
+	c.host(root, "alpha", true)
+
+	var check identityCheck
+	decode(t, c.must("machine", "pair", "--host", "alpha", "--check"), &check)
+	if check.Trust != "new" || check.Proof.ID == "" || !strings.HasPrefix(check.Fingerprint, "SHA256:") || check.Machine.Name != "alpha" {
+		t.Fatalf("check: %+v", check)
+	}
+	if list := c.machineList(); len(list) != 0 {
+		t.Fatalf("--check saved something: %+v", list)
+	}
+	other := strings.Repeat("a", 26)
+	if _, errOut, code := c.run("machine", "pair", "--host", "alpha", "--yes", "--expect-id", other); code == 0 || !strings.Contains(errOut, "not the identity confirmed") {
+		t.Fatalf("pairing another identity: exit %d: %s", code, errOut)
+	}
+	c.must("machine", "pair", "--host", "alpha", "--yes", "--expect-id", check.Proof.ID)
+	decode(t, c.must("machine", "trust", "alpha", "--check"), &check)
+	if check.Trust != "verified" {
+		t.Fatalf("trust --check of a paired machine: %+v", check)
+	}
+
+	c.must("--machine", "alpha", "env", "create", "far", "--managed")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cl, err := hiveapi.ConnectContext(ctx, hiveapi.Options{Name: "test", Dial: procDial(c, "machine", "proxy", "alpha")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	envs, err := cl.Environments(ctx)
+	_ = cl.Close()
+	if err != nil || len(envs) != 1 || envs[0].ID != "far" {
+		t.Fatalf("environments through the proxy: %+v %v", envs, err)
+	}
+
+	c.must("machine", "disable", "alpha")
+	if _, errOut, code := c.run("machine", "proxy", "alpha"); code == 0 || !strings.Contains(errOut, "disabled") {
+		t.Fatalf("proxy to a disabled machine: exit %d: %s", code, errOut)
+	}
 }

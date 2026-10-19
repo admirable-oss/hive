@@ -22,6 +22,7 @@ package hiveapi
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 
@@ -126,6 +127,9 @@ type Options struct {
 	Home string
 	// Name identifies this client in the daemon's logs.
 	Name string
+	// Dial connects some other way (to a saved machine, through
+	// `hive machine proxy <name>`, say); it overrides the rest.
+	Dial func(ctx context.Context) (net.Conn, error)
 }
 
 // SocketPath resolves where the daemon listens.
@@ -178,15 +182,19 @@ func Connect(opts Options) (*Client, error) {
 
 // ConnectContext is Connect bounded by ctx.
 func ConnectContext(ctx context.Context, opts Options) (*Client, error) {
-	sock, err := opts.SocketPath()
-	if err != nil {
-		return nil, err
-	}
 	name := opts.Name
 	if name == "" {
 		name = "hiveapi"
 	}
-	c := client.NewService(client.Config{SocketPath: sock, Name: name})
+	cfg := client.Config{Name: name, Dial: opts.Dial, Remote: opts.Dial != nil}
+	if opts.Dial == nil {
+		sock, err := opts.SocketPath()
+		if err != nil {
+			return nil, err
+		}
+		cfg.SocketPath = sock
+	}
+	c := client.NewService(cfg)
 	if err := c.Ping(ctx); err != nil {
 		_ = c.Close()
 		return nil, err
