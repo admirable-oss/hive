@@ -4,6 +4,7 @@ package web_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -75,6 +76,20 @@ func TestSignInFollowAndRevoke(t *testing.T) {
 	ev := s.until(t, "the end of the stream", func(ev sseEvent) bool { return ev.name == "end" })
 	if !strings.Contains(ev.data, "revoked") {
 		t.Fatalf("end = %s", ev.data)
+	}
+	// A stream opened after revoking is refused; EventSource cannot read
+	// why, so the page asks /session, which must still say.
+	for _, p := range []string{"/stream?path=%2F", "/session"} {
+		req, _ := http.NewRequestWithContext(h.ctx, http.MethodGet, h.ts.URL+p, nil)
+		resp, err := b.c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized || !strings.Contains(string(body), `"revoked"`) {
+			t.Fatalf("%s after revoking: %s %s", p, resp.Status, body)
+		}
 	}
 	if _, at, _ := b.get("/"); at != "/login?reason=revoked" {
 		t.Fatalf("after revoking: %s", at)
