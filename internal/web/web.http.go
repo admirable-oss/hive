@@ -222,11 +222,14 @@ func (s *Server) authed(next authedHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sess, grant, reason := s.session(r)
 		if reason != "" {
-			s.clearCookie(w)
 			if r.URL.Path == "/stream" || strings.HasSuffix(r.URL.Path, "/output") || r.Method != http.MethodGet {
+				// The cookie stays (refused everywhere) so that the page's
+				// /session check, and its next load, can still say why:
+				// EventSource cannot read this answer.
 				writeJSON(w, http.StatusUnauthorized, map[string]string{"reason": reason})
 				return
 			}
+			s.clearCookie(w)
 			to := "/login?reason=" + reason
 			if next := safeNext(r.URL.RequestURI()); next != "" && next != "/" {
 				to += "&next=" + url.QueryEscape(next) // back here after signing in (a notification's link)

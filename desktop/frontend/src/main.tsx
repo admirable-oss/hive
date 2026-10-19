@@ -1,3 +1,4 @@
+import { MotionConfig } from "framer-motion";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { api, isWindows, listen } from "./api";
@@ -6,7 +7,7 @@ import { runCommand } from "./commands";
 import { App, PaneWindow } from "./components/App";
 import { ObserverWindow } from "./components/ObserverWindow";
 import { currentPane, show, store } from "./store";
-import "./styles.css";
+import "./index.css";
 
 // boot loads the current state and follows the app's events.
 export function boot() {
@@ -25,7 +26,14 @@ export function boot() {
       if (pane && paths.length > 0) api.paste(pane.id, quotePaths(paths, isWindows()) + " ").catch(store.fail);
     },
   });
-  api.connection().then((c) => store.set((s) => ({ ...s, connection: c }))).catch(() => {});
+  const connection = () => api.connection().then((c) => store.set((s) => ({ ...s, connection: c }))).catch(() => {});
+  void connection();
+  // Events sent while the window was still loading are lost: a daemon the
+  // app starts itself often connects just then. So the state is read again
+  // until it settles.
+  setInterval(() => {
+    if (store.state.connection.state !== "connected") void connection();
+  }, 1000);
   api.workspace().then((w) => store.setWorkspace(w)).catch(() => {});
   api.settings().then((st) => store.set((s) => ({ ...s, settings: st }))).catch(() => {});
   api.machines().then((m) => store.set((s) => ({ ...s, machines: m ?? [] }))).catch(() => {});
@@ -38,6 +46,8 @@ const observing = window.location.hash === "#/observe";
 if (!observing) boot();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {observing ? <ObserverWindow /> : route ? <PaneWindow pane={decodeURIComponent(route[1])} /> : <App />}
+    <MotionConfig reducedMotion="user">
+      {observing ? <ObserverWindow /> : route ? <PaneWindow pane={decodeURIComponent(route[1])} /> : <App />}
+    </MotionConfig>
   </StrictMode>,
 );

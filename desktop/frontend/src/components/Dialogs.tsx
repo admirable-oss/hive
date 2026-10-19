@@ -1,11 +1,16 @@
+import { GitBranch, Loader2, Send } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Modal } from "./Modal";
+import { Button } from "@/components/ui/button";
+import { DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
+import { Textarea } from "@/components/ui/textarea";
 import { api, type Manifest } from "../api";
 import { currentEnv, store, useStore, type Dialog as DialogState } from "../store";
+import { Field, NativeSelect } from "./Field";
 import { IdentitySheet, Machines } from "./Machines";
+import { close, Modal } from "./Modal";
 import { ObserveDialog } from "./ObserveDialog";
-
-const close = () => store.setUI({ dialog: undefined });
 
 function NewAgent({ env: initial }: { env?: string }) {
   const envs = useStore((s) => s.workspace.environments);
@@ -41,45 +46,47 @@ function NewAgent({ env: initial }: { env?: string }) {
       });
   };
   return (
-    <Modal title="New agent" onClose={close}>
-      <form onSubmit={submit}>
-        <label>
-          Agent
-          <select value={kind} onChange={(e) => setKind(e.target.value)} required>
-            {manifests.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Environment
-          <select value={env} onChange={(e) => setEnv(e.target.value)} required>
-            {envs.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.machine ? `${e.name} (${e.machine})` : e.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Worktree branch <span className="quiet">(optional: a new git worktree for this agent)</span>
-          <input value={worktree} onChange={(e) => setWorktree(e.target.value)} placeholder="fix/login" />
-        </label>
-        <label>
-          Name <span className="quiet">(optional)</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        {envs.length === 0 && <p className="quiet">Make an environment first: agents work in one.</p>}
-        <div className="buttons">
-          <button type="button" onClick={close}>
-            Cancel
-          </button>
-          <button className="primary" type="submit" disabled={busy || !kind || !env}>
-            Start
-          </button>
+    <Modal title="New agent" description="Start a coding agent in an environment. It keeps working when you close Hive.">
+      <form onSubmit={submit} className="grid gap-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Agent">
+            <NativeSelect value={kind} onChange={(e) => setKind(e.target.value)} required>
+              {manifests.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field label="Environment">
+            <NativeSelect value={env} onChange={(e) => setEnv(e.target.value)} required>
+              {envs.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.machine ? `${e.name} (${e.machine})` : e.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
         </div>
+        <Field label="Worktree branch" hint="optional: a new git worktree for this agent">
+          <div className="relative">
+            <GitBranch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input className="pl-8 font-mono" value={worktree} onChange={(e) => setWorktree(e.target.value)} placeholder="fix/login" />
+          </div>
+        </Field>
+        <Field label="Name" hint="optional">
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        {envs.length === 0 && <p className="text-sm text-muted-foreground">Make an environment first: agents work in one.</p>}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={close}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={busy || !kind || !env}>
+            {busy && <Loader2 className="animate-spin" />}
+            Start
+          </Button>
+        </DialogFooter>
       </form>
     </Modal>
   );
@@ -106,29 +113,29 @@ function Prompt({ agent: initial }: { agent?: string }) {
       });
   };
   return (
-    <Modal title="Prompt an agent" onClose={close}>
+    <Modal title="Prompt an agent" className="sm:max-w-xl">
       <form
+        className="grid gap-4"
         onSubmit={(e) => {
           e.preventDefault();
           send();
         }}
       >
-        <label>
-          Agent
-          <select value={agent} onChange={(e) => setAgent(e.target.value)}>
+        <Field label="Agent">
+          <NativeSelect value={agent} onChange={(e) => setAgent(e.target.value)}>
             {agents.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} ({a.state})
               </option>
             ))}
-          </select>
-        </label>
-        {target?.state === "blocked" && <p className="warn">This agent is blocked: answer it in its pane first.</p>}
-        <label>
-          Prompt
-          <textarea
+          </NativeSelect>
+        </Field>
+        {target?.state === "blocked" && <p className="rounded-md bg-blocked/10 px-3 py-2 text-sm text-blocked">This agent is blocked: answer it in its pane first.</p>}
+        <Field label="Prompt">
+          <Textarea
             autoFocus
-            rows={6}
+            rows={7}
+            className="font-mono text-[13px]"
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -138,16 +145,21 @@ function Prompt({ agent: initial }: { agent?: string }) {
               }
             }}
           />
-        </label>
-        <div className="buttons">
-          <span className="quiet">⌘/Ctrl + Enter sends</span>
-          <button type="button" onClick={close}>
-            Cancel
-          </button>
-          <button className="primary" type="submit" disabled={busy || !agent || !text.trim()}>
-            Send
-          </button>
-        </div>
+        </Field>
+        <DialogFooter className="items-center sm:justify-between">
+          <span className="text-xs text-muted-foreground">
+            <Kbd>⌘</Kbd>/<Kbd>Ctrl</Kbd> + <Kbd>Enter</Kbd> sends
+          </span>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={close}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={busy || !agent || !text.trim()}>
+              {busy ? <Loader2 className="animate-spin" /> : <Send />}
+              Send
+            </Button>
+          </div>
+        </DialogFooter>
       </form>
     </Modal>
   );
@@ -169,37 +181,34 @@ function NewEnvironment() {
       .catch(store.fail);
   };
   return (
-    <Modal title="New environment" onClose={close}>
-      <form onSubmit={submit}>
+    <Modal title="New environment" description="A place agents work in: a project directory, or a workspace Hive manages.">
+      <form onSubmit={submit} className="grid gap-4">
         {machines.length > 0 && (
-          <label>
-            Machine
-            <select value={machine} onChange={(e) => setMachine(e.target.value)}>
+          <Field label="Machine">
+            <NativeSelect value={machine} onChange={(e) => setMachine(e.target.value)}>
               <option value="">This computer</option>
               {machines.map((m) => (
                 <option key={m.name} value={m.name}>
                   {m.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </NativeSelect>
+          </Field>
         )}
-        <label>
-          Name
-          <input autoFocus value={id} onChange={(e) => setId(e.target.value)} pattern="[A-Za-z0-9][A-Za-z0-9._-]*" required />
-        </label>
-        <label>
-          Directory <span className="quiet">(an absolute path; empty makes a workspace Hive manages)</span>
-          <input value={dir} onChange={(e) => setDir(e.target.value)} placeholder="/Users/me/code/api" />
-        </label>
-        <div className="buttons">
-          <button type="button" onClick={close}>
+        <Field label="Name">
+          <Input autoFocus value={id} onChange={(e) => setId(e.target.value)} pattern="[A-Za-z0-9][A-Za-z0-9._-]*" required />
+        </Field>
+        <Field label="Directory" hint="an absolute path; empty makes a managed workspace">
+          <Input className="font-mono" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="/Users/me/code/api" />
+        </Field>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={close}>
             Cancel
-          </button>
-          <button className="primary" type="submit" disabled={!id.trim()}>
+          </Button>
+          <Button type="submit" disabled={!id.trim()}>
             Create
-          </button>
-        </div>
+          </Button>
+        </DialogFooter>
       </form>
     </Modal>
   );
@@ -207,12 +216,13 @@ function NewEnvironment() {
 
 function Confirm({ d }: { d: Extract<DialogState, { kind: "confirm" }> }) {
   return (
-    <Modal title={d.title} onClose={close}>
-      <p>{d.body}</p>
-      <div className="buttons">
-        <button onClick={close}>Cancel</button>
-        <button
-          className="danger"
+    <Modal title={d.title} description={d.body}>
+      <DialogFooter>
+        <Button variant="outline" onClick={close}>
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
           autoFocus
           onClick={() => {
             close();
@@ -220,8 +230,8 @@ function Confirm({ d }: { d: Extract<DialogState, { kind: "confirm" }> }) {
           }}
         >
           {d.action}
-        </button>
-      </div>
+        </Button>
+      </DialogFooter>
     </Modal>
   );
 }
@@ -245,17 +255,4 @@ export function Dialogs() {
     case "identity":
       return <IdentitySheet d={d} />;
   }
-}
-
-export function Toasts() {
-  const toasts = useStore((s) => s.ui.toasts);
-  return (
-    <div className="toasts" role="status" aria-live="polite">
-      {toasts.map((t) => (
-        <div key={t.id} className={"toast" + (t.error ? " error" : "")}>
-          {t.text}
-        </div>
-      ))}
-    </div>
-  );
 }

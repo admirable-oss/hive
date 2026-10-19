@@ -1,6 +1,13 @@
+import { Eye, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "../api";
 import { store, useStore } from "../store";
+import { Field, NativeSelect } from "./Field";
 import { close, Modal } from "./Modal";
 
 const durations = [1, 8, 24, 72, 168];
@@ -26,57 +33,53 @@ export function ObserveDialog() {
       });
   };
   return (
-    <Modal title="Open an observer window" onClose={close}>
-      <form onSubmit={submit}>
-        <p className="quiet">
-          A window for a shared screen or a second monitor. It shows agents and, if you allow it, their screens, and cannot type or
-          change anything. It gets its own observer credential, which ends when the window closes.
-        </p>
-        <fieldset className="choice">
-          <legend>It may see</legend>
-          <label className="inline">
-            <input type="radio" checked={all} onChange={() => setAll(true)} /> Everything on this computer
-          </label>
-          <label className="inline">
-            <input type="radio" checked={!all} onChange={() => setAll(false)} /> These environments:
-          </label>
+    <Modal
+      title="Open an observer window"
+      description="For a shared screen or a second monitor. It shows agents and, if you allow it, their screens, and cannot type or change anything. It gets its own observer credential, which ends when the window closes."
+    >
+      <form onSubmit={submit} className="grid gap-4">
+        <fieldset className="grid gap-2.5">
+          <legend className="mb-2 text-sm font-medium">It may see</legend>
+          <RadioGroup value={all ? "all" : "some"} onValueChange={(v) => setAll(v === "all")}>
+            <Label className="font-normal">
+              <RadioGroupItem value="all" /> Everything on this computer
+            </Label>
+            <Label className="font-normal">
+              <RadioGroupItem value="some" /> These environments
+            </Label>
+          </RadioGroup>
           {!all && (
-            <div className="env-choices">
+            <div className="ml-6 grid gap-2">
               {envs.map((e) => (
-                <label key={e.id} className="inline">
-                  <input
-                    type="checkbox"
-                    checked={chosen.includes(e.id)}
-                    onChange={(ev) => setChosen((c) => (ev.target.checked ? [...c, e.id] : c.filter((x) => x !== e.id)))}
-                  />{" "}
+                <Label key={e.id} className="font-normal">
+                  <Checkbox checked={chosen.includes(e.id)} onCheckedChange={(on) => setChosen((c) => (on ? [...c, e.id] : c.filter((x) => x !== e.id)))} />
                   {e.name}
-                </label>
+                </Label>
               ))}
             </div>
           )}
         </fieldset>
-        <label className="inline">
-          <input type="checkbox" checked={screens} onChange={(e) => setScreens(e.target.checked)} /> Show screens (otherwise
-          states only)
-        </label>
-        <label>
-          For
-          <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
+        <Label className="font-normal">
+          <Checkbox checked={screens} onCheckedChange={(on) => setScreens(on === true)} /> Show screens <span className="text-muted-foreground">(otherwise states only)</span>
+        </Label>
+        <Field label="For">
+          <NativeSelect value={hours} onChange={(e) => setHours(Number(e.target.value))}>
             {durations.map((h) => (
               <option key={h} value={h}>
                 {h < 24 ? `${h} hour${h > 1 ? "s" : ""}` : `${h / 24} day${h > 24 ? "s" : ""}`}
               </option>
             ))}
-          </select>
-        </label>
-        <div className="buttons">
-          <button type="button" onClick={close}>
+          </NativeSelect>
+        </Field>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={close}>
             Cancel
-          </button>
-          <button className="primary" type="submit" disabled={busy || (!all && chosen.length === 0)}>
+          </Button>
+          <Button type="submit" disabled={busy || (!all && chosen.length === 0)}>
+            {busy ? <Loader2 className="animate-spin" /> : <Eye />}
             Open window
-          </button>
-        </div>
+          </Button>
+        </DialogFooter>
       </form>
     </Modal>
   );

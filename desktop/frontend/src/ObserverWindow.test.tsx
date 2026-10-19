@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import axe from "axe-core";
 import type { ObservedScreen, ObservedView } from "./api";
 
@@ -48,7 +48,7 @@ describe("observer window", () => {
     const { container } = render(<ObserverWindow />);
     expect(await screen.findByText("asks to run tests")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Read-only");
-    expect(calls).toContain("watch(p1)");
+    await waitFor(() => expect(calls).toContain("watch(p1)")); // an effect, which may run after the text shows
     expect(calls).not.toContain("watch(p2)"); // shells only when asked
     act(() => pushScreen({ pane: "p1", keyframe: true, width: 20, height: 2, lines: [{ y: 0, text: "Run the tests? y/n" }], cursor: { x: 0, y: 0, visible: true, shape: "block" } }));
     expect(screen.getByLabelText("Screen")).toHaveTextContent("Run the tests? y/n");

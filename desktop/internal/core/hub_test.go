@@ -226,11 +226,11 @@ func TestHubDrivesTheDaemon(t *testing.T) {
 	h2 := New(Config{Home: home, Hive: hiveBin, Emitter: &recorder{}})
 	h2.Start()
 	defer h2.Close()
-	waitFor(t, "a second connection", 30*time.Second, func() bool { return h2.Connection().State == StateConnected })
-	p, ok := paneByID(h2.Workspace(), pane)
-	if !ok || !p.Running {
-		t.Fatalf("the pane did not survive the app: %+v %v", p, ok)
-	}
+	// Connected comes before the first workspace, so wait for the pane.
+	waitFor(t, "the pane, running, on a second connection", 30*time.Second, func() bool {
+		p, ok := paneByID(h2.Workspace(), pane)
+		return h2.Connection().State == StateConnected && ok && p.Running
+	})
 }
 
 // TestHubReconnects: when the daemon goes away the hub says so, and comes

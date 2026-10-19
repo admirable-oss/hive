@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useStore } from "../store";
 import { palette, schemeFor, type Scheme } from "../theme";
 
@@ -20,6 +20,22 @@ export function useScheme(): Scheme {
     systemDark,
   );
   return schemeFor(theme, sys);
+}
+
+// useApplyScheme puts the scheme on the document (Tailwind's dark variant),
+// switching at once rather than easing every coloured element across.
+export function useApplyScheme(): Scheme {
+  const scheme = useScheme();
+  useEffect(() => {
+    const still = document.createElement("style");
+    still.textContent = "*,*::before,*::after{transition:none!important}";
+    document.head.appendChild(still);
+    document.documentElement.classList.toggle("dark", scheme === "dark");
+    document.documentElement.style.colorScheme = scheme;
+    void getComputedStyle(document.body).color;
+    requestAnimationFrame(() => still.remove());
+  }, [scheme]);
+  return scheme;
 }
 
 const palettes = { dark: palette("dark"), light: palette("light") };

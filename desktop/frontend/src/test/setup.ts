@@ -15,3 +15,8 @@ HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
   const height = probe ? 17 : 480;
   return { width, height, x: 0, y: 0, top: 0, left: 0, right: width, bottom: height, toJSON: () => ({}) } as DOMRect;
 };
+
+// Radix and cmdk use these; jsdom has none.
+Element.prototype.scrollIntoView ??= function () {};
+Element.prototype.hasPointerCapture ??= () => false;
+Element.prototype.releasePointerCapture ??= () => {};

@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from "react";
+import { toast } from "sonner";
+import { createStore, useStore as useZustand, type StoreApi } from "zustand";
 import type { Agent, Connection, IdentityCheck, ImageUpdate, MachineStatus, Pane, PairRequest, ScreenUpdate, Settings, Tab, Workspace } from "./api";
 import { applyUpdate, type Screen } from "./screen";
 
@@ -13,12 +14,6 @@ export type Dialog =
   | { kind: "identity"; check: IdentityCheck; pair?: PairRequest; machine?: string }
   | { kind: "confirm"; title: string; body: string; action: string; run: () => void };
 
-export interface Toast {
-  id: number;
-  text: string;
-  error?: boolean;
-}
-
 export interface UI {
   // history is the pane whose scrollback is open.
   history?: string;
@@ -30,7 +25,6 @@ export interface UI {
   sidebar: boolean;
   palette: boolean;
   dialog?: Dialog;
-  toasts: Toast[];
 }
 
 export interface State {
@@ -41,17 +35,14 @@ export interface State {
   ui: UI;
 }
 
-export const emptyWorkspace: Workspace = { environments: [], tabs: [], panes: [], agents: [], state: "", counts: {} };
-
-export function initialState(): State {
-  return {
-    connection: { state: "connecting", session: "default" },
-    workspace: emptyWorkspace,
-    settings: { notify_on: ["blocked", "done"], system_notifications: false, theme: "auto", prefix: ["ctrl+b"] },
-    machines: [],
-    ui: { sidebar: true, palette: false, toasts: [], optionIsMeta: readPref("hive.optionIsMeta") === "1" },
-  };
+// Screens and images are kept apart from the rest: a busy pane redraws
+// itself only.
+interface Screens {
+  screens: Record<string, Screen | undefined>;
+  images: Record<string, ImageUpdate[] | undefined>;
 }
+
+export const emptyWorkspace: Workspace = { environments: [], tabs: [], panes: [], agents: [], state: "", counts: {} };
 
 // Per-window preferences live in the webview's storage: nothing that
 // matters if lost, and never terminal contents.
@@ -71,34 +62,32 @@ export function writePref(key: string, value: string) {
   }
 }
 
-type Listener = () => void;
+export function initialState(): State {
+  return {
+    connection: { state: "connecting", session: "default" },
+    workspace: emptyWorkspace,
+    settings: { notify_on: ["blocked", "done"], system_notifications: false, theme: "auto", prefix: ["ctrl+b"] },
+    machines: [],
+    ui: { sidebar: true, palette: false, optionIsMeta: readPref("hive.optionIsMeta") === "1" },
+  };
+}
 
-// Store holds what the app shows. Screens are kept apart from the rest, so
-// a busy pane redraws itself only.
+// Store is what the app shows: two zustand stores, and the actions on them.
 export class Store {
-  state: State = initialState();
-  private screens = new Map<string, Screen>();
-  // images are what agents printed over each pane, by placement.
-  private images = new Map<string, ImageUpdate[]>();
-  private listeners = new Set<Listener>();
-  private screenListeners = new Map<string, Set<Listener>>();
-  private toastSeq = 0;
+  readonly app: StoreApi<State> = createStore<State>()(initialState);
+  readonly panes: StoreApi<Screens> = createStore<Screens>()(() => ({ screens: {}, images: {} }));
   private pending?: string;
-  // lost is called when a pane's updates skipped one; it asks again.
+  // onLost is called when a pane's updates skipped one; it asks again.
   onLost: (pane: string) => void = () => {};
 
-  subscribe = (l: Listener) => {
-    this.listeners.add(l);
-    return () => this.listeners.delete(l);
-  };
-
-  private emit() {
-    this.listeners.forEach((l) => l());
+  get state(): State {
+    return this.app.getState();
   }
 
+  subscribe = (l: () => void) => this.app.subscribe(l);
+
   set(change: (s: State) => State) {
-    this.state = change(this.state);
-    this.emit();
+    this.app.setState(change(this.app.getState()), true);
   }
 
   setUI(change: Partial<UI>) {
@@ -106,14 +95,13 @@ export class Store {
   }
 
   setWorkspace(w: Workspace) {
-    for (const pane of this.screens.keys()) {
-      if (!w.panes.some((p) => p.id === pane)) this.screens.delete(pane);
-    }
-    for (const pane of this.images.keys()) {
-      if (!w.panes.some((p) => p.id === pane)) this.images.delete(pane);
-    }
+    const live = new Set(w.panes.map((p) => p.id));
+    this.panes.setState((p) => ({
+      screens: Object.fromEntries(Object.entries(p.screens).filter(([id]) => live.has(id))),
+      images: Object.fromEntries(Object.entries(p.images).filter(([id]) => live.has(id))),
+    }));
     this.set((s) => ({ ...s, workspace: w }));
-    if (this.pending && w.panes.some((p) => p.id === this.pending)) {
+    if (this.pending && live.has(this.pending)) {
       const pane = this.pending;
       this.pending = undefined;
       show(this, pane);
@@ -127,42 +115,33 @@ export class Store {
   }
 
   toast(text: string, error = false) {
-    const id = ++this.toastSeq;
-    this.setUI({ toasts: [...this.state.ui.toasts, { id, text, error }].slice(-4) });
-    setTimeout(() => this.setUI({ toasts: this.state.ui.toasts.filter((t) => t.id !== id) }), error ? 8000 : 4000);
+    if (error) toast.error(text);
+    else toast(text);
   }
 
   fail = (err: unknown) => {
-    const text = err instanceof Error ? err.message : String(err);
-    this.toast(text, true);
+    this.toast(err instanceof Error ? err.message : String(err), true);
   };
 
-  // --- screens ---
+  // --- screens and images ---
 
   screen(pane: string): Screen | undefined {
-    return this.screens.get(pane);
-  }
-
-  subscribeScreen(pane: string, l: Listener) {
-    let set = this.screenListeners.get(pane);
-    if (!set) {
-      set = new Set();
-      this.screenListeners.set(pane, set);
-    }
-    set.add(l);
-    return () => {
-      set.delete(l);
-      if (set.size === 0) this.screenListeners.delete(pane);
-    };
+    return this.panes.getState().screens[pane];
   }
 
   imagesOf(pane: string): ImageUpdate[] | undefined {
-    return this.images.get(pane);
+    return this.panes.getState().images[pane];
+  }
+
+  applyScreen(u: ScreenUpdate) {
+    const { screen, lost } = applyUpdate(this.screen(u.pane), u);
+    this.panes.setState((p) => ({ screens: { ...p.screens, [u.pane]: screen } }));
+    if (lost) this.onLost(u.pane);
   }
 
   // applyImage keeps at most 32 placements a pane, the newest.
   applyImage(u: ImageUpdate) {
-    const now = this.images.get(u.pane) ?? [];
+    const now = this.imagesOf(u.pane) ?? [];
     let next: ImageUpdate[];
     switch (u.op) {
       case "place":
@@ -175,36 +154,22 @@ export class Store {
         next = [];
     }
     if (next.length === 0 && now.length === 0) return;
-    this.images.set(u.pane, next);
-    this.screenListeners.get(u.pane)?.forEach((l) => l());
-  }
-
-  applyScreen(u: ScreenUpdate) {
-    const { screen, lost } = applyUpdate(this.screens.get(u.pane), u);
-    this.screens.set(u.pane, screen);
-    this.screenListeners.get(u.pane)?.forEach((l) => l());
-    if (lost) this.onLost(u.pane);
+    this.panes.setState((p) => ({ images: { ...p.images, [u.pane]: next } }));
   }
 }
 
 export const store = new Store();
 
 export function useStore<T>(select: (s: State) => T, s: Store = store): T {
-  return useSyncExternalStore(s.subscribe, () => select(s.state));
-}
-
-export function useImages(pane: string, s: Store = store): ImageUpdate[] | undefined {
-  return useSyncExternalStore(
-    (l) => s.subscribeScreen(pane, l),
-    () => s.imagesOf(pane),
-  );
+  return useZustand(s.app, select);
 }
 
 export function useScreen(pane: string, s: Store = store): Screen | undefined {
-  return useSyncExternalStore(
-    (l) => s.subscribeScreen(pane, l),
-    () => s.screen(pane),
-  );
+  return useZustand(s.panes, (p) => p.screens[pane]);
+}
+
+export function useImages(pane: string, s: Store = store): ImageUpdate[] | undefined {
+  return useZustand(s.panes, (p) => p.images[pane]);
 }
 
 // --- what is shown ---
@@ -239,10 +204,7 @@ export function agentOfPane(s: State, pane: string | undefined): Agent | undefin
 
 // attention lists agents that need someone: blocked first, then done.
 export function attention(w: Workspace): Agent[] {
-  return [
-    ...w.agents.filter((a) => a.state === "blocked"),
-    ...w.agents.filter((a) => a.state === "done"),
-  ];
+  return [...w.agents.filter((a) => a.state === "blocked"), ...w.agents.filter((a) => a.state === "done")];
 }
 
 // show makes a pane the shown and focused one.

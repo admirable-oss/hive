@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import { api, type Pane, type Tab } from "../api";
 import { currentPane, store, useStore } from "../store";
 import { Terminal } from "./Terminal";
@@ -70,8 +71,9 @@ export function PaneGrid({ tab }: { tab: Tab }) {
   const cellVars = { "--cell-h": `${cell.h}px` } as React.CSSProperties;
 
   return (
-    <div className="pane-grid" ref={ref} style={cellVars}>
-      <span className="cell-probe" ref={probe} aria-hidden>
+    <div className="flex min-h-0 flex-1 bg-term-bg p-1.5">
+    <div className="relative min-h-0 flex-1 overflow-hidden bg-border font-mono text-[length:var(--term-size)] leading-[var(--term-line)]" ref={ref} style={cellVars}>
+      <span className="cell-probe invisible absolute whitespace-pre" ref={probe} aria-hidden>
         {"0".repeat(100)}
       </span>
       {area.w > 0 &&
@@ -80,7 +82,9 @@ export function PaneGrid({ tab }: { tab: Tab }) {
           return (
             <section
               key={p.id}
-              className={"pane" + (p.popup ? " popup" : "") + (p.id === focused ? " is-focused" : "")}
+              data-pane={p.id}
+              data-focused={p.id === focused || undefined}
+              className={cn("absolute overflow-hidden pb-px pl-px", p.popup && "z-10 rounded-lg shadow-2xl ring-1 ring-border")}
               style={{ left: r.x * sx, top: r.y * sy, width: r.w * sx, height: r.h * sy }}
               aria-label={p.name || "pane"}
             >
@@ -88,7 +92,8 @@ export function PaneGrid({ tab }: { tab: Tab }) {
             </section>
           );
         })}
-      {tiled.length === 0 && <div className="empty">This tab has no panes.</div>}
+      {tiled.length === 0 && <div className="grid h-full place-items-center bg-background text-sm text-muted-foreground">This tab has no panes.</div>}
+    </div>
     </div>
   );
 }
@@ -99,15 +104,17 @@ export function SinglePane({ pane }: { pane: Pane }) {
   const [probe, cell] = useCellSize();
   const [ref, area] = useArea(cell);
   return (
-    <div className="pane-grid single" ref={ref} style={{ "--cell-h": `${cell.h}px` } as React.CSSProperties}>
-      <span className="cell-probe" ref={probe} aria-hidden>
+    <div className="flex min-h-0 flex-1 bg-term-bg p-1.5">
+    <div className="relative min-h-0 flex-1 overflow-hidden font-mono text-[length:var(--term-size)] leading-[var(--term-line)]" ref={ref} style={{ "--cell-h": `${cell.h}px` } as React.CSSProperties}>
+      <span className="cell-probe invisible absolute whitespace-pre" ref={probe} aria-hidden>
         {"0".repeat(100)}
       </span>
       {area.cols > 1 && (
-        <section className="pane is-focused" style={{ inset: 0 }}>
+        <section className="absolute inset-0" data-pane={pane.id} data-focused>
           <Terminal pane={pane} cols={area.cols} rows={area.rows} cell={cell} focused onFocus={() => {}} />
         </section>
       )}
+    </div>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useRef } from "react";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { api, isMac, type Line, type Pane } from "../api";
 import { encodeKey, encodeMouse, focusReport, ModeBracketedPaste, mouseWanted, type MouseKind } from "../keys";
 import { lineText } from "../screen";
@@ -36,12 +38,12 @@ const Row = memo(function Row({ line, pal }: { line: Line; pal: string[] }) {
             [underline ? "underline" : "", attrs & ATTR_STRIKE ? "line-through" : ""].filter(Boolean).join(" ") || undefined,
           textDecorationStyle: underline === 3 ? "wavy" : underline === 2 ? "double" : underline === 4 ? "dotted" : underline === 5 ? "dashed" : undefined,
         };
-        const cls = attrs & ATTR_BLINK ? "run blink" : "run";
+        const cls = attrs & ATTR_BLINK ? "term-run term-blink" : "term-run";
         if (r.l) {
           return (
             <a
               key={i}
-              className={cls + " link"}
+              className={cls + " cursor-pointer underline decoration-dotted underline-offset-2"}
               style={style}
               href={r.l}
               title={r.l}
@@ -184,7 +186,10 @@ export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
   const bracketed = ((screen?.modes ?? 0) & ModeBracketedPaste) !== 0;
   return (
     <div
-      className={"term" + (focused ? " focused" : "")}
+      className={cn(
+        "relative h-full w-full cursor-text overflow-hidden bg-term-bg text-term-fg transition-shadow",
+        focused && "shadow-[inset_0_0_0_1px_var(--ring)]",
+      )}
       onMouseUp={() => {
         if (!window.getSelection()?.toString()) {
           onFocus();
@@ -196,7 +201,7 @@ export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
       data-bracketed={bracketed || undefined}
     >
       <div
-        className={"term-screen" + (reporting ? " reporting" : "")}
+        className={cn("term-screen relative select-text", reporting && "cursor-default")}
         role="log"
         aria-label={`Terminal: ${title}`}
         aria-live="off"
@@ -222,7 +227,7 @@ export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
         {(images ?? []).map((img) => (
           <img
             key={img.key}
-            className="term-image"
+            className="term-image pointer-events-none absolute object-contain"
             src={img.src}
             alt=""
             draggable={false}
@@ -231,21 +236,27 @@ export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
         ))}
         {cursor?.visible && focused && !screen?.ended && (
           <div
-            className={`term-cursor ${cursor.shape}${cursor.blink ? " blink" : ""}`}
+            className={`term-cursor ${cursor.shape}${cursor.blink ? " term-blink" : ""}`}
             style={{ left: `${cursor.x}ch`, top: `calc(${cursor.y} * var(--cell-h))` }}
             aria-hidden
           />
         )}
       </div>
-      {!screen && <div className="term-wait">Connecting to the terminal…</div>}
+      {!screen && (
+        <div className="absolute inset-0 grid place-items-center text-xs text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <Loader2 className="size-3.5 animate-spin" /> Connecting to the terminal…
+          </span>
+        </div>
+      )}
       {screen?.ended && !pane.running && (
-        <div className="term-ended" role="status">
+        <div className="absolute right-2 bottom-2 rounded-md border bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm" role="status">
           Process ended{pane.exit != null ? ` (exit ${pane.exit})` : ""}
         </div>
       )}
       <textarea
         ref={input}
-        className="term-input"
+        className="absolute top-0 left-0 size-px resize-none overflow-hidden border-0 p-0 opacity-0"
         aria-label={`Type into ${title}`}
         autoCapitalize="off"
         autoComplete="off"
