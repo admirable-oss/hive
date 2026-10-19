@@ -314,8 +314,15 @@ func TestObserverRevocation(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the revoked observer's connection stayed open")
 	}
-	if _, err := stream.Next(); err == nil {
-		t.Fatalf("the revoked observer's stream kept going: %v", err)
+	// Events written before the revocation may still be buffered here;
+	// after them the stream must end.
+	for n := 0; ; n++ {
+		if _, err := stream.Next(); err != nil {
+			break
+		}
+		if n == 100 {
+			t.Fatal("the revoked observer's stream kept going")
+		}
 	}
 	if _, err := observer.Connect(ctx, observer.ClientConfig{Socket: created.Socket, Token: created.Token}); code(err) != protocol.ErrorCodePermissionDenied {
 		t.Fatalf("connecting with a revoked token: %v", err)
