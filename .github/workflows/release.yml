@@ -22,7 +22,7 @@ jobs:
         env:
           HIVE_RELEASE_SIGNING_KEY: ${{ secrets.HIVE_RELEASE_SIGNING_KEY }}
           HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # Hive releases are annotated tags (git tag -a). The official plugins'
@@ -32,10 +32,10 @@ jobs:
         run: |
           git fetch --force --tags
           test "$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}")" = tag || { echo "::error::${GITHUB_REF_NAME} is a lightweight tag; hive releases are annotated (git tag -a)"; exit 1; }
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
           version: v2.18.2
           args: release --clean
@@ -47,7 +47,7 @@ jobs:
           HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       - name: check out the Homebrew tap
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: admirable-oss/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
