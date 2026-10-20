@@ -1,8 +1,8 @@
 name: Sync docs to the Hive website
 
 # Regenerates the website's pages for the repository docs (the list is in
-# hive-landing/.github/scripts/sync-hive-docs.mjs), the roadmap snapshot and
-# the plugin revocations, and opens a pull request on hive-landing.
+# hive-web/.github/scripts/sync-hive-docs.mjs), the roadmap snapshot and
+# the plugin revocations, and opens a pull request on hive-web.
 
 on:
   push:
@@ -39,24 +39,24 @@ jobs:
           client-id: ${{ vars.PULLIVE_APP_CLIENT_ID }}
           private-key: ${{ secrets.PULLIVE_APP_PRIVATE_KEY }}
           owner: admirable-oss
-          repositories: hive,hive-landing
+          repositories: hive,hive-web
           permission-contents: write
           permission-pull-requests: write
       - uses: actions/checkout@v4
         with:
-          repository: admirable-oss/hive-landing
+          repository: admirable-oss/hive-web
           token: ${{ steps.pullive-token.outputs.token }}
-          path: hive-landing
+          path: hive-web
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12"
       - name: Generate the website's docs pages
-        run: node hive-landing/.github/scripts/sync-hive-docs.mjs hive
+        run: node hive-web/.github/scripts/sync-hive-docs.mjs hive
       - name: Create a docs update pull request
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.pullive-token.outputs.token }}
-          path: hive-landing
+          path: hive-web
           branch: automation/sync-hive-docs
           base: main
           delete-branch: true

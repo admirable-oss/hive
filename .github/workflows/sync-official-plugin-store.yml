@@ -31,28 +31,28 @@ jobs:
           client-id: ${{ vars.PULLIVE_APP_CLIENT_ID }}
           private-key: ${{ secrets.PULLIVE_APP_PRIVATE_KEY }}
           owner: admirable-oss
-          repositories: hive,hive-landing
+          repositories: hive,hive-web
           permission-contents: write
           permission-pull-requests: write
       - uses: actions/checkout@v4
         with:
-          repository: admirable-oss/hive-landing
+          repository: admirable-oss/hive-web
           token: ${{ steps.pullive-token.outputs.token }}
-          path: hive-landing
+          path: hive-web
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12"
       - name: Seed official plugin releases into the website registry
-        run: node hive-landing/.github/scripts/seed-official-registry.mjs hive
+        run: node hive-web/.github/scripts/seed-official-registry.mjs hive
       # Revocations are served beside the catalog (hive 1.0.10 and later
       # read them; docs/plugins/ecosystem.md).
       - name: Copy the registry's revocations
-        run: cp hive/registry/revocations.json hive-landing/public/plugins/revocations.json
+        run: cp hive/registry/revocations.json hive-web/public/plugins/revocations.json
       - name: Create a registry update pull request
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.pullive-token.outputs.token }}
-          path: hive-landing
+          path: hive-web
           branch: automation/sync-official-plugin-registry
           base: main
           delete-branch: true

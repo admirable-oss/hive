@@ -43,7 +43,7 @@ jobs:
           client-id: ${{ vars.PULLIVE_APP_CLIENT_ID }}
           private-key: ${{ secrets.PULLIVE_APP_PRIVATE_KEY }}
           owner: admirable-oss
-          repositories: hive,hive-landing
+          repositories: hive,hive-web
           permission-contents: write
           permission-pull-requests: write
       - name: Open a pull request for the release records

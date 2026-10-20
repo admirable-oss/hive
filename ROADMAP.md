@@ -1269,7 +1269,7 @@ major-version roadmap is published with community input.
 - [x] The docs on the website: compatibility matrix, upgrading, operations,
   threat model, security policy and review, plugin ecosystem, governance,
   RFCs, discovery and the desktop app. They are generated from this
-  repository (`hive-landing/.github/scripts/sync-hive-docs.mjs`) and kept
+  repository (`admirable-oss/hive-web`, `.github/scripts/sync-hive-docs.mjs`) and kept
   current by the `sync-docs-to-website` workflow, which also serves
   `/plugins/revocations.json`.
 - [ ] RFC 0001 discussed with plugin authors and users, and accepted; then
