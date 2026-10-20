@@ -21,7 +21,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: hive
       - name: Create cross-repository pull request token
@@ -34,12 +34,12 @@ jobs:
           repositories: hive,hive-web
           permission-contents: write
           permission-pull-requests: write
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: admirable-oss/hive-web
           token: ${{ steps.pullive-token.outputs.token }}
           path: hive-web
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22.12"
       - name: Seed official plugin releases into the website registry
