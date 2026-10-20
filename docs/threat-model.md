@@ -63,9 +63,12 @@ socket. Other machines are reached through the user's ssh.
 6. **The desktop webview.** The page reaches Go only through typed methods
    that validate input; it loads only embedded code (CSP), and terminal
    images are re-encoded in Go before it sees them.
-7. **Releases and updates.** `checksums.txt` is signed with ed25519 in CI.
-   `hive update` checks the signature with the key built into the running
-   binary, then the archive's checksum, then that the new binary runs.
+7. **Releases and updates.** `checksums.txt` is signed with ed25519 in CI,
+   as a raw signature for `hive update` and in OpenSSH's format for the
+   installers. `hive update` checks the signature with the key built into
+   the running binary, then the archive's checksum, then that the new binary
+   runs. Every archive has an SBOM and a build provenance attestation, and
+   builds are reproducible.
 8. **Plugins.** Installed only after a preview and a yes. A registry release
    is pinned to a commit and an archive checksum and checked against the
    manifest. Plugin API 1 enforces declared capabilities on the plugin's
@@ -90,10 +93,14 @@ socket. Other machines are reached through the user's ssh.
   environment records (`HIVE_HOME`, private to you), because Hive needs them
   to restart agents. Do not put long-lived secrets in `hive env create -e`;
   let agents read them from your keychain or credential helpers.
-- **Installers check checksums, not signatures.** `install.sh` and
-  `install.ps1` verify the archive against `checksums.txt` from the same
-  release. The first verified install is `hive update`, or a manual
-  `tools/release-sign verify`. Every update after it checks the signature.
+- **The installer script itself is trusted on first use.** From v1.1.0,
+  `install.sh` and `install.ps1` verify the release's signature with the
+  key embedded in them, but the script is fetched from GitHub over TLS, so
+  a GitHub compromise could serve a different script with a different key.
+  Read the script before running it, or verify a download by hand
+  ([docs/releasing.md](releasing.md#verifying-a-release)).
+  `HIVE_ALLOW_UNVERIFIED=1` falls back to the checksum where `ssh-keygen`
+  is missing.
 - **Builds from source carry no release key**, so their `hive update` checks
   only checksums, and says so.
 - **The desktop app is a preview**: its packages are not signed yet and it

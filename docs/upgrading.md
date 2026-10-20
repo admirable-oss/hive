@@ -82,19 +82,26 @@ reinstalling the app leaves agents running.
 ### Installers
 
 `install.sh` (`HIVE_VERSION`, `HIVE_CHANNEL`, `HIVE_INSTALL_DIR`) and
-`install.ps1` check the archive against `checksums.txt`. They cannot check
-the signature, so to verify a download made outside `hive update`:
+`install.ps1` check `checksums.txt` against the release key's signature
+(`checksums.txt.sshsig`, with `ssh-keygen -Y verify`), then the archive
+against `checksums.txt`. The key is embedded in the installers.
+
+- **A signature that does not verify** stops the install, always.
+- **A release with no signature** is refused. The exception is
+  `v1.0.0-rc.1`, which was published before installer signatures existed
+  and installs on its checksum alone, with a warning.
+- **No `ssh-keygen`, or OpenSSH older than 8.1:** the install stops and says
+  so. Install the OpenSSH client (on Windows: Settings → Optional features),
+  or set `HIVE_ALLOW_UNVERIFIED=1` to rely on the checksum alone.
+
+To check the hive you have against its signed release, byte for byte:
 
 ```sh
-curl -fsSLO https://github.com/admirable-oss/hive/releases/download/v1.0.10/checksums.txt
-curl -fsSLO https://github.com/admirable-oss/hive/releases/download/v1.0.10/checksums.txt.sig
-go run ./tools/release-sign verify <release public key> checksums.txt   # from a checkout
-shasum -a 256 -c checksums.txt --ignore-missing
+hive version --verify
 ```
 
-The public key is published with each release, and `hive update` uses the
-copy built into your binary. Once one verified hive is installed, every
-`hive update` after it checks signatures by itself.
+[docs/releasing.md](releasing.md#verifying-a-release) shows how to verify a
+download by hand, its build provenance, and that it is reproducible.
 
 ## When an upgrade fails
 

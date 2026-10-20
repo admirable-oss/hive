@@ -4,6 +4,46 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.1.0 (unreleased): Trusted distribution (M20)
+
+### Verified installs
+
+- `install.sh` and `install.ps1` check the release signature before
+  installing: `checksums.txt.sshsig`, the release key's signature in
+  OpenSSH's format, verified with `ssh-keygen -Y verify`. A signature that
+  does not verify, or a release without one, stops the install.
+  `HIVE_ALLOW_UNVERIFIED=1` relies on the checksum where `ssh-keygen` is
+  missing. `v1.0.0-rc.1`, published before installer signatures, still
+  installs on its checksum.
+- `hive version --verify` downloads the signed release the binary claims to
+  be and compares the two byte for byte.
+
+### Provenance
+
+- Every archive has an SPDX SBOM and a build provenance attestation
+  (`gh attestation verify`).
+- Reproducible builds: archives carry the commit's timestamps, and CI builds
+  every change twice and compares the bytes (`make reproducible`).
+- `tools/release-sign sign-ssh` and `allowed-signers`.
+
+### Release gate
+
+- The release workflow publishes nothing until CI, a nightly run, and for a
+  minor or major release a 72-hour chaos soak, passed on the tagged commit.
+  Nightly runs are named after their chaos duration.
+- The changelog's previous release and snapshot versions come from
+  annotated tags, never from plugin tags.
+
+### Platforms
+
+- Windows arm64: tested in CI on `windows-11-arm`, released, and chosen by
+  `install.ps1` on ARM64 machines.
+
+### Docs
+
+- [Releasing Hive](docs/releasing.md): what a release contains, cutting one,
+  the gate, the self-hosted runner, and verifying a release.
+
 ## v1.0.10 (unreleased): Release quality (M19)
 
 The first stable release of the 1.0 train. Nothing has been tagged since

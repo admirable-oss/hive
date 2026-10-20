@@ -6,13 +6,34 @@ on:
 
 permissions:
   contents: write
+  # Build provenance attestations (actions/attest-build-provenance).
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  # Nothing is published until the checks this kind of release needs passed
+  # on the tagged commit (.github/scripts/release-gate.sh, GOVERNANCE.md).
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: ci, nightly and the chaos soak passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: sh .github/scripts/release-gate.sh
+
   release:
+    needs: gate
     runs-on: ubuntu-latest
     steps:
       - name: refuse to publish an unsigned release
@@ -35,6 +56,12 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      # The previous release for the changelog: the last annotated tag before
+      # this one (lightweight plugin tags such as v0.2.0 are not releases).
+      - name: find the previous release
+        run: echo "GORELEASER_PREVIOUS_TAG=$(git describe --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)" >> "$GITHUB_ENV"
+      - name: install syft (SBOMs)
+        uses: anchore/sbom-action/download-syft@v0
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: v2.18.2
@@ -46,6 +73,13 @@ jobs:
           HIVE_RELEASE_SIGNING_KEY: ${{ secrets.HIVE_RELEASE_SIGNING_KEY }}
           HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
       - name: check out the Homebrew tap
         uses: actions/checkout@v5
         with:

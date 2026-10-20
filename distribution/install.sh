@@ -5,6 +5,7 @@ REPOSITORY="admirable-oss/hive"
 # HIVE_VERSION=v1.0.0 installs that release; HIVE_CHANNEL=preview installs
 # the newest release, release candidates included.
 RELEASES_URL="https://api.github.com/repos/${REPOSITORY}/releases"
+DOWNLOAD_URL="https://github.com/${REPOSITORY}/releases/download"
 API_URL="${RELEASES_URL}/latest"
 case "${HIVE_CHANNEL:-stable}" in
     stable) ;;
@@ -15,6 +16,14 @@ if [ -n "${HIVE_VERSION:-}" ]; then
     API_URL="${RELEASES_URL}/tags/${HIVE_VERSION}"
 fi
 INSTALL_DIR="${HIVE_INSTALL_DIR:-${HOME}/.local/bin}"
+
+# The release key, as `go run ./tools/release-sign allowed-signers <key>`
+# prints it: only releases whose checksums.txt it signed are installed.
+ALLOWED_SIGNERS='hive-release namespaces="hive-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILHcqXlEfCE8NSz4faSoF7WWzUrakzdnGNT4fFEWlNm1'
+# Releases published before SSH signatures existed. Any other release
+# without one is refused, so removing the signature cannot downgrade the
+# check.
+UNSIGNED_RELEASES="v1.0.0-rc.1"
 
 log() { printf '  > %s\n' "$1"; }
 err() { printf '  ! %s\n' "$1" >&2; exit 1; }
@@ -101,6 +110,43 @@ onboard() {
     printf '  Learn the basics: https://hive.admir-saheta.com/docs/getting-started/quick-start/\n\n'
 }
 
+# unverifiable stops the install when the signature cannot be checked here,
+# unless HIVE_ALLOW_UNVERIFIED=1 accepts the checksum alone.
+unverifiable() {
+    if [ "${HIVE_ALLOW_UNVERIFIED:-}" = 1 ]; then
+        printf '  ! %s; installing with the checksum only (HIVE_ALLOW_UNVERIFIED=1)\n' "$1" >&2
+        return
+    fi
+    err "$1, so the release signature cannot be checked. Install OpenSSH 8.1 or later, or set HIVE_ALLOW_UNVERIFIED=1 to rely on the checksum alone"
+}
+
+# verify_signature checks checksums.txt against the release key's SSH
+# signature with `ssh-keygen -Y verify`. A signature that does not verify
+# always stops the install.
+verify_signature() {
+    case " ${UNSIGNED_RELEASES} " in
+        *" ${tag} "*)
+            printf '  ! %s was published before release signatures for installers; checking its checksum only\n' "$tag" >&2
+            return ;;
+    esac
+    curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
+        "${base_url}/checksums.txt.sshsig" -o "${tmp}/checksums.txt.sshsig" \
+        || err "${tag} has no checksums.txt.sshsig; refusing an unsigned release"
+    command -v ssh-keygen >/dev/null 2>&1 || { unverifiable "ssh-keygen (OpenSSH) is not installed"; return; }
+    printf '%s\n' "$ALLOWED_SIGNERS" > "${tmp}/allowed_signers"
+    if ssh-keygen -Y verify -f "${tmp}/allowed_signers" -I hive-release -n hive-release \
+        -s "${tmp}/checksums.txt.sshsig" < "${tmp}/checksums.txt" >/dev/null 2>&1; then
+        log "verified the release signature"
+        return
+    fi
+    # OpenSSH before 8.1 has no -Y: that is a missing tool, not a bad signature.
+    if ssh-keygen -Y verify -f /dev/null -I x -n x -s /dev/null </dev/null 2>&1 | grep -Eqi 'illegal option|unknown option|invalid option'; then
+        unverifiable "this ssh-keygen is older than OpenSSH 8.1"
+        return
+    fi
+    err "the signature of ${tag}'s checksums.txt does not verify with the hive release key; not installing it"
+}
+
 main() {
     need curl
     need tar
@@ -132,7 +178,7 @@ main() {
     [ -n "$tag" ] || err "GitHub did not return a latest release tag"
     version="${tag#v}"
     archive="hive_${version}_${os}_${arch}.tar.gz"
-    base_url="https://github.com/${REPOSITORY}/releases/download/${tag}"
+    base_url="${DOWNLOAD_URL}/${tag}"
 
     tmp="$(mktemp -d)" || err "could not create a temporary directory"
     trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -142,6 +188,7 @@ main() {
     curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
         "${base_url}/checksums.txt" -o "${tmp}/checksums.txt" \
         || err "could not download the release checksums"
+    verify_signature
 
     expected="$(awk -v name="$archive" '$2 == name || $2 == "*" name { print $1; exit }' "${tmp}/checksums.txt")"
     [ "${#expected}" -eq 64 ] || err "release checksum is missing for ${archive}"

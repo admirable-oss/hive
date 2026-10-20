@@ -10,13 +10,13 @@ underneath — `internal/platform`, `internal/pgroup` and the terminal device in
 | | macOS | Linux | Windows |
 |---|---|---|---|
 | Versions | 13 and later | glibc or musl, kernel 4.x and later | Windows 10 1809 (build 17763) and later, Windows 11, Server 2019 and later |
-| Architectures | arm64, amd64 | amd64, arm64 | amd64 |
-| CI | `macos-latest` (race) | `ubuntu-latest` (race) | `windows-latest` |
+| Architectures | arm64, amd64 | amd64, arm64 | amd64, arm64 (from v1.1.0) |
+| CI | `macos-latest` (race) | `ubuntu-latest` (race) | `windows-latest`, `windows-11-arm` |
 | Terminals | PTY | PTY | ConPTY |
 | Process trees | process groups | process groups | job objects |
 | Daemon socket | Unix socket, peer UID checked | Unix socket, peer UID checked | AF_UNIX socket, peer SID checked |
 | Login service | launchd agent | systemd user service | Task Scheduler task at logon |
-| Install | Homebrew cask, `install.sh` | `install.sh`, Nix flake | `install.ps1` |
+| Install | Homebrew (`hive-agents` formula or `hive` cask), `install.sh` | `install.sh`, Nix flake | `install.ps1` |
 | Self-update and rollback | ✓ | ✓ | ✓ |
 | Agents survive daemon restarts | ✓ (shims) | ✓ (shims) | ✓ (shims) |
 | Strict plugin isolation | `sandbox-exec` | `bwrap` | not available |
@@ -25,9 +25,9 @@ underneath — `internal/platform`, `internal/pgroup` and the terminal device in
 | Desktop app, preview ([docs](desktop.md)) | WebKit; 13 and later | GTK 4, WebKitGTK 6.0 | WebView2 (amd64) |
 
 **Architecture policy.** A platform/architecture pair is *supported* when CI
-builds and tests it on every change and releases ship it. Windows arm64 is not
-built yet: it is added when CI can run it. Builds for other systems may compile
-but are not supported.
+builds and tests it on every change and releases ship it. Windows arm64 joined
+in v1.1.0, on GitHub's hosted `windows-11-arm` runners. Builds for other
+systems may compile but are not supported.
 
 ## Windows
 
@@ -37,8 +37,11 @@ but are not supported.
 irm https://raw.githubusercontent.com/admirable-oss/hive/main/distribution/install.ps1 | iex
 ```
 
-The installer downloads the release `.zip` for windows/amd64, checks it against
-the release's `checksums.txt`, puts `hive.exe` in
+The installer downloads the release `.zip` for windows/amd64 or windows/arm64
+(the machine's own architecture, even from x64 PowerShell under emulation),
+checks `checksums.txt` against the release signature with `ssh-keygen` (the
+OpenSSH client Windows includes) and the `.zip` against `checksums.txt`, puts
+`hive.exe` in
 `%LOCALAPPDATA%\Programs\Hive` (`$env:HIVE_INSTALL_DIR` overrides it) and adds
 that to your user `PATH`. `$env:HIVE_VERSION = 'v1.0.4'` installs a given
 release.

@@ -51,7 +51,7 @@ Running it for real: what works with what across releases ([compatibility matrix
 | Housekeeping (`hive gc`, retention, output log rotation) and self-update (`hive update`, agents keep running) | ✅ working |
 | Remote machines over SSH: `--remote`, saved machines, every machine's agents in the sidebar, compressed and paced screens, clipboard back to you ([docs](https://hive.admir-saheta.com/docs/use/rc-ra/)) | ✅ working |
 | Plugins (startup, events, actions; install from git with a trust preview), key commands, sidebar tokens, status bar ([docs](https://hive.admir-saheta.com/docs/config/plugins/)) | ✅ working |
-| Windows (amd64): ConPTY terminals, job-object process trees, Task Scheduler login service, zip releases with update and rollback ([platforms](docs/platforms.md)) | ✅ working |
+| Windows (amd64, arm64): ConPTY terminals, job-object process trees, Task Scheduler login service, zip releases with update and rollback ([platforms](docs/platforms.md)) | ✅ working |
 | Plugin API 1: versioned contract, capabilities enforced per plugin socket, optional sandbox, health and restart limits, sidebar cards, tab-bar indicators, contextual actions, palette, settings forms, backups ([reference](docs/plugins/api.md)) | ✅ working |
 | Hardening: frozen APIs, peer-credential checks on every socket, signed releases, 100 panes at under 16 ms a frame and under 1 % CPU idle, nightly fuzzing and chaos soaks ([security](SECURITY.md)) | ✅ working |
 | Observers: read-only, scoped, expiring credentials for dashboards and notifiers; screens and events with resync, locally or over SSH; audited ([docs](docs/observers.md)) | ✅ working |
@@ -77,7 +77,7 @@ nix run github:admirable-oss/hive              # Nix (or nix profile install)
 go install github.com/admirable-oss/hive/cmd/hive@latest
 ```
 
-On Windows 10 1809 or later (amd64), in PowerShell:
+On Windows 10 1809 or later (amd64 or arm64), in PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/admirable-oss/hive/main/distribution/install.ps1 | iex

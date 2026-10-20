@@ -28,6 +28,7 @@ tag that exists.
 | `v1.0.8` | M17 | 11 | 1 | 1 | **1** | `hive machine discover / pair / trust / identity`, `[discovery]` |
 | `v1.0.9` | M18 | 11 | 1 | 1 | 1 | `pkg/hiveapi` frames, input, status and layout (additions to `hiveapi.txt`); the desktop app (preview) |
 | `v1.0.10` | M19 | 11 | 1 | 1 | 1 | Plugin release revocations (`revocations.json`); `hive plugin doctor` registry check |
+| `v1.1.0` (planned) | M20 | 11 | 1 | 1 | 1 | `hive version --verify`; `checksums.txt.sshsig`, SBOMs and provenance in releases; Windows arm64 |
 
 **API level** (`protocol.APILevel`, in `hive version --json` and
 `runtime.status`) goes up whenever the daemon gains a method or event. A

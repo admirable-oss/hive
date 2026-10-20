@@ -197,6 +197,40 @@ func (s Source) Fetch(ctx context.Context, tag, goos, goarch string) ([]byte, er
 	return Extract(archive)
 }
 
+// Verification compares a binary with the signed release it claims to be.
+type Verification struct {
+	Tag     string `json:"tag"`
+	Archive string `json:"archive"`
+	// Signed: the release's checksums.txt verified with the release key
+	// (false only for a Source without a key).
+	Signed        bool   `json:"signed"`
+	SHA256        string `json:"sha256"`
+	ReleaseSHA256 string `json:"release_sha256"`
+	Identical     bool   `json:"identical"`
+}
+
+// ReleaseTag is the release tag of a build's version: release builds carry
+// the version without its v ("1.1.0" is v1.1.0).
+func ReleaseTag(version string) string { return "v" + strings.TrimPrefix(version, "v") }
+
+// VerifyBinary fetches release tag for goos/goarch, verified as Fetch
+// verifies it, and compares the binary in it with bin byte for byte.
+func (s Source) VerifyBinary(ctx context.Context, tag, goos, goarch string, bin []byte) (Verification, error) {
+	release, err := s.Fetch(ctx, tag, goos, goarch)
+	if err != nil {
+		return Verification{}, err
+	}
+	got, want := sha256.Sum256(bin), sha256.Sum256(release)
+	return Verification{
+		Tag:           tag,
+		Archive:       Archive(tag, goos, goarch),
+		Signed:        s.PublicKey != nil,
+		SHA256:        hex.EncodeToString(got[:]),
+		ReleaseSHA256: hex.EncodeToString(want[:]),
+		Identical:     got == want,
+	}, nil
+}
+
 func (s Source) get(ctx context.Context, url string, limit int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

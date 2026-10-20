@@ -66,11 +66,15 @@ jobs:
       - name: build
         run: make build && ./hive version
 
-  # Windows (amd64): the platform layer (ConPTY, job objects, AF_UNIX
-  # sockets, file locks) and the runtime on windows-latest. Unix-only tests
-  # carry //go:build !windows; Windows has its own (*_windows_test.go).
+  # Windows (amd64 and arm64): the platform layer (ConPTY, job objects,
+  # AF_UNIX sockets, file locks) and the runtime. Unix-only tests carry
+  # //go:build !windows; Windows has its own (*_windows_test.go).
   windows:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -112,10 +116,12 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - name: name the snapshot after the last hive release
+        run: echo "GORELEASER_CURRENT_TAG=$(git describe --abbrev=0 2>/dev/null || echo v0.0.0)" >> "$GITHUB_ENV"
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: v2.18.2
-          args: release --snapshot --clean --skip=sign
+          args: release --snapshot --clean --skip=sign,sbom
       - uses: actions/upload-artifact@v4
         with:
           name: hive-snapshot
@@ -123,3 +129,21 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
           retention-days: 7
+
+  # The same commit builds the same bytes: two builds from copies made at
+  # different times must produce identical archives (M20).
+  reproducible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: v2.18.2
+          install-only: true
+      - name: build twice and compare
+        run: sh .github/scripts/reproducible.sh

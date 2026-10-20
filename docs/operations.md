@@ -147,10 +147,10 @@ a remote runtime, such as a build server or a cloud VM running agents:
 
 | Status | Means | Features |
 |---|---|---|
-| **Stable** | Covered by the [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/); breaking it is a bug | The daemon, shims and wire API; the CLI and `--json`; the TUI; agent detection and integrations; sessions, persistence and resume; remote machines over ssh; `pkg/hiveapi`; MCP; plugins (API 0 and 1) and the registry; observers and the observer API; the web observer and its installable app; local discovery and pairing; Windows (amd64) |
+| **Stable** | Covered by the [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/); breaking it is a bug | The daemon, shims and wire API; the CLI and `--json`; the TUI; agent detection and integrations; sessions, persistence and resume; remote machines over ssh; `pkg/hiveapi`; MCP; plugins (API 0 and 1) and the registry; observers and the observer API; the web observer and its installable app; local discovery and pairing; Windows (amd64, and arm64 from v1.1.0) |
 | **Preview** | Works and is tested, but may change in a minor release; not yet covered by the policy | The desktop app (built on Wails v3, a beta; unsigned packages, no in-app updates); the preview update channel (release candidates) |
 | **Experimental** | Not linked into the binary; for evaluation only | `internal/experiments/adr-spikes` (VT and TUI spikes behind the ADRs) |
-| **Unsupported** | May compile, not built or tested by CI, not released | Windows arm64; operating systems other than macOS, Linux and Windows; remote *hosts* on Windows (Windows works as a client); strict plugin isolation on Windows |
+| **Unsupported** | May compile, not built or tested by CI, not released | Operating systems other than macOS, Linux and Windows; remote *hosts* on Windows (Windows works as a client); strict plugin isolation on Windows |
 
 Human-readable output, default key bindings, themes, timings and limits, log
 formats, `internal/` packages and the shim protocol are not part of the

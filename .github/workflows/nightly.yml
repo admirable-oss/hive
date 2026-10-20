@@ -6,6 +6,9 @@ name: nightly
 # runners stop a job at 6 h; run the 72 h chaos gate by hand on a
 # self-hosted runner (workflow_dispatch with runner and chaos set).
 
+# The release gate reads the chaos duration from the run's name.
+run-name: nightly (chaos ${{ inputs.chaos || '5h' }})
+
 on:
   schedule:
     - cron: "17 2 * * *"

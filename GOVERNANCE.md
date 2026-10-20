@@ -89,7 +89,9 @@ tags are refused by it.
 | Release candidate (`-rc.N`) | A minor or major release under test, on the preview channel | Before each minor and major |
 
 **Before a release is tagged**, a maintainer checks and records in the pull
-request that tags it:
+request that tags it. The release workflow's gate enforces the first three
+on the tagged commit, and refuses to publish otherwise
+([docs/releasing.md](docs/releasing.md#the-release-gate)):
 
 - [ ] CI is green on macOS, Linux and Windows, including `govulncheck`.
 - [ ] The nightly run is green: fuzzing, soaks, budgets, and the upgrade test

@@ -11,7 +11,7 @@
 > **Hive** — AI infrastructure for always-working agents.  
 > Site: [https://hive.admir-saheta.com](https://hive.admir-saheta.com)
 
-Each milestone ships a tagged release and has clear acceptance criteria, so you always know when it's truly done. Hive `v1.0.0` is shipped; the next work is the `v1.0.x` release train. 🚀
+Each milestone ships a tagged release and has clear acceptance criteria, so you always know when it's truly done. Hive 1.0 is in release candidates (`v1.0.0-rc.1`); the 1.0 train (M10–M19) is on `main` and ships as `v1.0.10`. M20–M30 are the proposed 1.x train, one minor release each, open for comment in [RFC 0001](rfcs/0001-after-1.0.10.md). 🚀
 
 ---
 
@@ -184,7 +184,7 @@ Make Hive yours: plugins, custom commands, and hooks for whatever your workflow 
 
 ---
 
-## M9 · Hardening → `v1.0.0` - **LIVE**
+## M9 · Hardening → `v1.0.0` — **LIVE**
 
 The final stretch: freeze the APIs, polish the rough edges, and ship a 1.0 we can all be proud of. 🎉
 
@@ -1111,7 +1111,7 @@ do not change.
 
 ---
 
-## M19 · `v1.0.10` Release Quality — **IN PROGRESS**
+## M19 · Release Quality — `v1.0.10` — **IN PROGRESS**
 
 Make the entire 1.0 release train dependable.
 
@@ -1277,81 +1277,496 @@ major-version roadmap is published with community input.
 
 ---
 
-## Beyond v1.0.10
+## The 1.x train (M20 to M30) — **PROPOSED**
 
-These are longer-term directions, not commitments to specific release dates.
+After `v1.0.10`, each milestone is a minor release: `v1.1.0` for M20 through
+`v1.11.0` for M30. They are proposed in
+[RFC 0001](rfcs/0001-after-1.0.10.md) and open for comment: the order and
+the scope change with what users and plugin authors say, and the accepted
+version replaces this section ([GOVERNANCE.md](GOVERNANCE.md#feedback-and-the-roadmap)).
+Every milestone keeps the
+[compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
+Nothing is removed before 2.0, and an API that a milestone adds starts as
+an RFC.
 
-### Parallel Agent Orchestration
+The order: finish what 1.0 left open (M20, M21), then the agent workflows
+the runtime is built for (M22 to M25), then the ecosystem (M26), then
+working with others and more machines (M27 to M29), and last the road to
+2.0 (M30).
 
-- Coordinate agents working on independent tasks and shared projects.
-- Provide task dependencies, execution limits, and completion conditions.
-- Support configurable concurrency and resource budgets.
-- Collect structured results from completed agents.
-- Preserve explicit human approval for sensitive operations.
+---
 
-### Git-Native Development
+## M20 · Trusted Distribution — `v1.1.0` — **IN PROGRESS**
 
-- Deepen Git worktree integration for isolated agent work.
-- Add branch lifecycle management and conflict detection.
-- Support review workflows and configurable cleanup policies.
-- Explore automated validation before proposed changes are integrated.
-- Preserve developer control over commits, merges, and publication.
+Every install verified, every release reproducible.
 
-### Hosted Foundations
+M19 left the first install unverified and the release gates on hardware the
+project does not have. This milestone closes both, so that what users run
+can be traced back to the source.
 
-Moved out of the `v1.0.x` train (it was M18) in favour of the desktop app.
+1. **Release infrastructure**
+   - A self-hosted runner for the 72-hour chaos soak, long multi-machine
+     soaks, and the cross-user connection test.
+   - The release checklist ([GOVERNANCE.md](GOVERNANCE.md#releases)) run by
+     a workflow that blocks the tag until every gate is green.
+   - Windows arm64 in CI and releases, once a runner exists.
 
-- Define a hosted control plane distinct from user-operated runtimes:
-  organizations, users, memberships, runtime registrations and tenant
-  isolation.
-- Connect runtimes outbound to it, with authenticated registration,
-  revocation, reconnects and bounded buffering, and no inbound ports on
-  developer machines.
-- Keep privileged process control separate from read-only observation by
-  default.
-- Separate administrator, operator and observer roles, with audited
-  membership and administrative changes.
-- Define data ownership: what stays on the machine, what is synchronized, and
-  export, deletion and offboarding.
-- Set operations and reliability targets: health checks, metrics, retention,
-  backups, rate limits and incident response.
-- Charge for hosted capabilities only, never for the core runtime, and keep
-  usage measurement apart from terminal contents.
-- Validate all of this in a private beta. The self-hosted product must keep
-  working without the hosted service.
+2. **Verified installs**
+   - `install.sh` and `install.ps1` check the release signature, not only the
+     checksum (a small verifier, or minisign-compatible signatures).
+   - The Homebrew formula and cask, the Nix flake and the installers tested
+     on every supported OS and architecture, fresh and as upgrades.
 
-### Runtime Fleet Management
+3. **Provenance**
+   - Build provenance attestations (SLSA) and an SBOM for every release
+     artifact.
+   - Reproducible builds: the same tag builds the same bytes, checked in CI.
+   - `hive version --verify` reports how the running binary was built and
+     verified.
 
-- Manage multiple Hive installations through a unified control plane.
-- Provide runtime health, version visibility, and upgrade coordination.
-- Introduce explicit access controls and machine-level policies.
-- Support fleet diagnostics without collecting unnecessary terminal contents.
-- Define safe rollout and rollback mechanisms.
+4. **Official plugins**
+   - Move them to their own repository with per-plugin tags, and seed the
+     catalog with installable releases (M10's and M19's open items).
+   - Release them from CI with the same provenance as Hive.
 
-### Advanced Plugin Ecosystem
+**✅ Acceptance:** a fresh install on every supported platform verifies the
+release signature before running anything. Every artifact has provenance
+and an SBOM, and rebuilds byte for byte. The 72-hour chaos soak gates the
+release. The official plugins install by ID from the catalog.
 
-- Expand community publishing and maintainer tooling.
-- Introduce richer integrations and reusable workflow packages.
-- Improve provenance, security analysis, and compatibility automation.
-- Explore isolated plugin execution where practical.
-- Maintain a clear distinction between trusted official integrations and
-  independently maintained community plugins.
+### M20 progress
 
-### Team Collaboration
+How releases are made, gated and verified: [docs/releasing.md](docs/releasing.md).
 
-- Explore shared workspaces and organization-level access policies.
-- Support collaborative observation and notifications.
-- Define ownership, auditability, and conflict handling for shared state.
-- Preserve local-first operation when hosted services are unavailable.
-- Establish explicit permission boundaries before adding remote control.
+- [x] Installers verify the release signature: `checksums.txt.sshsig` (the
+  release key in OpenSSH's format, `tools/release-sign sign-ssh`), checked
+  with `ssh-keygen -Y verify` by `install.sh` and `install.ps1`. Forged,
+  unsigned and unverifiable releases are refused (tested end to end); the
+  only exception is `v1.0.0-rc.1`, published before signatures.
+- [x] `hive version --verify`: the running binary compared byte for byte
+  with its signed release (checked against the real `v1.0.0-rc.1`).
+- [x] Provenance: SBOMs (syft) and build provenance attestations for every
+  archive.
+- [x] Reproducible builds: commit timestamps in archives, and a CI job that
+  builds twice and compares (`make reproducible`), which passes for all six
+  archives.
+- [x] The release gate: the release workflow refuses a tag until CI, a
+  nightly run, and for minor and major releases a 72-hour chaos soak passed
+  on the tagged commit.
+- [x] Windows arm64 in CI (`windows-11-arm`) and in releases, and
+  `install.ps1` picks it on ARM64 machines.
+- [x] The self-hosted runner specified ([docs/releasing.md](docs/releasing.md#the-self-hosted-runner)).
+- [ ] The self-hosted runner set up and registered (`hive-soak`), and the
+  cross-user connection test automated on it.
+- [ ] Installs tested on every OS and architecture, through the Homebrew
+  formula and cask, Nix and both installers, fresh and as upgrades.
+- [ ] The official plugins in their own repository, with per-plugin tags,
+  released with provenance and seeded in the catalog.
+- [ ] The first release with all of this (`v1.0.10`, then `v1.1.0`).
 
-### Workflow Automation
+---
 
-- Compose agents, scripts, and lifecycle events into reusable workflows.
-- Support deterministic triggers, retries, cancellation, and failure handling.
-- Integrate with CI systems and developer tooling.
-- Provide execution history and structured outputs.
-- Avoid coupling workflows to a single model provider.
+## M21 · Desktop App 1.0 — `v1.2.0` — **PROPOSED**
+
+The desktop app leaves preview.
+
+M18 built the app. This milestone makes it something to install without a
+second thought, and brings it under the compatibility policy.
+
+1. **Signed packages**
+   - Developer ID signing and notarization on macOS, code signing on Windows,
+     signed DEB and RPM packages and AppImages.
+   - The Homebrew cask, and packages attached to each release with
+     `checksums.txt` and its signature.
+
+2. **In-app updates**
+   - The Wails updater, from GitHub Releases. An update installs only after
+     its checksum and signature are checked, keeps the previous version, and
+     rolls back if the app does not start.
+   - The bundled `hive` and the app always move together. Updating never
+     stops agents.
+
+3. **Performance in the native webviews**
+   - Keystroke-to-screen latency, idle CPU and memory measured on each
+     platform and held to M18's budgets in CI.
+   - The binary frame channel, if the measurements call for it.
+
+4. **Finish the workspace**
+   - Drag and drop of panes through the layout API, and environment windows.
+   - Configurable bindings from `[keys]`, and the Goto picker over agents,
+     panes and actions.
+
+5. **Stable**
+   - Wails v3 at a release candidate or GA, pinned.
+   - The app's surfaces covered by the compatibility policy, and its preview
+     label removed.
+
+**✅ Acceptance:** on macOS, Windows and Linux, a signed app installs,
+updates itself only to verified releases, rolls back a failed update, and
+meets the latency, CPU and memory budgets. M18's acceptance holds in full.
+
+---
+
+## M22 · Parallel Agent Orchestration — `v1.3.0` — **PROPOSED**
+
+Many agents, one plan.
+
+Agents can already start, prompt and wait for each other (M5). This
+milestone adds the missing piece: a task model, so a set of agents works
+through a plan with dependencies, limits and results, and a human approves
+what matters.
+
+1. **Tasks**
+   - A task is a prompt for an agent kind, in an environment or a fresh
+     worktree, with a completion condition (idle, done, a regex, a command's
+     exit status) and a timeout.
+   - Plans: tasks with dependencies, written in TOML or built through the API,
+     run as a DAG.
+   - `hive task run | list | get | wait | cancel | retry`, MCP tools, and
+     `pkg/hiveapi` support. The wire API is designed in an RFC first.
+
+2. **Limits and budgets**
+   - Concurrency per plan, per agent kind and per machine.
+   - Time budgets per task and per plan.
+   - Spend budgets where an agent reports usage (M25).
+   - Placement on saved machines (M7) by label and capacity.
+
+3. **Results**
+   - Structured results per task: final screen, exit status, changed files,
+     a summary the agent writes to a known path, and the task's log.
+   - A plan's report, as JSON and readable text.
+
+4. **Human approval**
+   - Steps marked as needing approval stop, notify (desktop, push, terminal),
+     and continue only after a yes.
+   - A blocked agent pauses only its own task, never the whole plan.
+
+5. **In every client**
+   - Plans and their progress in the TUI's Overview, the desktop app and the
+     web observer (read-only there).
+
+**✅ Acceptance:** a plan of 10 tasks with dependencies runs across 2
+machines within its concurrency limits, survives a daemon restart, stops for
+one approval, and produces a report with every task's result. A failed task
+is retried or cancelled without disturbing the others.
+
+---
+
+## M23 · Git-Native Development — `v1.4.0` — **PROPOSED**
+
+Isolated work, clean handoffs.
+
+Agents get worktrees (M2, M5). This milestone manages what happens around
+them: branches from start to merge, conflicts between agents found early,
+and changes reviewed before anyone integrates them. The developer keeps
+every commit, merge and push.
+
+1. **Branch lifecycle**
+   - A branch per task or agent, named by a configurable pattern, with its
+     base recorded.
+   - States from created to working, ready for review, merged and cleaned up,
+     shown in the sidebar.
+   - Cleanup policies: remove merged worktrees, keep unmerged ones, never
+     delete uncommitted work without asking.
+
+2. **Conflicts**
+   - Overlapping changes between agents' branches detected as they happen,
+     and reported before a merge is attempted.
+   - Rebase or merge assistance that shows the conflict, and never resolves
+     one without a person.
+
+3. **Review**
+   - A diff view in the TUI and the desktop app, per agent and per task.
+   - Comments that go back to the agent as a prompt.
+   - Validation gates before a change is marked ready: tests, lint and build,
+     run in the agent's worktree.
+
+4. **Publishing, by consent**
+   - Opening a pull request (GitHub, GitLab) only when asked, and never
+     pushing without an explicit command.
+   - Hooks for plugins (M26) to add other forges.
+
+**✅ Acceptance:** three agents work in parallel branches of one repository.
+Hive reports their overlap before merging, shows each diff for review,
+gates readiness on tests passing, and opens a pull request only on request.
+Merged worktrees are cleaned up and unmerged work is never lost.
+
+---
+
+## M24 · Workflow Automation — `v1.5.0` — **PROPOSED**
+
+Reusable workflows from agents, scripts and events.
+
+Plans (M22) run once. Workflows run whenever their trigger fires, the same
+way every time.
+
+1. **Workflows**
+   - Steps that are agents' tasks, commands or plugin actions, with inputs,
+     outputs, conditions and loops, in a versioned TOML format.
+   - Shareable: a workflow is a file in a repository, or a package in the
+     registry (M26).
+
+2. **Triggers**
+   - Hive events (an agent done or blocked, a worktree created), schedules,
+     git events (a push, a new branch), and webhooks received through a
+     plugin.
+   - Deterministic: the same inputs give the same steps, and each run is
+     recorded with its inputs.
+
+3. **Reliability**
+   - Retries with backoff, timeouts, cancellation, and failure handling per
+     step.
+   - Runs survive daemon restarts and reboots, like agents do (M6).
+
+4. **History and CI**
+   - Run history with each step's output, kept by the retention settings.
+   - Headless mode for CI: `hive workflow run` in a runner, with a JSON
+     report and an exit status.
+
+5. **Any provider**
+   - Steps name agent kinds, not providers, and a workflow runs with whichever
+     agents a machine has.
+
+**✅ Acceptance:** a workflow triggered by a push runs an agent review, the
+tests and a fix-up agent on failure. It survives a daemon restart in the
+middle, records every run with its inputs and outputs, and runs the same
+way headless in CI.
+
+---
+
+## M25 · Agent Insights — `v1.6.0` — **PROPOSED**
+
+Know what your agents cost and where their time goes, on your machine.
+
+Hive sees every agent's state changes. This milestone turns them into
+insight without sending anything anywhere.
+
+1. **Time**
+   - Time in each state (working, blocked, idle) per agent, task, environment
+     and day.
+   - Time waiting on you, and what you were asked.
+
+2. **Usage**
+   - Tokens and cost where an agent reports them (hooks, status lines,
+     manifests), per agent kind and model, with the source shown.
+   - Unknown, not guessed, when an agent does not report.
+
+3. **Budgets and alerts**
+   - Limits per day, per plan (M22) or per environment, which warn and can
+     pause new work.
+
+4. **Local and private**
+   - Kept in `HIVE_HOME` under the retention settings. No telemetry.
+   - Exported as CSV or JSON on request.
+   - Readable through the observer API with a scoped credential, for
+     dashboards.
+
+5. **Views**
+   - `hive insights`, a panel in the TUI's Overview, and pages in the desktop
+     app and the web observer.
+
+**✅ Acceptance:** after a day of work, Hive shows time in state and the
+reported usage of each agent kind, raises a budget alert, and exports the
+data. Nothing leaves the machine unless it is exported.
+
+---
+
+## M26 · Plugin Ecosystem 2 — `v1.7.0` — **PROPOSED**
+
+Richer plugins, safer by default.
+
+Plugin API 1 (M12) and the store (M10) are the foundation. This milestone
+grows what plugins can do and narrows what a bad one could do.
+
+1. **Registry schema 2**
+   - Per-plugin release refs, publisher signatures and build provenance per
+     release.
+   - Served beside schema 1, so releases before 1.1 keep reading the catalog
+     they know.
+
+2. **Isolation by default**
+   - Plugin commands run in a sandbox where the platform has one, and a
+     Windows sandbox is evaluated.
+   - A WebAssembly runtime for plugins that need no processes at all.
+   - Capabilities enforced for files, network and processes, not only for
+     Hive API calls.
+
+3. **Richer contributions**
+   - Plugin views in panes, with a restricted rendering contract.
+   - Forges and issue trackers for Git-native work (M23).
+   - Workflow steps and triggers (M24).
+   - Plugin API 2, designed in an RFC, alongside API 1.
+
+4. **Publishing**
+   - `hive plugin publish`: tag, checksum, provenance and submission in one
+     step.
+   - Compatibility automation that tests a plugin against each Hive release
+     before it ships.
+
+5. **Trust**
+   - A clear line in every client between official plugins, verified
+     publishers and community plugins.
+   - Revocations (M19) shown wherever a plugin appears.
+
+**✅ Acceptance:** a community plugin is published with signed provenance,
+installs sandboxed by default on macOS and Linux, contributes a pane view
+and a workflow step, and is tested against the next Hive release before it
+ships. Plugin API 1 plugins keep working.
+
+---
+
+## M27 · Team Collaboration — `v1.8.0` — **PROPOSED**
+
+Share the work, keep control.
+
+Observers (M14, M15) let others watch. This milestone lets people work
+together on a runtime, with every permission explicit and every change
+audited, and no hosted service required.
+
+1. **People and roles**
+   - Invite a teammate to a runtime over ssh with a role: observer, operator
+     (prompt and approve, no new processes) or owner.
+   - Roles enforced by the daemon, per environment, and listed by
+     `hive access`.
+
+2. **Shared workspaces**
+   - Two people in one environment see each other's focus and presence, and
+     input is taken by one at a time, visibly.
+   - Handing an agent or a task over to someone else.
+
+3. **Audit**
+   - Every action by someone other than the owner recorded: who did what,
+     when, and from where.
+
+4. **Notifications for teams**
+   - Blocked and done routed to whoever owns the task, with a fallback.
+
+5. **Local-first**
+   - Everything works peer to peer over ssh. A hosted service (M29) is an
+     option, never a requirement.
+
+**✅ Acceptance:** two people work in one runtime, one as operator. The
+operator can prompt and approve but not start processes. Input never
+interleaves. Every action is audited, and revoking access ends it at once.
+
+---
+
+## M28 · Runtime Fleet Management — `v1.9.0` — **PROPOSED**
+
+Many machines, one view, safe rollouts.
+
+Saved machines (M7) and discovery (M17) connect a handful of runtimes. This
+milestone manages dozens: their health, versions, upgrades and policies,
+self-hosted.
+
+1. **Inventory and health**
+   - Every machine's version, API level, load, agents and health in one view,
+     in the TUI, the desktop app and `hive fleet status`.
+   - Diagnostics gathered on request, without terminal contents.
+
+2. **Coordinated upgrades**
+   - Rolling upgrades in waves, verified by signature, with automatic
+     rollback when health checks fail, and agents kept running throughout.
+
+3. **Policies**
+   - Per-machine and per-group rules: which agents and plugins may run, update
+     channels, resource limits and access roles (M27).
+   - Policies distributed over the existing ssh trust, and verified by
+     machine identity (M17).
+
+4. **Scale**
+   - 50 machines and 500 agents in one view, within the bandwidth budgets of
+     M7.
+
+**✅ Acceptance:** a fleet of 50 machines upgrades in waves to a new release.
+One unhealthy wave rolls itself back. A policy blocks a plugin fleet-wide.
+The fleet view stays responsive with 500 agents.
+
+---
+
+## M29 · Hosted Foundations (private beta) — `v1.10.0` — **PROPOSED**
+
+An optional control plane, for teams that want one.
+
+Moved out of the 1.0 train (it was M18). Hive stays self-hosted first: the
+hosted service adds reach, never a dependency.
+
+1. **Control plane**
+   - Organizations, users, memberships and runtime registrations, with
+     tenant isolation.
+
+2. **Outbound connections**
+   - Runtimes connect out, with authenticated registration, revocation,
+     reconnects and bounded buffering, and no inbound ports on developer
+     machines.
+
+3. **Roles and separation**
+   - Administrator, operator and observer roles (M27), with audited
+     membership and administrative changes.
+   - Process control kept separate from observation by default.
+
+4. **Data ownership**
+   - What stays on the machine, what is synchronized, and export, deletion
+     and offboarding.
+   - Terminal contents never stored by default.
+
+5. **Operations**
+   - Health checks, metrics, retention, backups, rate limits and incident
+     response.
+   - Charging for hosted capabilities only, never for the core runtime, with
+     usage measured apart from terminal contents.
+
+**✅ Acceptance:** in a private beta, a team registers runtimes, shares
+observation and operation by role, and exports or deletes its data. Every
+runtime keeps working with the hosted service switched off.
+
+---
+
+## M30 · 1.x LTS and the Road to 2.0 — `v1.11.0` — **PROPOSED**
+
+A long-term 1.x, and a 2.0 nobody has to fear.
+
+The last 1.x milestone, in the spirit of M19: no large features, a
+dependable release to stay on, and a planned path to the next major
+version.
+
+1. **Long-term support**
+   - `v1.11` designated LTS: security fixes for a published period after 2.0
+     ships.
+   - Its support window written into [SECURITY.md](SECURITY.md) and the
+     compatibility matrix.
+
+2. **The 2.0 RFC**
+   - What 2.0 removes: plugin API 0, deprecated configuration keys, protocol
+     1 if the RFC decides so, and anything else deprecated in 1.x.
+   - What it changes, with a migration for each item.
+
+3. **Migration tooling**
+   - `hive migrate --check` lists every deprecated surface a setup uses
+     (config, plugins, scripts through their API calls) and how to move.
+   - `hive migrate` applies what can be applied automatically.
+
+4. **Release quality**
+   - A full compatibility, reliability and security review, as in M19,
+     across the 1.x train.
+   - The upgrade test from every 1.x release to the LTS.
+
+**✅ Acceptance:** the LTS release passes the full review. `hive migrate
+--check` reports every deprecated surface in use, with its migration. The
+2.0 RFC is accepted with community input, and its removals are announced at
+least one minor release ahead.
+
+---
+
+## Beyond M30
+
+Ideas without a milestone yet. Each needs an RFC that shows who asks for it.
+
+- **Native mobile apps**, if the installable web app (M16) hits limits that
+  only native notifications or background work can solve.
+- **Windows as a remote host** for `--remote`, not only a client.
+- **Translated documentation.**
+- **Protocol 3**, if 2.0 needs a new envelope.
 
 ---
 

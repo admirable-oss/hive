@@ -17,10 +17,7 @@ builds:
       - CGO_ENABLED=0
     goos: [darwin, linux, windows]
     goarch: [amd64, arm64]
-    # Windows: amd64 only, the architecture CI tests (docs/platforms.md).
-    ignore:
-      - goos: windows
-        goarch: arm64
+    # Every pair CI tests (docs/platforms.md), Windows arm64 included.
     flags:
       - -trimpath
     ldflags:
@@ -38,26 +35,46 @@ archives:
       - goos: windows
         formats: [zip]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # Reproducible archives: every entry carries the commit's time, not the
+    # checkout's, so the same tag builds the same bytes (CI checks it).
+    builds_info:
+      mtime: "{{ .CommitDate }}"
     files:
-      - LICENSE
-      - README.md
+      - src: LICENSE
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        info:
+          mtime: "{{ .CommitDate }}"
+
+# An SPDX SBOM per archive (syft), listed in checksums.txt.
+sboms:
+  - artifacts: archive
 
 checksum:
   name_template: checksums.txt
 
 # checksums.txt.sig: an ed25519 signature of checksums.txt, which `hive
 # update` checks against the public key built in above (tools/release-sign).
+#
+# checksums.txt.sshsig: the same key's signature in OpenSSH's format, which
+# install.sh and install.ps1 check with `ssh-keygen -Y verify`.
 signs:
   - id: release-key
     artifacts: checksum
     cmd: go
     args: ["run", "./tools/release-sign", "sign", "${artifact}"]
     signature: "${artifact}.sig"
+  - id: release-key-ssh
+    artifacts: checksum
+    cmd: go
+    args: ["run", "./tools/release-sign", "sign-ssh", "${artifact}"]
+    signature: "${artifact}.sshsig"
 
 release:
   prerelease: auto
   footer: |
-    `hive update` installs this release after checking `checksums.txt.sig` with the release key built into hive. To check a download by hand:
+    `hive update` installs this release after checking `checksums.txt.sig` with the release key built into hive, and the installers check `checksums.txt.sshsig` with `ssh-keygen`. Every archive has an SBOM and a build provenance attestation (`gh attestation verify <archive> -R admirable-oss/hive`). To check a download by hand:
 
     ```sh
     go run github.com/admirable-oss/hive/tools/release-sign@{{ .Tag }} verify {{ envOrDefault "HIVE_RELEASE_PUBLIC_KEY" "" }} checksums.txt

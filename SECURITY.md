@@ -71,7 +71,8 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 
 - `hive update` downloads the release, checks the archive against `checksums.txt`, and checks `checksums.txt` against its ed25519 signature (`checksums.txt.sig`) with the release key built into your binary. An unsigned or wrongly signed release is not installed. Builds from source carry no release key and check only the checksum (they say so).
 - An update that cannot run is not kept: a new binary that does not start is removed before it is installed, and if the new daemon fails to start, `hive update` puts the previous binary back and restarts the daemons on it. `hive update --rollback` goes back by hand. See [docs/upgrading.md](docs/upgrading.md).
-- `install.sh` and `install.ps1` check the archive against `checksums.txt`, but not the signature; [docs/upgrading.md](docs/upgrading.md#installers) shows how to verify a download by hand. Every `hive update` after that checks the signature.
+- `install.sh` and `install.ps1` check `checksums.txt` against the release key's signature in OpenSSH's format (`checksums.txt.sshsig`, with `ssh-keygen -Y verify`), then the archive against it. A signature that does not verify stops the install; a missing `ssh-keygen` stops it too, unless `HIVE_ALLOW_UNVERIFIED=1` accepts the checksum alone. See [docs/upgrading.md](docs/upgrading.md#installers).
+- `hive version --verify` checks that the running binary is byte for byte the signed release it claims to be.
 - `hive --remote` installs or updates hive on another machine only after a yes/no question (or `--yes`).
 - `hive plugin install` shows everything a plugin will run, and when, before asking. The commit installed is recorded. Plugins run as you and are not sandboxed: install only plugins you trust, from a tag you have read.
 - A registry release is pinned to a commit and an archive checksum, both checked before installing. The registry can revoke a release (a compromised one, say): Hive never installs or updates to it, `hive plugin update` moves off it, and `hive plugin doctor` reports it. See [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md).
@@ -97,10 +98,11 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 
 ## Release signing
 
-Releases are built by the release workflow, which signs `checksums.txt` with the project's ed25519 key (`tools/release-sign`). To verify a download by hand:
+Releases are built by the release workflow, only after the release gate has seen CI, the nightly checks and (for minor releases) the 72-hour chaos soak pass on the tagged commit. The workflow signs `checksums.txt` with the project's ed25519 key (`tools/release-sign`), as `checksums.txt.sig` and in OpenSSH's format as `checksums.txt.sshsig`, attaches an SBOM per archive, and records a build provenance attestation for every archive. Builds are reproducible. To verify a download by hand:
 
 ```sh
 go run ./tools/release-sign verify <public key> checksums.txt
+gh attestation verify <archive> -R admirable-oss/hive
 ```
 
-The public key is published with each release and built into every release binary (`buildinfo.releaseKey`).
+The public key is published with each release, built into every release binary (`buildinfo.releaseKey`) and embedded in the installers. [docs/releasing.md](docs/releasing.md) describes the whole process.

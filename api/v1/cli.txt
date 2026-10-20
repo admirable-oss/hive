@@ -395,6 +395,7 @@ flag hive update --from string
 flag hive update --no-restart bool
 flag hive update --rollback bool
 flag hive update --version string
+flag hive version --verify bool
 flag hive web audit --grant string
 flag hive web audit --limit int
 flag hive web runtime add --all bool

@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	goruntime "runtime"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -10,6 +13,7 @@ import (
 	"github.com/admirable-oss/hive/internal/buildinfo"
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/protocol"
+	"github.com/admirable-oss/hive/internal/update"
 )
 
 func newStatusCmd(a *app) *cobra.Command {
@@ -76,12 +80,22 @@ func newStopCmd(a *app) *cobra.Command {
 }
 
 func newVersionCmd(a *app) *cobra.Command {
-	return &cobra.Command{
+	var verify bool
+	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the CLI and daemon versions",
-		Args:  noArgs,
+		Long: `Print the CLI and daemon versions.
+
+--verify downloads the signed release this hive claims to be, checks its
+signature and checksum as ` + "`hive update`" + ` does, and compares the binary in it
+with this one byte for byte. A hive built from source, or by Nix, is not the
+release binary and says so.`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			info := buildinfo.Get()
+			if verify {
+				return a.verifyBuild(cmd.Context(), info)
+			}
 			wait := 500 * time.Millisecond
 			if a.remote != nil {
 				wait = 15 * time.Second // an ssh connection first
@@ -111,6 +125,55 @@ func newVersionCmd(a *app) *cobra.Command {
 			})
 		},
 	}
+	cmd.Flags().BoolVar(&verify, "verify", false, "check that this binary is the signed release it claims to be")
+	return cmd
+}
+
+// verifyBuild compares the running binary with its signed release.
+func (a *app) verifyBuild(ctx context.Context, info buildinfo.Info) error {
+	k := buildinfo.ReleaseKey()
+	if k == "" {
+		return fmt.Errorf("hive %s was built from source (it carries no release key): there is no signed release to compare it with", info.Version)
+	}
+	key, err := update.ParseKey(k)
+	if err != nil {
+		return err
+	}
+	exe, err := os.Executable()
+	if err == nil {
+		exe, err = filepath.EvalSymlinks(exe)
+	}
+	if err != nil {
+		return fmt.Errorf("locate the hive binary: %w", err)
+	}
+	bin, err := os.ReadFile(exe)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	v, err := update.Source{PublicKey: key}.VerifyBinary(ctx, update.ReleaseTag(info.Version), goruntime.GOOS, goruntime.GOARCH, bin)
+	if err != nil {
+		return fmt.Errorf("verify against release %s: %w", update.ReleaseTag(info.Version), err)
+	}
+	out := struct {
+		update.Verification
+		Path string `json:"path"`
+	}{v, exe}
+	if err := a.emit(out, func() error {
+		if v.Identical {
+			_, err := fmt.Fprintf(a.out, "%s is hive %s, byte for byte the signed release (%s, sha256 %s)\n", exe, v.Tag, v.Archive, v.SHA256)
+			return err
+		}
+		_, err := fmt.Fprintf(a.out, "%s is not the binary of the signed release %s: sha256 %s, the release's is %s (built from source, by Nix, or altered)\n", exe, v.Tag, v.SHA256, v.ReleaseSHA256)
+		return err
+	}); err != nil {
+		return err
+	}
+	if !v.Identical {
+		return &codedError{code: exitError, msg: "this binary is not the signed release"}
+	}
+	return nil
 }
 
 // daemonVersion names the daemon's build. Daemons older than v0.2 do not

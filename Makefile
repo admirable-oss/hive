@@ -126,7 +126,11 @@ check: vet lint race ## Everything CI checks: vet, lint, race tests
 
 .PHONY: snapshot
 snapshot: $(GORELEASER) ## Build release archives locally into ./dist (no publishing, unsigned)
-	$(GORELEASER) release --snapshot --clean --skip=sign
+	GORELEASER_CURRENT_TAG=$$(git describe --abbrev=0 2>/dev/null || echo v0.0.0) $(GORELEASER) release --snapshot --clean --skip=sign,sbom
+
+.PHONY: reproducible
+reproducible: $(GORELEASER) ## Build the release archives twice and check they are identical
+	GORELEASER=$(GORELEASER) sh .github/scripts/reproducible.sh
 
 .PHONY: clean
 clean: ## Remove build output

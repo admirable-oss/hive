@@ -16,6 +16,7 @@ make build      # ./hive with version information
 make check      # what CI runs: vet, lint, race tests (with goleak), go.mod tidiness
 make vuln       # known vulnerabilities the code can reach (govulncheck)
 make upgrade    # upgrade from every earlier 1.x release and back
+make reproducible  # build the release archives twice and compare them
 make help       # every target
 ```
 

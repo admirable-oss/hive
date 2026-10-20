@@ -395,3 +395,27 @@ func TestInstallFailsSafely(t *testing.T) {
 		}
 	})
 }
+
+// TestVerifyBinary: a binary is the release only when it is byte for byte
+// the one in the signed release; a release that does not verify is an
+// error, not a mismatch.
+func TestVerifyBinary(t *testing.T) {
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	ctx := context.Background()
+	src := signedRelease(t, false, priv)
+	src.PublicKey = pub
+	v, err := src.VerifyBinary(ctx, update.ReleaseTag("0.8.0"), "linux", "arm64", []byte("#!new-hive"))
+	if err != nil || !v.Identical || !v.Signed || v.Tag != "v0.8.0" || v.SHA256 != v.ReleaseSHA256 {
+		t.Fatalf("the release binary: %+v, %v", v, err)
+	}
+	v, err = src.VerifyBinary(ctx, "v0.8.0", "linux", "arm64", []byte("#!built-elsewhere"))
+	if err != nil || v.Identical || v.SHA256 == v.ReleaseSHA256 {
+		t.Fatalf("another binary: %+v, %v", v, err)
+	}
+	_, other, _ := ed25519.GenerateKey(rand.Reader)
+	forged := signedRelease(t, false, other)
+	forged.PublicKey = pub
+	if _, err := forged.VerifyBinary(ctx, "v0.8.0", "linux", "arm64", []byte("#!new-hive")); !errors.Is(err, update.ErrUnsigned) {
+		t.Fatalf("a release signed by another key: %v", err)
+	}
+}
