@@ -199,6 +199,14 @@ func TestNewer(t *testing.T) {
 		{"v0.8.0", "dev", true},
 		{"dev", "v0.8.0", false},
 		{"v0.10.0", "v0.9.9", true},
+		{"v1.0.10", "v1.0.9", true},
+		{"v1.0.0-rc.10", "v1.0.0-rc.9", true},
+		{"v1.0.0-rc.9", "v1.0.0-rc.10", false},
+		{"v1.0.0-rc.1.1", "v1.0.0-rc.1", true},
+		{"v1.0.0-rc", "v1.0.0-rc.1", false},
+		{"v1.0.0-rc.1", "v1.0.0-2", true}, // alphanumeric after numeric
+		{"v1.0.0-beta", "v1.0.0-alpha", true},
+		{"v1.0.0-rc.1", "v1.0.0-rc.1", false},
 	} {
 		if got := update.Newer(tt.a, tt.b); got != tt.want {
 			t.Errorf("Newer(%q, %q) = %v", tt.a, tt.b, got)
@@ -207,8 +215,19 @@ func TestNewer(t *testing.T) {
 }
 
 func TestManaged(t *testing.T) {
-	if update.Managed("/opt/homebrew/Cellar/hive/0.7.0/bin/hive") != "Homebrew" || update.Managed("/nix/store/abc-hive/bin/hive") != "Nix" || update.Managed("/home/me/.local/bin/hive") != "" {
-		t.Fatal("package managers not recognised")
+	for _, tt := range []struct{ path, manager, upgrade string }{
+		{"/opt/homebrew/Cellar/hive-agents/1.0.10/bin/hive", "Homebrew", "brew upgrade hive-agents"},
+		{"/usr/local/Cellar/hive-agents/1.0.10/bin/hive", "Homebrew", "brew upgrade hive-agents"},
+		{"/opt/homebrew/Caskroom/hive/1.0.10/hive", "Homebrew", "brew upgrade --cask hive"},
+		{"/nix/store/abc-hive/bin/hive", "Nix", ""},
+		{"/home/me/.local/bin/hive", "", ""},
+	} {
+		if got := update.Managed(tt.path); got != tt.manager {
+			t.Errorf("Managed(%s) = %q, want %q", tt.path, got, tt.manager)
+		}
+		if got := update.UpgradeCommand(tt.path); got != tt.upgrade {
+			t.Errorf("UpgradeCommand(%s) = %q, want %q", tt.path, got, tt.upgrade)
+		}
 	}
 }
 
@@ -259,4 +278,120 @@ func TestPreviewChannelTakesPreReleases(t *testing.T) {
 	if _, err := src.LatestOn(ctx, "nightly"); err == nil {
 		t.Fatal("unknown channel accepted")
 	}
+}
+
+// TestFetchFailsSafely: a release that cannot be verified or read installs
+// nothing, and says why.
+func TestFetchFailsSafely(t *testing.T) {
+	ctx := context.Background()
+	name := update.Archive("v1.0.10", "linux", "amd64")
+	serve := func(t *testing.T, arc []byte, sums string) update.Source {
+		t.Helper()
+		mux := http.NewServeMux()
+		mux.HandleFunc("/dl/v1.0.10/checksums.txt", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, sums) })
+		mux.HandleFunc("/dl/v1.0.10/"+name, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(arc) })
+		srv := httptest.NewServer(mux)
+		t.Cleanup(srv.Close)
+		return update.Source{Download: srv.URL + "/dl"}
+	}
+	sumOf := func(arc []byte) string {
+		s := sha256.Sum256(arc)
+		return hex.EncodeToString(s[:]) + "  " + name + "\n"
+	}
+	good := archive(t, map[string]string{"hive": "#!hive"})
+	for _, tt := range []struct {
+		name string
+		arc  []byte
+		sums string
+		want string
+	}{
+		{"a truncated archive", good[:len(good)/2], sumOf(good), "checksum"},
+		{"a truncated archive listed with its own checksum", good[:len(good)/2], sumOf(good[:len(good)/2]), "read the archive"},
+		{"an archive without a hive binary", archive(t, map[string]string{"README": "x"}), sumOf(archive(t, map[string]string{"README": "x"})), "no hive binary"},
+		{"no checksum for this system", good, strings.Repeat("0", 64) + "  hive_1.0.10_darwin_arm64.tar.gz\n", "lists no"},
+		{"a malformed checksum line", good, "abc  " + name + "\n", "lists no"},
+		{"no checksums at all", good, "", "lists no"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			bin, err := serve(t, tt.arc, tt.sums).Fetch(ctx, "v1.0.10", "linux", "amd64")
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("fetch = %q, %v; want an error about %q", bin, err, tt.want)
+			}
+		})
+	}
+
+	t.Run("a missing release", func(t *testing.T) {
+		srv := httptest.NewServer(http.NotFoundHandler())
+		defer srv.Close()
+		if _, err := (update.Source{Download: srv.URL}).Fetch(ctx, "v1.0.10", "linux", "amd64"); err == nil {
+			t.Fatal("fetched a release that does not exist")
+		}
+	})
+	t.Run("an archive larger than the limit", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/dl/v1.0.10/checksums.txt", func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprint(w, strings.Repeat("0", 64)+"  "+name+"\n")
+		})
+		mux.HandleFunc("/dl/v1.0.10/"+name, func(w http.ResponseWriter, _ *http.Request) {
+			chunk := make([]byte, 1<<20)
+			for range 257 {
+				if _, err := w.Write(chunk); err != nil {
+					return
+				}
+			}
+		})
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+		if _, err := (update.Source{Download: srv.URL + "/dl"}).Fetch(ctx, "v1.0.10", "linux", "amd64"); err == nil || !strings.Contains(err.Error(), "larger than") {
+			t.Fatalf("an oversized archive: %v", err)
+		}
+	})
+}
+
+// TestInstallFailsSafely: when the new binary cannot be put in place, the
+// old one stays where it was, whole, and nothing is left behind.
+func TestInstallFailsSafely(t *testing.T) {
+	t.Run("the directory is not writable", func(t *testing.T) {
+		if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+			t.Skip("needs Unix permissions that bind this user")
+		}
+		dir := t.TempDir()
+		target := filepath.Join(dir, "hive")
+		if err := os.WriteFile(target, []byte("old"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(dir, 0o555); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+		if err := update.Install(target, []byte("new")); err == nil || !strings.Contains(err.Error(), "permissions it was installed with") {
+			t.Fatalf("install into a read-only directory: %v", err)
+		}
+		if data, _ := os.ReadFile(target); string(data) != "old" {
+			t.Fatalf("target = %q, want the old binary", data)
+		}
+	})
+	t.Run("the staged binary is gone", func(t *testing.T) {
+		dir := t.TempDir()
+		target := filepath.Join(dir, "hive")
+		if err := os.WriteFile(target, []byte("old"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		staged, err := update.Stage(target, []byte("new"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(staged); err != nil {
+			t.Fatal(err)
+		}
+		if err := update.Commit(staged, target); err == nil {
+			t.Fatal("committed a binary that is not there")
+		}
+		if data, _ := os.ReadFile(target); string(data) != "old" {
+			t.Fatalf("target = %q, want the old binary put back", data)
+		}
+		if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+			t.Fatalf("left behind: %v", entries)
+		}
+	})
 }

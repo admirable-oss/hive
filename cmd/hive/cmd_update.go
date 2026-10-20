@@ -54,8 +54,8 @@ A hive installed by Homebrew or Nix is updated by them instead.`,
 			switch {
 			case isGoRunBinary(target):
 				return fmt.Errorf("this hive was built by `go run`; there is no binary to update")
-			case update.Managed(target) == "Homebrew":
-				return fmt.Errorf("%s was installed by Homebrew; run `brew upgrade hive`", target)
+			case update.UpgradeCommand(target) != "":
+				return fmt.Errorf("%s was installed by %s; run `%s`", target, update.Managed(target), update.UpgradeCommand(target))
 			case update.Managed(target) != "":
 				return fmt.Errorf("%s was installed by %s; update it there", target, update.Managed(target))
 			}
@@ -136,6 +136,13 @@ A hive installed by Homebrew or Nix is updated by them instead.`,
 				_ = os.Remove(staged) //nolint:gosec // staged is the temporary file update.Stage made
 				return fmt.Errorf("the new hive does not run here; keeping %s: %w", current, err)
 			}
+			// The daemons running now are the ones to bring back, on the new
+			// binary or, if it cannot run them, on this one.
+			running, err := a.runningDaemons(ctx)
+			if err != nil {
+				_ = os.Remove(staged) //nolint:gosec // staged is the temporary file update.Stage made
+				return err
+			}
 			if err := update.Commit(staged, target); err != nil {
 				return err
 			}
@@ -143,8 +150,8 @@ A hive installed by Homebrew or Nix is updated by them instead.`,
 
 			restarted := []string{}
 			if !noRestart {
-				if restarted, err = a.restartDaemons(ctx, target); err != nil {
-					return err
+				if restarted, err = a.restartSessions(ctx, target, running); err != nil {
+					return a.rollBackFailedRestart(ctx, target, current, running, err)
 				}
 			}
 			msg := fmt.Sprintf("updated hive %s → %s", current, version)
@@ -191,27 +198,71 @@ func probeVersion(ctx context.Context, exe string) (string, error) {
 // restartDaemons restarts every session's running daemon on exe, keeping
 // its agents, and returns the sessions it restarted.
 func (a *app) restartDaemons(ctx context.Context, exe string) ([]string, error) {
+	running, err := a.runningDaemons(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return a.restartSessions(ctx, exe, running)
+}
+
+// runningDaemons lists the sessions whose daemon answers now.
+func (a *app) runningDaemons(ctx context.Context) ([]string, error) {
 	infos, err := session.List(a.base)
 	if err != nil {
 		return nil, err
 	}
-	restarted := []string{}
+	running := []string{}
 	for _, info := range infos {
 		b, err := a.forSession(info.Name)
 		if err != nil {
+			return nil, err
+		}
+		_, ok := b.daemonRunning(ctx)
+		_ = b.client.Close()
+		if ok {
+			running = append(running, info.Name)
+		}
+	}
+	return running, nil
+}
+
+// restartSessions (re)starts each named session's daemon on exe, keeping its
+// agents: a daemon that runs is stopped first, one that does not is
+// started. It returns the sessions it restarted.
+func (a *app) restartSessions(ctx context.Context, exe string, names []string) ([]string, error) {
+	restarted := []string{}
+	for _, name := range names {
+		b, err := a.forSession(name)
+		if err != nil {
 			return restarted, err
 		}
-		if _, ok := b.daemonRunning(ctx); !ok {
-			continue
+		if _, ok := b.daemonRunning(ctx); ok {
+			if err := b.shutdownDaemon(ctx, false); err != nil {
+				_ = b.client.Close()
+				return restarted, fmt.Errorf("stop the daemon of session %q: %w", name, err)
+			}
 		}
-		if err := b.shutdownDaemon(ctx, false); err != nil {
-			return restarted, fmt.Errorf("stop the daemon of session %q: %w", info.Name, err)
-		}
-		if err := b.spawnDaemon(ctx, exe); err != nil {
-			return restarted, fmt.Errorf("start the daemon of session %q: %w", info.Name, err)
-		}
+		err = b.spawnDaemon(ctx, exe)
 		_ = b.client.Close()
-		restarted = append(restarted, info.Name)
+		if err != nil {
+			return restarted, fmt.Errorf("start the daemon of session %q: %w", name, err)
+		}
+		restarted = append(restarted, name)
 	}
 	return restarted, nil
+}
+
+// rollBackFailedRestart handles a new binary that installed and runs, but
+// whose daemon does not start: it puts the previous binary back and starts
+// the sessions' daemons on it again, so an update never leaves them down.
+// Agents run under their shims throughout.
+func (a *app) rollBackFailedRestart(ctx context.Context, target, current string, sessions []string, cause error) error {
+	fmt.Fprintf(a.errOut, "hive: the new daemon did not start (%v); rolling back to %s\n", cause, current)
+	if err := update.Rollback(target); err != nil {
+		return fmt.Errorf("%w; rolling back to %s failed too: %w", cause, current, err)
+	}
+	if _, err := a.restartSessions(ctx, target, sessions); err != nil {
+		return fmt.Errorf("%w; rolled back to %s, but its daemon did not start either: %w", cause, current, err)
+	}
+	return fmt.Errorf("%w; rolled back to %s and restarted its daemons (agents kept running)", cause, current)
 }

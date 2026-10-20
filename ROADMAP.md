@@ -1111,9 +1111,19 @@ do not change.
 
 ---
 
-## M19 · `v1.0.10` Release Quality
+## M19 · `v1.0.10` Release Quality — **IN PROGRESS**
 
 Make the entire 1.0 release train dependable.
+
+**Status:** the review is done and its fixes are on `main`. The exit
+criteria wait on a self-hosted runner, the desktop app's signing, and
+community input on the next roadmap: see [M19 progress](#m19-progress).
+What works with what: [docs/compatibility.md](docs/compatibility.md).
+Upgrading and recovery: [docs/upgrading.md](docs/upgrading.md). Operations:
+[docs/operations.md](docs/operations.md). Security:
+[docs/threat-model.md](docs/threat-model.md) and
+[docs/security-review.md](docs/security-review.md). Governance:
+[GOVERNANCE.md](GOVERNANCE.md), [rfcs/](rfcs/README.md).
 
 This release consolidates the improvements introduced throughout
 `v1.0.1–v1.0.9`. It prioritizes compatibility, security, operational clarity,
@@ -1203,6 +1213,67 @@ feature set.
 migration expectations are documented, critical security and reliability gaps
 are addressed, and plugin installation and recovery work predictably. The next
 major-version roadmap is published with community input.
+
+### M19 progress
+
+- [x] Compatibility audit:
+  - a versioned matrix of releases, API levels, plugin, observer and
+    discovery APIs, and state schemas;
+  - deprecations listed, with migration paths;
+  - older clients against newer daemons, tested.
+- [x] Upgrade test: each earlier release is built from its tag, starts
+  agents, upgrades with its own `hive update`, runs its CLI against the
+  newer daemon, and goes back (`make upgrade`, nightly from every 1.x tag).
+  Upgrades made by `v1.0.0-rc.1` keep no previous binary, so going back from
+  one means installing it again (documented).
+- [x] Updates fail safely: a new daemon that does not start is rolled back
+  with its binary. Release candidates sort by semver, Homebrew casks are
+  recognised, and tests cover truncated, oversized, unsigned and
+  unwritable cases.
+- [x] State written by a newer hive (credentials, machines, identity,
+  plugins, web) is refused and left untouched.
+- [x] Security review ([record](docs/security-review.md)):
+  - ten findings fixed. The first was ten standard-library vulnerabilities
+    Hive's code could reach, closed by moving to Go 1.26.9;
+  - `govulncheck` in CI and nightly, `npm audit`, Dependabot;
+  - plugin release tags can no longer become hive's version or trigger a
+    hive release;
+  - [threat model](docs/threat-model.md) published.
+- [x] Plugin ecosystem:
+  - revocable releases (`revocations.json`), with failing closed;
+  - deprecated and archived warnings, and registry status in `plugin doctor`;
+  - the catalog may grow (unknown fields ignored);
+  - [policies](docs/plugins/ecosystem.md) for abandoned, compromised,
+    deprecated and removed plugins, and guidance for maintainers;
+  - official plugins checked.
+- [x] Docs and operations:
+  - [upgrade and recovery guide](docs/upgrading.md);
+  - [operations guide](docs/operations.md): backups, retention, diagnosing
+    failed sessions, remote runtimes, feature maturity;
+  - SECURITY.md and CONTRIBUTING.md updated, and a bug report form with
+    severity.
+- [x] Governance: [GOVERNANCE.md](GOVERNANCE.md), covering roles, decisions,
+  breaking changes, releases with a release checklist, support and
+  deprecation, and maintainer and official-integration expectations. Plus
+  the [RFC process](rfcs/README.md), and the
+  [proposed roadmap after 1.0.10](rfcs/0001-after-1.0.10.md).
+- [ ] The 72-hour chaos soak and an automated cross-user connection test.
+  Both need a self-hosted runner.
+- [ ] Installs validated on every supported OS and architecture through
+  every path: the Homebrew formula and cask, Nix, `install.sh` and
+  `install.ps1`. The desktop installers, signing and in-app updates depend
+  on M18.
+- [ ] The official plugins moved to their own repository, released and
+  seeded (open item A of the review). Installer signature checks (open
+  item B).
+- [x] The docs on the website: compatibility matrix, upgrading, operations,
+  threat model, security policy and review, plugin ecosystem, governance,
+  RFCs, discovery and the desktop app. They are generated from this
+  repository (`hive-landing/.github/scripts/sync-hive-docs.mjs`) and kept
+  current by the `sync-docs-to-website` workflow, which also serves
+  `/plugins/revocations.json`.
+- [ ] RFC 0001 discussed with plugin authors and users, and accepted; then
+  tag `v1.0.10`.
 
 ---
 

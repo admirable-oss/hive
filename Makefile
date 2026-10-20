@@ -10,11 +10,15 @@ FUZZTIME      ?= 30s
 
 GOLANGCI_LINT_VERSION ?= v2.14.0
 GORELEASER_VERSION    ?= v2.18.2
+GOVULNCHECK_VERSION   ?= v1.9.0
 
 GOLANGCI_LINT := $(BIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 GORELEASER    := $(BIN)/goreleaser-$(GORELEASER_VERSION)
 
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# Annotated tags only: hive releases are annotated (git tag -a), while the
+# official plugins' release tags in this repository (v0.1.0, …) are
+# lightweight and must never become hive's version.
+VERSION ?= $(shell git describe --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w \
@@ -92,6 +96,10 @@ perf: ## Check the performance budgets (frame time, idle CPU, input latency)
 chaos: ## Run the chaos soak for HIVE_CHAOS (default 20s)
 	$(GO) test -count=1 -timeout 80h -run '^TestChaos$$' -v ./cmd/hive
 
+.PHONY: upgrade
+upgrade: ## Upgrade from earlier releases and back: make upgrade FROM="v1.0.0-rc.1" (tags or binaries)
+	HIVE_UPGRADE_FROM="$(or $(FROM),$(shell git tag -l 'v1.*'))" $(GO) test -count=1 -timeout 30m -run '^TestM19UpgradeFromEarlierReleases$$' -v ./cmd/hive
+
 .PHONY: vet
 vet: ## Run go vet
 	$(GO) vet ./...
@@ -107,6 +115,10 @@ fmt: $(GOLANGCI_LINT) ## Format the code (gofumpt + goimports)
 .PHONY: tidy
 tidy: ## Tidy go.mod and go.sum
 	$(GO) mod tidy
+
+.PHONY: vuln
+vuln: ## Report known vulnerabilities the code can reach (govulncheck, pinned)
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
 .PHONY: check
 check: vet lint race ## Everything CI checks: vet, lint, race tests

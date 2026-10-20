@@ -17,6 +17,7 @@ body:
       options:
         - Misleading or malicious behavior
         - Broken or compromised release
+        - Failed upgrade or incompatible with a Hive release
         - License or ownership concern
         - Incorrect listing information
         - Other policy concern

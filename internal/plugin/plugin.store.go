@@ -240,7 +240,10 @@ func (s *Store) loadLocked() ([]Installed, error) {
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
-	return f.Plugins, err
+	if err != nil {
+		return nil, fmt.Errorf("installed plugins %s: %w", s.registry(), err)
+	}
+	return f.Plugins, jsonfile.CheckSchema(s.registry(), f.Schema, 1)
 }
 
 func (s *Store) saveLocked(list []Installed) error {

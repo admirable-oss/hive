@@ -57,6 +57,8 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/frontend/package-lock.json
       - run: npm ci
+      - name: audit (shipped dependencies)
+        run: npm audit --omit=dev --audit-level=high
       - name: lint
         run: npm run lint
       - name: typecheck
@@ -94,6 +96,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
       - name: go mod tidy is clean
         run: go mod tidy -diff
+      - name: govulncheck
+        if: runner.os == 'Linux'
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 . ./internal/...
       - name: build the frontend
         working-directory: desktop/frontend
         run: npm ci && npm run build
@@ -181,7 +186,7 @@ jobs:
         working-directory: .
         run: |
           exe=hive; [ "$RUNNER_OS" = Windows ] && exe=hive.exe
-          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/admirable-oss/hive/internal/buildinfo.version=$(git describe --tags --always)" -o "$RUNNER_TEMP/$exe" ./cmd/hive
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/admirable-oss/hive/internal/buildinfo.version=$(git describe --always)" -o "$RUNNER_TEMP/$exe" ./cmd/hive
           echo "HIVE_CLI=$RUNNER_TEMP/$exe" >> "$GITHUB_ENV"
       - name: package
         run: |

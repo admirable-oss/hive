@@ -110,6 +110,9 @@
 
 - [ ] Implementation follows Hive's existing architecture and conventions
 - [ ] Tests cover the new behavior and relevant edge cases
+- [ ] A bug fix includes a test that fails without it (required for release-blocking P0/P1 defects)
+- [ ] Public surfaces (`api/v1/`) only gain additions; a state schema change is migrated and recorded in `docs/compatibility.md`
+- [ ] Substantial or breaking changes have an accepted RFC (`rfcs/`)
 - [ ] Error handling and cleanup paths have been considered
 - [ ] Documentation has been updated where necessary
 - [ ] No unrelated changes are included

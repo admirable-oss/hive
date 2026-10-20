@@ -21,8 +21,9 @@ import (
 
 // fakeSSH stands in for ssh: each host is a directory under
 // $HIVE_FAKE_SSH_ROOT, its own home with its own HIVE_HOME, and the remote
-// command runs there in sh. Options are accepted and ignored; -O exit (the
-// shared connection) succeeds.
+// command runs there in sh, with the system's PATH only (a hive installed on
+// this machine is not on the fake host). Options are accepted and ignored;
+// -O exit (the shared connection) succeeds.
 const fakeSSH = `#!/bin/sh
 host=""
 while [ $# -gt 0 ]; do
@@ -42,7 +43,7 @@ if [ ! -d "$dir" ]; then
 fi
 [ $# -eq 0 ] && exit 0
 unset HIVE_SSH HIVE_SOCKET_PATH HIVE_SESSION
-export HOME="$dir" HIVE_HOME="$dir/.hive" HIVE_CONFIG="$dir/config.toml"
+export HOME="$dir" HIVE_HOME="$dir/.hive" HIVE_CONFIG="$dir/config.toml" PATH=/usr/bin:/bin:/usr/sbin:/sbin
 cd "$dir" && exec sh -c "$*"
 `
 

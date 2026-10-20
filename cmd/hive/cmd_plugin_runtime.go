@@ -326,9 +326,20 @@ func newPluginDoctorCmd(a *app) *cobra.Command {
 					}
 				}
 			}
+			// The registry's view of registry-installed plugins: revoked,
+			// delisted, deprecated or archived releases.
+			var catalog *plugin.Registry
+			var catalogErr error
+			if slices.ContainsFunc(list, func(p plugin.Plugin) bool { return p.Registry }) {
+				c, err := a.pluginRegistry().Fetch(ctx)
+				catalog, catalogErr = &c, err
+			}
 			var checks []doctorCheck
 			for _, p := range list {
 				checks = append(checks, a.doctorPlugin(ctx, store, p, live, daemon)...)
+				if p.Registry {
+					checks = append(checks, doctorRegistry(p, catalog, catalogErr))
+				}
 			}
 			failed := slices.ContainsFunc(checks, func(c doctorCheck) bool { return c.Level == "error" })
 			err = a.emit(checks, func() error {
@@ -353,6 +364,33 @@ func newPluginDoctorCmd(a *app) *cobra.Command {
 			return err
 		}),
 	}
+}
+
+// doctorRegistry checks a registry-installed plugin's release against the
+// registry: still listed, not revoked, still maintained.
+func doctorRegistry(p plugin.Plugin, catalog *plugin.Registry, catalogErr error) doctorCheck {
+	check := func(level, format string, args ...any) doctorCheck {
+		return doctorCheck{Plugin: p.ID, Level: level, Check: "registry", Detail: fmt.Sprintf(format, args...)}
+	}
+	if catalogErr != nil {
+		return check("warn", "cannot reach the registry, so whether %s is revoked is unknown: %v", p.Version, catalogErr)
+	}
+	if r, ok := catalog.Revocation(p.ID, p.Version); ok {
+		return check("error", "%s is revoked: %s; update (`hive plugin update %s`) or uninstall it", p.Version, revocationText(r), p.ID)
+	}
+	listing, ok := catalog.Get(p.ID)
+	switch {
+	case !ok:
+		return check("warn", "no longer listed in the registry: no updates or fixes will come")
+	case listing.Archived:
+		return check("warn", "archived: no longer maintained, and no fixes will come")
+	case listing.Deprecated:
+		return check("warn", "deprecated by its maintainers; look for a replacement")
+	}
+	if latest, ok := listing.Latest(); ok && latest.Version != p.Version {
+		return check("ok", "listed; %s installed, %s available (`hive plugin update %s`)", p.Version, latest.Version, p.ID)
+	}
+	return check("ok", "listed; %s is current", p.Version)
 }
 
 func (a *app) doctorPlugin(ctx context.Context, store *plugin.Store, p plugin.Plugin, live map[string]plugin.Status, daemon bool) []doctorCheck {

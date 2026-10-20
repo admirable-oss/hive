@@ -2,6 +2,8 @@ module github.com/admirable-oss/hive/desktop
 
 go 1.26.6
 
+toolchain go1.26.9
+
 require (
 	github.com/admirable-oss/hive v0.0.0
 	github.com/chromedp/cdproto v0.157.8

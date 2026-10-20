@@ -29,6 +29,8 @@ https://github.com/user-attachments/assets/bd7b9d6e-d0f5-43d7-9889-34c1a3fb0c9e
 
 Hive is at **v1.0 release candidates** and built in public. The wire API, the CLI, the configuration keys and the Go SDK are frozen: 1.x only adds to them ([compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/)). Documentation lives at [hive.admir-saheta.com/docs](https://hive.admir-saheta.com/docs/); start with the [quick start](https://hive.admir-saheta.com/docs/getting-started/quick-start/), or the [migration guide](https://hive.admir-saheta.com/docs/getting-started/migrating-from-herdr/) if you come from herdr.
 
+Running it for real: what works with what across releases ([compatibility matrix](docs/compatibility.md)), [upgrading and recovery](docs/upgrading.md), [operations](docs/operations.md) (backups, retention, diagnosing a failed session, remote runtimes, which features are stable), and the [threat model](docs/threat-model.md).
+
 | Area | State |
 |------|-------|
 | Runtime daemon, unix-socket protocol (multiplexed protocol 2, plain protocol 1), CLI | ✅ working |
@@ -369,13 +371,15 @@ Hive is designed **contracts first**. Each layer depends on a small interface (a
 
 ```sh
 make check      # vet, lint (pinned golangci-lint), race tests with goleak, go.mod tidiness
-make fuzz       # run the fuzz targets (protocol framing, config parser)
+make fuzz       # run the fuzz targets (protocol framing, config, manifests, graphics, discovery)
+make vuln       # known vulnerabilities the code can reach (govulncheck)
+make upgrade    # upgrade from every earlier 1.x release and back
 make snapshot   # build release archives into ./dist
 ```
 
 Tests sit next to the code or in a package's `tests/` directory. Fakes for `Store`, `Runner`, `Factory` and `client.Client` let most tests run without real processes. Integration tests start a real daemon on a temporary socket, and the CLI's end-to-end tests run the real binary path, autostarting a daemon in a scratch `HIVE_HOME`. Every package checks for leaked goroutines.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards and [architecture decisions](https://hive.admir-saheta.com/docs/ref/architecture/README/) for design decisions. Issues and pull requests are welcome. Please keep changes small, follow the file conventions above, and include a test with each bug fix.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards, [GOVERNANCE.md](GOVERNANCE.md) for how decisions and releases are made (substantial changes start as an [RFC](rfcs/README.md)), and [architecture decisions](https://hive.admir-saheta.com/docs/ref/architecture/README/) for design decisions. Issues and pull requests are welcome. Please keep changes small, follow the file conventions above, and include a test with each bug fix.
 
 Found a security issue? Please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 

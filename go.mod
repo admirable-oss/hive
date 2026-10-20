@@ -2,6 +2,8 @@ module github.com/admirable-oss/hive
 
 go 1.26.6
 
+toolchain go1.26.9
+
 require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
 	github.com/charmbracelet/x/ansi v0.11.7
@@ -16,7 +18,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
 	go.uber.org/goleak v1.3.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.48.0
 	maragu.dev/gomponents v1.4.0
 )

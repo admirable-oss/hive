@@ -231,7 +231,11 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 					if err := entry.SupportsHive(buildinfo.Get().Version); err != nil {
 						return err
 					}
-					release := entry.Releases[0]
+					release, ok := entry.Latest()
+					if !ok {
+						return fmt.Errorf("every release of %s is revoked (%s); it cannot be installed", entry.ID, revocationText(*entry.Releases[0].Revoked))
+					}
+					a.warnListing(entry)
 					listing = &entry
 					source, ref = entry.Repository, release.Ref
 					fmt.Fprintf(a.errOut, "Fetching catalog plugin %s@%s…\n", entry.ID, release.Version)
@@ -312,17 +316,29 @@ func newPluginUpdateCmd(a *app) *cobra.Command {
 			if !p.Registry {
 				return fmt.Errorf("%s is not registry-installed; update is unavailable", p.ID)
 			}
+			revoked, isRevoked := catalog.Revocation(p.ID, p.Version)
 			entry, ok := catalog.Get(p.ID)
-			if !ok {
+			switch {
+			case !ok && isRevoked:
+				return fmt.Errorf("installed plugin %s %s is revoked (%s) and no longer listed; uninstall it with `hive plugin uninstall %s`", p.ID, p.Version, revocationText(revoked), p.ID)
+			case !ok:
 				return fmt.Errorf("installed plugin %s is no longer listed; refusing an unverified update", p.ID)
 			}
 			if err := entry.SupportsHive(buildinfo.Get().Version); err != nil {
 				return err
 			}
-			if err := verifyInstalledRelease(p.Installed, entry); err != nil {
+			// A revoked release is left whatever its record says: moving off
+			// it, to a release the registry vouches for, is what matters.
+			if isRevoked {
+				fmt.Fprintf(a.errOut, "hive: the installed %s %s is revoked: %s\n", p.ID, p.Version, revocationText(revoked))
+			} else if err := verifyInstalledRelease(p.Installed, entry); err != nil {
 				return err
 			}
-			release := entry.Releases[0]
+			release, ok := entry.Latest()
+			if !ok {
+				return fmt.Errorf("every release of %s is revoked; disable or uninstall it (`hive plugin uninstall %s`)", p.ID, p.ID)
+			}
+			a.warnListing(entry)
 			if release.Version == p.Version || strings.EqualFold(release.Commit, p.Commit) {
 				fmt.Fprintf(a.errOut, "%s is already current (%s)\n", p.ID, p.Version)
 				continue
@@ -445,8 +461,7 @@ func newPluginSearchCmd(a *app) *cobra.Command {
 				w := a.table()
 				fmt.Fprintln(w, "ID\tNAME\tLATEST\tCATEGORY\tSTATUS\tDESCRIPTION")
 				for _, p := range entries {
-					latest := p.Releases[0].Version
-					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", p.ID, p.Name, latest, strings.Join(p.Categories, ","), listingStatus(p), p.Description)
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", p.ID, p.Name, latestVersion(p), strings.Join(p.Categories, ","), listingStatus(p), p.Description)
 				}
 				return w.Flush()
 			})
@@ -626,7 +641,7 @@ func newPluginInfoCmd(a *app) *cobra.Command {
 			return a.emit(listing, func() error {
 				fmt.Fprintf(a.out, "%s (%s)\n", listing.Name, listing.ID)
 				fmt.Fprintf(a.out, "  %s\n", listing.Description)
-				fmt.Fprintf(a.out, "  latest: %s\n  license: %s\n  platforms: %s\n  Hive: %s\n  plugin API: %s\n", listing.Releases[0].Version, cmpStr(listing.License, "unspecified"), cmpStr(strings.Join(listing.Platforms, ", "), "all"), hiveRange(listing.MinHiveVersion, listing.MaxHiveVersion), cmpStr(listing.API, "unspecified"))
+				fmt.Fprintf(a.out, "  latest: %s\n  license: %s\n  platforms: %s\n  Hive: %s\n  plugin API: %s\n", latestVersion(listing), cmpStr(listing.License, "unspecified"), cmpStr(strings.Join(listing.Platforms, ", "), "all"), hiveRange(listing.MinHiveVersion, listing.MaxHiveVersion), cmpStr(listing.API, "unspecified"))
 				fmt.Fprintf(a.out, "  repository: %s\n", listing.Repository)
 				if listing.Documentation != "" {
 					fmt.Fprintf(a.out, "  docs: %s\n", listing.Documentation)
@@ -648,6 +663,9 @@ func newPluginInfoCmd(a *app) *cobra.Command {
 				fmt.Fprintln(a.out, "  releases:")
 				for _, release := range listing.Releases {
 					fmt.Fprintf(a.out, "    %s  %s  %s\n", release.Version, release.PublishedAt.Format(time.DateOnly), release.Commit[:12])
+					if release.Revoked != nil {
+						fmt.Fprintf(a.out, "      revoked: %s\n", revocationText(*release.Revoked))
+					}
 					if release.Changelog != "" {
 						fmt.Fprintf(a.out, "      %s\n", release.Changelog)
 					}
@@ -677,6 +695,31 @@ func maintainerNames(maintainers []plugin.Maintainer) string {
 		names = append(names, m.Name)
 	}
 	return cmpStr(strings.Join(names, ", "), "unspecified")
+}
+
+// latestVersion is the newest installable release's version, as listings
+// show it.
+func latestVersion(p plugin.Listing) string {
+	if r, ok := p.Latest(); ok {
+		return r.Version
+	}
+	return "none (revoked)"
+}
+
+// revocationText is a revocation's reason and advisory, for messages.
+func revocationText(r plugin.Revocation) string {
+	return r.Reason + suffixIf(r.Advisory, "; see "+r.Advisory)
+}
+
+// warnListing says so when a plugin about to be installed is deprecated or
+// archived: it installs, but its maintainers no longer stand behind it.
+func (a *app) warnListing(p plugin.Listing) {
+	switch {
+	case p.Archived:
+		fmt.Fprintf(a.errOut, "hive: %s is archived: it is no longer maintained and will get no fixes, security fixes included\n", p.ID)
+	case p.Deprecated:
+		fmt.Fprintf(a.errOut, "hive: %s is deprecated by its maintainers; look for a replacement (`hive plugin info %s`)\n", p.ID, p.ID)
+	}
 }
 
 func listingStatus(p plugin.Listing) string {

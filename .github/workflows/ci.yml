@@ -29,6 +29,19 @@ jobs:
       - name: lint the Windows build
         run: GOOS=windows golangci-lint run ./...
 
+  # Known vulnerabilities in the code's call graph: the standard library of
+  # the toolchain go.mod names, and every module. Nightly runs it too, since
+  # new advisories arrive without a change here.
+  vulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: govulncheck
+        run: make vuln
+
   test:
     strategy:
       fail-fast: false

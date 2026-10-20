@@ -1,7 +1,8 @@
 name: nightly
 
-# The long checks: fuzzing (five targets for 5 h each, 25 h a night), the
-# multi-machine soak, the chaos soak and the performance budgets. Hosted
+# The long checks: fuzzing (seven targets for 5 h each), the multi-machine
+# soak, the chaos soak, the performance budgets, upgrades from every earlier
+# 1.x release, and known vulnerabilities (new advisories need no change here). Hosted
 # runners stop a job at 6 h; run the 72 h chaos gate by hand on a
 # self-hosted runner (workflow_dispatch with runner and chaos set).
 
@@ -58,6 +59,16 @@ jobs:
           name: fuzz-failure-${{ strategy.job-index }}
           path: '**/testdata/fuzz/**'
 
+  vulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: govulncheck
+        run: make vuln
+
   soak:
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 4320
@@ -87,6 +98,28 @@ jobs:
         env:
           HIVE_CHAOS: ${{ inputs.chaos || '5h' }}
         run: go test -count=1 -timeout 80h -run '^TestChaos$' -v ./cmd/hive
+
+  # Upgrades from every earlier 1.x release to this commit, and back:
+  # agents keep running, state carries over, and an earlier CLI works with
+  # the newer daemon (TestM19UpgradeFromEarlierReleases).
+  upgrade:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: upgrade from each earlier 1.x release
+        run: |
+          from=$(git tag -l 'v1.*' --sort=v:refname | tr '\n' ' ')
+          echo "upgrading from: $from"
+          HIVE_UPGRADE_FROM="$from" go test -count=1 -timeout 30m -run '^TestM19UpgradeFromEarlierReleases$' -v ./cmd/hive
 
   perf:
     strategy:

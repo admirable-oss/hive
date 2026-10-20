@@ -1,0 +1,75 @@
+name: Report a bug
+description: Something in Hive does not work as documented. For a security vulnerability, use a private Security Advisory instead.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security vulnerabilities:** please report them privately through [GitHub Security Advisories](https://github.com/admirable-oss/hive/security/advisories/new), not here.
+        Logs can hold what agents printed: read them before you paste them, and remove secrets.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: The command you ran, what it printed (the exact error), and what should have happened.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce it
+      placeholder: |
+        1. hive env create dev --managed
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: version
+    attributes:
+      label: hive version --json
+      render: json
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Desktop app (preview)
+        - Remote machine (--remote / --machine)
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal emulator and version (and tmux or screen in between, if any)
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How bad is it?
+      description: Release-blocking bugs (P0, P1) hold a release until fixed, with a regression test (GOVERNANCE.md).
+      options:
+        - "P0: agents or data lost, or a security hole"
+        - "P1: a documented workflow broken on a supported platform, or a compatibility promise broken"
+        - "P2: wrong or degraded, with a workaround"
+        - "P3: cosmetic or minor"
+    validations:
+      required: true
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Did this work in an earlier release?
+      options:
+        - "Don't know"
+        - "No, it never worked"
+        - "Yes (name the release below)"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "`hive daemon logs -n 200`, and `hive plugin doctor` for plugin problems. Remove secrets."
+      render: text

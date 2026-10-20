@@ -171,8 +171,10 @@ func TestShellAndInstall(t *testing.T) {
 		t.Skip("the fake ssh is a shell script")
 	}
 	home := t.TempDir()
-	// The fake runs the script locally with HOME set, like a login there.
-	tg := Target{Host: "box", SSH: fakeSSH(t, `for a; do last="$a"; done; HOME=`+home+` exec sh -c "$last"`)}
+	// The fake runs the script locally with HOME set, like a login there,
+	// and the system's PATH only: a hive installed on this machine (in
+	// ~/.local/bin, say) is not on the remote.
+	tg := Target{Host: "box", SSH: fakeSSH(t, `for a; do last="$a"; done; HOME=`+home+` PATH=/usr/bin:/bin exec sh -c "$last"`)}
 	ctx := context.Background()
 	p, err := tg.Probe(ctx)
 	if err != nil || p.OS == "" || p.Installed() {

@@ -114,6 +114,9 @@ func (s *Store) loadPush() error {
 	if err := jsonfile.Read(s.pushPath(), &f); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("web push: %w", err)
 	}
+	if err := jsonfile.CheckSchema(s.pushPath(), f.Schema, 1); err != nil {
+		return err
+	}
 	s.subs, s.prefs = map[string]*Subscription{}, map[string]*Prefs{}
 	for _, x := range f.Subscriptions {
 		if x != nil && x.ID != "" {

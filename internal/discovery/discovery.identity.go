@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/admirable-oss/hive/internal/jsonfile"
 )
 
 // IdentityFile is the runtime identity's file in <HIVE_HOME>. It holds a
@@ -93,6 +95,9 @@ func LoadIdentity(dir string) (*Identity, error) {
 	var f identityFile
 	if err := json.Unmarshal(data, &f); err != nil {
 		return nil, fmt.Errorf("%s: %w: %w", path, ErrBadIdentity, err)
+	}
+	if err := jsonfile.CheckSchema(path, f.Schema, 1); err != nil {
+		return nil, err
 	}
 	seed, err := base64.StdEncoding.DecodeString(f.PrivateKey)
 	if err != nil || len(seed) != ed25519.SeedSize {

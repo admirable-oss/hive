@@ -4,6 +4,89 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.0.10 (unreleased): Release quality (M19)
+
+The first stable release of the 1.0 train. Nothing has been tagged since
+`v1.0.0-rc.1`, so this release carries everything since then. Users of
+`v1.0.0-rc.1` upgrade straight to it; the nightly upgrade test checks that
+path, and the way back. What works with what is in
+[docs/compatibility.md](docs/compatibility.md).
+
+### Since v1.0.0-rc.1 (M10 to M18)
+
+- **Plugin store (M10):** `hive plugin search | info | install <id> | update
+  | rollback | validate | init`, a versioned registry with governed
+  submissions.
+- **Plugin API 1 (M12):** capabilities enforced per plugin, an optional
+  sandbox, health and restart limits, sidebar cards, contextual actions,
+  settings forms and backups.
+- **Images (M11):** Kitty graphics from agents, an image paste bridge, and
+  text fallbacks.
+- **Windows (M13):** ConPTY, job objects, Task Scheduler, zip releases;
+  `hive update --rollback` on every system.
+- **Observers (M14):** read-only, scoped, expiring credentials, and an
+  observer socket with resync.
+- **Web and mobile (M15, M16):** the web observer, an installable app, and
+  end-to-end encrypted Web Push.
+- **Local discovery (M17):** opt-in mDNS, and pairing that proves each
+  machine's identity.
+- **Desktop app (M18, preview):** environments, agents and live terminals in
+  a window, on Wails v3.
+
+### Security
+
+- Release builds use Go 1.26.9 (`toolchain` in `go.mod`), with
+  `golang.org/x/net` v0.60.0. They fix ten standard-library vulnerabilities
+  that Hive's HTTP, TLS and Windows file code could reach
+  ([security review](docs/security-review.md)).
+- `govulncheck` runs on every change and nightly; `npm audit` checks the
+  desktop frontend; Dependabot proposes updates.
+- New: the [threat model](docs/threat-model.md) and the
+  [security review](docs/security-review.md) of the train.
+- Builds take their version from annotated tags only, and the release
+  workflow refuses lightweight tags. Plugin release tags in the repository
+  (`v0.1.0`) can no longer become hive's version or publish a hive release.
+
+### Updates
+
+- When the new daemon does not start after `hive update`, the previous
+  binary is put back and the daemons restart on it. Agents keep running.
+- Release candidates sort by semantic versioning (`-rc.10` after `-rc.9`).
+- Homebrew casks are recognised, and `hive update` names the right
+  `brew upgrade` command for the formula (`hive-agents`) or the cask (`hive`).
+
+### Plugins
+
+- The registry can revoke a release (`revocations.json`, beside the
+  catalog). Hive refuses to install or update to a revoked release,
+  `plugin update` moves off one, and `plugin doctor` fails on one.
+- `plugin install` and `update` warn about deprecated and archived listings.
+  `plugin doctor` checks each registry plugin against the registry: revoked,
+  delisted, deprecated, archived, or an update available.
+- The registry catalog may gain fields: unknown fields are ignored. (Earlier
+  releases reject them, so the published catalog adds none while they are
+  supported.)
+
+### Reliability and compatibility
+
+- State files written by a newer hive (observer credentials, machines, the
+  identity, installed plugins, web state) are refused and left untouched,
+  not misread or overwritten after a rollback.
+- New tests: upgrades from earlier releases with an older CLI against the
+  newer daemon (`make upgrade`, nightly from every 1.x tag); updates that
+  fail safely; revoked releases; refused newer state files.
+
+### Docs and governance
+
+- [Compatibility matrix](docs/compatibility.md), the
+  [upgrade and recovery guide](docs/upgrading.md), the
+  [operations guide](docs/operations.md) (backups, retention, diagnosis,
+  remote runtimes, feature maturity), and
+  [plugin ecosystem policies](docs/plugins/ecosystem.md).
+- [GOVERNANCE.md](GOVERNANCE.md) (roles, decisions, breaking changes,
+  releases, support), [RFCs](rfcs/README.md), and the proposed roadmap after
+  1.0.10 ([RFC 0001](rfcs/0001-after-1.0.10.md)).
+
 ## v1.0.0-rc.1 (2026-10-12)
 
 The first release candidate of 1.0: the APIs are frozen, and the remaining

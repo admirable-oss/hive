@@ -6,6 +6,7 @@ on:
     paths:
       - "registry/official-releases.json"
       - "registry/official-listings.json"
+      - "registry/revocations.json"
   workflow_dispatch:
 
 permissions:
@@ -43,6 +44,10 @@ jobs:
           node-version: "22.12"
       - name: Seed official plugin releases into the website registry
         run: node hive-landing/.github/scripts/seed-official-registry.mjs hive
+      # Revocations are served beside the catalog (hive 1.0.10 and later
+      # read them; docs/plugins/ecosystem.md).
+      - name: Copy the registry's revocations
+        run: cp hive/registry/revocations.json hive-landing/public/plugins/revocations.json
       - name: Create a registry update pull request
         uses: peter-evans/create-pull-request@v8
         with:
@@ -53,7 +58,8 @@ jobs:
           delete-branch: true
           add-paths: |
             public/plugins/registry.json
+            public/plugins/revocations.json
             src/data/plugins-registry.json
           commit-message: "chore(plugins): sync official plugin releases"
           title: "chore(plugins): sync official plugin releases"
-          body: "Generated from hive/registry/official-releases.json and official-listings.json."
+          body: "Generated from hive/registry/official-releases.json, official-listings.json and revocations.json."

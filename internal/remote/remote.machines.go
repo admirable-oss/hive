@@ -131,6 +131,9 @@ func (r *Registry) load() ([]Machine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", r.path, err)
 	}
+	if err := jsonfile.CheckSchema(r.path, f.Schema, 1); err != nil {
+		return nil, err
+	}
 	return f.Machines, nil
 }
 

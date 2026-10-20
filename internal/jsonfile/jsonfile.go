@@ -5,9 +5,24 @@ package jsonfile
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 )
+
+// ErrNewer means a document was written by a newer hive, in a schema this
+// one does not know. Reading it could misread it, and writing it back would
+// lose what the newer hive wrote, so it is left alone.
+var ErrNewer = errors.New("written by a newer hive")
+
+// CheckSchema refuses a document at path whose schema is newer than
+// newest, the newest this build writes.
+func CheckSchema(path string, schema, newest int) error {
+	if schema > newest {
+		return fmt.Errorf("%s: %w (schema %d, this hive reads up to %d); update hive, or restore a backup of the file", path, ErrNewer, schema, newest)
+	}
+	return nil
+}
 
 // Write stores v at path atomically and durably: it writes a temp file in the
 // same directory, syncs it, renames it into place and syncs the directory.

@@ -10,6 +10,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"context"
 	"crypto/ed25519"
@@ -379,10 +380,27 @@ func Rollback(target string) error {
 // "Nix"), whose own upgrade must be used instead; "" for none.
 func Managed(path string) string {
 	switch {
-	case strings.Contains(path, "/Cellar/"):
+	case strings.Contains(path, "/Cellar/"), strings.Contains(path, "/Caskroom/"):
 		return "Homebrew"
 	case strings.HasPrefix(path, "/nix/store/"):
 		return "Nix"
+	}
+	return ""
+}
+
+// UpgradeCommand is the command that upgrades a hive Homebrew installed at
+// path: its formula (hive-agents) or its cask (hive), as the path shows.
+// It is "" when no single command does it (Nix, or not managed).
+func UpgradeCommand(path string) string {
+	for _, m := range []struct{ dir, cmd string }{
+		{"/Cellar/", "brew upgrade "},
+		{"/Caskroom/", "brew upgrade --cask "},
+	} {
+		if _, rest, ok := strings.Cut(path, m.dir); ok {
+			if name, _, _ := strings.Cut(rest, "/"); name != "" {
+				return m.cmd + name
+			}
+		}
 	}
 	return ""
 }
@@ -413,7 +431,33 @@ func Newer(a, b string) bool {
 	case pb.pre == "":
 		return false
 	}
-	return pa.pre > pb.pre
+	return comparePre(pa.pre, pb.pre) > 0
+}
+
+// comparePre orders two pre-releases as semantic versioning does: dot-
+// separated identifiers left to right, numeric ones by value (rc.10 after
+// rc.9) and before alphanumeric ones, and a shorter list first when one is
+// a prefix of the other.
+func comparePre(a, b string) int {
+	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	for i := range min(len(as), len(bs)) {
+		x, y := as[i], bs[i]
+		nx, errx := strconv.ParseUint(x, 10, 64)
+		ny, erry := strconv.ParseUint(y, 10, 64)
+		switch {
+		case errx == nil && erry == nil:
+			if nx != ny {
+				return cmp.Compare(nx, ny)
+			}
+		case errx == nil:
+			return -1
+		case erry == nil:
+			return 1
+		case x != y:
+			return strings.Compare(x, y)
+		}
+	}
+	return cmp.Compare(len(as), len(bs))
 }
 
 type version struct {

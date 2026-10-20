@@ -7,12 +7,15 @@ the conventions the code follows. The architecture overview is in the
 
 ## Setup
 
-Go 1.26+ on macOS or Linux. Tools are pinned and installed into `./bin` on
+Go 1.26+ on macOS, Linux or Windows (the Go toolchain fetches the patch
+release `go.mod` names). Tools are pinned and installed into `./bin` on
 first use, so there is nothing else to install.
 
 ```sh
 make build      # ./hive with version information
 make check      # what CI runs: vet, lint, race tests (with goleak), go.mod tidiness
+make vuln       # known vulnerabilities the code can reach (govulncheck)
+make upgrade    # upgrade from every earlier 1.x release and back
 make help       # every target
 ```
 
@@ -29,8 +32,14 @@ export HIVE_HOME=$(mktemp -d /tmp/hv.XXXX) HIVE_CONFIG=/dev/null HIVE_LOG=debug
 
 - Keep changes small and focused. Use [Conventional Commits](https://www.conventionalcommits.org)
   (`feat(process): …`, `fix(tui): …`).
-- Every bug fix comes with a test that fails without it.
-- `make check` passes. CI also runs the fuzz targets and a snapshot release build.
+- Every bug fix comes with a test that fails without it. For a
+  release-blocking (P0 or P1) defect this is a release requirement
+  ([GOVERNANCE.md](GOVERNANCE.md#releases)).
+- `make check` passes. CI also runs the fuzz targets, `govulncheck` and a
+  snapshot release build.
+- A substantial change, such as a new API area, a plugin or observer API
+  change, a state schema change or anything breaking, starts as an
+  [RFC](rfcs/README.md).
 - A new dependency needs an ADR in the architecture decisions section explaining why
   writing the code ourselves is worse.
 
@@ -121,7 +130,10 @@ this, so a wrong import fails lint.
   change bumps `protocol.Version`, and peers on another version get
   `unsupported_version`.
 - On-disk JSON files must keep loading after an upgrade. When a format
-  changes, add a `schema` field and migrate on read.
+  changes, raise its `schema`, migrate the old one on read, and refuse a
+  newer one with `jsonfile.CheckSchema` (an older hive after a rollback
+  must not misread or overwrite it). Record it in
+  [docs/compatibility.md](docs/compatibility.md#on-disk-state).
 - Config keys are never renamed silently. Deprecate with a warning first.
 
 ## Tests

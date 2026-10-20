@@ -18,7 +18,11 @@ When reporting a vulnerability, please include enough information for us to repr
 | The 1.x minor release before it | ✅ security fixes |
 | Older releases, pre-1.0 releases | ❌ upgrade with `hive update` |
 
-Release candidates (`v1.0.0-rc.N`, the preview channel) get fixes by the next candidate.
+Within a minor version, only its latest patch release is supported (during the 1.0 train, the latest `v1.0.x`): a fix ships as a new patch, and `hive update` moves you to it. Release candidates (`v1.0.0-rc.N`, the preview channel) get fixes by the next candidate. Previews (currently the desktop app) are fixed in their next build. [GOVERNANCE.md](GOVERNANCE.md#support-and-deprecation) has the support and deprecation policy.
+
+## Threat model and reviews
+
+[docs/threat-model.md](docs/threat-model.md) describes what Hive protects, from whom, its trust boundaries and what it does not try to do. Plugin isolation has limits it spells out. [docs/security-review.md](docs/security-review.md) records the last review against it: what was checked, what was found and fixed, and what is still open.
 
 ## How Hive protects you
 
@@ -66,8 +70,11 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 **Installing hive elsewhere, plugins and updates need your yes, and updates are verified.**
 
 - `hive update` downloads the release, checks the archive against `checksums.txt`, and checks `checksums.txt` against its ed25519 signature (`checksums.txt.sig`) with the release key built into your binary. An unsigned or wrongly signed release is not installed. Builds from source carry no release key and check only the checksum (they say so).
+- An update that cannot run is not kept: a new binary that does not start is removed before it is installed, and if the new daemon fails to start, `hive update` puts the previous binary back and restarts the daemons on it. `hive update --rollback` goes back by hand. See [docs/upgrading.md](docs/upgrading.md).
+- `install.sh` and `install.ps1` check the archive against `checksums.txt`, but not the signature; [docs/upgrading.md](docs/upgrading.md#installers) shows how to verify a download by hand. Every `hive update` after that checks the signature.
 - `hive --remote` installs or updates hive on another machine only after a yes/no question (or `--yes`).
 - `hive plugin install` shows everything a plugin will run, and when, before asking. The commit installed is recorded. Plugins run as you and are not sandboxed: install only plugins you trust, from a tag you have read.
+- A registry release is pinned to a commit and an archive checksum, both checked before installing. The registry can revoke a release (a compromised one, say): Hive never installs or updates to it, `hive plugin update` moves off it, and `hive plugin doctor` reports it. See [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md).
 - Agent detection manifests are built into the binary or read from your own `~/.config/hive/agent-detection`. Hive downloads none.
 
 **What agents print is kept private.**
@@ -84,8 +91,9 @@ Hive runs coding agents as you, with your permissions. It does not sandbox them:
 
 **The code is checked.**
 
-- CI runs `gosec` (with the other linters), the race detector, goroutine-leak checks, and fuzzers on every parser of untrusted input: the wire protocol, frames, configuration, and agent and plugin manifests.
-- A nightly run fuzzes for 25 hours in all, and runs a chaos soak (daemon and shims killed, the network cut) to check that faults never lose or corrupt state.
+- CI runs `gosec` (with the other linters), the race detector, goroutine-leak checks, and fuzzers on every parser of untrusted input: the wire protocol, frames, configuration, Kitty graphics, discovery messages, and agent and plugin manifests.
+- `govulncheck` checks both Go modules for known vulnerabilities the code can reach, on every change and every night, and `npm audit` checks the desktop app's frontend. Release builds use the Go toolchain `go.mod` names, kept on the latest patch. Dependabot proposes dependency updates.
+- A nightly run fuzzes each of those parsers for five hours, runs a chaos soak (daemon and shims killed, the network cut) to check that faults never lose or corrupt state, and upgrades from every earlier 1.x release and back.
 
 ## Release signing
 

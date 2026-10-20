@@ -91,7 +91,10 @@ func (s *Store) load() error {
 	}
 	var f storeFile
 	if err := jsonfile.Read(s.path, &f); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("observer credentials: %w", err)
+		return fmt.Errorf("observer credentials %s: %w", s.path, err)
+	}
+	if err := jsonfile.CheckSchema(s.path, f.Schema, 1); err != nil {
+		return err
 	}
 	s.creds = map[string]*stored{}
 	for _, c := range f.Credentials {

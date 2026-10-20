@@ -1,0 +1,49 @@
+# Dependency updates, reviewed like any change: CI (with govulncheck) runs on
+# each pull request. Security updates are opened as soon as an advisory
+# appears; version updates come weekly and are grouped to keep the noise
+# down. A new dependency still needs an ADR (CONTRIBUTING.md); an update
+# does not.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: gomod
+    directory: /desktop
+    schedule:
+      interval: weekly
+    groups:
+      desktop-go:
+        patterns: ["*"]
+    ignore:
+      # Pinned to an exact beta on purpose (docs/desktop.md); moved by hand.
+      - dependency-name: github.com/wailsapp/wails/v3
+    commit-message:
+      prefix: "chore(deps,desktop)"
+
+  - package-ecosystem: npm
+    directory: /desktop/frontend
+    schedule:
+      interval: weekly
+    groups:
+      desktop-npm:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps,desktop)"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci(deps)"

@@ -197,6 +197,9 @@ func (s *Store) Runtimes() ([]Runtime, error) {
 	if err := jsonfile.Read(s.runtimesPath(), &f); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("web runtimes: %w", err)
 	}
+	if err := jsonfile.CheckSchema(s.runtimesPath(), f.Schema, 1); err != nil {
+		return nil, err
+	}
 	slices.SortFunc(f.Runtimes, func(a, b Runtime) int { return strings.Compare(a.Name, b.Name) })
 	return f.Runtimes, nil
 }
@@ -260,6 +263,9 @@ func (s *Store) load() error {
 	var f accessFile
 	if err := jsonfile.Read(s.accessPath(), &f); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("web access: %w", err)
+	}
+	if err := jsonfile.CheckSchema(s.accessPath(), f.Schema, 1); err != nil {
+		return err
 	}
 	s.grants, s.sessions = map[string]*Grant{}, map[string]*Session{}
 	for _, g := range f.Grants {

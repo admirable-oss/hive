@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,9 +22,17 @@ const DefaultRegistryURL = "https://hive.admir-saheta.com/plugins/registry.json"
 const maxRegistryBytes = 4 << 20
 
 // Registry is the versioned catalog document served as JSON.
+//
+// Schema 1 grows only by additions, and Fetch ignores fields it does not
+// know, so a newer catalog stays readable. (Hive before 1.0.10 rejected
+// unknown fields: the published catalog must not add any while those
+// releases are supported. See docs/compatibility.md.)
 type Registry struct {
 	Schema  int       `json:"schema"`
 	Plugins []Listing `json:"plugins"`
+	// Revocations are every release the registry has withdrawn, listed or
+	// not, from the revocations document beside the catalog.
+	Revocations []Revocation `json:"revocations,omitempty"`
 }
 
 // Listing is the public metadata for one plugin in the catalog.
@@ -68,6 +77,30 @@ type Release struct {
 	Subdir      string    `json:"subdir,omitempty"`
 	Changelog   string    `json:"changelog,omitempty"`
 	PublishedAt time.Time `json:"published_at"`
+	// Revoked is set when the registry has withdrawn the release. It stays
+	// listed, for the record, but is never installed or updated to.
+	Revoked *Revocation `json:"revoked,omitempty"`
+}
+
+// Revocation withdraws a published release: for a security problem, a
+// compromised maintainer account or a broken build. Revocations are a
+// document of their own beside the catalog (revocations.json), so clients
+// older than 1.0.10, which reject catalog fields they do not know, keep
+// reading the catalog.
+type Revocation struct {
+	ID        string    `json:"id"`
+	Version   string    `json:"version"`
+	Reason    string    `json:"reason"`
+	Advisory  string    `json:"advisory,omitempty"`
+	RevokedAt time.Time `json:"revoked_at"`
+}
+
+// RevocationsFile is the revocations document's name, beside the catalog.
+const RevocationsFile = "revocations.json"
+
+type revocationDocument struct {
+	Schema   int          `json:"schema"`
+	Releases []Revocation `json:"releases"`
 }
 
 // RegistryClient retrieves and validates the public catalog.
@@ -92,46 +125,24 @@ func NewRegistryClient(endpoint string) *RegistryClient {
 	}}
 }
 
-// Fetch downloads the catalog and rejects unsupported schemas and conflicting
-// or malformed plugin records.
+// Fetch downloads the catalog and the registry's revocations, and rejects
+// unsupported schemas and conflicting or malformed plugin records.
+//
+// A registry without a revocations document (404) has revoked nothing; one
+// that cannot be read is an error, so a withdrawn release is never
+// installed because its revocation was out of reach.
 func (c *RegistryClient) Fetch(ctx context.Context) (Registry, error) {
 	u, err := url.Parse(c.URL)
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil || u.Fragment != "" {
 		return Registry{}, fmt.Errorf("invalid plugin registry URL %q", c.URL)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	body, _, err := c.get(ctx, u.String())
 	if err != nil {
 		return Registry{}, err
 	}
-	req.Header.Set("Accept", "application/json")
-	httpClient := c.HTTP
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 15 * time.Second}
-	}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return Registry{}, fmt.Errorf("plugin registry unavailable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return Registry{}, fmt.Errorf("plugin registry returned %s", resp.Status)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxRegistryBytes+1))
-	if err != nil {
-		return Registry{}, fmt.Errorf("read plugin registry: %w", err)
-	}
-	if len(body) > maxRegistryBytes {
-		return Registry{}, fmt.Errorf("plugin registry exceeds %d bytes", maxRegistryBytes)
-	}
 	var catalog Registry
-	dec := json.NewDecoder(strings.NewReader(string(body)))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&catalog); err != nil {
+	if err := decodeOne(body, &catalog); err != nil {
 		return Registry{}, fmt.Errorf("decode plugin registry: %w", err)
-	}
-	var trailing any
-	if err := dec.Decode(&trailing); err != io.EOF {
-		return Registry{}, fmt.Errorf("decode plugin registry: trailing JSON data")
 	}
 	if catalog.Schema != 1 {
 		return Registry{}, fmt.Errorf("unsupported plugin registry schema %d", catalog.Schema)
@@ -189,7 +200,123 @@ func (c *RegistryClient) Fetch(ctx context.Context) (Registry, error) {
 		})
 	}
 	slices.SortFunc(catalog.Plugins, func(a, b Listing) int { return strings.Compare(a.ID, b.ID) })
+	revoked, err := c.revocations(ctx, u)
+	if err != nil {
+		return Registry{}, err
+	}
+	catalog.Revocations = append(catalog.Revocations, revoked...)
+	for i := range catalog.Revocations {
+		if err := catalog.Revocations[i].validate(); err != nil {
+			return Registry{}, err
+		}
+	}
+	for i := range catalog.Plugins {
+		p := &catalog.Plugins[i]
+		for j := range p.Releases {
+			if r, ok := catalog.Revocation(p.ID, p.Releases[j].Version); ok {
+				p.Releases[j].Revoked = &r
+			}
+		}
+	}
 	return catalog, nil
+}
+
+// revocations reads the revocations document beside the catalog at u.
+func (c *RegistryClient) revocations(ctx context.Context, catalog *url.URL) ([]Revocation, error) {
+	v := *catalog
+	dir := path.Dir(v.Path)
+	if dir == "." {
+		dir = "/"
+	}
+	v.Path, v.RawPath, v.RawQuery = path.Join(dir, RevocationsFile), "", ""
+	body, status, err := c.get(ctx, v.String())
+	if status == http.StatusNotFound || status == http.StatusGone {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("cannot tell which plugin releases are revoked: %w", err)
+	}
+	var doc revocationDocument
+	if err := decodeOne(body, &doc); err != nil {
+		return nil, fmt.Errorf("decode plugin revocations: %w", err)
+	}
+	if doc.Schema != 1 {
+		return nil, fmt.Errorf("unsupported plugin revocations schema %d", doc.Schema)
+	}
+	return doc.Releases, nil
+}
+
+func (r Revocation) validate() error {
+	if !idPattern.MatchString(r.ID) || !versionPattern.MatchString(r.Version) || strings.TrimSpace(r.Reason) == "" || r.RevokedAt.IsZero() || (r.Advisory != "" && !isHTTPSURL(r.Advisory)) {
+		return fmt.Errorf("invalid revocation of plugin %q release %q", r.ID, r.Version)
+	}
+	return nil
+}
+
+// get fetches a registry document, bounded in size; status is the HTTP
+// status when there was a response.
+func (c *RegistryClient) get(ctx context.Context, target string) (body []byte, status int, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Accept", "application/json")
+	httpClient := c.HTTP
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 15 * time.Second}
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("plugin registry unavailable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, resp.StatusCode, fmt.Errorf("plugin registry returned %s", resp.Status)
+	}
+	body, err = io.ReadAll(io.LimitReader(resp.Body, maxRegistryBytes+1))
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("read plugin registry: %w", err)
+	}
+	if len(body) > maxRegistryBytes {
+		return nil, resp.StatusCode, fmt.Errorf("plugin registry exceeds %d bytes", maxRegistryBytes)
+	}
+	return body, resp.StatusCode, nil
+}
+
+// decodeOne decodes exactly one JSON value, ignoring fields v does not
+// know (registry documents grow by additions).
+func decodeOne(body []byte, v any) error {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	if err := dec.Decode(v); err != nil {
+		return err
+	}
+	var trailing any
+	if err := dec.Decode(&trailing); err != io.EOF {
+		return errors.New("trailing JSON data")
+	}
+	return nil
+}
+
+// Latest returns the newest release that is not revoked; false when every
+// release is.
+func (p Listing) Latest() (Release, bool) {
+	for _, r := range p.Releases {
+		if r.Revoked == nil {
+			return r, true
+		}
+	}
+	return Release{}, false
+}
+
+// Revocation returns the registry's revocation of a plugin's release,
+// whether or not the release is still listed.
+func (r Registry) Revocation(id, version string) (Revocation, bool) {
+	for _, rev := range r.Revocations {
+		if rev.ID == id && strings.TrimPrefix(rev.Version, "v") == strings.TrimPrefix(version, "v") {
+			return rev, true
+		}
+	}
+	return Revocation{}, false
 }
 
 func isHTTPSURL(raw string) bool {
