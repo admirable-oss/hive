@@ -200,7 +200,8 @@ func TestDesktopEndToEnd(t *testing.T) {
 	// app, its Go side, the daemon, the shell and back). This is a browser
 	// over loopback, not the native webview; the budget (M18) is 25 ms at
 	// the 99th percentile on a developer machine. CI machines are slower
-	// and shared, so CI holds the measurement to HIVE_DESKTOP_LATENCY_MS
+	// and shared (a hosted macOS runner stalls for 100 ms and more now and
+	// then), so CI holds the measurement to HIVE_DESKTOP_LATENCY_MS
 	// (default 25) and reports it either way.
 	budget := 25.0
 	if v := os.Getenv("HIVE_DESKTOP_LATENCY_MS"); v != "" {
@@ -232,8 +233,10 @@ func TestDesktopEndToEnd(t *testing.T) {
 				}
 			}
 			times.sort((a, b) => a - b);
-			return JSON.stringify({ P50: times[Math.floor(n * 0.5)], P99: times[Math.min(n - 1, Math.floor(n * 0.99))], Max: times[n - 1] });
-		})(100)`, chromedp.EvalAwaitPromise))
+			// Nearest rank: the p-th percentile is the ceil(p·n)-th smallest.
+			const pct = (p) => times[Math.max(0, Math.ceil(n * p) - 1)];
+			return JSON.stringify({ P50: pct(0.5), P99: pct(0.99), Max: times[n - 1] });
+		})(200)`, chromedp.EvalAwaitPromise))
 		cancel()
 		if err != nil {
 			t.Fatalf("latency: %v", err)

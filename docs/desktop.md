@@ -255,7 +255,9 @@ These numbers come from a MacBook Pro (Apple silicon), measured by
 At these rates, 16 panes streaming at 60 updates a second take about 3 % of one
 core in the app's Go side.
 
-M18's budgets, held in CI on macOS and Linux:
+M18's budgets, measured on that machine. CI measures them on every change on
+macOS and Linux, holding latency to 50 ms there: hosted runners are shared
+and stall now and then.
 
 | Budget | Measured |
 |---|---|

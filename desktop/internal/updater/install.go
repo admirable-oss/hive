@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -40,11 +41,12 @@ var ErrUnmanaged = errors.New("this installation cannot update itself")
 func Locate(goos, exe string, getenv func(string) string) (Target, error) {
 	switch goos {
 	case "darwin":
-		// …/Hive.app/Contents/MacOS/hive-desktop
-		macos := filepath.Dir(exe)
-		contents := filepath.Dir(macos)
-		bundle := filepath.Dir(contents)
-		if filepath.Base(macos) != "MacOS" || filepath.Base(contents) != "Contents" || !strings.HasSuffix(bundle, ".app") {
+		// …/Hive.app/Contents/MacOS/hive-desktop. A macOS path, whatever
+		// system the code is tested on: path, not filepath.
+		macos := path.Dir(exe)
+		contents := path.Dir(macos)
+		bundle := path.Dir(contents)
+		if path.Base(macos) != "MacOS" || path.Base(contents) != "Contents" || !strings.HasSuffix(bundle, ".app") {
 			return Target{}, fmt.Errorf("%w: %s is not inside an .app bundle", ErrUnmanaged, exe)
 		}
 		if strings.Contains(bundle, "/Caskroom/") {

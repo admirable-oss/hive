@@ -1418,9 +1418,10 @@ How the app is released and updated: [docs/releasing.md](docs/releasing.md#the-d
 - [x] In-app updates: verified against the release key, the previous version
   kept, rolled back when the new one does not start, agents untouched
   (tested with a real signed bundle: staged, swapped and still valid).
-- [x] Latency, idle CPU and memory measured and held to M18's budgets in CI
-  (macOS and Linux): p99 17.3 ms, 0.00 % of a core, 14.4 MB of heap with 16
-  panes. The binary frame channel is not needed.
+- [x] Latency, idle CPU and memory measured in CI (macOS and Linux) and
+  within M18's budgets: p99 17.3 ms, 0.00 % of a core, 14.4 MB of heap with
+  16 panes on a developer machine. CI's shared runners are held to 50 ms of
+  latency. The binary frame channel is not needed.
 - [x] Drag and drop of panes (`pane.swap`), environment windows, `[keys]`
   in the app (`hive config keys`), and Goto over agents, panes, tabs,
   environments and actions.

@@ -2,7 +2,7 @@ module github.com/admirable-oss/hive/desktop
 
 go 1.26.6
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/admirable-oss/hive v0.0.0

@@ -45,9 +45,14 @@ All notable changes to Hive. From 1.0.0 the project follows
 
 ### Performance
 
-- Keystroke-to-screen latency (p99 under 25 ms) and the idle budget with 16
-  panes (under 1 % of a core, under 64 MB of heap) are measured and held in
-  CI on macOS and Linux.
+- Keystroke-to-screen latency (p99 under 25 ms on a developer machine,
+  50 ms on CI's shared runners) and the idle budget with 16 panes (under 1 %
+  of a core, under 64 MB of heap) are measured in CI on macOS and Linux.
+
+### Security
+
+- Go 1.26.10 (`toolchain` in both modules' `go.mod`), for GO-2026-6809 in
+  `crypto/x509`, which `govulncheck` found reachable.
 
 ## v1.1.0 (unreleased): Trusted distribution (M20)
 
