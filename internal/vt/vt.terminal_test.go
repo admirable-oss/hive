@@ -81,6 +81,11 @@ func TestQueriesAreAnsweredWithoutBlocking(t *testing.T) {
 		replies.Write(b)
 		mu.Unlock()
 	}})
+	// Cleanups run last first: this one unblocks the reply before newTerm's
+	// Close waits for it, so a failure below ends the test instead of
+	// hanging it until the package times out.
+	unblock := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(unblock)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -89,12 +94,14 @@ func TestQueriesAreAnsweredWithoutBlocking(t *testing.T) {
 			_, _ = term.Write([]byte("\x1b[3;7H\x1b[6n"))
 		}
 	}()
+	// Blocking would be for good; the bound is generous because 500 writes
+	// under -race on a busy CI runner can take several seconds.
 	select {
 	case <-done:
-	case <-time.After(5 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("Write blocked on undelivered query replies")
 	}
-	close(release)
+	unblock()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		mu.Lock()
