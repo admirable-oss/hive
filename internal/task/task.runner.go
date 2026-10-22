@@ -324,7 +324,7 @@ func (x *execution) prompt(ctx context.Context) (outcome, reason string, err err
 		}
 		switch res.Outcome {
 		case agent.OutcomeBlocked:
-			if o, r, err := x.blocked(ctx); o != "" || err != nil {
+			if _, o, r, err := x.blocked(ctx); o != "" || err != nil {
 				return o, r, err
 			}
 			continue
@@ -402,8 +402,20 @@ func (x *execution) await(ctx context.Context, until agent.Until, poll func(cont
 			}
 			return "met", "", nil
 		case agent.OutcomeBlocked:
-			if o, r, err := x.blocked(ctx); o != "" || err != nil {
+			answered, o, r, err := x.blocked(ctx)
+			if o != "" || err != nil {
 				return o, r, err
+			}
+			if poll == nil && until == agent.UntilIdle && x.spec.Until != UntilIdle {
+				// Resumed after a restart, there was no completion count to
+				// wait past; now there is. An answered agent is mid-turn, and
+				// the moment between the answer and the work can read as
+				// idle: wait for the turn to end instead.
+				seq := answered.CompletionSeq
+				if answered.State == agent.StateDone {
+					seq-- // it already ended: that completion counts
+				}
+				until, x.after = agent.UntilDone, &seq
 			}
 		case agent.OutcomeExited:
 			return "exited", "the agent exited", nil
@@ -414,21 +426,22 @@ func (x *execution) await(ctx context.Context, until agent.Until, poll func(cont
 }
 
 // blocked waits, without counting it as work, until a person answers the
-// agent. It returns an outcome only when the attempt ends here.
-func (x *execution) blocked(ctx context.Context) (outcome, reason string, err error) {
+// agent, and returns the agent as it was then. It returns an outcome only
+// when the attempt ends here.
+func (x *execution) blocked(ctx context.Context) (answered agent.Agent, outcome, reason string, err error) {
 	x.report(Progress{State: StateBlocked, Log: "the agent waits for a decision"})
 	res, err := x.r.agents.Wait(ctx, x.agentID, agent.WaitRequest{Until: agent.UntilUnblocked})
 	if err != nil {
 		if ctx.Err() != nil {
-			return "", "", ctx.Err()
+			return agent.Agent{}, "", "", ctx.Err()
 		}
-		return "failed", "waiting for the agent: " + err.Error(), err
+		return agent.Agent{}, "failed", "waiting for the agent: " + err.Error(), err
 	}
 	if res.Outcome == agent.OutcomeExited || res.Agent.State == agent.StateExited {
-		return "exited", "the agent exited while blocked", nil
+		return agent.Agent{}, "exited", "the agent exited while blocked", nil
 	}
 	x.report(Progress{State: StateRunning, Log: "the agent continues"})
-	return "", "", nil
+	return res.Agent, "", "", nil
 }
 
 // awaitMatch waits for the agent's screen to match the task's pattern.

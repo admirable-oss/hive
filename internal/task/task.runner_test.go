@@ -336,6 +336,37 @@ func TestRunnerResumesWithoutPromptingAgain(t *testing.T) {
 	}
 }
 
+// After a restart a resumed task has no completion count to wait past, so
+// it waits for the agent to be ready again; once someone answers a blocked
+// agent, the moment between the answer and the work can read as idle, and
+// must not end the task.
+func TestRunnerResumedAndAnsweredWaitsForTheTurnToEnd(t *testing.T) {
+	f := newFakeAgents(t)
+	f.set(agent.StateBlocked)
+	a := attemptOf(spec("ask"))
+	a.Resume = true
+	a.Task.AgentID, a.Task.Path, a.Task.Phase = "p1", f.dir, task.PhasePrompted
+	pl := &progressLog{}
+	done := make(chan task.Outcome, 1)
+	go func() { done <- newRunner(f, &fakeWork{}).Execute(t.Context(), a, pl.add) }()
+	waitFor(t, "the task to show blocked", func() bool { return slices.Contains(pl.states(), task.StateBlocked) })
+	f.set(agent.StateIdle) // answered: the prompt line shows before the work does
+	waitFor(t, "the task to run again", func() bool {
+		st := pl.states()
+		return len(st) > 0 && st[len(st)-1] == task.StateRunning
+	})
+	select {
+	case out := <-done:
+		t.Fatalf("ended between the answer and the work: %+v", out)
+	case <-time.After(100 * time.Millisecond):
+	}
+	f.set(agent.StateWorking)
+	f.set(agent.StateDone)
+	if out := <-done; out.State != task.StateSucceeded {
+		t.Fatalf("outcome: %+v", out)
+	}
+}
+
 func TestRunnerCancelledStopsTheAgentButInterruptedDoesNot(t *testing.T) {
 	for _, cancelled := range []bool{true, false} {
 		t.Run(fmt.Sprint("cancelled=", cancelled), func(t *testing.T) {

@@ -78,6 +78,9 @@ Many agents, one plan ([docs/tasks.md](docs/tasks.md), [RFC 0002](rfcs/0002-task
 
 - The TUI no longer hangs on "Connecting to the hive daemon…": a frame
   locked a pane's view twice when planning its images.
+- A task resumed after a daemon restart no longer counts as finished in the
+  moment between someone answering its blocked agent and the agent going
+  back to work.
 
 ## v1.2.0 (unreleased): Desktop app 1.0 (M21)
 
