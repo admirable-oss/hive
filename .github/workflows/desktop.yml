@@ -50,8 +50,8 @@ jobs:
       run:
         working-directory: desktop/frontend
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -79,14 +79,14 @@ jobs:
         working-directory: desktop
         shell: bash
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: |
             go.sum
             desktop/go.sum
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -145,8 +145,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: |
@@ -154,7 +154,7 @@ jobs:
             desktop/go.sum
       - name: install the webview's build dependencies
         run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.14.0
           working-directory: desktop
@@ -180,13 +180,13 @@ jobs:
         working-directory: desktop
         shell: bash
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - name: install the webview's build dependencies
@@ -217,7 +217,7 @@ jobs:
           HIVE_DESKTOP_UNSIGNED: "1"
           OUT: ${{ runner.temp }}/desktop
         run: build/release.sh "v0.0.0-preview.${{ github.run_number }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: hive-desktop-${{ runner.os }}
           path: ${{ runner.temp }}/desktop/*

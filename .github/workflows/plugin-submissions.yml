@@ -14,7 +14,7 @@ jobs:
     outputs:
       trusted: ${{ steps.detect.outputs.trusted }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: detect
@@ -35,14 +35,14 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Fetch target branch for immutable-history checks
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}
         run: git fetch --no-tags origin "$BASE_REF"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.x'
       - name: Validate submission and governance records
@@ -53,7 +53,7 @@ jobs:
         run: |
           python .github/scripts/validate-plugin-submissions.py
           python -B .github/scripts/test_validate_plugin_submissions.py
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Validate plugin registry contracts
