@@ -50,6 +50,7 @@ A client is the CLI, the TUI, `hive mcp`, the desktop app, or a program using
 | Older (lower API level) | Newer | Works. Every method and field an older client uses still exists (the `api/v1/` freeze). The older client **does not** replace a newer daemon. |
 | Any | A method it does not know | `unknown_method`, so a client can tell "too old" from "failed". |
 | Remote (`--remote`, `--machine`) | Older remote | `hive --remote` offers to install or update hive there (after asking). |
+| A plan placing tasks on a saved machine | Older than `v1.3.0` there | Those tasks fail with "the hive on <machine> does not run tasks; update it"; the rest of the plan runs. |
 
 **How it is tested.** `TestM19UpgradeFromEarlierReleases` (`cmd/hive`) builds
 each earlier release and starts its daemon, an agent and a tab. It upgrades
@@ -106,7 +107,8 @@ checks this both ways.
 | `plugins/.transaction.json` | 1 | refused | refused: "manual repair required" |
 | `plugins/.config/<id>/settings.json` | the plugin's `configuration.version` | migrated by the plugin's declared steps | reported by `hive plugin doctor` |
 | `observers/credentials.json` | 1 | refused, file left as is (`v1.0.10`) | refused with its path |
-| `machines.json` | 1 | refused, file left as is (`v1.0.10`) | refused with its path |
+| `machines.json` | 1 (`labels` and `capacity` added in `v1.3.0`; older releases ignore them, and drop them if they save the file) | refused, file left as is (`v1.0.10`) | refused with its path |
+| `tasks/<plan>.json` (`v1.3.0`) | 1 | that plan is not loaded, file left as is | moved to `*.corrupt-<time>`; the other plans load |
 | `identity.json` | 1 | refused, file left as is (`v1.0.10`) | refused (`ErrBadIdentity`); never replaced by a new identity |
 | `web/access.json`, `web/runtimes.json`, `web/push.json` | 1 | refused, file left as is (`v1.0.10`) | refused |
 

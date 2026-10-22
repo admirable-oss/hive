@@ -1434,7 +1434,7 @@ How the app is released and updated: [docs/releasing.md](docs/releasing.md#the-d
 
 ---
 
-## M22 · Parallel Agent Orchestration — `v1.3.0` — **PROPOSED**
+## M22 · Parallel Agent Orchestration — `v1.3.0` — **IN PROGRESS**
 
 Many agents, one plan.
 
@@ -1476,6 +1476,38 @@ what matters.
 machines within its concurrency limits, survives a daemon restart, stops for
 one approval, and produces a report with every task's result. A failed task
 is retried or cancelled without disturbing the others.
+
+### M22 progress
+
+How plans work: [docs/tasks.md](docs/tasks.md). The design:
+[RFC 0002](rfcs/0002-task-orchestration.md).
+
+- [x] Tasks: a prompt for an agent kind, in an environment or a fresh
+  worktree, with a completion condition (`done`, `idle`, `match`, `command`)
+  and a time budget (`internal/task`).
+- [x] Plans as a DAG, from TOML (strictly checked, with cycles reported by
+  their path, and fuzzed) or the API.
+- [x] `hive task run | list | get | wait | cancel | retry` (and `approve`,
+  `report`), the `task_*` MCP tools, and `pkg/hiveapi` support. The wire
+  API is `task.*` at API level 12.
+- [x] Concurrency per plan, per agent kind and per machine; time budgets
+  per task (not counting time blocked) and per plan.
+- [x] Placement on saved machines by label and capacity (`hive machine
+  set`). A task runs on that machine's daemon, with its progress mirrored
+  back.
+- [x] Structured results: final screen, exit status, changed files, the
+  summary at `$HIVE_TASK_SUMMARY`, and the log. A plan's report as JSON and
+  as text.
+- [x] Human approval: such tasks stop and notify (TUI, desktop), and go on
+  only after a yes. A blocked agent pauses only its own task.
+- [x] Plans in the TUI's Overview, the desktop app (with approvals) and the
+  web observer (read-only, scoped).
+- [x] The acceptance, end to end (`TestM22PlanAcrossMachines`): 10 tasks
+  across 2 machines within `max_parallel` and capacity, through a daemon
+  restart, a blocked agent and an approval, and a failed check retried
+  without disturbing the others. Every task's result is in the report.
+- [ ] Spend budgets, once agents report usage (M25).
+- [ ] RFC 0002 discussed and accepted; then tag `v1.3.0`.
 
 ---
 

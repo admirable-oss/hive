@@ -13,7 +13,7 @@ started them, and reads each agent's state from its screen: **working**,
 either with the `hive` command or, when it is configured, with the hive MCP
 server (`claude mcp add hive -- hive mcp`), whose tools have the same names:
 `agent_start`, `agent_prompt`, `agent_wait`, `agent_read`, `agent_send_keys`,
-`agent_list`, `env_list` and others.
+`agent_list`, `env_list`, `task_run` and others.
 
 Inside a Hive pane, `$HIVE_PANE_ID`, `$HIVE_ENV_ID` and `$HIVE_BIN` are set,
 and every command talks to the session you are in. Use `"$HIVE_BIN"` when
@@ -46,6 +46,57 @@ for the turn to end and prints the agent's last 60 lines.
   repository; otherwise they edit the same files.
 - `hive agent manifests` lists the kinds Hive knows (claude, codex, opencode,
   gemini, cursor-agent, copilot, amp, aider).
+
+## Plans: many agents, one plan
+
+For work in several steps, write a plan instead of starting agents one by
+one. Hive runs its tasks in parallel within limits, each in its own
+worktree, in the order `needs` gives, stops where a person must approve, and
+keeps every task's result.
+
+```bash
+cat > plan.toml <<'PLAN'
+name = "auth hardening"
+max_parallel = 3
+
+[defaults]
+kind = "codex"
+environment = "api"        # $HIVE_ENV_ID's name
+isolate = true             # each task in a worktree on hive/<plan>/<task>
+
+[[task]]
+id = "review"
+prompt = "Review the auth package for security bugs. Write findings to REVIEW.md."
+
+[[task]]
+id = "fix"
+needs = ["review"]
+prompt = "Fix every finding in REVIEW.md."
+until = "command"          # done only when the check passes
+command = ["go", "test", "./auth/..."]
+retries = 1
+
+[[task]]
+id = "release-notes"
+needs = ["fix"]
+approve = true             # waits for the user's yes
+prompt = "Write the release notes for the auth fixes."
+PLAN
+PLAN_ID=$(hive --json task run plan.toml | jq -r .id)
+hive task wait "$PLAN_ID" --until attention   # exit 5: a task needs a person
+hive task report "$PLAN_ID"                   # every task's outcome, changed files and summary
+```
+
+- `until` is `done` (the turn ends, the default), `idle`, `match` (with
+  `match = "<regexp>"` on the agent's screen) or `command` (exit status 0).
+- A blocked agent pauses only its own task: read it and answer it as below.
+- Never approve a task (`hive task approve`) unless the user asked you to.
+- `hive task retry <plan> [task]` runs failed, cancelled and skipped tasks
+  again in the worktrees they had; `hive task cancel` stops a plan.
+- Agents are asked to write a summary to `$HIVE_TASK_SUMMARY`; it is part of
+  the task's result.
+- MCP: `task_run` (the plan file's text), `task_wait`, `task_get`,
+  `task_list`, `task_retry`, `task_cancel`, `task_approve`.
 
 ## Prompts and waits
 

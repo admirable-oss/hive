@@ -53,7 +53,11 @@ socket. Other machines are reached through the user's ssh.
    key.
 3. **ssh.** Remote machines run `hive proxy` through the user's ssh;
    authentication, host keys and forwarding are ssh's. The remote daemon
-   applies boundary 1 to that connection.
+   applies boundary 1 to that connection. The daemon itself goes through
+   this boundary only for a plan's tasks placed on a saved machine
+   (`task.run` there). It never goes to machines that are disabled or whose
+   identity changed, and it uses the same ssh command and connection
+   sharing as `--machine`.
 4. **Discovery and pairing.** An mDNS announcement is a hint. Pairing proves
    the machine holds the identity key (a signed challenge over ssh) and
    needs the user's confirmation. A changed identity is held until accepted.

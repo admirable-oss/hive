@@ -32,3 +32,4 @@ anything breaking, and each roadmap.
 | RFC | Title | Status |
 |---|---|---|
 | [0001](0001-after-1.0.10.md) | The roadmap after 1.0.10 | Proposed |
+| [0002](0002-task-orchestration.md) | Tasks and plans (M22) | Proposed |

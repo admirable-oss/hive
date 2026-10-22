@@ -4,6 +4,61 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.3.0 (unreleased): Parallel agent orchestration (M22)
+
+Many agents, one plan ([docs/tasks.md](docs/tasks.md), [RFC 0002](rfcs/0002-task-orchestration.md)).
+
+### Tasks and plans
+
+- A task is a prompt for an agent kind, in an environment or a fresh
+  worktree (`isolate`, `worktree`), with a completion condition (`until`:
+  the turn is `done`, the agent is `idle`, its screen matches `match`, or
+  `command` exits 0) and a time budget that does not count time blocked.
+- Plans: tasks whose `needs` form a DAG, written as TOML (strictly checked:
+  unknown keys, unknown needs and cycles are errors, with the cycle's path)
+  or built through the API.
+- `hive task run | list | get | wait | cancel | retry | approve | report`,
+  the `task_*` MCP tools, and `RunPlan`, `WaitPlan` and the rest in
+  `pkg/hiveapi`. The wire API is `task.*` (API level 12).
+- `agent.wait` takes `until: "unblocked"`: it waits until someone answers a
+  blocked agent.
+
+### Limits and placement
+
+- Concurrency per plan (`max_parallel`), per agent kind (a plan's `[kinds]`,
+  and `[tasks.kinds]` across plans) and per machine (`[tasks] capacity`).
+- Time budgets per task and per plan. A plan's budget cancels what is left.
+- Placement on this machine and saved machines by `labels` and capacity
+  (`hive machine set <name> --label … --capacity N`). A task placed on a
+  saved machine runs on that machine's daemon, and its progress is
+  mirrored back.
+
+### Results and approvals
+
+- Every task keeps its agent's last screen, the files it changed since its
+  base commit, its check's exit status and output, the summary its agent
+  wrote to `$HIVE_TASK_SUMMARY`, and its log. A plan's report comes as text
+  or JSON.
+- `approve = true` stops a task until a person approves it. The TUI and the
+  desktop app notify, and the desktop app has Approve and Refuse buttons.
+  A blocked agent pauses only its own task.
+- Failed attempts retry by themselves (`retries`). `hive task retry` runs
+  failed, cancelled and skipped tasks again, in the worktrees they had,
+  without touching the rest.
+
+### Every client
+
+- The TUI's Overview lists plans with their progress and what waits for
+  you. The desktop app's sidebar has a Plans section. The web observer shows
+  plans read-only: no prompts or results, and only the tasks in its scope.
+
+### Reliability
+
+- Plans survive a daemon restart. They are saved as they change, and
+  running tasks are picked up where they were, without prompting again.
+- Bounded everywhere: screens, changed files, summaries, logs and finished
+  plans (`[tasks] keep_plans`) are capped.
+
 ## v1.2.0 (unreleased): Desktop app 1.0 (M21)
 
 ### Signed packages
