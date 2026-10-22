@@ -11,7 +11,7 @@ import (
 )
 
 func TestBuiltinsAreComplete(t *testing.T) {
-	want := []string{"auto", "catppuccin", "catppuccin-latte", "gruvbox", "nord", "terminal", "tokyo-night"}
+	want := []string{"auto", "catppuccin", "catppuccin-latte", "gruvbox", "hive", "hive-light", "nord", "terminal", "tokyo-night"}
 	if got := theme.Names(); !slices.Equal(got, want) {
 		t.Fatalf("Names() = %v, want %v", got, want)
 	}
@@ -37,12 +37,13 @@ func TestResolve(t *testing.T) {
 		want string
 		err  bool
 	}{
-		{"auto", true, "catppuccin", false},
-		{"auto", false, "catppuccin-latte", false},
-		{"", false, "catppuccin-latte", false},
+		{"auto", true, "hive", false},
+		{"auto", false, "hive-light", false},
+		{"", false, "hive-light", false},
 		{"nord", false, "nord", false},
-		{"solarized", true, "catppuccin", true},
-		{"custom", true, "catppuccin", true}, // no [theme.custom]
+		{"catppuccin", true, "catppuccin", false},
+		{"solarized", true, "hive", true},
+		{"custom", true, "hive", true}, // no [theme.custom]
 	}
 	for _, tt := range tests {
 		got, err := theme.Resolve(tt.name, nil, tt.dark)

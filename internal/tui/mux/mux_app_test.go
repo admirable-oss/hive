@@ -18,12 +18,14 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/admirable-oss/hive/internal/buildinfo"
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/layout"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/protocol"
+	"github.com/admirable-oss/hive/internal/tui/bee"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
 	"github.com/admirable-oss/hive/internal/tui/keymap"
 )
@@ -206,6 +208,44 @@ func TestNewTabWithoutEnvironmentCreatesOne(t *testing.T) {
 	h.waitText("No environments yet")
 	h.press("ctrl+b", "c")
 	h.waitFor("an environment for the directory", func() bool { return h.a.ws.envID == "my-project" && h.a.tab() != nil })
+}
+
+func TestWelcomeOnAFirstRun(t *testing.T) {
+	c := startDaemon(t)
+	h := startApp(t, c, 110, 30, t.TempDir(), Options{HideSidebar: true})
+	h.waitText("Let's get your agents buzzing.") // typed out in full
+	screen := h.screen()
+	for _, want := range []string{"hive " + buildinfo.Get().Version, "✔   daemon", "◆   project", "No environments yet", "C-b c opens a tab in", "○   agent"} {
+		if !strings.Contains(screen, want) {
+			t.Fatalf("the welcome screen has no %q:\n%s", want, screen)
+		}
+	}
+	h.press("ctrl+b", "c")
+	h.waitFor("a tab", func() bool { return h.a.tab() != nil })
+	h.waitFor("the animation to stop", func() bool { return !h.a.ui.welcome.ticking })
+	if strings.Contains(h.screen(), "buzzing") {
+		t.Fatal("the welcome screen stays over the tab")
+	}
+}
+
+func TestWelcomeWithoutDaemon(t *testing.T) {
+	c := client.NewService(client.Config{SocketPath: filepath.Join(t.TempDir(), "none.sock")})
+	t.Cleanup(func() { _ = c.Close() })
+	a := New(context.Background(), c, Options{Clipboard: ClipboardOff, HideSidebar: true})
+	t.Cleanup(a.Close)
+	a.HandleEvent(uv.WindowSizeEvent{Width: 100, Height: 24})
+	a.Start()
+	h := &harness{t: t, c: c, a: a, w: 100, h: 24}
+	h.waitText("Cannot reach the hive daemon")
+	h.waitText("I can't find the daemon. Trying again…") // typed out in full
+	for _, want := range []string{"✖   daemon", "hive daemon start"} {
+		if !strings.Contains(h.screen(), want) {
+			t.Fatalf("no %q:\n%s", want, h.screen())
+		}
+	}
+	if a.ui.welcome.bee.State != bee.StateDisconnected {
+		t.Fatalf("the bee is %s, not resting", a.ui.welcome.bee.State)
+	}
 }
 
 // --- copy mode ---
@@ -727,11 +767,11 @@ func TestConfiguredKeysAndAutoTheme(t *testing.T) {
 		t.Fatal("hints use the configured prefix")
 	}
 
-	if h.a.theme.Name != "catppuccin" {
+	if h.a.theme.Name != "hive" {
 		t.Fatalf("auto starts dark: %s", h.a.theme.Name)
 	}
 	h.a.HandleEvent(uv.BackgroundColorEvent{Color: color.White})
-	if h.a.theme.Name != "catppuccin-latte" {
+	if h.a.theme.Name != "hive-light" {
 		t.Fatalf("a light terminal gets the light theme: %s", h.a.theme.Name)
 	}
 }

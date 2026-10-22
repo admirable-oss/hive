@@ -2,10 +2,11 @@
 // colours of the chrome (borders, sidebar, tab bar, overlays); pane content
 // keeps the colours its program chose.
 //
-// Built-in themes are catppuccin (mocha), catppuccin-latte, tokyo-night,
-// gruvbox, nord and terminal, which uses the terminal's own palette so Hive
-// matches whatever scheme the terminal has. "auto" picks a light or dark
-// theme from the terminal's background colour.
+// Built-in themes are hive (amber on graphite, the desktop app's colours),
+// hive-light, catppuccin (mocha), catppuccin-latte, tokyo-night, gruvbox,
+// nord and terminal, which uses the terminal's own palette so Hive matches
+// whatever scheme the terminal has. "auto" picks hive or hive-light from the
+// terminal's background colour.
 package theme
 
 import (
@@ -48,8 +49,8 @@ const (
 
 // DefaultDark and DefaultLight are what "auto" picks.
 const (
-	DefaultDark  = "catppuccin"
-	DefaultLight = "catppuccin-latte"
+	DefaultDark  = "hive"
+	DefaultLight = "hive-light"
 )
 
 func hex(s string) color.Color {
@@ -61,6 +62,21 @@ func hex(s string) color.Color {
 }
 
 var builtin = map[string]Theme{
+	// hive and hive-light are the desktop app's tokens (desktop/frontend/
+	// src/index.css) in sRGB: graphite chrome, the bee's amber for what is
+	// focused, and the same colours for working, blocked, done and failed.
+	"hive": {
+		Name: "hive", Dark: true,
+		Fg: hex("#eeeef1"), Bg: hex("#111114"), Muted: hex("#9d9da6"), Border: hex("#37373a"),
+		Accent: hex("#f5c25f"), Selection: hex("#433825"),
+		Success: hex("#5dc879"), Warning: hex("#f98f3a"), Error: hex("#f75d59"), Info: hex("#60aaf3"),
+	},
+	"hive-light": {
+		Name: "hive-light", Dark: false,
+		Fg: hex("#18181b"), Bg: hex("#f6f6f8"), Muted: hex("#5d5d65"), Border: hex("#d4d4d8"),
+		Accent: hex("#a8650b"), Selection: hex("#efdfc4"),
+		Success: hex("#05893e"), Warning: hex("#cf5604"), Error: hex("#d40c1a"), Info: hex("#2171cc"),
+	},
 	"catppuccin": {
 		Name: "catppuccin", Dark: true,
 		Fg: hex("#cdd6f4"), Bg: hex("#181825"), Muted: hex("#7f849c"), Border: hex("#45475a"),
@@ -144,7 +160,9 @@ var Keys = []string{"base", "fg", "bg", "muted", "border", "accent", "selection"
 func NewCustom(values map[string]string) (Theme, error) {
 	baseName := values["base"]
 	if baseName == "" {
-		baseName = DefaultDark
+		// Not DefaultDark: a custom theme written before hive became the
+		// default keeps the colours it was written against.
+		baseName = "catppuccin"
 	}
 	t, ok := builtin[baseName]
 	if !ok {

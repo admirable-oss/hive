@@ -375,20 +375,25 @@ func (a *App) addPanes(s *compositor.Scene) {
 	switch {
 	case snap == nil && errors.Is(a.ws.err, client.ErrUnavailable):
 		s.Empty = "Cannot reach the hive daemon\nretrying…" + quit
+		a.addWelcome(s)
 		return
 	case snap == nil && a.ws.err != nil:
 		s.Empty = "The hive daemon returned an error\n" + errText(a.ws.err) + "\nretrying…" + quit
+		a.addWelcome(s)
 		return
 	case snap == nil:
 		s.Empty = "Connecting to the hive daemon…" + quit
+		a.addWelcome(s)
 		return
 	case a.env() == nil:
 		s.Empty = "No environments yet\n\n" + a.keyHint(keymap.NewTab) + " opens a tab in " + displayDir(a.opts.Cwd) + quit
+		a.addWelcome(s)
 		return
 	}
 	t := a.tab()
 	if t == nil {
 		s.Empty = "No tabs in " + a.ws.envID + "\n\n" + a.keyHint(keymap.NewTab) + " opens one" + quit
+		a.addWelcome(s)
 		return
 	}
 	geo := a.geometry()

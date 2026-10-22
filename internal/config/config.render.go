@@ -240,9 +240,9 @@ clipboard = {{q .UI.Clipboard}}
 {{status .UI.StatusRight}}
 
 [theme]
-# auto (dark or light, from the terminal's background) | catppuccin |
-# catppuccin-latte | tokyo-night | gruvbox | nord | terminal (the terminal's own
-# colours) | custom
+# auto (hive or hive-light, from the terminal's background) | hive (amber on
+# graphite, as the desktop app) | hive-light | catppuccin | catppuccin-latte |
+# tokyo-night | gruvbox | nord | terminal (the terminal's own colours) | custom
 name = {{q .Theme.Name}}
 {{theme .Theme.Custom}}
 {{keys .Keys}}{{keyCommands .Keys.Commands}}`))

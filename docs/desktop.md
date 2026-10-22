@@ -210,8 +210,8 @@ copy of the app runs: a second launch passes its link to the first.
 
 The app reads your Hive configuration through `hive config show`, so there is no
 second settings file:
-- `theme.name`: `auto` follows the system; `catppuccin-latte` is light; other
-  themes are dark;
+- `theme.name`: `auto` follows the system; `hive-light` and
+  `catppuccin-latte` are light; other themes are dark;
 - `notify.on` and `notify.system`, as above;
 - `[keys]`: the prefix key and its bindings (through `hive config keys`);
 - `update.channel`: which releases the app updates to.

@@ -101,7 +101,7 @@ hive config show          # what is in effect
 hive config reset-keys    # put the default [keys] back (keeps a .bak)
 ```
 
-Useful sections: `[session]` (`restore`, `resume_agents_on_restore`, `replay_history`, which is off because it keeps screen text on disk), `[retention]` (`exited_processes`, `process_log_mb`, `gc_interval`), `[ui]` (`sidebar`, `sidebar_width`, `mouse`, `clipboard = auto | osc52 | local | off`), `[theme]` (`name = auto | catppuccin | catppuccin-latte | tokyo-night | gruvbox | nord | terminal | custom`, plus `[theme.custom]`), `[keys]` (`prefix_keys`, plus `[keys.<mode>]` tables where `[]` unbinds), `[terminal]` (`shell`, `scrollback_mb`), `[daemon] autostart`. `HIVE_LOG=debug` raises the daemon's log level.
+Useful sections: `[session]` (`restore`, `resume_agents_on_restore`, `replay_history`, which is off because it keeps screen text on disk), `[retention]` (`exited_processes`, `process_log_mb`, `gc_interval`), `[ui]` (`sidebar`, `sidebar_width`, `mouse`, `clipboard = auto | osc52 | local | off`), `[theme]` (`name = auto | hive | hive-light | catppuccin | catppuccin-latte | tokyo-night | gruvbox | nord | terminal | custom`, plus `[theme.custom]`), `[keys]` (`prefix_keys`, plus `[keys.<mode>]` tables where `[]` unbinds), `[terminal]` (`shell`, `scrollback_mb`), `[daemon] autostart`. `HIVE_LOG=debug` raises the daemon's log level.
 
 ## Other machines
 

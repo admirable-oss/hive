@@ -310,7 +310,7 @@ func (im *importer) setting(name string, v any) {
 		if theme == "" {
 			theme = s
 		}
-		if !slices.Contains([]string{"auto", "catppuccin", "catppuccin-latte", "tokyo-night", "gruvbox", "nord", "terminal"}, theme) {
+		if !slices.Contains([]string{"auto", "hive", "hive-light", "catppuccin", "catppuccin-latte", "tokyo-night", "gruvbox", "nord", "terminal"}, theme) {
 			im.skip(name, fmt.Sprintf("Hive has no theme %q", s))
 			return
 		}

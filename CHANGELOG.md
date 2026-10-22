@@ -59,6 +59,26 @@ Many agents, one plan ([docs/tasks.md](docs/tasks.md), [RFC 0002](rfcs/0002-task
 - Bounded everywhere: screens, changed files, summaries, logs and finished
   plans (`[tasks] keep_plans`) are capped.
 
+### Look and first run
+
+- The TUI wears the desktop app's colours: `hive` (amber on graphite) and
+  `hive-light` are new themes, and `auto` now picks them. Other themes are
+  unchanged, and a `[theme.custom]` table without `base` still starts from
+  catppuccin.
+- The empty pane area welcomes you: the bee flaps beside a speech bubble
+  that types itself out, over a checklist of the next steps and their keys,
+  while connecting, when the daemon is out of reach, on a first run and in
+  an environment with no tabs. Small screens keep the plain text.
+- The installer's onboarding: the bee says hello, then the theme and
+  starting at login are picked with the arrow keys (or j/k, a digit, Enter),
+  each question folding into its answer. `NO_COLOR` and non-interactive
+  installs get plain text.
+
+### Fixes
+
+- The TUI no longer hangs on "Connecting to the hive daemon…": a frame
+  locked a pane's view twice when planning its images.
+
 ## v1.2.0 (unreleased): Desktop app 1.0 (M21)
 
 ### Signed packages

@@ -77,7 +77,10 @@ type Scene struct {
 	Panes   []Pane // tiled panes of the visible tab
 	Popups  []Pane // floating panes, drawn over the tiled ones
 	// Empty is shown in the pane area when there are no panes.
-	Empty    string
+	Empty string
+	// Splash takes Empty's place when set: styled lines, centred as one
+	// block, each kept to the left of it.
+	Splash   []Spans
 	Overlays []Overlay // drawn last, in order
 	Toasts   []Toast
 }
@@ -438,7 +441,11 @@ func (c *Compositor) drawPanes(scr uv.Screen, s *Scene, st chrome, res *Result) 
 		}
 		c.drawTitle(scr, ox+p.Rect.X, oy+p.Rect.Y-1, p.Rect.W, p, st, res)
 	}
-	if len(s.Panes) == 0 && s.Empty != "" {
+	switch {
+	case len(s.Panes) > 0:
+	case len(s.Splash) > 0:
+		centreBlock(scr, area, s.Splash)
+	case s.Empty != "":
 		c.centre(scr, area, s.Empty, st.muted)
 	}
 
@@ -551,6 +558,22 @@ func (c *Compositor) centre(scr uv.Screen, r uv.Rectangle, text string, st uv.St
 		l = Truncate(l, r.Dx())
 		w := Spans{{Text: l}}.Width()
 		drawText(scr, r.Min.X+(r.Dx()-w)/2, y+i, r.Dx(), l, st)
+	}
+}
+
+// centreBlock draws lines as one block in the middle of r, cut to fit.
+func centreBlock(scr uv.Screen, r uv.Rectangle, lines []Spans) {
+	w := 0
+	for _, l := range lines {
+		w = max(w, l.Width())
+	}
+	x := r.Min.X + max(r.Dx()-w, 0)/2
+	y := r.Min.Y + max(r.Dy()-len(lines), 0)/2
+	for i, l := range lines {
+		if y+i >= r.Max.Y {
+			break
+		}
+		drawSpans(scr, x, y+i, r.Max.X-x, l)
 	}
 }
 

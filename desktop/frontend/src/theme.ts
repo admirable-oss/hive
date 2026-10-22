@@ -46,7 +46,7 @@ export function color(c: string | undefined, pal: string[]): string | undefined 
 
 // Light themes Hive knows; anything else configured is dark, and "auto" or
 // "terminal" follow the system.
-const lightThemes = new Set(["catppuccin-latte", "light"]);
+const lightThemes = new Set(["hive-light", "catppuccin-latte", "light"]);
 
 export function schemeFor(theme: string, systemDark: boolean): Scheme {
   if (theme === "auto" || theme === "terminal" || theme === "") return systemDark ? "dark" : "light";

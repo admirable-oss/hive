@@ -79,6 +79,7 @@ type uiState struct {
 	copy      *copyState
 	overlay   overlay
 	overview  *overview
+	welcome   welcome // the empty pane area's screen
 	toasts    []toast
 	clip      string // the last copied text, for paste
 	lastNote  string // the process of the latest notification
@@ -291,6 +292,8 @@ func (a *App) Handle(m Msg) {
 		a.expireToasts()
 	case beeTickMsg:
 		a.beeTick()
+	case welcomeTickMsg:
+		a.welcomeTick()
 	case func():
 		m()
 	}

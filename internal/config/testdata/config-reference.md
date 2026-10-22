@@ -196,7 +196,7 @@ format = "%a %H:%M"
 
 | Key | Default | Description |
 |---|---|---|
-| `name` | `"auto"` | auto (dark or light, from the terminal's background) \| catppuccin \| catppuccin-latte \| tokyo-night \| gruvbox \| nord \| terminal (the terminal's own colours) \| custom |
+| `name` | `"auto"` | auto (hive or hive-light, from the terminal's background) \| hive (amber on graphite, as the desktop app) \| hive-light \| catppuccin \| catppuccin-latte \| tokyo-night \| gruvbox \| nord \| terminal (the terminal's own colours) \| custom |
 
 With name = "custom", [theme.custom] starts from a built-in theme ("base") and overrides colours: fg bg muted border accent selection success warning error info, each "#rrggbb", an ANSI index 0-255, or "default".
 

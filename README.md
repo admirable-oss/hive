@@ -215,7 +215,7 @@ mouse = true                # click, drag borders, select to copy, scroll
 clipboard = "auto"          # auto | osc52 | local | off
 
 [theme]
-name = "auto"               # auto | catppuccin | catppuccin-latte | tokyo-night | gruvbox | nord | terminal | custom
+name = "auto"               # auto | hive | hive-light | catppuccin | catppuccin-latte | tokyo-night | gruvbox | nord | terminal | custom
 
 [keys]
 prefix_keys = ["ctrl+b"]    # bindings per mode in [keys.<mode>]; see the keystrokes guide
