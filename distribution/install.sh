@@ -34,6 +34,192 @@ fetch() {
         -H 'User-Agent: hive-installer' "$1"
 }
 
+# --- onboarding --------------------------------------------------------------
+# After an install on a terminal: the bee says hello, then two questions
+# (the theme, starting at login) answered with the arrow keys, Astro style.
+# Without a terminal it prints one line; without stty it asks for numbers.
+
+ESC="$(printf '\033')"
+tty_saved=""
+
+# restore_tty puts the terminal back as onboarding found it.
+restore_tty() {
+    if [ -n "$tty_saved" ]; then
+        stty "$tty_saved" </dev/tty 2>/dev/null || true
+        tty_saved=""
+        printf '%s[?25h' "$ESC"
+    fi
+}
+
+# colours sets the palette: the bee's amber, 24-bit when the terminal says
+# it has it, else the nearest of the 256; nothing under NO_COLOR or a dumb
+# terminal.
+colours() {
+    if [ -n "${NO_COLOR:-}" ] || [ "${TERM:-dumb}" = dumb ]; then
+        c_reset=""; c_bold=""; c_dim=""; c_amber=""; c_green=""; c_chip=""
+        bee_y=""; bee_yb=""; bee_w=""; bee_wb=""; bee_a=""; bee_d=""; bee_db=""
+        return
+    fi
+    c_reset="${ESC}[0m"; c_bold="${ESC}[1m"; c_dim="${ESC}[2m"
+    case "${COLORTERM:-}" in
+        truecolor|24bit)
+            y='2;245;185;66'; w='2;189;189;187'; a='2;155;155;161'; d='2;11;11;12'; g='2;93;200;121' ;;
+        *)
+            y='5;214'; w='5;250'; a='5;247'; d='5;232'; g='5;114' ;;
+    esac
+    c_amber="${ESC}[38;${y}m"; c_green="${ESC}[38;${g}m"
+    c_chip="${ESC}[1;38;${d};48;${y}m"
+    bee_y="${ESC}[38;${y}m"; bee_yb="${ESC}[48;${y}m"; bee_w="${ESC}[38;${w}m"; bee_wb="${ESC}[48;${w}m"
+    bee_a="${ESC}[38;${a}m"; bee_d="${ESC}[38;${d}m"; bee_db="${ESC}[48;${d}m"
+}
+
+# bee prints the mascot (internal/tui/bee) with its wings in frame $1, one
+# letter per cell: y ▀ and v ▄ amber, F solid amber, a ▄ antenna, h antenna
+# on amber, e an eye, s a stripe, d dark, U solid wing, L ▄ wing, . blank.
+bee() {
+    case "$1" in
+        0) w0='.LU UL.'; w1='UUL LUU'; w2='UUU UUU'; w3='... ...' ;;
+        2|4) w0='... ...'; w1='.UL LU.'; w2='UUL LUU'; w3='... ...' ;;
+        3) w0='... ...'; w1='... ...'; w2='.LU UL.'; w3='UU. .UU' ;;
+        *) w0='... ...'; w1='UUL LUU'; w2='UUU UUU'; w3='... ...' ;;
+    esac
+    printf '%s\n' \
+        "${w0% *}ya......ay${w0#* }" \
+        "${w1% *}.vhvvvvhv.${w1#* }" \
+        "${w2% *}FFeFFFFeFF${w2#* }" \
+        "${w3% *}FFsFFFFsFF${w3#* }" \
+        ".vvFssssssssFvv." \
+        "....FdsddsdF...." \
+        "....y.y..y.y...." |
+    sed -e "s/y/${bee_y}▀${c_reset}/g" -e "s/v/${bee_y}▄${c_reset}/g" \
+        -e "s/F/${bee_y}${bee_yb}▀${c_reset}/g" -e "s/a/${bee_a}▄${c_reset}/g" \
+        -e "s/h/${bee_a}${bee_yb}▀${c_reset}/g" -e "s/e/${bee_y}${bee_db}▀${c_reset}/g" \
+        -e "s/s/${bee_d}${bee_yb}▀${c_reset}/g" -e "s/d/${bee_d}▀${c_reset}/g" \
+        -e "s/U/${bee_w}${bee_wb}▀${c_reset}/g" -e "s/L/${bee_w}▄${c_reset}/g" \
+        -e 's/\./ /g'
+}
+
+# repeat prints $2 $1 times.
+repeat() {
+    i=0
+    while [ "$i" -lt "$1" ]; do printf '%s' "$2"; i=$((i + 1)); done
+}
+
+# say draws the bee beside a speech bubble holding $1 (its title) and the
+# first $3 characters of $2, wings in frame $4. Both texts are ASCII: the
+# bubble is sized by their lengths.
+say() {
+    title="$1"; text="$2"; shown="$3"
+    inner=${#text}
+    [ ${#title} -gt "$inner" ] && inner=${#title}
+    typed=""
+    [ "$shown" -gt 0 ] && typed="$(printf '%s' "$text" | cut -c "1-$shown")"
+    caret=""; caret_w=0
+    if [ "$shown" -lt ${#text} ]; then caret="${c_amber}▍${c_reset}"; caret_w=1; fi
+    edge="$(repeat $((inner + 2)) '─')"
+    pad_title="$(repeat $((inner - ${#title})) ' ')"
+    pad_text="$(repeat $((inner - ${#typed} - caret_w)) ' ')"
+    n=0
+    bee "$4" | while IFS= read -r line; do
+        case "$n" in
+            1) side="  ${c_dim} ╭${edge}╮${c_reset}" ;;
+            2) side="  ${c_dim} │ ${c_reset}${c_amber}${c_bold}hive${c_reset}${c_dim}${title#hive}${pad_title} │${c_reset}" ;;
+            3) side="  ${c_dim}─┤ ${c_reset}${typed}${caret}${pad_text}${c_dim} │${c_reset}" ;;
+            4) side="  ${c_dim} ╰${edge}╯${c_reset}" ;;
+            *) side="" ;;
+        esac
+        printf '\r%s  %s%s%s\n' "${ESC}[2K" "$line" "$side" ""
+        n=$((n + 1))
+    done
+}
+
+# greet types $2 into the bubble while the bee flaps, then leaves it at
+# rest. Without colours it is two lines of text.
+greet() {
+    if [ -z "$c_reset" ]; then
+        printf '  %s\n  %s\n' "$1" "$2"
+        return
+    fi
+    printf '%s[?25l' "$ESC"
+    shown=0; frame=0
+    while :; do
+        say "$1" "$2" "$shown" $((frame / 2 % 6))
+        [ "$shown" -ge ${#2} ] && [ "$frame" -ge 12 ] && break
+        if [ "$shown" -lt ${#2} ]; then shown=$((shown + 2)); fi
+        [ "$shown" -gt ${#2} ] && shown=${#2}
+        frame=$((frame + 1))
+        sleep 0.03
+        printf '%s[7A' "$ESC"
+    done
+    printf '%s[7A' "$ESC"
+    say "$1" "$2" ${#2} 1
+    printf '%s[?25h' "$ESC"
+}
+
+# chip is a step's label, as Astro marks its steps.
+chip() { printf '  %s %-6s %s ' "$c_chip" "$1" "$c_reset"; }
+
+# choose asks $1 (the step) / $2 (the question) with options "value|label|hint"
+# and sets choice to the picked value: arrows or j/k move, a digit jumps,
+# Enter picks. The first option is the default.
+choose() {
+    step="$1"; question="$2"; shift 2
+    count=$#
+    chip "$step"; printf '%s\n' "${c_bold}${question}${c_reset}"
+    if ! tty_saved="$(stty -g </dev/tty 2>/dev/null)" || ! command -v dd >/dev/null 2>&1; then
+        tty_saved=""
+        i=1
+        for o in "$@"; do
+            label="${o#*|}"; printf '           %d) %s\n' "$i" "${label%%|*}"; i=$((i + 1))
+        done
+        printf '           Choice [1]: '
+        IFS= read -r pick </dev/tty || pick=1
+        case "$pick" in ''|*[!0-9]*) pick=1 ;; esac
+        [ "$pick" -ge 1 ] && [ "$pick" -le "$count" ] || pick=1
+    else
+        stty -icanon -echo min 1 time 0 </dev/tty
+        printf '%s[?25l' "$ESC"
+        pick=1
+        while :; do
+            i=1
+            for o in "$@"; do
+                label="${o#*|}"; hint="${label#*|}"; label="${label%%|*}"
+                if [ "$i" -eq "$pick" ]; then
+                    printf '\r%s           %s●%s %s%s%s  %s%s%s\n' "${ESC}[2K" "$c_amber" "$c_reset" "$c_bold" "$label" "$c_reset" "$c_dim" "$hint" "$c_reset"
+                else
+                    printf '\r%s           %s○ %s%s\n' "${ESC}[2K" "$c_dim" "$label" "$c_reset"
+                fi
+                i=$((i + 1))
+            done
+            printf '\r%s           %s↑/↓ to move · enter to pick%s' "${ESC}[2K" "$c_dim" "$c_reset"
+            key="$(dd bs=1 count=1 2>/dev/null </dev/tty)"
+            case "$key" in
+                "$ESC")
+                    case "$(dd bs=1 count=2 2>/dev/null </dev/tty)" in
+                        '[A'|'OA') [ "$pick" -gt 1 ] && pick=$((pick - 1)) ;;
+                        '[B'|'OB') [ "$pick" -lt "$count" ] && pick=$((pick + 1)) ;;
+                    esac ;;
+                k|K) [ "$pick" -gt 1 ] && pick=$((pick - 1)) ;;
+                j|J|' ') [ "$pick" -lt "$count" ] && pick=$((pick + 1)) ;;
+                [1-9]) [ "$key" -le "$count" ] && pick="$key" ;;
+                ''|"$(printf '\r')") break ;;
+            esac
+            printf '\r%s[%dA' "$ESC" "$count"
+        done
+        restore_tty
+        # Fold the question into one line with the answer.
+        printf '\r%s[%dA%s[J' "$ESC" $((count + 1)) "$ESC"
+    fi
+    picked=""; i=1
+    for o in "$@"; do
+        [ "$i" -eq "$pick" ] && picked="$o"
+        i=$((i + 1))
+    done
+    choice="${picked%%|*}"
+    label="${picked#*|}"; label="${label%%|*}"
+    chip "$step"; printf '%s%s%s %s✔%s\n' "$c_reset" "$label" "$c_reset" "$c_green" "$c_reset"
+}
+
 onboard() {
     # curl | sh has stdin occupied by the script, so read answers from the
     # controlling terminal. Keep CI, redirected, and remote non-interactive
@@ -42,72 +228,42 @@ onboard() {
         printf '\nGet started with: hive\n'
         return
     }
-
-    c_reset='\033[0m'; c_gold='\033[38;5;220m'; c_green='\033[38;5;114m'
-    for bee_frame in '🐝·        ' '  🐝·      ' '    🐝·    ' '      🐝·  ' '        🐝'; do
-        printf '\r  %b' "$c_gold"
-        printf '%s' "$bee_frame"
-        printf '%b' "$c_reset"
-        sleep 0.08
-    done
-    printf '\r                      \r'
-    printf '\n%b' "$c_gold"
-    printf '      .     .\n'
-    printf '     . .   . .       H I V E\n'
-    printf '      (o)             agents keep working\n'
-    printf '       |\n'
-    printf '      / \\\n'
-    printf '%b\n' "$c_reset"
-    printf '  Hive keeps coding agents running in the background,\n'
-    printf '  then brings their terminals together when you return.\n\n'
-    printf '  Your agents stay alive when you close the terminal.\n'
-    printf '  Work in parallel, pick up where you left off, and see\n'
-    printf '  every agent from one terminal workspace.\n\n'
+    colours
+    printf '\n'
+    greet "hive ${tag}" "Welcome! Let's get your agents buzzing."
+    printf '\n'
 
     config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
     config_file="${HIVE_CONFIG:-${config_home}/hive/config.toml}"
     if [ -e "$config_file" ]; then
-        printf '\n  Existing config found; keeping it as-is.\n'
+        chip theme; printf '%skeeping your config: %s%s\n' "$c_dim" "$config_file" "$c_reset"
     else
-        printf '\n  Pick a terminal theme:\n'
-        printf '    1) Catppuccin Mocha (default)\n'
-        printf '    2) Catppuccin Latte\n'
-        printf '    3) Tokyo Night\n'
-        printf '    4) Gruvbox\n'
-        printf '    5) Nord\n'
-        printf '    6) Match my terminal automatically\n'
-        printf '  Choice [1]: '
-        IFS= read -r choice </dev/tty || choice=1
-        case "$choice" in
-            2) theme=catppuccin-latte ;;
-            3) theme=tokyo-night ;;
-            4) theme=gruvbox ;;
-            5) theme=nord ;;
-            6) theme=auto ;;
-            *) theme=catppuccin ;;
-        esac
+        choose theme "Pick your colours" \
+            "auto|Hive|amber on graphite, light on a light terminal (the desktop app's)" \
+            "catppuccin|Catppuccin Mocha|" \
+            "catppuccin-latte|Catppuccin Latte|" \
+            "tokyo-night|Tokyo Night|" \
+            "gruvbox|Gruvbox|" \
+            "nord|Nord|" \
+            "terminal|My terminal's colours|whatever scheme your terminal has"
         mkdir -p "$(dirname "$config_file")"
-        {
-            printf '[theme]\nname = "%s"\n' "$theme"
-        } >"$config_file"
-        printf '\n  Saved %s theme to %s\n' "$theme" "$config_file"
+        printf '[theme]\nname = "%s"\n' "$choice" >"$config_file"
     fi
 
-    printf '\n  Start Hive automatically when you log in? [y/N] '
-    IFS= read -r autostart </dev/tty || autostart=n
-    case "$autostart" in
-        y|Y|yes|YES)
-            if "${INSTALL_DIR}/hive" daemon install; then
-                printf '  %b✓%b Hive will start at login.\n' "$c_green" "$c_reset"
-            else
-                printf '  Could not install the login service. Run: hive daemon install\n'
-            fi
-            ;;
-        *) printf '  You can enable this later with: hive daemon install\n' ;;
-    esac
+    choose login "Start Hive when you log in?" \
+        "no|Not now|you can turn it on later with: hive daemon install" \
+        "yes|Yes|agents come back after a restart"
+    if [ "$choice" = yes ]; then
+        if "${INSTALL_DIR}/hive" daemon install >/dev/null 2>&1; then
+            chip login; printf '%sHive starts when you log in%s\n' "$c_dim" "$c_reset"
+        else
+            chip login; printf 'could not install the login service; run: hive daemon install\n'
+        fi
+    fi
 
-    printf '\n  Setup complete. Open Hive with: %bhive%b\n' "$c_gold" "$c_reset"
-    printf '  Learn the basics: https://hive.admir-saheta.com/docs/getting-started/quick-start/\n\n'
+    printf '\n'
+    chip next; printf '%sYou are all set.%s Open Hive with %s%shive%s\n' "$c_bold" "$c_reset" "$c_amber" "$c_bold" "$c_reset"
+    printf '           %sthe basics: https://hive.admir-saheta.com/docs/getting-started/quick-start/%s\n\n' "$c_dim" "$c_reset"
 }
 
 # unverifiable stops the install when the signature cannot be checked here,
@@ -181,7 +337,8 @@ main() {
     base_url="${DOWNLOAD_URL}/${tag}"
 
     tmp="$(mktemp -d)" || err "could not create a temporary directory"
-    trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+    trap 'rm -rf "$tmp"; restore_tty' EXIT
+    trap 'rm -rf "$tmp"; restore_tty; exit 130' HUP INT TERM
     curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 \
         "${base_url}/${archive}" -o "${tmp}/${archive}" \
         || err "could not download ${archive}"
