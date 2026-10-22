@@ -12,6 +12,14 @@ updates:
     groups:
       go:
         patterns: ["*"]
+    ignore:
+      # go-runewidth 0.0.26 builds a 2 MB width table in init(), which made
+      # every hive command start about 13 ms slower (7 ms to 20 ms), and x/ansi
+      # 0.11.9 requires it. Lift this once runewidth builds the table lazily.
+      - dependency-name: github.com/mattn/go-runewidth
+        versions: [">= 0.0.26"]
+      - dependency-name: github.com/charmbracelet/x/ansi
+        versions: [">= 0.11.9"]
     commit-message:
       prefix: "chore(deps)"
 
@@ -25,6 +33,11 @@ updates:
     ignore:
       # Pinned to an exact beta on purpose (docs/desktop.md); moved by hand.
       - dependency-name: github.com/wailsapp/wails/v3
+      # As for the root module: runewidth's init() cost (see above).
+      - dependency-name: github.com/mattn/go-runewidth
+        versions: [">= 0.0.26"]
+      - dependency-name: github.com/charmbracelet/x/ansi
+        versions: [">= 0.11.9"]
     commit-message:
       prefix: "chore(deps,desktop)"
 
