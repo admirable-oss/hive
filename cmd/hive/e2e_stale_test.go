@@ -53,7 +53,11 @@ func startOldDaemon(t *testing.T, c *cli, survive bool, running int) *oldDaemon 
 	) (struct{}, error) {
 		d.shutdown.Store(true)
 		d.kept.Store(!p.StopAgents)
-		go func() { _ = ln.Close() }() // after the reply: the socket goes, as a daemon's does
+		// Stop accepting before the reply goes out. A real daemon exits after
+		// replying, and its connections go with it; if this fake still
+		// accepted, the client's next dial could land on it and find it
+		// "running" for good.
+		_ = ln.Close()
 		return struct{}{}, nil
 	}))
 	go func() {
