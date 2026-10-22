@@ -6,7 +6,7 @@ toolchain go1.26.10
 
 require (
 	github.com/admirable-oss/hive v0.0.0
-	github.com/chromedp/cdproto v0.157.8
+	github.com/chromedp/cdproto v0.158.3
 	github.com/chromedp/chromedp v0.21.0
 	github.com/wailsapp/wails/v3 v3.0.0-beta.32
 )
