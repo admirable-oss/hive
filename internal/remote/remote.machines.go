@@ -43,6 +43,23 @@ type Machine struct {
 	// one. It is not connected to until `hive machine trust` accepts the
 	// new identity.
 	IdentityChanged bool `json:"identity_changed,omitempty"`
+
+	// Labels are what tasks' labels select it by, and Capacity caps the
+	// tasks this machine's plans run there at once (0: DefaultCapacity).
+	Labels   []string `json:"labels,omitempty"`
+	Capacity int      `json:"capacity,omitempty"`
+}
+
+// DefaultCapacity is how many tasks run on a saved machine at once when it
+// does not say.
+const DefaultCapacity = 4
+
+// TaskCapacity is how many tasks may run on m at once.
+func (m Machine) TaskCapacity() int {
+	if m.Capacity > 0 {
+		return m.Capacity
+	}
+	return DefaultCapacity
 }
 
 // Machine states, from most to least trusted.
@@ -100,6 +117,19 @@ var (
 
 var machineName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
+var label = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$`)
+
+// ErrInvalidLabel is a machine label tasks could not select by.
+var ErrInvalidLabel = errors.New("invalid label (letters, digits, '.', '_', ':', '/' and '-', up to 64 characters)")
+
+// ValidLabel checks a machine label.
+func ValidLabel(l string) error {
+	if !label.MatchString(l) {
+		return fmt.Errorf("%w: %q", ErrInvalidLabel, l)
+	}
+	return nil
+}
+
 // ValidName checks a machine name.
 func ValidName(name string) error {
 	if !machineName.MatchString(name) {
@@ -116,6 +146,9 @@ type Registry struct {
 
 // NewRegistry returns the registry stored at path.
 func NewRegistry(path string) *Registry { return &Registry{path: path} }
+
+// Path is the registry's file.
+func (r *Registry) Path() string { return r.path }
 
 type registryFile struct {
 	Schema   int       `json:"schema"`

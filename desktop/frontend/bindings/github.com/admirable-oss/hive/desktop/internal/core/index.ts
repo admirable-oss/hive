@@ -21,6 +21,8 @@ export {
     Observer,
     PairRequest,
     Pane,
+    Plan,
+    PlanTask,
     Rect,
     Run,
     ScreenUpdate,

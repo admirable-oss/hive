@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, FolderGit2, Monitor, MoreHorizontal, Plus, Server, TerminalSquare } from "lucide-react";
+import { Bell, FolderGit2, ListChecks, Monitor, MoreHorizontal, Plus, Server, TerminalSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { api, type Agent } from "../api";
 import { attention, currentTab, show, store, useStore } from "../store";
 import { Bee } from "./Bee";
+import { PlanItem } from "./Plans";
 import { StateDot } from "./StateDot";
 
 export { StateDot } from "./StateDot";
@@ -50,8 +51,8 @@ const connTone: Record<string, string> = {
   outdated: "bg-destructive",
 };
 
-// Sidebar lists what needs you, every environment with its tabs, and the
-// machines.
+// Sidebar lists what needs you, the plans, every environment with its
+// tabs, and the machines.
 export function Sidebar({ mac }: { mac: boolean }) {
   const ws = useStore((s) => s.workspace);
   const shown = useStore((s) => currentTab(s)?.id);
@@ -63,7 +64,7 @@ export function Sidebar({ mac }: { mac: boolean }) {
 
   return (
     <nav className="flex min-h-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground" aria-label="Environments and agents">
-      <div className={cn("drag flex h-13 shrink-0 items-center justify-between px-3", mac && "pl-[88px]")}>
+      <div className={cn("drag flex h-13 shrink-0 items-center justify-between px-3", mac && "pl-22")}>
         <span className="flex items-center gap-2 text-sm leading-none font-semibold tracking-tight">
           <Bee className="text-[18px]" />
           Hive
@@ -101,6 +102,23 @@ export function Sidebar({ mac }: { mac: boolean }) {
             </ul>
           )}
         </section>
+
+        {(ws.plans ?? []).length > 0 && (
+          <section aria-label="Plans">
+            <SectionTitle id="plans">
+              <span className="flex items-center gap-1.5">
+                <ListChecks className="size-3" /> Plans
+              </span>
+            </SectionTitle>
+            <ul className="space-y-1.5">
+              <AnimatePresence initial={false}>
+                {(ws.plans ?? []).map((p) => (
+                  <PlanItem key={p.id} p={p} />
+                ))}
+              </AnimatePresence>
+            </ul>
+          </section>
+        )}
 
         <section aria-labelledby="envs">
           <SectionTitle

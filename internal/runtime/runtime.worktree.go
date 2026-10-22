@@ -168,6 +168,22 @@ func (w *worktrees) Create(ctx context.Context, req WorktreeCreateRequest) (envi
 	return env, nil
 }
 
+// CreateOrOpen is Create, except that a worktree already at the branch's
+// path is opened (as an environment, if it is not one yet) rather than
+// refused.
+func (w *worktrees) CreateOrOpen(ctx context.Context, req WorktreeCreateRequest) (environment.Environment, error) {
+	env, err := w.Create(ctx, req)
+	if !errors.Is(err, errWorktreeExists) {
+		return env, err
+	}
+	main, _, err := w.mainWorktree(ctx, req.Repo)
+	if err != nil {
+		return environment.Environment{}, err
+	}
+	path := filepath.Join(w.dir, filepath.Base(main.Path), git.Slug(req.Branch))
+	return w.Open(ctx, WorktreeOpenRequest{Path: path})
+}
+
 // environmentID picks the new environment's ID: the requested one, else
 // the branch's slug, else <repo>-<slug> when the slug is taken.
 func (w *worktrees) environmentID(ctx context.Context, want, repo, branch string) (string, error) {

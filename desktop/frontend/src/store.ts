@@ -45,7 +45,7 @@ interface Screens {
   images: Record<string, ImageUpdate[] | undefined>;
 }
 
-export const emptyWorkspace: Workspace = { environments: [], tabs: [], panes: [], agents: [], state: "", counts: {} };
+export const emptyWorkspace: Workspace = { environments: [], tabs: [], panes: [], agents: [], state: "", counts: {}, plans: [] };
 
 // Per-window preferences live in the webview's storage: nothing that
 // matters if lost, and never terminal contents.

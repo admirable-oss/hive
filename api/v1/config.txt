@@ -51,6 +51,10 @@ session.restore
 session.restore_stagger
 session.resume_agents_on_restore
 session.snapshot_interval
+tasks.capacity
+tasks.keep_plans
+tasks.kinds
+tasks.labels
 terminal.default_height
 terminal.default_width
 terminal.history_kb

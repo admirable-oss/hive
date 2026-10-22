@@ -54,6 +54,13 @@ type AgentStarted struct {
 var errNoPane = errors.New("the agent has no pane")
 
 func (o *agentOps) Start(ctx context.Context, req AgentStartRequest) (AgentStarted, error) {
+	return o.start(ctx, req, false)
+}
+
+// start starts an agent. With reuse, a worktree already on the branch is
+// used rather than refused: a task resumed or retried goes on in the
+// worktree its first attempt made.
+func (o *agentOps) start(ctx context.Context, req AgentStartRequest, reuse bool) (AgentStarted, error) {
 	var m *agent.Manifest
 	for _, x := range o.agents.Manifests() {
 		if x.ID == req.Kind {
@@ -80,7 +87,13 @@ func (o *agentOps) Start(ctx context.Context, req AgentStartRequest) (AgentStart
 		if env.Worktree != nil {
 			repo = env.Worktree.Repo
 		}
-		if env, err = o.worktrees.Create(ctx, WorktreeCreateRequest{Repo: repo, Branch: req.Worktree, Base: req.Base}); err != nil {
+		wreq := WorktreeCreateRequest{Repo: repo, Branch: req.Worktree, Base: req.Base}
+		if reuse {
+			env, err = o.worktrees.CreateOrOpen(ctx, wreq)
+		} else {
+			env, err = o.worktrees.Create(ctx, wreq)
+		}
+		if err != nil {
 			return AgentStarted{}, err
 		}
 	}

@@ -34,7 +34,8 @@ FUZZ_TARGETS := \
 	./internal/vt:FuzzKittyGraphicsParser \
 	./internal/plugin:FuzzParseManifest \
 	./internal/agent:FuzzParseManifest \
-	./internal/discovery:FuzzParseMessage
+	./internal/discovery:FuzzParseMessage \
+	./internal/task:FuzzParsePlan
 
 .DEFAULT_GOAL := help
 

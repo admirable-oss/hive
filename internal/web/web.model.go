@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/observer"
+	"github.com/admirable-oss/hive/internal/task"
 )
 
 // Connection states of a runtime, as the browser shows them.
@@ -50,11 +52,13 @@ type RuntimeView struct {
 	Seq      uint64
 	Version  uint64 // bumps on every change
 
-	Envs     map[string]observer.Environment
-	Tabs     map[string]observer.Tab
-	Panes    map[string]observer.Pane
-	Agents   map[string]observer.Agent
-	Meta     map[observer.Target]observer.Metadata
+	Envs   map[string]observer.Environment
+	Tabs   map[string]observer.Tab
+	Panes  map[string]observer.Pane
+	Agents map[string]observer.Agent
+	Meta   map[observer.Target]observer.Metadata
+	// Plans are the plans with tasks this observer sees, by ID.
+	Plans    map[string]observer.Plan
 	Output   map[string]time.Time // pane → when its screen last changed
 	Activity []Activity           // newest last
 	loaded   bool
@@ -75,6 +79,7 @@ func (m *Model) View() RuntimeView {
 	v.Panes = cloneMap(v.Panes)
 	v.Agents = cloneMap(v.Agents)
 	v.Meta = cloneMap(v.Meta)
+	v.Plans = cloneMap(v.Plans) // plans' task slices are replaced, never changed in place
 	v.Output = cloneMap(v.Output)
 	v.Activity = slices.Clone(v.Activity)
 	return v
@@ -159,6 +164,39 @@ func (m *Model) snapshot(s observer.Snapshot) {
 	for _, md := range s.Metadata {
 		v.Meta[observer.Target{Environment: md.Environment, Pane: md.Pane}] = md
 	}
+	v.Plans = make(map[string]observer.Plan, len(s.Plans))
+	for _, p := range s.Plans {
+		v.Plans[p.ID] = p
+	}
+}
+
+// applyPlanTask records a task's change in its plan. Its counts follow
+// the tasks shown.
+func (v *RuntimeView) applyPlanTask(t observer.PlanTask) (changed bool, before task.State) {
+	p, ok := v.Plans[t.PlanID]
+	if !ok {
+		p = observer.Plan{ID: t.PlanID, State: task.PlanRunning}
+	}
+	tasks := slices.Clone(p.Tasks)
+	i := slices.IndexFunc(tasks, func(x observer.PlanTask) bool { return x.ID == t.ID })
+	switch {
+	case i < 0:
+		tasks = append(tasks, t)
+	case tasks[i].Rev > t.Rev:
+		return false, "" // older than what is shown
+	default:
+		before = tasks[i].State
+		tasks[i] = t
+	}
+	p.Tasks = tasks
+	p.Counts = map[task.State]int{}
+	for _, x := range tasks {
+		p.Counts[x.State]++
+	}
+	p.Total = len(tasks)
+	p.Rev = max(p.Rev, t.Rev)
+	v.Plans[p.ID] = p
+	return true, before
 }
 
 // event applies one event and reports whether anything shown changed.
@@ -324,6 +362,41 @@ func (m *Model) event(ev observer.Event) bool {
 			delete(v.Meta, t)
 		} else {
 			v.Meta[t] = md
+		}
+	case task.EventTask:
+		var t observer.PlanTask
+		if json.Unmarshal(ev.Data, &t) != nil {
+			return false
+		}
+		changed, before := v.applyPlanTask(t)
+		if changed && before != t.State {
+			note(t.EnvironmentID, t.PaneID, "task", fmt.Sprintf("task %s of plan %s is %s", t.ID, t.PlanID, t.State))
+		}
+		return changed
+	case task.EventPlan:
+		// Only observers that see all get these: the plan as a whole.
+		var p observer.Plan
+		if json.Unmarshal(ev.Data, &p) != nil {
+			return false
+		}
+		old, ok := v.Plans[p.ID]
+		if ok && old.Rev > p.Rev {
+			return false
+		}
+		p.Tasks = old.Tasks
+		v.Plans[p.ID] = p
+		if ok && old.State != p.State && p.State.Finished() {
+			note("", "", "task", fmt.Sprintf("plan %s %s", cmp.Or(p.Name, p.ID), p.State))
+		}
+	case task.EventRemoved:
+		var r struct {
+			IDs []string `json:"ids"`
+		}
+		if json.Unmarshal(ev.Data, &r) != nil {
+			return false
+		}
+		for _, id := range r.IDs {
+			delete(v.Plans, id)
 		}
 	case "worktree.created", "worktree.removed":
 		var w observer.Worktree

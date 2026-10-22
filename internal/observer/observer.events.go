@@ -11,6 +11,7 @@ import (
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/process"
+	"github.com/admirable-oss/hive/internal/task"
 )
 
 // Event is something observers are told about. Seq is the daemon's event
@@ -64,6 +65,9 @@ var Types = []string{
 	metadata.EventChange,     // Metadata
 	EventWorktreeCreated,     // Worktree
 	EventWorktreeRemoved,     // Worktree
+	task.EventTask,           // PlanTask: a task of a plan changed
+	task.EventPlan,           // Plan without Tasks: how a plan stands (observers that see all)
+	task.EventRemoved,        // {"ids"}: finished plans forgotten (observers that see all)
 	Resync,                   // ResyncData
 }
 
@@ -178,6 +182,22 @@ func Translate(ev event.Event, locate Locator) (Event, bool) {
 			v.EnvironmentID = w.Environment.ID
 		}
 		data, target = v, Target{Environment: v.EnvironmentID}
+	case task.EventTask:
+		var v task.TaskView
+		err = json.Unmarshal(ev.Data, &v)
+		t := PlanTaskView(v)
+		data, target = t, t.Target()
+	case task.EventPlan:
+		// Counts span every environment: only for observers that see all.
+		var s task.Summary
+		err = json.Unmarshal(ev.Data, &s)
+		data = PlanSummaryView(s)
+	case task.EventRemoved:
+		var r struct {
+			IDs []string `json:"ids"`
+		}
+		err = json.Unmarshal(ev.Data, &r)
+		data = r
 	default:
 		return Event{}, false
 	}

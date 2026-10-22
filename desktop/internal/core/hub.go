@@ -101,6 +101,9 @@ type Hub struct {
 	seen     map[string]Agent
 	notified map[string]uint64
 	primed   bool // seen holds a snapshot (the first one notifies nothing)
+	// asked is the tasks known to wait for approval, by plan/task, so each
+	// request is announced once.
+	asked map[string]bool
 }
 
 // New returns a hub; Start connects it.
@@ -294,7 +297,7 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 		h.mu.Unlock()
 		_ = c.Close()
 	}()
-	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "events.")
+	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "events.")
 	if err != nil {
 		return err
 	}
@@ -355,9 +358,15 @@ func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client) error {
 		return err
 	}
 	ws := workspaceOf(snap)
+	if plans, err := c.Plans(ctx); err == nil {
+		ws.Plans = plansOf(plans)
+	} else if ctx.Err() == nil {
+		h.log.Debug("no plans (a daemon older than tasks?)", "err", err)
+	}
 	h.mu.Lock()
 	h.ws = ws
 	notes := h.notificationsLocked(ws)
+	notes = append(notes, h.approvalsLocked(ws)...)
 	for id, v := range h.views {
 		p, ok := paneByID(ws, id)
 		switch {
@@ -385,6 +394,30 @@ func paneByID(ws Workspace, id string) (Pane, bool) {
 		}
 	}
 	return Pane{}, false
+}
+
+// approvalsLocked announces tasks that started waiting for approval since
+// the last refresh, as the agents' notifications are: once, and not on the
+// first snapshot.
+func (h *Hub) approvalsLocked(ws Workspace) []Notification {
+	next := map[string]bool{}
+	var out []Notification
+	for _, p := range ws.Plans {
+		for _, t := range p.Waiting {
+			if t.State != string(hiveapi.TaskApproval) {
+				continue
+			}
+			key := p.ID + "/" + t.ID
+			next[key] = true
+			if h.asked == nil || h.asked[key] || !h.settings.notifies("blocked") || h.settings.SystemNotifications {
+				continue
+			}
+			title := "Plan " + cmp(p.Name, p.ID)
+			out = append(out, Notification{ID: "plan:" + key, Title: title, Body: t.ID + " waits for your approval"})
+		}
+	}
+	h.asked = next
+	return out
 }
 
 // notificationsLocked compares agents with what was seen before: an agent
@@ -908,6 +941,31 @@ func (h *Hub) Prompt(agentID, text string) (string, error) {
 }
 
 // StopAgent stops an agent's process; its pane keeps its last screen.
+// ApproveTask lets a task waiting for approval start; deny cancels it.
+func (h *Hub) ApproveTask(planID, taskID string, deny bool) error {
+	if err := validID(planID); err != nil {
+		return err
+	}
+	if err := validID(taskID); err != nil {
+		return err
+	}
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		_, err := c.ApproveTask(ctx, planID, taskID, hiveapi.ApproveOptions{Deny: deny, By: "desktop"})
+		return err
+	})
+}
+
+// CancelPlan cancels a plan: its running agents are stopped.
+func (h *Hub) CancelPlan(planID string) error {
+	if err := validID(planID); err != nil {
+		return err
+	}
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		_, err := c.CancelPlan(ctx, planID, "")
+		return err
+	})
+}
+
 func (h *Hub) StopAgent(agentID string) error {
 	if err := validID(agentID); err != nil {
 		return err

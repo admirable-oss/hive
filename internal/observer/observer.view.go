@@ -11,6 +11,7 @@ import (
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/process"
+	"github.com/admirable-oss/hive/internal/task"
 	"github.com/admirable-oss/hive/internal/vt"
 )
 
@@ -167,6 +168,73 @@ func AgentView(a agent.Agent) Agent {
 	}
 }
 
+// Plan is a plan (hive task) as observers see it: its tasks' progress,
+// without their prompts, results or logs. Total and Counts are of the
+// tasks the observer sees; Tasks is nil in a task.plan event, which says
+// only how the plan as a whole stands.
+type Plan struct {
+	ID        string             `json:"id"`
+	Name      string             `json:"name,omitempty"`
+	State     task.PlanState     `json:"state"`
+	Rev       uint64             `json:"rev"`
+	Total     int                `json:"total"`
+	Counts    map[task.State]int `json:"counts"`
+	CreatedAt time.Time          `json:"created_at"`
+	EndedAt   time.Time          `json:"ended_at,omitzero"`
+	Tasks     []PlanTask         `json:"tasks,omitempty"`
+}
+
+// PlanTask is a task of a plan as observers see it.
+type PlanTask struct {
+	PlanID string `json:"plan_id"`
+	// Rev is the plan's revision the task is from.
+	Rev           uint64     `json:"rev"`
+	ID            string     `json:"id"`
+	Title         string     `json:"title,omitempty"`
+	Kind          string     `json:"kind"`
+	State         task.State `json:"state"`
+	Attempt       int        `json:"attempt,omitempty"`
+	Machine       string     `json:"machine,omitempty"`
+	EnvironmentID string     `json:"environment_id"`
+	PaneID        string     `json:"pane_id,omitempty"`
+	Needs         []string   `json:"needs,omitempty"`
+	StartedAt     time.Time  `json:"started_at,omitzero"`
+	EndedAt       time.Time  `json:"ended_at,omitzero"`
+}
+
+// PlanTaskView redacts a task.
+func PlanTaskView(v task.TaskView) PlanTask {
+	return PlanTask{
+		PlanID: v.PlanID, Rev: v.Rev, ID: v.ID, Title: v.Title, Kind: v.Kind, State: v.State, Attempt: v.Attempt,
+		Machine: v.Machine, EnvironmentID: v.Environment, PaneID: v.PaneID, Needs: v.Needs,
+		StartedAt: v.StartedAt, EndedAt: v.EndedAt,
+	}
+}
+
+// Target is where a task is: the environment it works on, its pane.
+func (t PlanTask) Target() Target { return Target{Environment: t.EnvironmentID, Pane: t.PaneID} }
+
+// PlanSummaryView redacts a plan's summary (for observers that see all).
+func PlanSummaryView(s task.Summary) Plan {
+	return Plan{ID: s.ID, Name: s.Name, State: s.State, Rev: s.Rev, Total: s.Total, Counts: s.Counts, CreatedAt: s.CreatedAt, EndedAt: s.EndedAt}
+}
+
+// PlanView redacts p to the tasks scope sees; ok is false when it sees
+// none.
+func PlanView(p task.Plan, scope Scope) (Plan, bool) {
+	v := Plan{ID: p.ID, Name: p.Name, State: p.State, Rev: p.Rev, CreatedAt: p.CreatedAt, EndedAt: p.EndedAt, Counts: map[task.State]int{}, Tasks: []PlanTask{}}
+	for i := range p.Tasks {
+		t := PlanTaskView(p.Tasks[i].View(&p))
+		if !scope.Sees(t.Target()) {
+			continue
+		}
+		v.Tasks = append(v.Tasks, t)
+		v.Counts[t.State]++
+	}
+	v.Total = len(v.Tasks)
+	return v, v.Total > 0
+}
+
 // Metadata is what plugins and agents reported about a pane or environment:
 // a title and status tokens.
 type Metadata struct {
@@ -196,6 +264,9 @@ type Snapshot struct {
 	Panes        []Pane        `json:"panes"`
 	Agents       []Agent       `json:"agents"`
 	Metadata     []Metadata    `json:"metadata"`
+	// Plans are the plans with tasks in scope, newest first; omitted by
+	// daemons before 1.3.
+	Plans []Plan `json:"plans,omitempty"`
 }
 
 // Cursor is where a screen's cursor is (0-based) and whether it shows.

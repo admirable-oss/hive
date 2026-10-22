@@ -18,6 +18,7 @@ type Config struct {
 	Terminal  Terminal
 	Git       Git
 	Worktrees Worktrees
+	Tasks     Tasks
 	Session   Session
 	Retention Retention
 	Remote    Remote
@@ -75,6 +76,19 @@ type Worktrees struct {
 	// Directory holds worktrees created by `hive worktree create`, as
 	// <directory>/<repo>/<branch>. Empty means <HIVE_HOME>/worktrees.
 	Directory string
+}
+
+// Tasks configures plans of tasks (hive task run) on this machine.
+type Tasks struct {
+	// Capacity caps the tasks running here at once, across plans.
+	Capacity int
+	// Labels are what tasks' labels select this machine by.
+	Labels []string
+	// KeepPlans is how many finished plans are kept.
+	KeepPlans int
+	// Kinds caps the tasks running at once per agent kind, across plans
+	// ([tasks.kinds] claude = 4).
+	Kinds map[string]int
 }
 
 // Session configures snapshots of the workspace and its restore after a
@@ -321,6 +335,7 @@ func Defaults() Config {
 		Process:  Process{StopGrace: 3 * time.Second},
 		Terminal: Terminal{DefaultWidth: 220, DefaultHeight: 50, ScrollbackMB: 10},
 		Git:      Git{RefreshInterval: 5 * time.Second},
+		Tasks:    Tasks{Capacity: 8, Labels: []string{}, KeepPlans: 100},
 		Session: Session{
 			Restore: true, ResumeAgentsOnRestore: true, RestoreStagger: time.Second,
 			SnapshotInterval: 30 * time.Second, KeepSnapshots: 48, ReplayLines: 500,

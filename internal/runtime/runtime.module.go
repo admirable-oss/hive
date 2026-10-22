@@ -21,6 +21,7 @@ import (
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/shim"
+	"github.com/admirable-oss/hive/internal/task"
 	"github.com/admirable-oss/hive/internal/terminal"
 )
 
@@ -32,6 +33,7 @@ type Module struct {
 	Panes        *pane.Service
 	Events       *event.Bus
 	Agents       *agent.Service
+	Tasks        *task.Service
 }
 
 // NewModule assembles the daemon. Dependencies flow strictly downward:
@@ -124,8 +126,12 @@ func NewModule(cfg Config) *Module {
 	plugins := newPluginHost(cfg, log.With("module", "plugin"), router, bus)
 	server.Go(plugins.Run)
 	server.Go(func(ctx context.Context) { forwardEvents(ctx, bus, plugins) })
+	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir(), events: bus}
+	ops := &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs}
+	tasks := newTasks(cfg, ops, agents, bus, log.With("module", "task"))
+	server.Go(tasks.run)
 	obs := newObservers(cfg, log.With("module", "observer"), bus, guardedEnvs, panes, observer.Sources{
-		Agents: agents, Terminals: terms, Metadata: meta.List,
+		Agents: agents, Terminals: terms, Metadata: meta.List, Plans: tasks.svc,
 		Info: func() observer.Info {
 			snap := server.Snapshot()
 			return observer.Info{Version: snap.Version, Session: snap.Session, StartedAt: snap.StartedAt, AgentsSurviveRestart: snap.AgentsSurviveRestart}
@@ -153,9 +159,9 @@ func NewModule(cfg Config) *Module {
 	event.Register(router, bus)
 	pane.Register(router, panes)
 	agent.Register(router, agents)
-	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir(), events: bus}
 	registerWorktrees(router, wts)
-	registerAgentOps(router, &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs})
+	registerAgentOps(router, ops)
+	task.Register(router, tasks.svc)
 	registerSession(router, keep)
 	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)
 	registerPlugins(router, plugins, plugin.NewStore(cfg.pluginDir()))
@@ -171,6 +177,7 @@ func NewModule(cfg Config) *Module {
 		Panes:        panes,
 		Events:       bus,
 		Agents:       agents,
+		Tasks:        tasks.svc,
 	}
 }
 

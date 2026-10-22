@@ -17,6 +17,7 @@ import (
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/protocol"
+	"github.com/admirable-oss/hive/internal/task"
 	"github.com/admirable-oss/hive/internal/terminal"
 )
 
@@ -62,6 +63,10 @@ type Sources struct {
 	}
 	// Metadata lists reported metadata; nil means none.
 	Metadata func() []metadata.Entry
+	// Plans lists the plans, newest first; nil means none.
+	Plans interface {
+		All(ctx context.Context) []task.Plan
+	}
 	// Info describes the daemon.
 	Info func() Info
 }

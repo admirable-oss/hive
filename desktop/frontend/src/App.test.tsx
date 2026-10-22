@@ -107,3 +107,38 @@ describe("App", () => {
     expect(calls.some((c) => c.startsWith("startAgent("))).toBe(true);
   });
 });
+
+describe("Plans", () => {
+  beforeEach(() => {
+    calls.length = 0;
+    act(() => {
+      store.set((s) => ({ ...s, connection: { state: "connected", session: "default", version: "1.3.0", api_level: 12 } }));
+      store.setWorkspace({
+        ...ws,
+        plans: [
+          {
+            id: "3f2a1b0c", name: "ship it", state: "running", total: 4, done: 1, counts: { succeeded: 1, running: 1, approval: 1, blocked: 1 },
+            created: "", waiting: [{ id: "deploy", kind: "claude", state: "approval" }, { id: "tests", kind: "claude", state: "blocked", pane_id: "p1" }],
+          },
+          { id: "beta/9e8d7c6b", name: "", state: "failed", total: 2, done: 1, counts: { succeeded: 1, failed: 1 }, created: "", waiting: [], machine: "beta" },
+        ],
+      });
+    });
+  });
+
+  it("shows plans, approves a task and goes to a blocked one", () => {
+    render(<App />);
+    const plans = screen.getByRole("region", { name: "Plans" });
+    expect(plans).toHaveTextContent("ship it");
+    expect(plans).toHaveTextContent("1/4 · 1 running · 1 blocked");
+    expect(plans).toHaveTextContent("beta · 1/2 · 1 failed");
+    fireEvent.click(screen.getByRole("button", { name: "Approve deploy" }));
+    expect(calls).toContain("approveTask(3f2a1b0c,deploy,false)");
+    fireEvent.click(screen.getByRole("button", { name: "Refuse deploy" }));
+    expect(calls).toContain("approveTask(3f2a1b0c,deploy,true)");
+    fireEvent.click(screen.getByRole("button", { name: /tests: its agent needs you/ }));
+    expect(calls).toContain("focusPane(p1)");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel plan ship it" }));
+    expect(calls).toContain("cancelPlan(3f2a1b0c)");
+  });
+});

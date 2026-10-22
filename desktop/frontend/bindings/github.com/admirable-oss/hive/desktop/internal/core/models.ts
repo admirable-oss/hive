@@ -844,6 +844,113 @@ export class Pane {
 }
 
 /**
+ * Plan is a plan of tasks for agents and its progress.
+ */
+export class Plan {
+    "id": string;
+    "name"?: string;
+    "state": string;
+    "total": number;
+    "done": number;
+
+    /**
+     * Counts are its tasks by state.
+     */
+    "counts": { [_ in string]?: number };
+    "created": string;
+    "ended"?: string;
+    "reason"?: string;
+
+    /**
+     * Waiting are its tasks that wait for someone: an approval, or an
+     * agent blocked on a decision.
+     */
+    "waiting": PlanTask[];
+
+    /**
+     * Machine is the saved machine it runs on ("" for this computer).
+     */
+    "machine"?: string;
+
+    /** Creates a new Plan instance. */
+    constructor($$source: Partial<Plan> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("total" in $$source)) {
+            this["total"] = 0;
+        }
+        if (!("done" in $$source)) {
+            this["done"] = 0;
+        }
+        if (!("counts" in $$source)) {
+            this["counts"] = {};
+        }
+        if (!("created" in $$source)) {
+            this["created"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("waiting" in $$source)) {
+            this["waiting"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Plan instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Plan {
+        const $$createField5_0 = $$createType6;
+        const $$createField9_0 = $$createType15;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("counts" in $$parsedSource) {
+            $$parsedSource["counts"] = $$createField5_0($$parsedSource["counts"]);
+        }
+        if ("waiting" in $$parsedSource) {
+            $$parsedSource["waiting"] = $$createField9_0($$parsedSource["waiting"]);
+        }
+        return new Plan($$parsedSource as Partial<Plan>);
+    }
+}
+
+/**
+ * PlanTask is a task of a plan.
+ */
+export class PlanTask {
+    "id": string;
+    "title"?: string;
+    "kind": string;
+    "state": string;
+    "pane_id"?: string;
+
+    /** Creates a new PlanTask instance. */
+    constructor($$source: Partial<PlanTask> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("kind" in $$source)) {
+            this["kind"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PlanTask instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PlanTask {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PlanTask($$parsedSource as Partial<PlanTask>);
+    }
+}
+
+/**
  * Rect is a place in a tab, in cells.
  */
 export class Rect {
@@ -992,7 +1099,7 @@ export class ScreenUpdate {
      */
     static createFrom($$source: any = {}): ScreenUpdate {
         const $$createField5_0 = $$createType9;
-        const $$createField8_0 = $$createType15;
+        const $$createField8_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cursor" in $$parsedSource) {
             $$parsedSource["cursor"] = $$createField5_0($$parsedSource["cursor"]);
@@ -1073,7 +1180,7 @@ export class Settings {
     static createFrom($$source: any = {}): Settings {
         const $$createField0_0 = $$createType2;
         const $$createField3_0 = $$createType2;
-        const $$createField4_0 = $$createType17;
+        const $$createField4_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("notify_on" in $$parsedSource) {
             $$parsedSource["notify_on"] = $$createField0_0($$parsedSource["notify_on"]);
@@ -1191,6 +1298,11 @@ export class Workspace {
      */
     "counts": { [_ in string]?: number };
 
+    /**
+     * Plans are the running plans (hive task), then the latest finished.
+     */
+    "plans"?: Plan[];
+
     /** Creates a new Workspace instance. */
     constructor($$source: Partial<Workspace> = {}) {
         if (!("environments" in $$source)) {
@@ -1219,11 +1331,12 @@ export class Workspace {
      * Creates a new Workspace instance from a string or object.
      */
     static createFrom($$source: any = {}): Workspace {
-        const $$createField0_0 = $$createType19;
-        const $$createField1_0 = $$createType21;
-        const $$createField2_0 = $$createType23;
-        const $$createField3_0 = $$createType25;
+        const $$createField0_0 = $$createType21;
+        const $$createField1_0 = $$createType23;
+        const $$createField2_0 = $$createType25;
+        const $$createField3_0 = $$createType27;
         const $$createField5_0 = $$createType6;
+        const $$createField6_0 = $$createType29;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("environments" in $$parsedSource) {
             $$parsedSource["environments"] = $$createField0_0($$parsedSource["environments"]);
@@ -1239,6 +1352,9 @@ export class Workspace {
         }
         if ("counts" in $$parsedSource) {
             $$parsedSource["counts"] = $$createField5_0($$parsedSource["counts"]);
+        }
+        if ("plans" in $$parsedSource) {
+            $$parsedSource["plans"] = $$createField6_0($$parsedSource["plans"]);
         }
         return new Workspace($$parsedSource as Partial<Workspace>);
     }
@@ -1259,15 +1375,19 @@ const $$createType10 = Observer.createFrom;
 const $$createType11 = Workspace.createFrom;
 const $$createType12 = Rect.createFrom;
 const $$createType13 = $Create.Nullable($$createType12);
-const $$createType14 = Line.createFrom;
+const $$createType14 = PlanTask.createFrom;
 const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = KeyBinding.createFrom;
+const $$createType16 = Line.createFrom;
 const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = Environment.createFrom;
+const $$createType18 = KeyBinding.createFrom;
 const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = Tab.createFrom;
+const $$createType20 = Environment.createFrom;
 const $$createType21 = $Create.Array($$createType20);
-const $$createType22 = Pane.createFrom;
+const $$createType22 = Tab.createFrom;
 const $$createType23 = $Create.Array($$createType22);
-const $$createType24 = Agent.createFrom;
+const $$createType24 = Pane.createFrom;
 const $$createType25 = $Create.Array($$createType24);
+const $$createType26 = Agent.createFrom;
+const $$createType27 = $Create.Array($$createType26);
+const $$createType28 = Plan.createFrom;
+const $$createType29 = $Create.Array($$createType28);

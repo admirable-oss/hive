@@ -45,7 +45,8 @@ const Version2 = "2"
 //	9 hardening: debug.pprof, debug.stats (M9)
 //	10 observers: observer.*, the observer socket's observe.* (M14)
 //	11 observer activity: observer.activity (method and event) (M15)
-const APILevel = 11
+//	12 orchestration: task.*, task.* events, agent.wait until=unblocked (M22)
+const APILevel = 12
 
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.

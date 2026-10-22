@@ -257,6 +257,13 @@ func (s *Server) snapshot(ctx context.Context, scope Scope) (Snapshot, error) {
 			}
 		}
 	}
+	if src.Plans != nil {
+		for _, p := range src.Plans.All(ctx) {
+			if v, ok := PlanView(p, scope); ok {
+				snap.Plans = append(snap.Plans, v)
+			}
+		}
+	}
 	return snap, nil
 }
 

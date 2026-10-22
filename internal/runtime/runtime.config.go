@@ -66,6 +66,8 @@ type Config struct {
 	Images ImagesConfig
 	// Observers is the observer socket's policy.
 	Observers ObserversConfig
+	// Tasks is the [tasks] policy for plans.
+	Tasks TasksConfig
 	// ProcessLogMaxBytes rotates each agent's output log past this size,
 	// keeping one older file. Zero lets logs grow.
 	ProcessLogMaxBytes int64

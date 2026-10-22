@@ -331,6 +331,23 @@ func (s *HiveService) StopAgent(ctx context.Context, agentID string) error {
 	return s.hub.StopAgent(agentID)
 }
 
+// ApproveTask lets a plan's task that waits for approval start; deny
+// cancels it.
+func (s *HiveService) ApproveTask(ctx context.Context, plan, task string, deny bool) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.ApproveTask(plan, task, deny)
+}
+
+// CancelPlan cancels a plan.
+func (s *HiveService) CancelPlan(ctx context.Context, plan string) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.CancelPlan(plan)
+}
+
 // CreateEnvironment makes an environment for a directory on a machine
 // ("" for this computer).
 func (s *HiveService) CreateEnvironment(ctx context.Context, machine, id, dir string) error {

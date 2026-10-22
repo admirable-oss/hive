@@ -230,3 +230,42 @@ func samePath(t *testing.T, a, b string) bool {
 	fb, errB := os.Stat(b)
 	return errA == nil && errB == nil && os.SameFile(fa, fb)
 }
+
+func TestHeadAndChangedSinceABase(t *testing.T) {
+	dir := repo(t)
+	g := git.New()
+	ctx := context.Background()
+	base, err := g.Head(ctx, dir)
+	if err != nil || len(base) != 40 {
+		t.Fatalf("head %q %v", base, err)
+	}
+	if changed, err := g.Changed(ctx, dir, base); err != nil || len(changed) != 0 {
+		t.Fatalf("nothing changed yet: %v %v", changed, err)
+	}
+	// Committed, modified, staged and new files all count, once each.
+	_ = os.MkdirAll(filepath.Join(dir, "sub"), 0o755)
+	write(t, filepath.Join(dir, "sub", "done.go"), "package sub\n")
+	run(t, dir, "add", ".")
+	run(t, dir, "commit", "-q", "-m", "work")
+	write(t, filepath.Join(dir, "README.md"), "changed\n")
+	write(t, filepath.Join(dir, "sub", "done.go"), "package sub // again\n")
+	write(t, filepath.Join(dir, "new file.txt"), "x\n")
+	changed, err := g.Changed(ctx, filepath.Join(dir, "sub"), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(changed, ","); got != "README.md,new file.txt,sub/done.go" {
+		t.Fatalf("changed: %q", got)
+	}
+	if _, err := g.Changed(ctx, dir, "--output=x"); err == nil {
+		t.Fatal("a base that looks like an option is refused")
+	}
+	if _, err := g.Head(ctx, t.TempDir()); !errors.Is(err, git.ErrNotRepository) {
+		t.Fatalf("plain directory: %v", err)
+	}
+	empty := t.TempDir()
+	run(t, empty, "init", "-q")
+	if h, err := g.Head(ctx, empty); err != nil || h != "" {
+		t.Fatalf("a repository without commits: %q %v", h, err)
+	}
+}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/admirable-oss/hive/internal/daemonctl"
 	"github.com/admirable-oss/hive/internal/logging"
+	"github.com/admirable-oss/hive/internal/remote"
 	"github.com/admirable-oss/hive/internal/runtime"
 	"github.com/admirable-oss/hive/internal/terminal"
 )
@@ -196,6 +197,12 @@ func runDaemon(ctx context.Context, a *app) error {
 		Retention: runtime.RetentionConfig{
 			ExitedProcesses: a.cfg.Retention.ExitedProcesses,
 			GCInterval:      a.cfg.Retention.GCInterval,
+		},
+		Tasks: runtime.TasksConfig{
+			Capacity: a.cfg.Tasks.Capacity, Labels: a.cfg.Tasks.Labels,
+			Keep: a.cfg.Tasks.KeepPlans, Kinds: a.cfg.Tasks.Kinds,
+			// Tasks placed on saved machines reach them as --machine does.
+			Machines: a.machines().Path(), SSH: a.target(remote.Target{}).SSH, ControlDir: a.controlDir(),
 		},
 		ProcessLogMaxBytes: int64(a.cfg.Retention.ProcessLogMB) << 20,
 	})

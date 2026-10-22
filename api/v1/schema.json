@@ -3493,6 +3493,581 @@
       ],
       "type": "object"
     },
+    "task.Approval": {
+      "properties": {
+        "approved": {
+          "type": "boolean"
+        },
+        "by": {
+          "type": "string"
+        },
+        "decided_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "requested_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requested_at"
+      ],
+      "type": "object"
+    },
+    "task.ApproveParams": {
+      "properties": {
+        "by": {
+          "description": "who decides, for the task's log",
+          "type": "string"
+        },
+        "deny": {
+          "description": "refuse: cancel the task instead of starting it",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "the plan's ID, or a unique prefix of it",
+          "type": "string"
+        },
+        "note": {
+          "description": "why, for the task's log",
+          "type": "string"
+        },
+        "task": {
+          "description": "the task (may be left out when one task waits)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "task.LogEntry": {
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "time": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "time",
+        "message"
+      ],
+      "type": "object"
+    },
+    "task.Plan": {
+      "properties": {
+        "cancelled": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kinds": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "max_parallel": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "integer"
+        },
+        "schema": {
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/task.Task"
+          },
+          "type": "array"
+        },
+        "timeout_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "rev",
+        "tasks",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "task.PlanSpec": {
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/task.Spec",
+          "description": "values for what a task leaves out (id, prompt and needs are never taken from here)"
+        },
+        "kinds": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "per agent kind, how many of its tasks may run at once",
+          "type": "object"
+        },
+        "max_parallel": {
+          "description": "how many of its tasks may run at once (0: as many as the machines allow)",
+          "type": "integer"
+        },
+        "name": {
+          "description": "what the plan is for",
+          "type": "string"
+        },
+        "tasks": {
+          "description": "the tasks, in any order; needs orders them",
+          "items": {
+            "$ref": "#/$defs/task.Spec"
+          },
+          "type": "array"
+        },
+        "timeout_ms": {
+          "description": "the plan's time budget in milliseconds; unfinished tasks are cancelled when it runs out (0: none)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "tasks"
+      ],
+      "type": "object"
+    },
+    "task.Ref": {
+      "properties": {
+        "id": {
+          "description": "the plan's ID, or a unique prefix of it",
+          "type": "string"
+        },
+        "task": {
+          "description": "one of its tasks",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "task.Result": {
+      "properties": {
+        "changed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "changed_more": {
+          "type": "integer"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "output": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "screen": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "type": "object"
+    },
+    "task.RunParams": {
+      "properties": {
+        "plan": {
+          "$ref": "#/$defs/task.PlanSpec",
+          "description": "the plan, as data"
+        },
+        "source": {
+          "description": "the plan file's name, for errors",
+          "type": "string"
+        },
+        "toml": {
+          "description": "the plan, as the text of a plan file (instead of plan)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "task.Spec": {
+      "properties": {
+        "approve": {
+          "description": "wait for a person's approval before starting",
+          "type": "boolean"
+        },
+        "args": {
+          "description": "extra command-line arguments for the agent",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "base": {
+          "description": "where a new worktree branch starts (default HEAD)",
+          "type": "string"
+        },
+        "command": {
+          "description": "with until=command: the command whose exit status decides",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "extra environment variables for the agent",
+          "type": "object"
+        },
+        "environment_id": {
+          "description": "the environment to run in, or to make a worktree of",
+          "type": "string"
+        },
+        "id": {
+          "description": "the task's name within its plan (letters, digits, '.', '_', '-')",
+          "type": "string"
+        },
+        "isolate": {
+          "description": "run in a new worktree on hive/\u003cplan\u003e/\u003ctask\u003e unless worktree names a branch",
+          "type": "boolean"
+        },
+        "keep_agent": {
+          "description": "leave the agent running when the task ends",
+          "type": "boolean"
+        },
+        "kind": {
+          "description": "the agent: claude, codex, … (see agent.manifests)",
+          "type": "string"
+        },
+        "labels": {
+          "description": "run on a machine that has all of these labels",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "machine": {
+          "description": "the saved machine to run on (local: this one)",
+          "type": "string"
+        },
+        "match": {
+          "description": "with until=match: a regular expression the agent's screen must match",
+          "type": "string"
+        },
+        "needs": {
+          "description": "tasks that must succeed first",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "no_summary": {
+          "description": "do not ask the agent to write a summary",
+          "type": "boolean"
+        },
+        "prompt": {
+          "description": "what the agent is asked to do",
+          "type": "string"
+        },
+        "retries": {
+          "description": "how many times a failed attempt is retried automatically",
+          "type": "integer"
+        },
+        "timeout_ms": {
+          "description": "how long the agent may work on it, in milliseconds (0: no bound)",
+          "type": "integer"
+        },
+        "title": {
+          "description": "a one-line description",
+          "type": "string"
+        },
+        "until": {
+          "description": "done (default), idle, match or command",
+          "type": "string"
+        },
+        "worktree": {
+          "description": "a branch: run in a new worktree on it",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "prompt"
+      ],
+      "type": "object"
+    },
+    "task.Summary": {
+      "properties": {
+        "attention": {
+          "items": {
+            "$ref": "#/$defs/task.TaskView"
+          },
+          "type": "array"
+        },
+        "counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "rev",
+        "total",
+        "counts",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "task.Task": {
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "approval": {
+          "$ref": "#/$defs/task.Approval"
+        },
+        "attempt": {
+          "type": "integer"
+        },
+        "base_commit": {
+          "type": "string"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "environment_id": {
+          "type": "string"
+        },
+        "log": {
+          "items": {
+            "$ref": "#/$defs/task.LogEntry"
+          },
+          "type": "array"
+        },
+        "machine": {
+          "type": "string"
+        },
+        "pane_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "ready_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "remote": {
+          "type": "string"
+        },
+        "result": {
+          "$ref": "#/$defs/task.Result"
+        },
+        "retried": {
+          "type": "integer"
+        },
+        "spec": {
+          "$ref": "#/$defs/task.Spec"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "worked_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "spec",
+        "state"
+      ],
+      "type": "object"
+    },
+    "task.TaskView": {
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "attempt": {
+          "type": "integer"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "machine": {
+          "type": "string"
+        },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pane_id": {
+          "type": "string"
+        },
+        "plan_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "integer"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "rev",
+        "id",
+        "state"
+      ],
+      "type": "object"
+    },
+    "task.WaitParams": {
+      "properties": {
+        "after": {
+          "description": "with until=change: the plan revision already seen",
+          "type": "integer"
+        },
+        "id": {
+          "description": "the plan's ID, or a unique prefix of it",
+          "type": "string"
+        },
+        "task": {
+          "description": "wait for this task rather than the whole plan",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "give up after this many milliseconds (0: never)",
+          "type": "integer"
+        },
+        "until": {
+          "description": "finished (default), attention (also a task waiting for a person) or change",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "task.WaitResult": {
+      "properties": {
+        "outcome": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/task.Plan"
+        }
+      },
+      "required": [
+        "outcome",
+        "plan"
+      ],
+      "type": "object"
+    },
     "terminal.ImageReceipt": {
       "properties": {
         "delivery": {
@@ -3700,7 +4275,7 @@
       "type": "object"
     }
   },
-  "api_level": 11,
+  "api_level": 12,
   "methods": [
     {
       "name": "agent.explain",
@@ -4514,6 +5089,73 @@
       },
       "result": {
         "$ref": "#/$defs/pane.Tab"
+      }
+    },
+    {
+      "name": "task.approve",
+      "params": {
+        "$ref": "#/$defs/task.ApproveParams"
+      },
+      "result": {
+        "$ref": "#/$defs/task.Plan"
+      }
+    },
+    {
+      "name": "task.cancel",
+      "params": {
+        "$ref": "#/$defs/task.Ref"
+      },
+      "result": {
+        "$ref": "#/$defs/task.Plan"
+      }
+    },
+    {
+      "name": "task.get",
+      "params": {
+        "$ref": "#/$defs/task.Ref"
+      },
+      "result": {
+        "$ref": "#/$defs/task.Plan"
+      }
+    },
+    {
+      "name": "task.list",
+      "params": {
+        "properties": {},
+        "type": "object"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/task.Summary"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "task.retry",
+      "params": {
+        "$ref": "#/$defs/task.Ref"
+      },
+      "result": {
+        "$ref": "#/$defs/task.Plan"
+      }
+    },
+    {
+      "name": "task.run",
+      "params": {
+        "$ref": "#/$defs/task.RunParams"
+      },
+      "result": {
+        "$ref": "#/$defs/task.Plan"
+      }
+    },
+    {
+      "name": "task.wait",
+      "params": {
+        "$ref": "#/$defs/task.WaitParams"
+      },
+      "result": {
+        "$ref": "#/$defs/task.WaitResult"
       }
     },
     {

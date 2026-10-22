@@ -14,6 +14,7 @@ import (
 	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/observer"
+	"github.com/admirable-oss/hive/internal/task"
 )
 
 // The web observer's pages are rendered on the server with gomponents. Parts
@@ -426,8 +427,82 @@ func runtimeFragments(p *page, r *shown) []g.Node {
 				agentsTable(p, p.agents([]*shown{r}, "", ""), emptyText(r, "No agents this link can see.")),
 			),
 		),
+		fragment("plans", r.v.Version, plansSection(p, r)),
 		fragment("activity", r.v.Version, activityList(p, r, "", "")),
 	}
+}
+
+// plansOf lists the plans a page may show of a runtime, newest first, each
+// with only the tasks the page sees. A plan known only as a whole (no task
+// seen) shows only to a page that sees everything.
+func (p *page) plansOf(r *shown) []observer.Plan {
+	var out []observer.Plan
+	for _, pl := range r.v.Plans {
+		var tasks []observer.PlanTask
+		for _, t := range pl.Tasks {
+			if p.sees(t.Target()) {
+				tasks = append(tasks, t)
+			}
+		}
+		if len(tasks) == 0 && !p.sees(observer.Target{}) {
+			continue
+		}
+		pl.Tasks = tasks
+		out = append(out, pl)
+	}
+	slices.SortFunc(out, func(a, b observer.Plan) int { return b.CreatedAt.Compare(a.CreatedAt) })
+	return out
+}
+
+// plansSection is the runtime's plans: each one's progress, and its tasks
+// that run or wait.
+func plansSection(p *page, r *shown) g.Node {
+	plans := p.plansOf(r)
+	if len(plans) == 0 {
+		return g.Group(nil) // most runtimes run no plans: no empty section
+	}
+	return h.Section(h.Aria("labelledby", "plans-h"),
+		h.H2(h.ID("plans-h"), g.Text("Plans")),
+		h.Table(h.Class("agents plans"),
+			h.Caption(h.Class("sr"), g.Text("Plans and their progress")),
+			h.THead(h.Tr(
+				h.Th(h.Scope("col"), g.Text("Plan")), h.Th(h.Scope("col"), g.Text("State")),
+				h.Th(h.Scope("col"), g.Text("Progress")), h.Th(h.Scope("col"), g.Text("Running and waiting")),
+				h.Th(h.Scope("col"), g.Text("Started")),
+			)),
+			h.TBody(g.Map(plans, func(pl observer.Plan) g.Node {
+				var active []string
+				for _, t := range pl.Tasks {
+					switch t.State {
+					case task.StateRunning, task.StateBlocked, task.StateApproval:
+						active = append(active, t.ID+" ("+string(t.State)+")")
+					}
+				}
+				name := pl.ID
+				if pl.Name != "" {
+					name = pl.Name + " · " + pl.ID
+				}
+				return h.Tr(h.Class("state-row-"+string(pl.State)),
+					h.Td(g.Text(name)),
+					h.Td(h.Span(h.Class("badge plan-"+string(pl.State)), g.Text(string(pl.State)))),
+					h.Td(g.Text(planProgress(pl))),
+					h.Td(h.Class("why"), g.Text(strings.Join(active, ", "))),
+					h.Td(timeEl(pl.CreatedAt, p.now)),
+				)
+			})),
+		),
+	)
+}
+
+// planProgress is "3/10 succeeded · 2 running".
+func planProgress(pl observer.Plan) string {
+	parts := []string{fmt.Sprintf("%d/%d succeeded", pl.Counts[task.StateSucceeded], pl.Total)}
+	for _, st := range []task.State{task.StateRunning, task.StateBlocked, task.StateApproval, task.StateQueued, task.StateFailed, task.StateSkipped, task.StateCancelled} {
+		if n := pl.Counts[st]; n > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", n, st))
+		}
+	}
+	return strings.Join(parts, " · ")
 }
 
 func emptyText(r *shown, loaded string) string {

@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 11. Clients speak newline-delimited JSON over the daemon's unix
+API level 12. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -294,6 +294,38 @@ Result: [observer.WatchResult](#observerwatchresult)
 | `metadata` | [observer.Metadata](#observermetadata) |  |
 | `pane` | [observer.Pane](#observerpane) |  |
 
+### observer.Plan
+
+| Field | Type | |
+|---|---|---|
+| `counts` | `map[string]integer` |  |
+| `created_at` | `string` |  |
+| `ended_at` | `string` |  |
+| `id` | `string` |  |
+| `name` | `string` |  |
+| `rev` | `integer` |  |
+| `state` | `string` |  |
+| `tasks` | [\[\]observer.PlanTask](#observerplantask) |  |
+| `total` | `integer` |  |
+
+### observer.PlanTask
+
+| Field | Type | |
+|---|---|---|
+| `attempt` | `integer` |  |
+| `ended_at` | `string` |  |
+| `environment_id` | `string` |  |
+| `id` | `string` |  |
+| `kind` | `string` |  |
+| `machine` | `string` |  |
+| `needs` | `[]string` |  |
+| `pane_id` | `string` |  |
+| `plan_id` | `string` |  |
+| `rev` | `integer` |  |
+| `started_at` | `string` |  |
+| `state` | `string` |  |
+| `title` | `string` |  |
+
 ### observer.Process
 
 | Field | Type | |
@@ -362,6 +394,7 @@ Result: [observer.WatchResult](#observerwatchresult)
 | `epoch` | `string` |  |
 | `metadata` | [\[\]observer.Metadata](#observermetadata) |  |
 | `panes` | [\[\]observer.Pane](#observerpane) |  |
+| `plans` | [\[\]observer.Plan](#observerplan) |  |
 | `seq` | `integer` |  |
 | `tabs` | [\[\]observer.Tab](#observertab) |  |
 

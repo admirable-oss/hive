@@ -284,7 +284,7 @@ func (f *Fleet) Workspace() Workspace {
 var stateRank = map[string]int{"blocked": 5, "working": 4, "done": 3, "idle": 2, "unknown": 1, "exited": 0}
 
 func mergeWorkspaces(order []string, ws map[string]Workspace) Workspace {
-	out := Workspace{Environments: []Environment{}, Tabs: []Tab{}, Panes: []Pane{}, Agents: []Agent{}, Counts: map[string]int{}}
+	out := Workspace{Environments: []Environment{}, Tabs: []Tab{}, Panes: []Pane{}, Agents: []Agent{}, Counts: map[string]int{}, Plans: []Plan{}}
 	for _, m := range order {
 		w := ws[m]
 		for _, e := range w.Environments {
@@ -305,6 +305,16 @@ func mergeWorkspaces(order []string, ws map[string]Workspace) Workspace {
 			a.ID, a.EnvironmentID = qualify(m, a.ID), qualify(m, a.EnvironmentID)
 			a.TabID, a.PaneID, a.Machine = qualify(m, a.TabID), qualify(m, a.PaneID), m
 			out.Agents = append(out.Agents, a)
+		}
+		for _, p := range w.Plans {
+			p.ID, p.Machine = qualify(m, p.ID), m
+			waiting := make([]PlanTask, len(p.Waiting))
+			for i, t := range p.Waiting {
+				t.PaneID = qualify(m, t.PaneID)
+				waiting[i] = t
+			}
+			p.Waiting = waiting
+			out.Plans = append(out.Plans, p)
 		}
 		for k, v := range w.Counts {
 			out.Counts[k] += v
@@ -471,6 +481,15 @@ func (f *Fleet) History(pane string, lines int) ([]string, error) {
 
 func (f *Fleet) StopAgent(agent string) error {
 	return f.do(agent, func(h *Hub, raw string) error { return h.StopAgent(raw) })
+}
+
+// ApproveTask and CancelPlan act on a plan of the machine its ID names.
+func (f *Fleet) ApproveTask(plan, task string, deny bool) error {
+	return f.do(plan, func(h *Hub, raw string) error { return h.ApproveTask(raw, task, deny) })
+}
+
+func (f *Fleet) CancelPlan(plan string) error {
+	return f.do(plan, func(h *Hub, raw string) error { return h.CancelPlan(raw) })
 }
 
 // Manifests lists the agents a machine's Hive can start.

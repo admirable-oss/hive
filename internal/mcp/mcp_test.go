@@ -168,7 +168,7 @@ func TestHiveToolsHaveSchemas(t *testing.T) {
 			t.Errorf("%s: description %q, schema %v", tool.Name, tool.Description, tool.InputSchema)
 		}
 	}
-	for _, want := range []string{"agent_start", "agent_prompt", "agent_wait", "agent_read", "agent_send_keys", "pane_read", "env_list"} {
+	for _, want := range []string{"agent_start", "agent_prompt", "agent_wait", "agent_read", "agent_send_keys", "pane_read", "env_list", "task_run", "task_list", "task_get", "task_wait", "task_cancel", "task_retry", "task_approve"} {
 		if !seen[want] {
 			t.Errorf("no %s tool", want)
 		}

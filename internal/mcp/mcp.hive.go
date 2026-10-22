@@ -7,11 +7,14 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/agent"
+	"github.com/admirable-oss/hive/internal/task"
 	"github.com/admirable-oss/hive/pkg/hiveapi"
 )
 
 // Instructions is what the model is told about Hive's tools.
 const Instructions = `Hive runs coding agents (Claude Code, Codex, OpenCode, Gemini, …) in terminals that keep running in the background. These tools let you start other agents, give them work, wait for them and read their results.
+
+For work in several steps, write a plan and run it with task_run: tasks with prompts, needs between them, isolate=true so each gets its own worktree, and approve=true for steps the user must allow. Hive runs them in parallel within limits and keeps each result; task_wait with until=attention returns when a task needs a person.
 
 Typical flow: env_list (find the environment of the repository) → agent_start with worktree set to a new branch per agent, so parallel agents never edit the same checkout → agent_prompt with wait=true (or several agent_prompt without wait, then agent_wait on each) → agent_read to collect what each one did.
 
@@ -84,6 +87,29 @@ type runArgs struct {
 type envCreateArgs struct {
 	ID   string `json:"id" desc:"a name: lower-case letters, digits and dashes"`
 	Path string `json:"path,omitempty" desc:"an existing directory (absolute); empty for a scratch directory Hive manages"`
+}
+
+type planRunArgs struct {
+	Plan string `json:"plan" desc:"the plan file's TOML: name, max_parallel, [defaults] and [[task]] tables with id, prompt, kind, environment, needs, isolate, until, approve (see hive task run --help)"`
+}
+
+type planArgs struct {
+	ID   string `json:"id" desc:"the plan's ID (or a unique prefix)"`
+	Task string `json:"task,omitempty" desc:"one of its tasks"`
+}
+
+type planWaitArgs struct {
+	ID             string `json:"id" desc:"the plan's ID (or a unique prefix)"`
+	Task           string `json:"task,omitempty" desc:"wait for this task only"`
+	Until          string `json:"until,omitempty" desc:"finished (default) or attention (also when a task waits for approval or its agent is blocked)"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty" desc:"give up after this long (default 300); the plan keeps running"`
+}
+
+type approveArgs struct {
+	ID   string `json:"id" desc:"the plan's ID (or a unique prefix)"`
+	Task string `json:"task,omitempty" desc:"the task waiting for approval (may be left out when one waits)"`
+	Deny bool   `json:"deny,omitempty" desc:"refuse: cancel the task instead"`
+	Note string `json:"note,omitempty" desc:"why"`
 }
 
 type none struct{}
@@ -179,16 +205,72 @@ func HiveTools(c *hiveapi.Client) []Tool {
 			}),
 		NewTool("snapshot", "Everything at once: environments, tabs, panes, processes and agents with their states.",
 			func(ctx context.Context, _ none) (any, error) { return c.Snapshot(ctx) }),
+		NewTool("task_run", "Run a plan: tasks for agents with dependencies (needs), run in parallel within limits, each in its own worktree with isolate=true, with results kept. Prefer it to starting and prompting agents one by one for work in several steps. Returns the plan with its ID.",
+			func(ctx context.Context, a planRunArgs) (any, error) {
+				p, err := c.RunPlanFile(ctx, a.Plan, "plan")
+				if err != nil {
+					return nil, err
+				}
+				return planBrief(p), nil
+			}),
+		NewTool("task_list", "List plans, newest first, with their progress and the tasks waiting for a person.",
+			func(ctx context.Context, _ none) (any, error) { return c.Plans(ctx) }),
+		NewTool("task_get", "Show a plan's tasks and their states; with task, that task in full: its log and result (last screen, changed files, summary).",
+			func(ctx context.Context, a planArgs) (any, error) {
+				p, err := c.Plan(ctx, a.ID)
+				if err != nil || a.Task == "" {
+					return planBrief(p), err
+				}
+				t := p.Task(a.Task)
+				if t == nil {
+					return nil, fmt.Errorf("plan %s has no task %q", p.ID, a.Task)
+				}
+				return t, nil
+			}),
+		NewTool("task_wait", "Wait for a plan (or one task) to finish; with until=attention also when a task needs a person (approve it with task_approve, or read a blocked agent with agent_read and answer with agent_send_keys). Returns the outcome (finished, attention, timeout) and the plan's report. A timeout means it still runs: wait again.",
+			func(ctx context.Context, a planWaitArgs) (any, error) {
+				res, err := c.WaitPlan(ctx, a.ID, hiveapi.PlanWaitOptions{Task: a.Task, Until: task.WaitUntil(a.Until), Timeout: seconds(a.TimeoutSeconds)})
+				if err != nil {
+					return nil, err
+				}
+				return map[string]any{"outcome": res.Outcome, "report": hiveapi.NewReport(res.Plan)}, nil
+			}),
+		NewTool("task_cancel", "Cancel a plan, or one of its tasks: running agents are stopped, and tasks that need a cancelled one are skipped.",
+			func(ctx context.Context, a planArgs) (any, error) {
+				p, err := c.CancelPlan(ctx, a.ID, a.Task)
+				return planBrief(p), err
+			}),
+		NewTool("task_retry", "Run a plan's failed, cancelled and skipped tasks again (or one task, with what was skipped because of it), in the worktrees they had.",
+			func(ctx context.Context, a planArgs) (any, error) {
+				p, err := c.RetryPlan(ctx, a.ID, a.Task)
+				return planBrief(p), err
+			}),
+		NewTool("task_approve", "Approve a task that waits for approval, so it starts; deny=true cancels it. Only approve when the user asked you to.",
+			func(ctx context.Context, a approveArgs) (any, error) {
+				p, err := c.ApproveTask(ctx, a.ID, a.Task, hiveapi.ApproveOptions{Deny: a.Deny, Note: a.Note, By: "mcp"})
+				return planBrief(p), err
+			}),
 	}
 	for i := range tools {
 		switch tools[i].Name {
-		case "agent_list", "agent_get", "agent_wait", "agent_read", "agent_explain", "pane_list", "pane_read", "env_list", "snapshot":
+		case "agent_list", "agent_get", "agent_wait", "agent_read", "agent_explain", "pane_list", "pane_read", "env_list", "snapshot",
+			"task_list", "task_get", "task_wait":
 			tools[i].Annotations = ro
-		case "agent_stop":
+		case "agent_stop", "task_cancel":
 			tools[i].Annotations = &Annotations{Destructive: true}
 		}
 	}
 	return tools
+}
+
+// planBrief is a plan without its tasks' logs and results, which task_get
+// with a task shows.
+func planBrief(p hiveapi.Plan) map[string]any {
+	tasks := make([]task.TaskView, len(p.Tasks))
+	for i := range p.Tasks {
+		tasks[i] = p.Tasks[i].View(&p)
+	}
+	return map[string]any{"id": p.ID, "name": p.Name, "state": p.State, "rev": p.Rev, "reason": p.Reason, "tasks": tasks}
 }
 
 // readText is a read as the model sees it: blank runs collapsed (agents'

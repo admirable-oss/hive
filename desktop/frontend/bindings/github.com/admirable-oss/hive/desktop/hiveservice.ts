@@ -21,6 +21,21 @@ import * as core$0 from "./internal/core/models.js";
 import * as $models from "./models.js";
 
 /**
+ * ApproveTask lets a plan's task that waits for approval start; deny
+ * cancels it.
+ */
+export function ApproveTask(plan: string, task: string, deny: boolean): $CancellablePromise<void> {
+    return $Call.ByID(3661581941, plan, task, deny);
+}
+
+/**
+ * CancelPlan cancels a plan.
+ */
+export function CancelPlan(plan: string): $CancellablePromise<void> {
+    return $Call.ByID(457598410, plan);
+}
+
+/**
  * CheckForUpdates looks for a newer release now.
  */
 export function CheckForUpdates(): $CancellablePromise<$models.UpdateStatus> {

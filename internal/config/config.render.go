@@ -27,6 +27,7 @@ var renderTmpl = template.Must(template.New("config").Funcs(template.FuncMap{
 	"keys":         RenderKeys,
 	"list":         tomlList,
 	"notifyAgents": renderNotifyAgents,
+	"taskKinds":    renderTaskKinds,
 	"keyCommands":  renderKeyCommands,
 	"status":       renderStatus,
 }).Parse(`# Hive configuration. Every key is optional; omitted keys use the defaults.
@@ -199,6 +200,17 @@ push_allow_any_endpoint = {{.Web.PushAllowAnyEndpoint}}
 # ("" means ~/.hive/worktrees, or $HIVE_HOME/worktrees).
 directory = {{q .Worktrees.Directory}}
 
+[tasks]
+# Tasks of plans (` + "`hive task run`" + `) running on this machine at once, across
+# plans. Plans on other machines place tasks here up to it too.
+capacity = {{.Tasks.Capacity}}
+# Labels this machine offers: a task with labels = ["gpu"] runs only on a
+# machine that has them all (saved machines get theirs with ` + "`hive machine set`" + `).
+labels = {{list .Tasks.Labels}}
+# Finished plans kept for ` + "`hive task list`" + ` and reports; the oldest are
+# forgotten first.
+keep_plans = {{.Tasks.KeepPlans}}
+{{taskKinds .Tasks.Kinds}}
 [notify]
 # When an agent wants you: blocked (waiting for your decision) or done
 # (finished, and you have not looked yet). Never for the pane you are in.
@@ -315,6 +327,21 @@ func renderNotifyAgents(agents map[string][]string) string {
 	b.WriteString("\n[notify.agents]\n")
 	for _, id := range slices.Sorted(maps.Keys(agents)) {
 		fmt.Fprintf(&b, "%s = %s\n", tomlKey(id), tomlList(agents[id]))
+	}
+	return b.String()
+}
+
+func renderTaskKinds(kinds map[string]int) string {
+	if len(kinds) == 0 {
+		return `# Per agent kind, the most tasks running at once across plans:
+# [tasks.kinds]
+# claude = 4
+`
+	}
+	var b strings.Builder
+	b.WriteString("\n[tasks.kinds]\n")
+	for _, id := range slices.Sorted(maps.Keys(kinds)) {
+		fmt.Fprintf(&b, "%s = %d\n", tomlKey(id), kinds[id])
 	}
 	return b.String()
 }

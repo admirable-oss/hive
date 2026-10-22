@@ -18,6 +18,9 @@ event process.started
 event tab.closed
 event tab.created
 event tab.updated
+event task.plan
+event task.removed
+event task.updated
 event worktree.created
 event worktree.removed
 method observe.auth
@@ -164,6 +167,30 @@ type observer.PaneResult.agent: observer.Agent
 type observer.PaneResult.metadata: observer.Metadata
 type observer.PaneResult.pane: observer.Pane
 type observer.PaneResult: object
+type observer.Plan.counts: map[string]integer
+type observer.Plan.created_at: string
+type observer.Plan.ended_at: string
+type observer.Plan.id: string
+type observer.Plan.name: string
+type observer.Plan.rev: integer
+type observer.Plan.state: string
+type observer.Plan.tasks: []observer.PlanTask
+type observer.Plan.total: integer
+type observer.Plan: object
+type observer.PlanTask.attempt: integer
+type observer.PlanTask.ended_at: string
+type observer.PlanTask.environment_id: string
+type observer.PlanTask.id: string
+type observer.PlanTask.kind: string
+type observer.PlanTask.machine: string
+type observer.PlanTask.needs: []string
+type observer.PlanTask.pane_id: string
+type observer.PlanTask.plan_id: string
+type observer.PlanTask.rev: integer
+type observer.PlanTask.started_at: string
+type observer.PlanTask.state: string
+type observer.PlanTask.title: string
+type observer.PlanTask: object
 type observer.Process.ended_at: string
 type observer.Process.environment_id: string
 type observer.Process.exit_code: integer
@@ -204,6 +231,7 @@ type observer.Snapshot.environments: []observer.Environment
 type observer.Snapshot.epoch: string
 type observer.Snapshot.metadata: []observer.Metadata
 type observer.Snapshot.panes: []observer.Pane
+type observer.Snapshot.plans: []observer.Plan
 type observer.Snapshot.seq: integer
 type observer.Snapshot.tabs: []observer.Tab
 type observer.Snapshot: object

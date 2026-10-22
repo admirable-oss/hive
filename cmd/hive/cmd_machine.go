@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -128,7 +131,7 @@ to them.`,
 				return a.done(map[string]any{"machine": m}, "renamed machine %q to %q", args[0], m.Name)
 			},
 		},
-		enable(true), enable(false),
+		enable(true), enable(false), newMachineSetCmd(a),
 		&cobra.Command{
 			Use:     "remove <name>",
 			Aliases: []string{"rm"},
@@ -168,6 +171,59 @@ to them.`,
 			}),
 		},
 	)
+	return cmd
+}
+
+func newMachineSetCmd(a *app) *cobra.Command {
+	var (
+		labels   []string
+		capacity int
+	)
+	cmd := &cobra.Command{
+		Use:   "set <name>",
+		Short: "Set the labels and task capacity plans place tasks on a machine by",
+		Long: `A plan's task with labels = ["gpu"] runs only on a machine that has all of
+them; --capacity caps how many of this machine's tasks run there at once
+(` + fmt.Sprint(remote.DefaultCapacity) + ` when unset). The machine's own [tasks] capacity applies there too.
+--label replaces the labels; --label "" removes them.`,
+		Example: `  hive machine set gpu --label gpu --label linux --capacity 2`,
+		Args:    exactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !cmd.Flags().Changed("label") && !cmd.Flags().Changed("capacity") {
+				return &usageError{errors.New("give --label or --capacity")}
+			}
+			m, err := a.machines().Update(args[0], func(m *remote.Machine) error {
+				if cmd.Flags().Changed("label") {
+					m.Labels = nil
+					for _, l := range labels {
+						if l == "" {
+							continue
+						}
+						if err := remote.ValidLabel(l); err != nil {
+							return &usageError{err}
+						}
+						if !slices.Contains(m.Labels, l) {
+							m.Labels = append(m.Labels, l)
+						}
+					}
+				}
+				if cmd.Flags().Changed("capacity") {
+					if capacity < 0 {
+						return &usageError{errors.New("--capacity is negative")}
+					}
+					m.Capacity = capacity
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			return a.done(map[string]any{"machine": m}, "machine %q: labels %s, capacity %d",
+				m.Name, cmpStr(strings.Join(m.Labels, ", "), "none"), m.TaskCapacity())
+		},
+	}
+	cmd.Flags().StringArrayVar(&labels, "label", nil, "a label tasks select it by (repeat for more)")
+	cmd.Flags().IntVar(&capacity, "capacity", 0, "how many tasks run there at once (0: the default)")
 	return cmd
 }
 

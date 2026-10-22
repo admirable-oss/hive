@@ -45,6 +45,7 @@ func TestEveryCommandSpeaksJSON(t *testing.T) {
 		{"ps", "list"},
 		{"agent", "list", "--all"},
 		{"agent", "manifests"},
+		{"task", "list"},
 		{"worktree", "list", "--repo", repo},
 		{"layout", "export"},
 		{"integration", "status"},

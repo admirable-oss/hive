@@ -48,6 +48,12 @@ func (c *Config) schema() map[string]map[string]setter {
 		"git": {
 			"refresh_interval": duration(&c.Git.RefreshInterval, time.Second, 10*time.Minute),
 		},
+		"tasks": {
+			"capacity":   integer(&c.Tasks.Capacity, 1, 256),
+			"labels":     nameList(&c.Tasks.Labels, "a list of labels"),
+			"keep_plans": integer(&c.Tasks.KeepPlans, 1, 10000),
+			"kinds":      intTable(&c.Tasks.Kinds, 1, 256),
+		},
 		"session": {
 			"restore":                  boolean(&c.Session.Restore),
 			"resume_agents_on_restore": boolean(&c.Session.ResumeAgentsOnRestore),
@@ -463,6 +469,29 @@ func boolean(dst *bool) setter {
 			return typeError("a boolean", raw)
 		}
 		*dst = v
+		return nil
+	}
+}
+
+// intTable stores a table of name = integer, each within lo..hi.
+func intTable(dst *map[string]int, lo, hi int) setter {
+	return func(raw any) error {
+		table, ok := raw.(map[string]any)
+		if !ok {
+			return typeError("a table of name = number", raw)
+		}
+		out := map[string]int{}
+		for _, k := range slices.Sorted(maps.Keys(table)) {
+			var n int
+			if err := integer(&n, lo, hi)(table[k]); err != nil {
+				return fmt.Errorf("%s: %w", k, err)
+			}
+			out[k] = n
+		}
+		if len(out) == 0 {
+			out = nil // an empty table sets nothing
+		}
+		*dst = out
 		return nil
 	}
 }

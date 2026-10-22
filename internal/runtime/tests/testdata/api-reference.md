@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 11. Clients speak newline-delimited JSON over the daemon's unix
+API level 12. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -796,6 +796,75 @@ Result: [pane.Tab](#panetab)
 | `width` | `integer` |  |
 
 Result: [pane.Tab](#panetab)
+
+## task
+
+### `task.approve`
+
+| Param | Type | |
+|---|---|---|
+| `by` | `string` | who decides, for the task's log |
+| `deny` | `boolean` | refuse: cancel the task instead of starting it |
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `note` | `string` | why, for the task's log |
+| `task` | `string` | the task (may be left out when one task waits) |
+
+Result: [task.Plan](#taskplan)
+
+### `task.cancel`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | one of its tasks |
+
+Result: [task.Plan](#taskplan)
+
+### `task.get`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | one of its tasks |
+
+Result: [task.Plan](#taskplan)
+
+### `task.list`
+
+No params.
+
+Result: [\[\]task.Summary](#tasksummary)
+
+### `task.retry`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | one of its tasks |
+
+Result: [task.Plan](#taskplan)
+
+### `task.run`
+
+| Param | Type | |
+|---|---|---|
+| `plan` | [task.PlanSpec](#taskplanspec) | the plan, as data |
+| `source` | `string` | the plan file's name, for errors |
+| `toml` | `string` | the plan, as the text of a plan file (instead of plan) |
+
+Result: [task.Plan](#taskplan)
+
+### `task.wait`
+
+| Param | Type | |
+|---|---|---|
+| `after` | `integer` | with until=change: the plan revision already seen |
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | wait for this task rather than the whole plan |
+| `timeout_ms` | `integer` | give up after this many milliseconds (0: never) |
+| `until` | `string` | finished (default), attention (also a task waiting for a person) or change |
+
+Result: [task.WaitResult](#taskwaitresult)
 
 ## terminal
 
@@ -2262,6 +2331,192 @@ An object.
 | Field | Type | |
 |---|---|---|
 | `repo` | `string` |  |
+
+### task.Approval
+
+| Field | Type | |
+|---|---|---|
+| `approved` | `boolean` |  |
+| `by` | `string` |  |
+| `decided_at` | `string` |  |
+| `note` | `string` |  |
+| `requested_at` | `string` |  |
+
+### task.ApproveParams
+
+| Field | Type | |
+|---|---|---|
+| `by` | `string` | who decides, for the task's log |
+| `deny` | `boolean` | refuse: cancel the task instead of starting it |
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `note` | `string` | why, for the task's log |
+| `task` | `string` | the task (may be left out when one task waits) |
+
+### task.LogEntry
+
+| Field | Type | |
+|---|---|---|
+| `message` | `string` |  |
+| `time` | `string` |  |
+
+### task.Plan
+
+| Field | Type | |
+|---|---|---|
+| `cancelled` | `boolean` |  |
+| `created_at` | `string` |  |
+| `ended_at` | `string` |  |
+| `id` | `string` |  |
+| `kinds` | `map[string]integer` |  |
+| `max_parallel` | `integer` |  |
+| `name` | `string` |  |
+| `reason` | `string` |  |
+| `rev` | `integer` |  |
+| `schema` | `integer` |  |
+| `state` | `string` |  |
+| `tasks` | [\[\]task.Task](#tasktask) |  |
+| `timeout_ms` | `integer` |  |
+
+### task.PlanSpec
+
+| Field | Type | |
+|---|---|---|
+| `defaults` | [task.Spec](#taskspec) | values for what a task leaves out (id, prompt and needs are never taken from here) |
+| `kinds` | `map[string]integer` | per agent kind, how many of its tasks may run at once |
+| `max_parallel` | `integer` | how many of its tasks may run at once (0: as many as the machines allow) |
+| `name` | `string` | what the plan is for |
+| `tasks` | [\[\]task.Spec](#taskspec) | the tasks, in any order; needs orders them |
+| `timeout_ms` | `integer` | the plan's time budget in milliseconds; unfinished tasks are cancelled when it runs out (0: none) |
+
+### task.Ref
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | one of its tasks |
+
+### task.Result
+
+| Field | Type | |
+|---|---|---|
+| `changed` | `[]string` |  |
+| `changed_more` | `integer` |  |
+| `exit_code` | `integer` |  |
+| `outcome` | `string` |  |
+| `output` | `[]string` |  |
+| `screen` | `[]string` |  |
+| `summary` | `string` |  |
+
+### task.RunParams
+
+| Field | Type | |
+|---|---|---|
+| `plan` | [task.PlanSpec](#taskplanspec) | the plan, as data |
+| `source` | `string` | the plan file's name, for errors |
+| `toml` | `string` | the plan, as the text of a plan file (instead of plan) |
+
+### task.Spec
+
+| Field | Type | |
+|---|---|---|
+| `approve` | `boolean` | wait for a person's approval before starting |
+| `args` | `[]string` | extra command-line arguments for the agent |
+| `base` | `string` | where a new worktree branch starts (default HEAD) |
+| `command` | `[]string` | with until=command: the command whose exit status decides |
+| `env` | `map[string]string` | extra environment variables for the agent |
+| `environment_id` | `string` | the environment to run in, or to make a worktree of |
+| `id` | `string` | the task's name within its plan (letters, digits, '.', '_', '-') |
+| `isolate` | `boolean` | run in a new worktree on hive/<plan>/<task> unless worktree names a branch |
+| `keep_agent` | `boolean` | leave the agent running when the task ends |
+| `kind` | `string` | the agent: claude, codex, … (see agent.manifests) |
+| `labels` | `[]string` | run on a machine that has all of these labels |
+| `machine` | `string` | the saved machine to run on (local: this one) |
+| `match` | `string` | with until=match: a regular expression the agent's screen must match |
+| `needs` | `[]string` | tasks that must succeed first |
+| `no_summary` | `boolean` | do not ask the agent to write a summary |
+| `prompt` | `string` | what the agent is asked to do |
+| `retries` | `integer` | how many times a failed attempt is retried automatically |
+| `timeout_ms` | `integer` | how long the agent may work on it, in milliseconds (0: no bound) |
+| `title` | `string` | a one-line description |
+| `until` | `string` | done (default), idle, match or command |
+| `worktree` | `string` | a branch: run in a new worktree on it |
+
+### task.Summary
+
+| Field | Type | |
+|---|---|---|
+| `attention` | [\[\]task.TaskView](#tasktaskview) |  |
+| `counts` | `map[string]integer` |  |
+| `created_at` | `string` |  |
+| `ended_at` | `string` |  |
+| `id` | `string` |  |
+| `name` | `string` |  |
+| `reason` | `string` |  |
+| `rev` | `integer` |  |
+| `state` | `string` |  |
+| `total` | `integer` |  |
+
+### task.Task
+
+| Field | Type | |
+|---|---|---|
+| `agent_id` | `string` |  |
+| `approval` | [task.Approval](#taskapproval) |  |
+| `attempt` | `integer` |  |
+| `base_commit` | `string` |  |
+| `ended_at` | `string` |  |
+| `environment_id` | `string` |  |
+| `log` | [\[\]task.LogEntry](#tasklogentry) |  |
+| `machine` | `string` |  |
+| `pane_id` | `string` |  |
+| `path` | `string` |  |
+| `phase` | `string` |  |
+| `ready_at` | `string` |  |
+| `reason` | `string` |  |
+| `remote` | `string` |  |
+| `result` | [task.Result](#taskresult) |  |
+| `retried` | `integer` |  |
+| `spec` | [task.Spec](#taskspec) |  |
+| `started_at` | `string` |  |
+| `state` | `string` |  |
+| `worked_ms` | `integer` |  |
+
+### task.TaskView
+
+| Field | Type | |
+|---|---|---|
+| `agent_id` | `string` |  |
+| `attempt` | `integer` |  |
+| `ended_at` | `string` |  |
+| `environment` | `string` |  |
+| `id` | `string` |  |
+| `kind` | `string` |  |
+| `machine` | `string` |  |
+| `needs` | `[]string` |  |
+| `pane_id` | `string` |  |
+| `plan_id` | `string` |  |
+| `reason` | `string` |  |
+| `rev` | `integer` |  |
+| `started_at` | `string` |  |
+| `state` | `string` |  |
+| `title` | `string` |  |
+
+### task.WaitParams
+
+| Field | Type | |
+|---|---|---|
+| `after` | `integer` | with until=change: the plan revision already seen |
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | wait for this task rather than the whole plan |
+| `timeout_ms` | `integer` | give up after this many milliseconds (0: never) |
+| `until` | `string` | finished (default), attention (also a task waiting for a person) or change |
+
+### task.WaitResult
+
+| Field | Type | |
+|---|---|---|
+| `outcome` | `string` |  |
+| `plan` | [task.Plan](#taskplan) |  |
 
 ### terminal.ImageReceipt
 

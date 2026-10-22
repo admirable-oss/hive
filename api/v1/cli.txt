@@ -76,6 +76,7 @@ command hive machine remove
 command hive machine remove (alias rm)
 command hive machine rename
 command hive machine revoke
+command hive machine set
 command hive machine status
 command hive machine trust
 command hive mcp
@@ -175,6 +176,19 @@ command hive tab focus
 command hive tab list
 command hive tab list (alias ls)
 command hive tab rename
+command hive task
+command hive task (alias plan)
+command hive task (alias tasks)
+command hive task approve
+command hive task cancel
+command hive task get
+command hive task get (alias show)
+command hive task list
+command hive task list (alias ls)
+command hive task report
+command hive task retry
+command hive task run
+command hive task wait
 command hive terminal
 command hive terminal attach
 command hive terminal input
@@ -286,6 +300,8 @@ flag hive machine pair --interface stringSlice
 flag hive machine pair --session string
 flag hive machine pair --timeout duration
 flag hive machine pair --user string
+flag hive machine set --capacity int
+flag hive machine set --label stringArray
 flag hive machine trust --check bool
 flag hive machine trust --expect-id string
 flag hive observer audit --credential string
@@ -386,6 +402,28 @@ flag hive tab create --cwd string
 flag hive tab create --env stringArray -e
 flag hive tab create --name string
 flag hive tab create --pane-name string
+flag hive task approve --deny bool
+flag hive task approve --note string
+flag hive task report --screen int
+flag hive task run --approve bool
+flag hive task run --base string
+flag hive task run --check stringArray
+flag hive task run --env string -e
+flag hive task run --id string
+flag hive task run --isolate bool
+flag hive task run --kind string
+flag hive task run --label stringArray
+flag hive task run --machine string
+flag hive task run --match string
+flag hive task run --name string
+flag hive task run --prompt string -p
+flag hive task run --retries int
+flag hive task run --timeout duration
+flag hive task run --until string
+flag hive task run --wait bool
+flag hive task run --worktree string -w
+flag hive task wait --timeout duration
+flag hive task wait --until string
 flag hive terminal snapshot --ansi bool
 flag hive terminal snapshot --scrollback int
 flag hive ui --env string

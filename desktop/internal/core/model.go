@@ -48,6 +48,67 @@ type Workspace struct {
 	State string `json:"state"`
 	// Counts are agents by state.
 	Counts map[string]int `json:"counts"`
+	// Plans are the running plans (hive task), then the latest finished.
+	Plans []Plan `json:"plans,omitempty"`
+}
+
+// Plan is a plan of tasks for agents and its progress.
+type Plan struct {
+	ID    string `json:"id"`
+	Name  string `json:"name,omitempty"`
+	State string `json:"state"`
+	Total int    `json:"total"`
+	Done  int    `json:"done"`
+	// Counts are its tasks by state.
+	Counts  map[string]int `json:"counts"`
+	Created time.Time      `json:"created"`
+	Ended   time.Time      `json:"ended,omitzero"`
+	Reason  string         `json:"reason,omitempty"`
+	// Waiting are its tasks that wait for someone: an approval, or an
+	// agent blocked on a decision.
+	Waiting []PlanTask `json:"waiting"`
+	// Machine is the saved machine it runs on ("" for this computer).
+	Machine string `json:"machine,omitempty"`
+}
+
+// PlanTask is a task of a plan.
+type PlanTask struct {
+	ID     string `json:"id"`
+	Title  string `json:"title,omitempty"`
+	Kind   string `json:"kind"`
+	State  string `json:"state"`
+	PaneID string `json:"pane_id,omitempty"`
+}
+
+// shownFinishedPlans is how many finished plans the app shows.
+const shownFinishedPlans = 5
+
+// plansOf turns plan summaries (newest first) into the view model: every
+// running plan and the latest finished ones.
+func plansOf(list []hiveapi.PlanSummary) []Plan {
+	out := []Plan{}
+	finished := 0
+	for _, s := range list {
+		if s.State != hiveapi.PlanRunning {
+			if finished == shownFinishedPlans {
+				continue
+			}
+			finished++
+		}
+		p := Plan{
+			ID: s.ID, Name: s.Name, State: string(s.State), Total: s.Total, Done: s.Counts[hiveapi.TaskSucceeded],
+			Counts: make(map[string]int, len(s.Counts)), Created: s.CreatedAt, Ended: s.EndedAt, Reason: s.Reason,
+			Waiting: []PlanTask{},
+		}
+		for k, v := range s.Counts {
+			p.Counts[string(k)] = v
+		}
+		for _, t := range s.Attention {
+			p.Waiting = append(p.Waiting, PlanTask{ID: t.ID, Title: t.Title, Kind: t.Kind, State: string(t.State), PaneID: t.PaneID})
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 // Environment is a place agents work in.
@@ -132,7 +193,7 @@ type Manifest struct {
 func workspaceOf(s hiveapi.Snapshot) Workspace {
 	w := Workspace{
 		Environments: []Environment{}, Tabs: []Tab{}, Panes: []Pane{}, Agents: []Agent{},
-		State: string(s.Rollups.Session), Counts: map[string]int{},
+		State: string(s.Rollups.Session), Counts: map[string]int{}, Plans: []Plan{},
 	}
 	for _, e := range s.Environments {
 		env := Environment{ID: e.ID, Name: cmp(e.Name, e.ID), Path: e.Path, State: string(s.Rollups.Environments[e.ID]), Worktree: e.Worktree != nil}

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -111,6 +112,57 @@ func (g *Git) Status(ctx context.Context, dir string) (*Status, error) {
 	st := parseStatus(out)
 	st.Root = root
 	return st, nil
+}
+
+// Head returns the commit checked out in dir, in full; "" before the first
+// commit. Outside a repository it returns ErrNotRepository.
+func (g *Git) Head(ctx context.Context, dir string) (string, error) {
+	out, err := g.Runner.Run(ctx, dir, "rev-parse", "--verify", "--quiet", "HEAD")
+	if notRepo(err) {
+		return "", ErrNotRepository
+	}
+	if err != nil {
+		var ce *CommandError
+		if errors.As(err, &ce) && strings.TrimSpace(ce.Stderr) == "" {
+			return "", nil // no commit yet
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// Changed lists the paths in dir's working tree that differ from base:
+// changed since it (committed or not, staged or not) and new files git
+// does not ignore. Paths are relative to the top of the working tree,
+// sorted, each once.
+func (g *Git) Changed(ctx context.Context, dir, base string) ([]string, error) {
+	if base == "" || strings.HasPrefix(base, "-") {
+		return nil, fmt.Errorf("git: invalid base %q", base)
+	}
+	root, err := g.Root(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	diff, err := g.Runner.Run(ctx, root, "diff", "--name-only", "-z", "--no-renames", base, "--")
+	if err != nil {
+		return nil, err
+	}
+	untracked, err := g.Runner.Run(ctx, root, "ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, list := range [][]byte{diff, untracked} {
+		for p := range bytes.SplitSeq(list, []byte{0}) {
+			if len(p) > 0 && !seen[string(p)] {
+				seen[string(p)] = true
+				out = append(out, string(p))
+			}
+		}
+	}
+	slices.Sort(out)
+	return out, nil
 }
 
 // Worktrees lists the repository's worktrees, the main one first.

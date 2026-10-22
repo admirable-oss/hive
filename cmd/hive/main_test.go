@@ -66,6 +66,10 @@ func TestCommandNamesAndAliasesResolve(t *testing.T) {
 	root.InitDefaultCompletionCmd()
 	for path, want := range map[string]string{
 		"tui":                   "ui",
+		"plan ls":               "list",
+		"tasks show":            "get",
+		"task report":           "report",
+		"machine set":           "set",
 		"env ls":                "list",
 		"environment rm":        "remove",
 		"ps start":              "start",

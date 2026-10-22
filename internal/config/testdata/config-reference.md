@@ -138,6 +138,21 @@ the defaults, so a typo never stops the daemon.
 |---|---|---|
 | `directory` | `""` | Where `hive worktree create` puts checkouts, as <directory>/<repo>/<branch> ("" means ~/.hive/worktrees, or $HIVE_HOME/worktrees). |
 
+## `[tasks]`
+
+| Key | Default | Description |
+|---|---|---|
+| `capacity` | `8` | Tasks of plans (`hive task run`) running on this machine at once, across plans. Plans on other machines place tasks here up to it too. |
+| `labels` | `[]` | Labels this machine offers: a task with labels = ["gpu"] runs only on a machine that has them all (saved machines get theirs with `hive machine set`). |
+| `keep_plans` | `100` | Finished plans kept for `hive task list` and reports; the oldest are forgotten first. |
+
+Per agent kind, the most tasks running at once across plans:
+
+```toml
+[tasks.kinds]
+claude = 4
+```
+
 ## `[notify]`
 
 | Key | Default | Description |

@@ -75,7 +75,6 @@ func (a *App) onScreen(procID string) bool {
 
 // notifyAgent tells the user an agent wants them, as configured.
 func (a *App) notifyAgent(x agent.Agent) {
-	cfg := a.opts.Notify
 	name := x.Name
 	if p := a.ws.snap.process(x.ID); p != nil {
 		name = a.agentName(p)
@@ -86,8 +85,15 @@ func (a *App) notifyAgent(x agent.Agent) {
 		n.Body, kind = "needs your decision", compositor.ToastWarning
 	}
 	a.ui.lastNote = x.ID
+	a.raise(n, kind, n.Title+" "+n.Body+"  ("+a.keyHint(keymap.OpenNotification)+" goes there)")
+}
+
+// raise shows a notification as configured: a toast, the outer terminal's
+// notification, the desktop's.
+func (a *App) raise(n notify.Note, kind compositor.ToastKind, toast string) {
+	cfg := a.opts.Notify
 	if cfg.Toast {
-		a.toast(kind, n.Title+" "+n.Body+"  ("+a.keyHint(keymap.OpenNotification)+" goes there)")
+		a.toast(kind, toast)
 	}
 	mode := notify.TerminalMode(cfg.Terminal, os.Getenv)
 	// The desktop's own sound replaces the bell when it notifies too.

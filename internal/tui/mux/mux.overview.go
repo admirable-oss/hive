@@ -322,11 +322,16 @@ func (o *overview) view(a *App) compositor.Overlay {
 	if len(o.rows) == 0 {
 		lines = append(lines, compositor.Spans{{Text: "  no agents yet", Style: muted}})
 	}
+	// Plans follow the agents; their rows are not selectable.
+	lines = append(lines, a.planLines(a.width)...)
 	title := fmt.Sprintf("Overview · %d running · %d awaiting · %d complete", n.running, n.awaiting, n.complete)
 	if n.idle > 0 {
 		title += fmt.Sprintf(" · %d idle", n.idle)
 	}
 	title += fmt.Sprintf(" · %d ended", n.ended)
+	if p := runningPlans(s); p > 0 {
+		title += fmt.Sprintf(" · %d plans running", p)
+	}
 	ov := compositor.Overlay{
 		Title: title, Width: a.width, Height: a.height,
 		Lines: lines, Selected: o.index() + o.header(a), ListWidth: nameW + envW + 20,

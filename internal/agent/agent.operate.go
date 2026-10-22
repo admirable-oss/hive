@@ -41,9 +41,12 @@ const (
 	UntilExited  Until = "exited"
 	// UntilChange waits for any state change.
 	UntilChange Until = "change"
+	// UntilUnblocked waits for a blocked agent to leave blocked: someone
+	// answered its question. An agent that is not blocked has reached it.
+	UntilUnblocked Until = "unblocked"
 )
 
-var untils = []Until{UntilIdle, UntilDone, UntilWorking, UntilBlocked, UntilExited, UntilChange}
+var untils = []Until{UntilIdle, UntilDone, UntilWorking, UntilBlocked, UntilExited, UntilChange, UntilUnblocked}
 
 // Outcome is how a wait or prompt ended.
 type Outcome string
@@ -256,6 +259,8 @@ func (s *Service) Wait(ctx context.Context, id string, req WaitRequest) (WaitRes
 			reached = a.CompletionSeq > after
 		case UntilChange:
 			reached = a.StateSeq > start.StateSeq
+		case UntilUnblocked:
+			reached = a.State != StateBlocked && a.State != StateUnknown
 		default:
 			reached = string(a.State) == string(req.Until)
 		}

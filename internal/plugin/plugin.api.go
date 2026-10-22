@@ -91,7 +91,7 @@ var methodCapabilities = map[string]string{
 	"process.logs": CapHiveRead, "runtime.status": CapHiveRead, "tab.get": CapHiveRead, "tab.list": CapHiveRead,
 	"terminal.snapshot": CapHiveRead, "terminal.frames": CapHiveRead, "terminal.graphics": CapHiveRead,
 	"worktree.list": CapHiveRead, "plugin.list": CapHiveRead, "plugin.contributions": CapHiveRead,
-	"observer.activity": CapHiveRead,
+	"observer.activity": CapHiveRead, "task.list": CapHiveRead, "task.get": CapHiveRead, "task.wait": CapHiveRead,
 
 	// Changing the workspace.
 	"agent.focus": CapHiveWrite, "agent.rename": CapHiveWrite, "agent.seen": CapHiveWrite, "agent.report": CapHiveWrite,
@@ -110,7 +110,8 @@ var methodCapabilities = map[string]string{
 	// Starting and stopping programs, and removing what holds work.
 	"agent.start": CapHiveProcess, "agent.stop": CapHiveProcess, "process.start": CapHiveProcess,
 	"process.stop": CapHiveProcess, "pane.run": CapHiveProcess, "environment.remove": CapHiveProcess,
-	"worktree.remove": CapHiveProcess,
+	"worktree.remove": CapHiveProcess, "task.run": CapHiveProcess, "task.cancel": CapHiveProcess,
+	"task.retry": CapHiveProcess, "task.approve": CapHiveProcess,
 
 	// Administration.
 	"debug.pprof": CapHiveAdmin, "debug.stats": CapHiveAdmin, "runtime.gc": CapHiveAdmin,

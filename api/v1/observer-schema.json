@@ -1,5 +1,5 @@
 {
-  "api_level": 11,
+  "api_level": 12,
   "methods": [
     {
       "name": "observe.auth",
@@ -586,6 +586,111 @@
       ],
       "type": "object"
     },
+    "observer.Plan": {
+      "properties": {
+        "counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/observer.PlanTask"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "rev",
+        "total",
+        "counts",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "observer.PlanTask": {
+      "properties": {
+        "attempt": {
+          "type": "integer"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "environment_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "machine": {
+          "type": "string"
+        },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pane_id": {
+          "type": "string"
+        },
+        "plan_id": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "integer"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "rev",
+        "id",
+        "kind",
+        "state",
+        "environment_id"
+      ],
+      "type": "object"
+    },
     "observer.Process": {
       "properties": {
         "ended_at": {
@@ -771,6 +876,12 @@
         "panes": {
           "items": {
             "$ref": "#/$defs/observer.Pane"
+          },
+          "type": "array"
+        },
+        "plans": {
+          "items": {
+            "$ref": "#/$defs/observer.Plan"
           },
           "type": "array"
         },
