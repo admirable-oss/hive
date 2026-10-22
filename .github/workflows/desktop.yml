@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: Build installable packages (unsigned previews)
+        description: Build installable packages as a release would (unsigned)
         type: boolean
         default: false
 
@@ -123,10 +123,21 @@ jobs:
           else
             go test -race -count=1 -timeout 10m ./internal/...
           fi
+      # M18's idle budget (1 % of a core, 64 MB of heap, 16 panes) is
+      # measured without the race detector, which would distort it.
+      - name: idle budget
+        if: runner.os != 'Windows'
+        env:
+          HIVE_BIN: ${{ runner.temp }}/hive
+        run: go test -count=1 -timeout 5m -run TestIdleBudgetWith16Panes -v ./internal/core/
+      # It also measures keystroke-to-screen latency against M18's budget.
       - name: end-to-end (server build, headless Chrome)
         if: runner.os != 'Windows'
         env:
           HIVE_DESKTOP_E2E: require
+          # M18's latency budget is 25 ms (p99) on a developer machine; on
+          # shared runners the test holds it to 50 ms, two frames past it.
+          HIVE_DESKTOP_LATENCY_MS: "50"
         run: go test -count=1 -timeout 10m -run TestDesktopEndToEnd .
       - name: build the app
         run: go build -tags production -o "$RUNNER_TEMP/hive-desktop$([ "$RUNNER_OS" = Windows ] && echo .exe)" .
@@ -182,26 +193,33 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
       - run: go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
+      - name: install NSIS
+        if: runner.os == 'Windows'
+        run: |
+          command -v makensis || { choco install nsis -y --no-progress && echo "C:\\Program Files (x86)\\NSIS" >> "$GITHUB_PATH"; }
       - name: build the hive CLI to bundle
         working-directory: .
         run: |
-          exe=hive; [ "$RUNNER_OS" = Windows ] && exe=hive.exe
-          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/admirable-oss/hive/internal/buildinfo.version=$(git describe --always)" -o "$RUNNER_TEMP/$exe" ./cmd/hive
-          echo "HIVE_CLI=$RUNNER_TEMP/$exe" >> "$GITHUB_ENV"
+          build() { CGO_ENABLED=0 GOARCH=$1 go build -trimpath -ldflags "-s -w -X github.com/admirable-oss/hive/internal/buildinfo.version=$(git describe --always)" -o "$2" ./cmd/hive; }
+          case "$RUNNER_OS" in
+          macOS)
+            build arm64 "$RUNNER_TEMP/hive-arm64" && build amd64 "$RUNNER_TEMP/hive-amd64"
+            lipo -create -output "$RUNNER_TEMP/hive" "$RUNNER_TEMP/hive-arm64" "$RUNNER_TEMP/hive-amd64"
+            echo "HIVE_CLI=$RUNNER_TEMP/hive" >> "$GITHUB_ENV" ;;
+          Windows)
+            build amd64 "$RUNNER_TEMP/hive.exe"
+            echo "HIVE_CLI=$RUNNER_TEMP/hive.exe" >> "$GITHUB_ENV" ;;
+          esac
+      # The release path (build/release.sh), without code signing: what a tag
+      # would publish, under the same names.
       - name: package
-        run: |
-          if [ "$RUNNER_OS" = Linux ]; then
-            wails3 package
-          else
-            wails3 package HIVE_CLI="$HIVE_CLI"
-          fi
+        env:
+          HIVE_DESKTOP_UNSIGNED: "1"
+          OUT: ${{ runner.temp }}/desktop
+        run: build/release.sh "v0.0.0-preview.${{ github.run_number }}"
       - uses: actions/upload-artifact@v4
         with:
           name: hive-desktop-${{ runner.os }}
-          path: |
-            desktop/bin/*.app
-            desktop/bin/*.exe
-            desktop/bin/*.AppImage
-            desktop/bin/*.deb
-            desktop/bin/*.rpm
+          path: ${{ runner.temp }}/desktop/*
+          if-no-files-found: error
           retention-days: 14

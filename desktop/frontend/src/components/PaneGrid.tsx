@@ -1,3 +1,4 @@
+import { GripVertical } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { api, type Pane, type Tab } from "../api";
@@ -69,6 +70,16 @@ export function PaneGrid({ tab }: { tab: Tab }) {
     if (!p.focused) api.focusPane(p.id).catch(store.fail);
   };
   const cellVars = { "--cell-h": `${cell.h}px` } as React.CSSProperties;
+  // Dragging a pane by its grip onto another swaps the two, through the
+  // daemon's layout API (pane.swap).
+  const [dragging, setDragging] = useState<string>();
+  const [over, setOver] = useState<string>();
+  const movable = tiled.length > 1;
+  const drop = (target: string) => {
+    if (dragging && dragging !== target) api.swapPane(dragging, target).catch(store.fail);
+    setDragging(undefined);
+    setOver(undefined);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 bg-term-bg p-1.5">
@@ -84,11 +95,47 @@ export function PaneGrid({ tab }: { tab: Tab }) {
               key={p.id}
               data-pane={p.id}
               data-focused={p.id === focused || undefined}
-              className={cn("absolute overflow-hidden pb-px pl-px", p.popup && "z-10 rounded-lg shadow-2xl ring-1 ring-border")}
+              data-drop-target={(over === p.id && dragging !== p.id) || undefined}
+              className={cn(
+                "group/pane absolute overflow-hidden pb-px pl-px",
+                p.popup && "z-10 rounded-lg shadow-2xl ring-1 ring-border",
+                over === p.id && dragging !== p.id && "ring-2 ring-primary ring-inset",
+              )}
               style={{ left: r.x * sx, top: r.y * sy, width: r.w * sx, height: r.h * sy }}
               aria-label={p.name || "pane"}
+              onDragOver={(e) => {
+                if (!dragging || dragging === p.id || p.popup) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                setOver(p.id);
+              }}
+              onDragLeave={() => setOver((o) => (o === p.id ? undefined : o))}
+              onDrop={(e) => {
+                e.preventDefault();
+                drop(p.id);
+              }}
             >
               <Terminal pane={p} cols={r.w} rows={r.h} cell={cell} focused={p.id === focused} onFocus={() => focus(p)} />
+              {movable && !p.popup && (
+                <button
+                  type="button"
+                  draggable
+                  className="absolute top-1 left-1 z-20 rounded-sm bg-card/80 p-0.5 text-muted-foreground opacity-0 shadow-sm transition-opacity group-hover/pane:opacity-100 focus-visible:opacity-100 cursor-grab active:cursor-grabbing"
+                  aria-label={`Move ${p.name || "pane"}: drag it onto another pane to swap them`}
+                  title="Drag onto another pane to swap them"
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/x-hive-pane", p.id);
+                    e.dataTransfer.effectAllowed = "move";
+                    setDragging(p.id);
+                  }}
+                  onDragEnd={() => {
+                    setDragging(undefined);
+                    setOver(undefined);
+                  }}
+                >
+                  <GripVertical className="size-3.5" />
+                </button>
+              )}
             </section>
           );
         })}

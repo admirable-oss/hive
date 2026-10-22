@@ -1366,7 +1366,7 @@ How releases are made, gated and verified: [docs/releasing.md](docs/releasing.md
 
 ---
 
-## M21 · Desktop App 1.0 — `v1.2.0` — **PROPOSED**
+## M21 · Desktop App 1.0 — `v1.2.0` — **IN PROGRESS**
 
 The desktop app leaves preview.
 
@@ -1404,6 +1404,33 @@ second thought, and brings it under the compatibility policy.
 **✅ Acceptance:** on macOS, Windows and Linux, a signed app installs,
 updates itself only to verified releases, rolls back a failed update, and
 meets the latency, CPU and memory budgets. M18's acceptance holds in full.
+
+### M21 progress
+
+How the app is released and updated: [docs/releasing.md](docs/releasing.md#the-desktop-app),
+[docs/desktop.md](docs/desktop.md#updates).
+
+- [x] Release packages built and signed on each system
+  (`desktop/build/release.sh`): Developer ID and notarization on macOS,
+  Authenticode on Windows, PGP for the `.deb` and `.rpm`, with the release's
+  own `hive` bundled (macOS, Windows). Attached to the release with a signed
+  `desktop-checksums.txt` and provenance; the `hive-desktop` cask.
+- [x] In-app updates: verified against the release key, the previous version
+  kept, rolled back when the new one does not start, agents untouched
+  (tested with a real signed bundle: staged, swapped and still valid).
+- [x] Latency, idle CPU and memory measured in CI (macOS and Linux) and
+  within M18's budgets: p99 17.3 ms, 0.00 % of a core, 14.4 MB of heap with
+  16 panes on a developer machine. CI's shared runners are held to 50 ms of
+  latency. The binary frame channel is not needed.
+- [x] Drag and drop of panes (`pane.swap`), environment windows, `[keys]`
+  in the app (`hive config keys`), and Goto over agents, panes, tabs,
+  environments and actions.
+- [ ] The signing credentials set up and `HIVE_DESKTOP_RELEASE` turned on,
+  and the first signed release installed and updated on every platform.
+- [ ] Wails v3 at a release candidate or GA, pinned; then the app under the
+  compatibility policy and its preview label removed.
+- [ ] The latency budget measured in the native webviews, not only in a
+  browser.
 
 ---
 

@@ -5,6 +5,10 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as updater$0 from "./internal/updater/models.js";
+
 export class CommandRequest {
     "command": string;
 
@@ -75,5 +79,83 @@ export class FocusRequest {
     }
 }
 
+/**
+ * UpdateStatus is what the app knows about its own updates.
+ */
+export class UpdateStatus {
+    /**
+     * Version is the running app's.
+     */
+    "version": string;
+
+    /**
+     * Supported: this build and installation can update themselves.
+     * Reason says why not.
+     */
+    "supported": boolean;
+    "reason"?: string;
+
+    /**
+     * Automatic: the app checks for updates by itself (once a day). The
+     * check is its only request to the network, and can be turned off.
+     */
+    "automatic": boolean;
+    "checking": boolean;
+    "installing": boolean;
+
+    /**
+     * Available is a newer release with a package for this system.
+     */
+    "available"?: updater$0.Release | null;
+    "last_checked"?: string;
+    "error"?: string;
+
+    /**
+     * Result is how the update before this start went, shown once.
+     */
+    "result"?: updater$0.Result | null;
+
+    /** Creates a new UpdateStatus instance. */
+    constructor($$source: Partial<UpdateStatus> = {}) {
+        if (!("version" in $$source)) {
+            this["version"] = "";
+        }
+        if (!("supported" in $$source)) {
+            this["supported"] = false;
+        }
+        if (!("automatic" in $$source)) {
+            this["automatic"] = false;
+        }
+        if (!("checking" in $$source)) {
+            this["checking"] = false;
+        }
+        if (!("installing" in $$source)) {
+            this["installing"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateStatus instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateStatus {
+        const $$createField6_0 = $$createType2;
+        const $$createField9_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("available" in $$parsedSource) {
+            $$parsedSource["available"] = $$createField6_0($$parsedSource["available"]);
+        }
+        if ("result" in $$parsedSource) {
+            $$parsedSource["result"] = $$createField9_0($$parsedSource["result"]);
+        }
+        return new UpdateStatus($$parsedSource as Partial<UpdateStatus>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
+const $$createType1 = updater$0.Release.createFrom;
+const $$createType2 = $Create.Nullable($$createType1);
+const $$createType3 = updater$0.Result.createFrom;
+const $$createType4 = $Create.Nullable($$createType3);

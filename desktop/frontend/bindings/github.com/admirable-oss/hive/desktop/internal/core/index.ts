@@ -9,6 +9,7 @@ export {
     Environment,
     IdentityCheck,
     ImageUpdate,
+    KeyBinding,
     Line,
     MachineStatus,
     Manifest,

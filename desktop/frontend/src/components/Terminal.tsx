@@ -2,7 +2,9 @@ import { memo, useEffect, useLayoutEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api, isMac, type Line, type Pane } from "../api";
+import { runCommand } from "../commands";
 import { encodeKey, encodeMouse, focusReport, ModeBracketedPaste, mouseWanted, type MouseKind } from "../keys";
+import { commandFor, controlBytes, isPrefix, keyNames, lookup } from "../keymap";
 import { lineText } from "../screen";
 import { store, useImages, useScreen, useStore } from "../store";
 import { color } from "../theme";
@@ -85,6 +87,7 @@ export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
   const composing = useRef(false);
   const mac = isMac();
   const optionIsMeta = useStore((s) => s.ui.optionIsMeta);
+  const prefixArmed = useStore((s) => !!s.ui.prefix);
   const modes = screen?.modes ?? 0;
   const lastMove = useRef("");
 
@@ -143,8 +146,38 @@ export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
     return true;
   };
 
+  // prefixKey follows [keys], as `hive ui` does: the prefix key arms
+  // prefix mode, and the next key runs its action. It reports whether it
+  // took the key.
+  const prefixKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    const { settings, ui } = store.state;
+    if (settings.keys.length === 0) return false; // a hive without `config keys`
+    const names = keyNames(e.nativeEvent);
+    if (!ui.prefix) {
+      if (!isPrefix(settings.prefix, names)) return false;
+      e.preventDefault();
+      store.setUI({ prefix: true });
+      return true;
+    }
+    if (names.length === 0) return false; // a lone modifier: still waiting
+    e.preventDefault();
+    store.setUI({ prefix: false });
+    const action = lookup(settings.keys, "prefix", names);
+    if (!action || action === "mode-terminal") return true;
+    if (action === "send-prefix") {
+      const bytes = controlBytes(names[names.length - 1]);
+      if (bytes) send(bytes);
+      return true;
+    }
+    const cmd = commandFor(action);
+    if (cmd) runCommand(cmd);
+    else store.toast(`${action} is a hive ui action; the app does not have it.`);
+    return true;
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (composing.current || e.nativeEvent.isComposing) return;
+    if (prefixKey(e)) return;
     if (!mac && e.ctrlKey && e.shiftKey && (e.key === "C" || e.key === "c")) {
       e.preventDefault();
       const text = window.getSelection()?.toString();
@@ -247,6 +280,11 @@ export function Terminal({ pane, cols, rows, focused, onFocus, cell }: Props) {
           <span className="flex items-center gap-2">
             <Loader2 className="size-3.5 animate-spin" /> Connecting to the terminal…
           </span>
+        </div>
+      )}
+      {prefixArmed && focused && (
+        <div className="absolute top-2 right-2 rounded-md border bg-card px-2 py-1 text-xs shadow-sm" role="status">
+          Prefix — press a key (Esc cancels)
         </div>
       )}
       {screen?.ended && !pane.running && (

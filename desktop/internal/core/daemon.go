@@ -110,11 +110,25 @@ type Settings struct {
 	Theme string `json:"theme"`
 	// Prefix is the multiplexer's prefix key, shown in the app's hints.
 	Prefix []string `json:"prefix"`
+	// Keys are the effective key bindings, as `hive config keys` prints
+	// them: the built-in ones with the [keys] section applied. The app
+	// follows the prefix-mode bindings, as `hive ui` does.
+	Keys []KeyBinding `json:"keys"`
+	// UpdateChannel is update.channel: stable, or preview for release
+	// candidates too. The app's own updates follow it.
+	UpdateChannel string `json:"update_channel"`
+}
+
+// KeyBinding is one binding of the effective key map.
+type KeyBinding struct {
+	Mode   string   `json:"mode"`
+	Action string   `json:"action"`
+	Keys   []string `json:"keys"`
 }
 
 // DefaultSettings are used when the configuration cannot be read.
 func DefaultSettings() Settings {
-	return Settings{NotifyOn: []string{"blocked", "done"}, Theme: "auto", Prefix: []string{"ctrl+b"}}
+	return Settings{NotifyOn: []string{"blocked", "done"}, Theme: "auto", Prefix: []string{"ctrl+b"}, Keys: []KeyBinding{}, UpdateChannel: "stable"}
 }
 
 func parseSettings(data []byte) (Settings, error) {
@@ -129,11 +143,17 @@ func parseSettings(data []byte) (Settings, error) {
 		Keys struct {
 			PrefixKeys []string `json:"prefix_keys"`
 		} `json:"keys"`
+		Update struct {
+			Channel string `json:"channel"`
+		} `json:"update"`
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return DefaultSettings(), fmt.Errorf("read hive's configuration: %w", err)
 	}
-	s := Settings{NotifyOn: cfg.Notify.On, SystemNotifications: cfg.Notify.System, Theme: cfg.Theme.Name, Prefix: cfg.Keys.PrefixKeys}
+	s := Settings{NotifyOn: cfg.Notify.On, SystemNotifications: cfg.Notify.System, Theme: cfg.Theme.Name, Prefix: cfg.Keys.PrefixKeys, Keys: []KeyBinding{}, UpdateChannel: cfg.Update.Channel}
+	if s.UpdateChannel == "" {
+		s.UpdateChannel = "stable"
+	}
 	if s.NotifyOn == nil {
 		s.NotifyOn = []string{}
 	}
@@ -153,7 +173,36 @@ func (h *Hub) readSettings(ctx context.Context) (Settings, error) {
 	if err != nil {
 		return DefaultSettings(), fmt.Errorf("hive config show: %w", err)
 	}
-	return parseSettings(out)
+	s, err := parseSettings(out)
+	if err != nil {
+		return s, err
+	}
+	// The key map, best effort: a hive older than `config keys` leaves the
+	// app on its own shortcuts.
+	if cmd, err := h.hiveCommand(ctx, "config", "keys", "--json"); err == nil {
+		if out, err := cmd.Output(); err == nil {
+			if keys, err := parseKeys(out); err == nil {
+				s.Keys, s.Prefix = keys.Bindings, keys.Prefix
+			}
+		}
+	}
+	return s, nil
+}
+
+type keyMap struct {
+	Prefix   []string     `json:"prefix"`
+	Bindings []KeyBinding `json:"bindings"`
+}
+
+func parseKeys(data []byte) (keyMap, error) {
+	var km keyMap
+	if err := json.Unmarshal(data, &km); err != nil {
+		return keyMap{}, fmt.Errorf("read hive's key map: %w", err)
+	}
+	if km.Bindings == nil {
+		km.Bindings = []KeyBinding{}
+	}
+	return km, nil
 }
 
 func (s Settings) notifies(state string) bool { return slices.Contains(s.NotifyOn, state) }

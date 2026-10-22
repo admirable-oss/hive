@@ -2,7 +2,7 @@ module github.com/admirable-oss/hive
 
 go 1.26.6
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff

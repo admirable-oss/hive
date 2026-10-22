@@ -16,13 +16,26 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 // @ts-ignore: Unused imports
 import * as core$0 from "./internal/core/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+/**
+ * CheckForUpdates looks for a newer release now.
+ */
+export function CheckForUpdates(): $CancellablePromise<$models.UpdateStatus> {
+    return $Call.ByID(3748524094).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
 /**
  * CheckPair proves the identity of a runtime or host before pairing,
  * saving nothing.
  */
 export function CheckPair(req: core$0.PairRequest): $CancellablePromise<core$0.IdentityCheck> {
     return $Call.ByID(2730525321, req).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
 }
 
@@ -31,7 +44,7 @@ export function CheckPair(req: core$0.PairRequest): $CancellablePromise<core$0.I
  */
 export function CheckTrust(name: string): $CancellablePromise<core$0.IdentityCheck> {
     return $Call.ByID(1644724141, name).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
 }
 
@@ -61,7 +74,7 @@ export function CloseView(viewer: string, paneID: string): $CancellablePromise<v
  */
 export function Connection(): $CancellablePromise<core$0.Connection> {
     return $Call.ByID(437067979).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -85,8 +98,16 @@ export function CreateEnvironment(machine: string, id: string, dir: string): $Ca
  */
 export function Discover(): $CancellablePromise<core$0.Discovery> {
     return $Call.ByID(4043157768).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
+}
+
+/**
+ * FocusNeighbour focuses the pane beside paneID that way (left, right, up
+ * or down).
+ */
+export function FocusNeighbour(paneID: string, dir: string): $CancellablePromise<void> {
+    return $Call.ByID(1659013552, paneID, dir);
 }
 
 /**
@@ -108,7 +129,7 @@ export function FocusTab(tabID: string): $CancellablePromise<void> {
  */
 export function History(paneID: string, lines: number): $CancellablePromise<string[]> {
     return $Call.ByID(1715230469, paneID, lines).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -117,6 +138,15 @@ export function History(paneID: string, lines: number): $CancellablePromise<stri
  */
 export function Input(paneID: string, data: string): $CancellablePromise<void> {
     return $Call.ByID(2813526409, paneID, data);
+}
+
+/**
+ * InstallUpdate installs the available release, after checking its
+ * signature and checksum, and restarts the app on it; agents keep running.
+ * If the new version does not start, the previous one is put back.
+ */
+export function InstallUpdate(): $CancellablePromise<void> {
+    return $Call.ByID(4196818451);
 }
 
 /**
@@ -131,7 +161,7 @@ export function MachineAction(name: string, action: string): $CancellablePromise
  */
 export function Machines(): $CancellablePromise<core$0.MachineStatus[]> {
     return $Call.ByID(1926130017).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -141,7 +171,7 @@ export function Machines(): $CancellablePromise<core$0.MachineStatus[]> {
  */
 export function Manifests(machine: string): $CancellablePromise<core$0.Manifest[]> {
     return $Call.ByID(3955373223, machine).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType8($result);
     });
 }
 
@@ -150,6 +180,14 @@ export function Manifests(machine: string): $CancellablePromise<core$0.Manifest[
  */
 export function NewTab(envID: string): $CancellablePromise<string> {
     return $Call.ByID(2621829714, envID);
+}
+
+/**
+ * OpenEnvironmentWindow shows an environment, with its tabs, in a window
+ * of its own.
+ */
+export function OpenEnvironmentWindow(envID: string): $CancellablePromise<void> {
+    return $Call.ByID(3699867548, envID);
 }
 
 /**
@@ -262,11 +300,18 @@ export function SetStartAtLogin(on: boolean): $CancellablePromise<void> {
 }
 
 /**
+ * SetUpdateChecks turns the daily update check on or off.
+ */
+export function SetUpdateChecks(on: boolean): $CancellablePromise<void> {
+    return $Call.ByID(2440404729, on);
+}
+
+/**
  * Settings are the parts of the Hive configuration the app follows.
  */
 export function Settings(): $CancellablePromise<core$0.Settings> {
     return $Call.ByID(1996682342).then(($result: any) => {
-        return $$createType8($result);
+        return $$createType9($result);
     });
 }
 
@@ -299,6 +344,14 @@ export function StopAgent(agentID: string): $CancellablePromise<void> {
 }
 
 /**
+ * SwapPane exchanges two panes of one tab: what dragging a pane onto
+ * another does.
+ */
+export function SwapPane(paneID: string, withID: string): $CancellablePromise<void> {
+    return $Call.ByID(1131186914, paneID, withID);
+}
+
+/**
  * Trust pins the identity the user confirmed for a saved machine.
  */
 export function Trust(name: string, expectID: string): $CancellablePromise<void> {
@@ -306,11 +359,21 @@ export function Trust(name: string, expectID: string): $CancellablePromise<void>
 }
 
 /**
+ * UpdateStatus says whether the app can update itself, and whether a newer
+ * release is available.
+ */
+export function UpdateStatus(): $CancellablePromise<$models.UpdateStatus> {
+    return $Call.ByID(2686036196).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * Workspace is the daemon's environments, tabs, panes and agents.
  */
 export function Workspace(): $CancellablePromise<core$0.Workspace> {
     return $Call.ByID(2298421584).then(($result: any) => {
-        return $$createType9($result);
+        return $$createType10($result);
     });
 }
 
@@ -322,13 +385,14 @@ export function ZoomPane(paneID: string): $CancellablePromise<void> {
 }
 
 // Private type creation functions
-const $$createType0 = core$0.IdentityCheck.createFrom;
-const $$createType1 = core$0.Connection.createFrom;
-const $$createType2 = core$0.Discovery.createFrom;
-const $$createType3 = $Create.Array($Create.Any);
-const $$createType4 = core$0.MachineStatus.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = core$0.Manifest.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = core$0.Settings.createFrom;
-const $$createType9 = core$0.Workspace.createFrom;
+const $$createType0 = $models.UpdateStatus.createFrom;
+const $$createType1 = core$0.IdentityCheck.createFrom;
+const $$createType2 = core$0.Connection.createFrom;
+const $$createType3 = core$0.Discovery.createFrom;
+const $$createType4 = $Create.Array($Create.Any);
+const $$createType5 = core$0.MachineStatus.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = core$0.Manifest.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = core$0.Settings.createFrom;
+const $$createType10 = core$0.Workspace.createFrom;

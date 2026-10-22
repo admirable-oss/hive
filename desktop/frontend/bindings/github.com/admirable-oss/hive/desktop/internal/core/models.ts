@@ -333,6 +333,42 @@ export class ImageUpdate {
 }
 
 /**
+ * KeyBinding is one binding of the effective key map.
+ */
+export class KeyBinding {
+    "mode": string;
+    "action": string;
+    "keys": string[];
+
+    /** Creates a new KeyBinding instance. */
+    constructor($$source: Partial<KeyBinding> = {}) {
+        if (!("mode" in $$source)) {
+            this["mode"] = "";
+        }
+        if (!("action" in $$source)) {
+            this["action"] = "";
+        }
+        if (!("keys" in $$source)) {
+            this["keys"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new KeyBinding instance from a string or object.
+     */
+    static createFrom($$source: any = {}): KeyBinding {
+        const $$createField2_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("keys" in $$parsedSource) {
+            $$parsedSource["keys"] = $$createField2_0($$parsedSource["keys"]);
+        }
+        return new KeyBinding($$parsedSource as Partial<KeyBinding>);
+    }
+}
+
+/**
  * Line is one screen line as runs of cells styled alike.
  */
 export class Line {
@@ -994,6 +1030,19 @@ export class Settings {
      */
     "prefix": string[];
 
+    /**
+     * Keys are the effective key bindings, as `hive config keys` prints
+     * them: the built-in ones with the [keys] section applied. The app
+     * follows the prefix-mode bindings, as `hive ui` does.
+     */
+    "keys": KeyBinding[];
+
+    /**
+     * UpdateChannel is update.channel: stable, or preview for release
+     * candidates too. The app's own updates follow it.
+     */
+    "update_channel": string;
+
     /** Creates a new Settings instance. */
     constructor($$source: Partial<Settings> = {}) {
         if (!("notify_on" in $$source)) {
@@ -1008,6 +1057,12 @@ export class Settings {
         if (!("prefix" in $$source)) {
             this["prefix"] = [];
         }
+        if (!("keys" in $$source)) {
+            this["keys"] = [];
+        }
+        if (!("update_channel" in $$source)) {
+            this["update_channel"] = "";
+        }
 
         Object.assign(this, $$source);
     }
@@ -1018,12 +1073,16 @@ export class Settings {
     static createFrom($$source: any = {}): Settings {
         const $$createField0_0 = $$createType2;
         const $$createField3_0 = $$createType2;
+        const $$createField4_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("notify_on" in $$parsedSource) {
             $$parsedSource["notify_on"] = $$createField0_0($$parsedSource["notify_on"]);
         }
         if ("prefix" in $$parsedSource) {
             $$parsedSource["prefix"] = $$createField3_0($$parsedSource["prefix"]);
+        }
+        if ("keys" in $$parsedSource) {
+            $$parsedSource["keys"] = $$createField4_0($$parsedSource["keys"]);
         }
         return new Settings($$parsedSource as Partial<Settings>);
     }
@@ -1160,10 +1219,10 @@ export class Workspace {
      * Creates a new Workspace instance from a string or object.
      */
     static createFrom($$source: any = {}): Workspace {
-        const $$createField0_0 = $$createType17;
-        const $$createField1_0 = $$createType19;
-        const $$createField2_0 = $$createType21;
-        const $$createField3_0 = $$createType23;
+        const $$createField0_0 = $$createType19;
+        const $$createField1_0 = $$createType21;
+        const $$createField2_0 = $$createType23;
+        const $$createField3_0 = $$createType25;
         const $$createField5_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("environments" in $$parsedSource) {
@@ -1202,11 +1261,13 @@ const $$createType12 = Rect.createFrom;
 const $$createType13 = $Create.Nullable($$createType12);
 const $$createType14 = Line.createFrom;
 const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = Environment.createFrom;
+const $$createType16 = KeyBinding.createFrom;
 const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = Tab.createFrom;
+const $$createType18 = Environment.createFrom;
 const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = Pane.createFrom;
+const $$createType20 = Tab.createFrom;
 const $$createType21 = $Create.Array($$createType20);
-const $$createType22 = Agent.createFrom;
+const $$createType22 = Pane.createFrom;
 const $$createType23 = $Create.Array($$createType22);
+const $$createType24 = Agent.createFrom;
+const $$createType25 = $Create.Array($$createType24);

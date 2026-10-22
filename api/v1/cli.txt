@@ -21,6 +21,7 @@ command hive config
 command hive config default
 command hive config import-herdr
 command hive config init
+command hive config keys
 command hive config path
 command hive config reset-keys
 command hive config show

@@ -11,5 +11,6 @@ export {
 export {
     CommandRequest,
     DropRequest,
-    FocusRequest
+    FocusRequest,
+    UpdateStatus
 } from "./models.js";

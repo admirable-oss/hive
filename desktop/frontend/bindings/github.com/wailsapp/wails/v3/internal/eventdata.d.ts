@@ -25,6 +25,7 @@ declare module "@wailsio/runtime" {
             "hive:observe:view": core$0.ObservedView;
             "hive:screen": core$0.ScreenUpdate;
             "hive:settings": core$0.Settings;
+            "hive:update": main$0.UpdateStatus;
             "hive:workspace": core$0.Workspace;
         }
     }

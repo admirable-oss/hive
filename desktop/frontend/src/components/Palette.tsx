@@ -1,4 +1,4 @@
-import { Bot, Command as CommandIcon, TerminalSquare } from "lucide-react";
+import { AppWindow, Bot, Command as CommandIcon, FolderOpen, TerminalSquare } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -7,9 +7,12 @@ import { runCommand } from "../commands";
 import { show, store, useStore } from "../store";
 import { StateDot } from "./StateDot";
 
+type Group = "Agents" | "Panes" | "Tabs" | "Environments" | "Actions";
+const order: Group[] = ["Agents", "Panes", "Tabs", "Environments", "Actions"];
+
 export interface Entry {
   id: string;
-  group: "Agents" | "Panes" | "Actions";
+  group: Group;
   label: string;
   detail?: string;
   state?: string;
@@ -45,6 +48,11 @@ const actions: [string, string][] = [
   ["Split down", "split-down"],
   ["Zoom pane", "zoom"],
   ["Open pane in a new window", "pop-out"],
+  ["Open environment in a new window", "pop-out-env"],
+  ["Swap with the next pane", "swap-next"],
+  ["Next tab", "next-tab"],
+  ["Previous tab", "prev-tab"],
+  ["Close tab", "close-tab"],
   ["Close pane", "close-pane"],
   ["Next agent needing you", "next-attention"],
   ["Toggle sidebar", "toggle-sidebar"],
@@ -53,13 +61,16 @@ const actions: [string, string][] = [
   ["Open an observer window (read-only)…", "observe"],
   ["Start Hive when I log in (on/off)", "toggle-login"],
   ["Option key types Alt in terminals (on/off)", "toggle-option-meta"],
+  ["Check for updates", "check-updates"],
+  ["Check for updates automatically (on/off)", "toggle-update-checks"],
 ];
 
-const icons = { Agents: Bot, Panes: TerminalSquare, Actions: CommandIcon };
+const icons = { Agents: Bot, Panes: TerminalSquare, Tabs: AppWindow, Environments: FolderOpen, Actions: CommandIcon };
 
 // Palette goes to any agent or pane, or runs an action.
 export function Palette() {
   const ws = useStore((s) => s.workspace);
+  const update = useStore((s) => s.update?.available);
   const [query, setQuery] = useState("");
   const close = () => store.setUI({ palette: false });
 
@@ -75,9 +86,25 @@ export function Palette() {
     for (const p of ws.panes) {
       if (!p.agent) out.push({ id: "p" + p.id, group: "Panes", label: p.name || "shell", detail: p.environment_id, run: go(p.id) });
     }
+    for (const t of ws.tabs) {
+      out.push({
+        id: "t" + t.id,
+        group: "Tabs",
+        label: t.name || "tab",
+        detail: t.environment_id,
+        run: () => {
+          store.setUI({ env: t.environment_id, tab: t.id, pane: undefined });
+          api.focusTab(t.id).catch(store.fail);
+        },
+      });
+    }
+    for (const e of ws.environments) {
+      out.push({ id: "e" + e.id, group: "Environments", label: e.id, detail: e.branch, run: () => store.setUI({ env: e.id, tab: undefined, pane: undefined }) });
+    }
+    if (update) out.push({ id: "cinstall-update", group: "Actions", label: `Install Hive ${update.version} and restart`, run: () => runCommand("install-update") });
     for (const [label, cmd] of actions) out.push({ id: "c" + cmd, group: "Actions", label, run: () => runCommand(cmd) });
     return out;
-  }, [ws]);
+  }, [ws, update]);
 
   const shown = useMemo(
     () =>
@@ -89,7 +116,7 @@ export function Palette() {
         .map((x) => x.e),
     [entries, query],
   );
-  const groups = (["Agents", "Panes", "Actions"] as const).map((g) => ({ g, items: shown.filter((e) => e.group === g) })).filter((x) => x.items.length > 0);
+  const groups = order.map((g) => ({ g, items: shown.filter((e) => e.group === g) })).filter((x) => x.items.length > 0);
   // With a query, results are in score order regardless of group.
   const sections = query.trim() ? [{ g: "Results" as const, items: shown }] : groups;
 
@@ -102,9 +129,9 @@ export function Palette() {
     <Dialog open onOpenChange={(o) => !o && close()}>
       <DialogContent className="top-[18%] translate-y-0 overflow-hidden p-0 sm:max-w-xl" showCloseButton={false}>
         <DialogTitle className="sr-only">Command palette</DialogTitle>
-        <DialogDescription className="sr-only">Go to an agent or pane, or run an action</DialogDescription>
-        <Command shouldFilter={false} loop className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted-foreground">
-          <CommandInput autoFocus placeholder="Go to an agent or pane, or run an action…" value={query} onValueChange={setQuery} />
+        <DialogDescription className="sr-only">Go to an agent, pane, tab or environment, or run an action</DialogDescription>
+        <Command shouldFilter={false} loop className="**:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:text-muted-foreground">
+          <CommandInput autoFocus placeholder="Go to an agent, pane, tab or environment, or run an action…" value={query} onValueChange={setQuery} />
           <CommandList className="max-h-[50vh]">
             <CommandEmpty>Nothing matches.</CommandEmpty>
             {sections.map(({ g, items }) => (
