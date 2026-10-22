@@ -82,6 +82,12 @@ jobs:
           go-version-file: go.mod
       - name: vet
         run: go vet ./...
+      # Windows PowerShell's first start on a fresh runner (.NET and module
+      # loading) has taken over 90 s, which the ConPTY tests then time. Pay
+      # for it here, outside any test.
+      - name: warm up Windows PowerShell
+        shell: cmd
+        run: powershell.exe -NoLogo -NoProfile -Command "Write-Output warm"
       - name: test
         run: go test -count=1 -timeout 20m ./...
       - name: build
