@@ -19,17 +19,23 @@ import (
 
 func TestProcessArgs(t *testing.T) {
 	supported(t)
-	cmd := exec.Command("/bin/sh", "-c", "read _", "name with spaces", "two")
+	cmd := exec.Command("/bin/sh", "-c", "echo; read _", "name with spaces", "two")
 	stdin, _ := cmd.StdinPipe()
+	stdout, _ := cmd.StdoutPipe()
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = stdin.Close(); _ = cmd.Wait() })
+	// Start returns mid-exec, when Linux may not have set the new program's
+	// arguments yet (an empty cmdline): wait for the shell to run.
+	if _, err := stdout.Read(make([]byte, 1)); err != nil {
+		t.Fatal(err)
+	}
 	args, err := platform.ProcessArgs(cmd.Process.Pid)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/bin/sh", "-c", "read _", "name with spaces", "two"}
+	want := []string{"/bin/sh", "-c", "echo; read _", "name with spaces", "two"}
 	if !slices.Equal(args, want) {
 		t.Fatalf("args = %q, want %q", args, want)
 	}
