@@ -23,7 +23,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: ci, nightly and the chaos soak passed on this commit
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,7 +43,7 @@ jobs:
         env:
           HIVE_RELEASE_SIGNING_KEY: ${{ secrets.HIVE_RELEASE_SIGNING_KEY }}
           HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # Hive releases are annotated tags (git tag -a). The official plugins'
@@ -53,7 +53,7 @@ jobs:
         run: |
           git fetch --force --tags
           test "$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}")" = tag || { echo "::error::${GITHUB_REF_NAME} is a lightweight tag; hive releases are annotated (git tag -a)"; exit 1; }
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       # The previous release for the changelog: the last annotated tag before
@@ -62,7 +62,7 @@ jobs:
         run: echo "GORELEASER_PREVIOUS_TAG=$(git describe --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)" >> "$GITHUB_ENV"
       - name: install syft (SBOMs)
         uses: anchore/sbom-action/download-syft@v0
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
           version: v2.18.2
           args: release --clean
@@ -74,14 +74,14 @@ jobs:
           HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       - name: attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/*.tar.gz
             dist/*.zip
             dist/checksums.txt
       - name: check out the Homebrew tap
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: admirable-oss/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -117,14 +117,14 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: |
             go.sum
             desktop/go.sum
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - name: install the webview's build dependencies
@@ -152,7 +152,7 @@ jobs:
           LINUX_SIGNING_KEY: ${{ secrets.LINUX_SIGNING_KEY }}
           LINUX_SIGNING_PASSPHRASE: ${{ secrets.LINUX_SIGNING_PASSPHRASE }}
         run: desktop/build/release.sh "$GITHUB_REF_NAME"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.os }}
           path: ${{ runner.temp }}/desktop/*
@@ -164,11 +164,11 @@ jobs:
     needs: desktop
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: desktop-*
           merge-multiple: true
@@ -183,7 +183,7 @@ jobs:
           go run ./tools/release-sign sign-ssh dist-desktop/desktop-checksums.txt
           go run ./tools/release-sign verify "$HIVE_RELEASE_PUBLIC_KEY" dist-desktop/desktop-checksums.txt
       - name: attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist-desktop/hive-desktop_*
@@ -199,7 +199,7 @@ jobs:
       # Stable releases only, like the formula: pre-releases stay out of the tap.
       - name: check out the Homebrew tap
         if: ${{ !contains(github.ref_name, '-') }}
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: admirable-oss/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
