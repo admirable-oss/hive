@@ -202,7 +202,7 @@ func TestFailedTasksRetryThenSkipWhatNeedsThem(t *testing.T) {
 	}
 	// A person's retry gets the automatic retries again, and brings back
 	// what was skipped. It is retried in the worktree it had.
-	ms.execs[task.LocalMachine].act = work(time.Millisecond)
+	ms.execs[task.LocalMachine].setAct(work(time.Millisecond))
 	if _, err := h.svc.Retry(t.Context(), p.ID, "flaky"); err != nil {
 		t.Fatal(err)
 	}
@@ -232,6 +232,51 @@ func TestAFailedNeedSkipsATaskWhileOtherNeedsRun(t *testing.T) {
 	})
 	_, _ = h.svc.Cancel(t.Context(), p.ID, "")
 	h.wait(p.ID, task.WaitFinished)
+}
+
+func TestARetryStaysOnTheMachineOfItsWorktree(t *testing.T) {
+	// "hold" fills local, so flaky's first attempt goes to box, and fails.
+	act := func(ctx context.Context, a task.Attempt, progress func(task.Progress)) task.Outcome {
+		switch {
+		case a.Task.Spec.ID == "hold":
+			return hold(nil)(ctx, a, progress)
+		case a.Task.Attempt == 1:
+			return task.Outcome{State: task.StateFailed, Reason: "broken"}
+		}
+		return work(time.Millisecond)(ctx, a, progress)
+	}
+	ms := newMachines(act,
+		task.Machine{Name: task.LocalMachine, Capacity: 1, Local: true},
+		task.Machine{Name: "box", Capacity: 1},
+	)
+	h := run(t, task.Config{}, newMemStore(), ms)
+	held := spec("hold")
+	held.Machine = task.LocalMachine
+	p, _ := h.svc.Submit(t.Context(), task.PlanSpec{Tasks: []task.Spec{held, spec("flaky")}})
+	waitFor(t, "flaky to fail on box", func() bool {
+		p, _ := h.svc.Get(t.Context(), p.ID)
+		return p.Task("flaky").State == task.StateFailed && p.Task("flaky").Machine == "box"
+	})
+	// Local is free now and first on a tie, but flaky's worktree is on box.
+	if _, err := h.svc.Cancel(t.Context(), p.ID, "hold"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "hold to end", func() bool {
+		p, _ := h.svc.Get(t.Context(), p.ID)
+		return p.Task("hold").State == task.StateCancelled
+	})
+	if _, err := h.svc.Retry(t.Context(), p.ID, "flaky"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "flaky to succeed", func() bool {
+		p, _ := h.svc.Get(t.Context(), p.ID)
+		return p.Task("flaky").State == task.StateSucceeded
+	})
+	got, _ := h.svc.Get(t.Context(), p.ID)
+	_, box := ms.execs["box"].snapshot()
+	if got.Task("flaky").Machine != "box" || len(box) != 2 {
+		t.Fatalf("the retry ran on %q; box ran %d attempts", got.Task("flaky").Machine, len(box))
+	}
 }
 
 func TestCancellingStopsRunningAttempts(t *testing.T) {

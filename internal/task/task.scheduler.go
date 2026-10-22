@@ -76,7 +76,7 @@ func place(plans []*Plan, machines []Machine, kinds map[string]int) []placement 
 			if n, ok := kinds[kind]; ok && kindLoad[kind] >= n {
 				continue
 			}
-			m, reason := choose(t.Spec, machines, machineLoad)
+			m, reason := choose(t.Spec, retryMachine(t, machines), machines, machineLoad)
 			if reason != "" {
 				out = append(out, placement{plan: p, index: i, reason: reason})
 				continue
@@ -94,13 +94,30 @@ func place(plans []*Plan, machines []Machine, kinds map[string]int) []placement 
 	return out
 }
 
+// retryMachine is where a retried task must run: the machine its earlier
+// attempt ran on, whose worktree holds its work. It is "" for a first
+// attempt, and when that machine is no longer listed (the task then starts
+// afresh wherever it fits).
+func retryMachine(t *Task, machines []Machine) string {
+	if t.Attempt == 0 || t.Machine == "" {
+		return ""
+	}
+	for _, m := range machines {
+		if m.Name == t.Machine {
+			return m.Name
+		}
+	}
+	return ""
+}
+
 // choose picks the machine for s with the most free slots (the earliest
-// listed on a tie: this machine first). It returns "" when every machine
-// that fits is full, and a reason when no machine fits at all.
-func choose(s Spec, machines []Machine, load map[string]int) (name, reason string) {
+// listed on a tie: this machine first); with sticky, only that machine. It
+// returns "" when every machine that fits is full, and a reason when no
+// machine fits at all.
+func choose(s Spec, sticky string, machines []Machine, load map[string]int) (name, reason string) {
 	best, bestFree, fits := "", 0, false
 	for _, m := range machines {
-		if s.Machine != "" && m.Name != s.Machine || !m.Has(s.Labels) {
+		if s.Machine != "" && m.Name != s.Machine || !m.Has(s.Labels) || sticky != "" && m.Name != sticky {
 			continue
 		}
 		fits = true

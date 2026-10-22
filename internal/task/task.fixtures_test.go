@@ -111,7 +111,17 @@ func (e *fakeExec) Execute(ctx context.Context, a task.Attempt, progress func(ta
 		e.kinds[a.Task.Spec.Kind]--
 		e.mu.Unlock()
 	}()
-	return e.act(ctx, a, progress)
+	e.mu.Lock()
+	act := e.act
+	e.mu.Unlock()
+	return act(ctx, a, progress)
+}
+
+// setAct changes what the executor does with later attempts.
+func (e *fakeExec) setAct(act behaviour) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.act = act
 }
 
 func (e *fakeExec) snapshot() (peak int, attempts []task.Attempt) {
@@ -122,6 +132,7 @@ func (e *fakeExec) snapshot() (peak int, attempts []task.Attempt) {
 
 // fakeMachines is a fixed set of machines, each with an executor.
 type fakeMachines struct {
+	mu    sync.Mutex
 	list  []task.Machine
 	execs map[string]*fakeExec
 }
@@ -134,7 +145,11 @@ func newMachines(act behaviour, ms ...task.Machine) *fakeMachines {
 	return f
 }
 
-func (f *fakeMachines) Machines(context.Context) ([]task.Machine, error) { return f.list, nil }
+func (f *fakeMachines) Machines(context.Context) ([]task.Machine, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.list), nil
+}
 
 func (f *fakeMachines) Executor(name string) (task.Executor, error) {
 	if e := f.execs[name]; e != nil {
