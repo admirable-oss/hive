@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/admirable-oss/hive/pkg/hiveapi"
@@ -305,11 +306,19 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 	defer stop()
 	changed := make(chan struct{}, 1)
 	readErr := make(chan error, 1)
+	// Plans are read again only after a plan event: the screen's own
+	// events (a key typed, output) must not cost a plans round trip.
+	var plansStale atomic.Bool
+	plansStale.Store(true)
 	go func() {
 		for {
-			if _, err := events.Next(); err != nil {
+			ev, err := events.Next()
+			if err != nil {
 				readErr <- err
 				return
+			}
+			if strings.HasPrefix(ev.Type, "task.") || ev.Type == "events_lost" {
+				plansStale.Store(true)
 			}
 			select {
 			case changed <- struct{}{}:
@@ -317,7 +326,7 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 			}
 		}
 	}()
-	if err := h.refresh(ctx, c); err != nil {
+	if err := h.refresh(ctx, c, plansStale.Swap(false)); err != nil {
 		return err
 	}
 	h.mu.Lock()
@@ -341,16 +350,17 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 				}
 			}
 			last = time.Now()
-			if err := h.refresh(ctx, c); err != nil {
+			if err := h.refresh(ctx, c, plansStale.Swap(false)); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-// refresh reads the workspace, tells the frontend, notifies, and keeps
-// pane views on the right processes.
-func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client) error {
+// refresh reads the workspace (and with plans, the plans; otherwise the
+// last ones read stand), tells the frontend, notifies, and keeps pane
+// views on the right processes.
+func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client, plans bool) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	snap, err := c.Snapshot(ctx)
@@ -358,10 +368,16 @@ func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client) error {
 		return err
 	}
 	ws := workspaceOf(snap)
-	if plans, err := c.Plans(ctx); err == nil {
-		ws.Plans = plansOf(plans)
-	} else if ctx.Err() == nil {
-		h.log.Debug("no plans (a daemon older than tasks?)", "err", err)
+	if plans {
+		if list, err := c.Plans(ctx); err == nil {
+			ws.Plans = plansOf(list)
+		} else if ctx.Err() == nil {
+			h.log.Debug("no plans (a daemon older than tasks?)", "err", err)
+		}
+	} else {
+		h.mu.Lock()
+		ws.Plans = h.ws.Plans // replaced whole on every read, never changed in place
+		h.mu.Unlock()
 	}
 	h.mu.Lock()
 	h.ws = ws
