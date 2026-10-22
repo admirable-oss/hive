@@ -35,6 +35,11 @@ updates:
     groups:
       desktop-npm:
         patterns: ["*"]
+    ignore:
+      # typescript-eslint supports TypeScript below 6.1 only (8.72.0); a newer
+      # TypeScript cannot be installed beside it. Lift this when it does.
+      - dependency-name: typescript
+        versions: [">= 6.1.0"]
     commit-message:
       prefix: "chore(deps,desktop)"
 
