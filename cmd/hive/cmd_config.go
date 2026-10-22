@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
@@ -24,6 +25,7 @@ reported and ignored; HIVE_LOG overrides log.level.`,
 	}
 	cmd.AddCommand(
 		newConfigImportHerdrCmd(a),
+		newConfigKeysCmd(a),
 		&cobra.Command{
 			Use:   "path",
 			Short: "Print the configuration file's location",
@@ -183,4 +185,53 @@ func (a *app) printConfig(cfg config.Config) error {
 		return err
 	}
 	return a.printJSON(doc)
+}
+
+// keyBinding is one binding of the effective key map, as `config keys`
+// prints it.
+type keyBinding struct {
+	Mode        string   `json:"mode"`
+	Action      string   `json:"action"`
+	Keys        []string `json:"keys"`
+	Description string   `json:"description"`
+}
+
+func newConfigKeysCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "keys",
+		Short: "Print the effective key bindings: the built-in ones with [keys] applied",
+		Long: `Print every key binding as hive ui (and the desktop app) apply them: the
+built-in bindings with the [keys] section of the configuration applied,
+per mode. Bindings that could not be applied are reported as warnings.`,
+		Args: noArgs,
+		RunE: func(*cobra.Command, []string) error {
+			opts, warnings := uiOptions(a.cfg)
+			km := opts.Keymap
+			out := struct {
+				Prefix   []string     `json:"prefix"`
+				Bindings []keyBinding `json:"bindings"`
+				Warnings []string     `json:"warnings"`
+			}{Prefix: km.Prefixes(), Bindings: []keyBinding{}, Warnings: []string{}}
+			for _, e := range km.Entries() {
+				out.Bindings = append(out.Bindings, keyBinding{Mode: string(e.Mode), Action: string(e.Action), Keys: e.Keys, Description: e.Description})
+			}
+			for _, w := range warnings {
+				if strings.HasPrefix(w, "keys.") {
+					out.Warnings = append(out.Warnings, w)
+				}
+			}
+			return a.emit(out, func() error {
+				w := a.table()
+				fmt.Fprintf(w, "prefix\t%s\t\t\n", strings.Join(out.Prefix, ", "))
+				fmt.Fprintln(w, "MODE\tACTION\tKEYS\tDESCRIPTION")
+				for _, b := range out.Bindings {
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", b.Mode, b.Action, strings.Join(b.Keys, " "), b.Description)
+				}
+				for _, warn := range out.Warnings {
+					fmt.Fprintln(a.errOut, "hive: "+warn)
+				}
+				return w.Flush()
+			})
+		},
+	}
 }

@@ -71,6 +71,34 @@ describe("App", () => {
     expect(calls).toContain("input(p1,\x03)");
   });
 
+  it("follows the [keys] prefix bindings, as hive ui does", () => {
+    act(() =>
+      store.set((s) => ({
+        ...s,
+        settings: {
+          ...s.settings,
+          prefix: ["ctrl+b"],
+          keys: [
+            { mode: "prefix", action: "split-right", keys: ["%"] },
+            { mode: "prefix", action: "send-prefix", keys: ["ctrl+b"] },
+          ],
+        },
+      })),
+    );
+    render(<App />);
+    const input = screen.getByLabelText(/Type into/);
+    fireEvent.keyDown(input, { key: "b", code: "KeyB", ctrlKey: true });
+    expect(screen.getByText(/Prefix — press a key/)).toBeInTheDocument();
+    expect(calls.some((c) => c.startsWith("input("))).toBe(false); // the prefix is not typed
+    fireEvent.keyDown(input, { key: "%", code: "Digit5", shiftKey: true });
+    expect(calls).toContain("splitPane(p1,right)");
+    // The prefix pressed twice reaches the shell.
+    fireEvent.keyDown(input, { key: "b", code: "KeyB", ctrlKey: true });
+    fireEvent.keyDown(input, { key: "b", code: "KeyB", ctrlKey: true });
+    expect(calls).toContain("input(p1,\x02)");
+    act(() => store.set((s) => ({ ...s, settings: { ...s.settings, keys: [] } })));
+  });
+
   it("starts an agent from the dialog", async () => {
     render(<App />);
     act(() => store.setUI({ dialog: { kind: "new-agent" } }));

@@ -8,21 +8,27 @@ The app works on the Hive daemon, the same one `hive` and `hive ui` use. It is
 only a client: when you quit it, your agents keep working.
 
 > **Preview.** The app is built on [Wails](https://wails.io) v3, which is in
-> beta. Packages from CI are unsigned previews; signed releases come later. See
+> beta, so the app stays a preview until Wails v3 reaches a release
+> candidate. Releases are signed and update themselves. See
 > [status and limits](#status-and-limits).
 
 ## Install
 
-- **Install it.** Download the package for your system:
-  - macOS: `hive-desktop.app` (Hive in the Dock and the menu bar), which
-    bundles the `hive` it needs;
-  - Windows: the installer, which installs `hive.exe` beside the app;
-  - Linux: an AppImage, `.deb` or `.rpm`.
-- **macOS, unsigned previews.** On first launch, right-click the app and choose
-  **Open**, or run
-  `xattr -dr com.apple.quarantine /Applications/hive-desktop.app`.
-- **Linux.** Install `hive` itself as well, with `install.sh` or your package
-  manager.
+Download the package for your system from the
+[latest release](https://github.com/admirable-oss/hive/releases/latest):
+- **macOS:** `hive-desktop_<version>_darwin_universal.zip`. Unzip it and
+  move `hive-desktop.app` to Applications. It is signed and notarized, and
+  bundles the `hive` it needs. Or use Homebrew:
+  `brew install --cask admirable-oss/tap/hive-desktop`.
+- **Windows:** `hive-desktop_<version>_windows_amd64_setup.exe`. It installs
+  for your user only (no administrator needed), with `hive.exe` beside the
+  app.
+- **Linux:** the AppImage, `.deb` or `.rpm` for your architecture. Install
+  `hive` itself as well, with `install.sh` or your package manager: the
+  Linux packages do not bundle it.
+
+Each release lists the packages' checksums in `desktop-checksums.txt`, signed
+with the release key ([verifying a release](releasing.md#verifying-a-release)).
 
 The app finds `hive` in this order:
 1. `$HIVE_BIN`;
@@ -43,6 +49,33 @@ launcher, the app otherwise has a bare environment.
 | Architectures | arm64, amd64 | amd64 | amd64, arm64 |
 
 Windows is a client only, as everywhere in Hive ([platforms](platforms.md)).
+
+## Updates
+
+The app updates itself from GitHub releases, as `hive update` updates the
+CLI:
+- **It checks once a day,** a little after it starts. The check is the app's
+  only request to the network. Turn it off with **Check for updates
+  automatically** in the palette; **File → Check for Updates…** checks now.
+- **It installs only verified releases.** The release's
+  `desktop-checksums.txt` must be signed by the release key built into the
+  app, and the package must match its checksum. Development builds have no
+  key and never update.
+- **It follows `update.channel`:** `stable`, or `preview` for release
+  candidates too.
+- **Installing restarts the app, never your agents.** **Restart to update**
+  hands over to a small supervisor. It keeps the installed version beside
+  the new one (`hive-desktop.app.old`), swaps the new one in and starts it.
+  If the new version does not start within a minute, the supervisor puts the
+  previous one back and starts that. Either way, the app says how it went.
+- **The bundled `hive` moves with the app.** Updating the app never stops
+  the daemon or your agents. A newer `hive` replaces an older daemon only as
+  the [compatibility policy](compatibility.md#clients-and-daemons-of-different-versions) describes.
+
+The app updates itself when it was installed from the release's zip
+(macOS), with the installer (Windows), or as an AppImage (Linux). Installed
+from a `.deb` or `.rpm`, it leaves updates to your package manager. Installed
+with Homebrew, it still updates itself (the cask is marked `auto_updates`).
 
 ## Use
 
@@ -75,8 +108,13 @@ Windows is a client only, as everywhere in Hive ([platforms](platforms.md)).
   `hive ui`.
 - **Drops.** Drop files on the window to paste their paths, quoted for the
   shell, into the focused pane.
+- **Moving panes.** Drag a pane by its handle (top left, on hover) onto
+  another pane of the tab to swap the two. The daemon does the move, so
+  `hive ui` sees it too.
 - **Windows.** **Open in a new window** (⧉) shows a pane on its own, for a
-  second screen. The main window reopens where you left it.
+  second screen. **View → Open Environment in New Window** shows an
+  environment, with its tabs, in a window of its own. The main window
+  reopens where you left it.
 - **Closing the window** keeps Hive in the tray or menu bar. **Quit** ends the
   app; agents keep running.
 
@@ -87,7 +125,7 @@ and T mean things to shells.
 
 | Action | macOS | Windows, Linux |
 |---|---|---|
-| Command palette: go to an agent or pane, run an action | ⌘K | Ctrl+Shift+K |
+| Command palette (Goto): go to an agent, pane, tab or environment, or run an action | ⌘K | Ctrl+Shift+K |
 | New agent | ⌘N | Ctrl+Shift+N |
 | New tab | ⌘T | Ctrl+Shift+T |
 | Prompt the agent | ⌘P | Ctrl+Shift+P |
@@ -97,6 +135,13 @@ and T mean things to shells.
 | Next agent needing you | ⌘J | Ctrl+Shift+J |
 | Toggle sidebar | ⌘B | Ctrl+Shift+B |
 | Search scrollback | ⌘F | Ctrl+Shift+F |
+
+**The prefix key works as in `hive ui`.** The app follows the `[keys]`
+section of your configuration: press the prefix (Ctrl+B by default), then a
+key bound in prefix mode. For example, `%` splits right and `o` goes to the
+next pane. The prefix twice sends it to the program. Actions that belong to
+the terminal UI (copy mode, popups, detach) say so. `hive config keys`
+prints the bindings in effect.
 
 On macOS, Option types characters (such as `ƒ`) by default. To make it Alt
 in terminals instead, use **View → Option Key Types Alt** (or the palette). The
@@ -167,7 +212,12 @@ The app reads your Hive configuration through `hive config show`, so there is no
 second settings file:
 - `theme.name`: `auto` follows the system; `catppuccin-latte` is light; other
   themes are dark;
-- `notify.on` and `notify.system`, as above.
+- `notify.on` and `notify.system`, as above;
+- `[keys]`: the prefix key and its bindings (through `hive config keys`);
+- `update.channel`: which releases the app updates to.
+
+The app's own preferences are in `Hive/desktop.json` in your configuration
+directory: the window's position, and whether it checks for updates.
 
 `HIVE_HOME` and `HIVE_SESSION` choose the daemon, as they do for `hive`.
 
@@ -175,8 +225,9 @@ second settings file:
 
 - **Same trust as `hive`.** The app talks to the daemon over its local socket,
   where the daemon checks the peer's credentials. It listens on no network
-  port. It reaches no service except the update check, which does not exist
-  yet. It sends no telemetry.
+  port. It reaches no service except the daily update check (GitHub's
+  release API and downloads), which you can turn off. It sends no
+  telemetry.
 - **Its page loads only its own code.**
   - A Content-Security-Policy allows no remote scripts, styles, frames or
     connections.
@@ -202,32 +253,53 @@ These numbers come from a MacBook Pro (Apple silicon), measured by
 | Updates per pane | at most one per frame (16 ms), coalesced |
 
 At these rates, 16 panes streaming at 60 updates a second take about 3 % of one
-core in the app's Go side. Keystroke-to-screen latency in the native webviews
-is not measured yet.
+core in the app's Go side.
+
+M18's budgets, held in CI on macOS and Linux:
+
+| Budget | Measured |
+|---|---|
+| Keystroke to screen under 25 ms (p99): a key typed into a pane until the shell's echo is on screen | p50 17.0 ms, p99 17.3 ms |
+| Idle with 16 panes on screen, under 1 % of a core | 0.00 % |
+| The Go side's heap under 64 MB, with 16 panes | 14.4 MB |
+
+The latency is measured in a browser over loopback (the end-to-end test),
+not in the native webviews. It is one frame: updates are coalesced to one
+per 16 ms. At these numbers the JSON frame channel is fast enough, so the
+binary frame channel M18 kept in reserve is not needed.
 
 ## Status and limits
 
-The app is [M18](../ROADMAP.md), in progress. What works:
+The app was built in M18 and made ready to install in M21
+([roadmap](../ROADMAP.md)). What works:
 - the workspace and live terminals, including scrollback search, mouse
   reporting, focus events and images (Kitty graphics);
 - a read-only observer window with its own expiring credential;
 - agents and prompts;
-- layout: split, zoom, close, new tab, pop-out windows;
+- layout: split, zoom, close, swap by dragging, new tab, pop-out windows for
+  panes and environments;
+- `[keys]`: the prefix key and its bindings, as in `hive ui`, and the Goto
+  palette over agents, panes, tabs and environments;
 - saved machines, discovery, pairing and identity review;
 - notifications, the tray, the dock badge;
 - `hive://` links and a single instance;
 - file drops, start at login, restored window position;
-- builds for macOS, Windows and Linux, tested in CI;
+- signed packages for macOS, Windows and Linux, attached to each release,
+  and a Homebrew cask;
+- updates that install only verified releases and roll back a version that
+  does not start;
+- builds for macOS, Windows and Linux, tested in CI, with latency and idle
+  budgets;
 - accessibility checks: axe, in both colour schemes, in a real browser.
 
 Not yet:
-- **Signed releases.** That means Developer ID signing and notarization,
-  Windows code signing, signed Linux packages, a Homebrew cask, and attaching
-  packages to tagged releases. CI builds unsigned packages on demand.
-- **In-app updates,** which will check the release signature as `hive update`
-  does.
-- **Latency in the native webviews,** measured; then the binary frame channel,
-  if the numbers call for it.
+- **Stable.** Wails v3 is in beta (`v3.0.0-beta.32`, pinned). The app leaves
+  preview, and comes under the
+  [compatibility policy](compatibility.md), once Wails v3 reaches a release
+  candidate.
+- **Windows on arm64.** The app is built for amd64; Windows on arm64 runs it
+  emulated.
+- **`hive` in the Linux packages.** Install it beside the app.
 
 ## Development
 
@@ -236,6 +308,7 @@ cd desktop
 wails3 dev                    # hot reload: Vite and the Go app
 wails3 build                  # bin/hive-desktop
 wails3 package HIVE_CLI=../hive   # the .app / installer, with hive bundled
+HIVE_DESKTOP_UNSIGNED=1 HIVE_CLI=../hive build/release.sh v0.0.0-dev   # a release's packages, unsigned
 ```
 
 You need Go, Node.js 24 and `wails3`:

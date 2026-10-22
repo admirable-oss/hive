@@ -100,3 +100,121 @@ jobs:
             git commit -m "Update hive-agents formula to ${TAG}"
             git push
           fi
+
+  # The desktop app (M21): signed packages for each system, each with the
+  # hive just released, published to the same release once the CLI is out.
+  # Off until the HIVE_DESKTOP_RELEASE variable is true, because it needs
+  # the platforms' signing secrets (docs/releasing.md#the-desktop-app).
+  desktop:
+    needs: release
+    if: vars.HIVE_DESKTOP_RELEASE == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: install the webview's build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: install NSIS
+        if: runner.os == 'Windows'
+        run: |
+          command -v makensis || { choco install nsis -y --no-progress && echo "C:\\Program Files (x86)\\NSIS" >> "$GITHUB_PATH"; }
+      - name: install wails3
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.32
+      - name: package and sign
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUT: ${{ runner.temp }}/desktop
+          HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          LINUX_SIGNING_KEY: ${{ secrets.LINUX_SIGNING_KEY }}
+          LINUX_SIGNING_PASSPHRASE: ${{ secrets.LINUX_SIGNING_PASSPHRASE }}
+        run: desktop/build/release.sh "$GITHUB_REF_NAME"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: ${{ runner.temp }}/desktop/*
+          if-no-files-found: error
+
+  # desktop-checksums.txt lists every package, signed with the release key:
+  # .sig for the app's updater, .sshsig for checking by hand.
+  desktop-publish:
+    needs: desktop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: dist-desktop
+      - name: sign desktop-checksums.txt
+        env:
+          HIVE_RELEASE_SIGNING_KEY: ${{ secrets.HIVE_RELEASE_SIGNING_KEY }}
+          HIVE_RELEASE_PUBLIC_KEY: ${{ vars.HIVE_RELEASE_PUBLIC_KEY }}
+        run: |
+          (cd dist-desktop && sha256sum hive-desktop_* > desktop-checksums.txt && cat desktop-checksums.txt)
+          go run ./tools/release-sign sign dist-desktop/desktop-checksums.txt
+          go run ./tools/release-sign sign-ssh dist-desktop/desktop-checksums.txt
+          go run ./tools/release-sign verify "$HIVE_RELEASE_PUBLIC_KEY" dist-desktop/desktop-checksums.txt
+      - name: attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist-desktop/hive-desktop_*
+            dist-desktop/desktop-checksums.txt
+      # The packages first: the updater only looks once the signed manifest
+      # is there.
+      - name: attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" dist-desktop/hive-desktop_* --clobber
+          gh release upload "$GITHUB_REF_NAME" dist-desktop/desktop-checksums.txt dist-desktop/desktop-checksums.txt.sig dist-desktop/desktop-checksums.txt.sshsig --clobber
+      # Stable releases only, like the formula: pre-releases stay out of the tap.
+      - name: check out the Homebrew tap
+        if: ${{ !contains(github.ref_name, '-') }}
+        uses: actions/checkout@v5
+        with:
+          repository: admirable-oss/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+      - name: publish the Homebrew cask
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          sh distribution/update-homebrew-desktop-cask.sh "$GITHUB_WORKSPACE/homebrew-tap" "$TAG" dist-desktop/desktop-checksums.txt
+          cd "$GITHUB_WORKSPACE/homebrew-tap"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/hive-desktop.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "Update hive-desktop cask to ${TAG}"
+            git push
+          fi

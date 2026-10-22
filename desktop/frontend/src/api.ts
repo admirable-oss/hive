@@ -36,7 +36,9 @@ export type {
   StartAgentRequest,
   Workspace,
 };
-export type { Nearby } from "../bindings/github.com/admirable-oss/hive/desktop/internal/core/models";
+export type { Nearby, KeyBinding } from "../bindings/github.com/admirable-oss/hive/desktop/internal/core/models";
+export type { UpdateStatus } from "../bindings/github.com/admirable-oss/hive/desktop/models";
+import type { UpdateStatus } from "../bindings/github.com/admirable-oss/hive/desktop/models";
 export type {
   Agent,
   Environment,
@@ -71,9 +73,17 @@ export const api = {
   focusPane: (pane: string) => Service.FocusPane(pane),
   splitPane: (pane: string, direction: "left" | "right" | "up" | "down") => Service.SplitPane(pane, direction),
   zoomPane: (pane: string) => Service.ZoomPane(pane),
+  resizePane: (pane: string, direction: "left" | "right" | "up" | "down", cells: number) => Service.ResizePane(pane, direction, cells),
   closePane: (pane: string) => Service.ClosePane(pane),
   renamePane: (pane: string, name: string) => Service.RenamePane(pane, name),
   popOut: (pane: string) => Service.PopOut(pane),
+  swapPane: (pane: string, withPane: string) => Service.SwapPane(pane, withPane),
+  focusNeighbour: (pane: string, direction: "left" | "right" | "up" | "down") => Service.FocusNeighbour(pane, direction),
+  openEnvironmentWindow: (env: string) => Service.OpenEnvironmentWindow(env),
+  updateStatus: (): Promise<UpdateStatus> => Service.UpdateStatus(),
+  checkForUpdates: (): Promise<UpdateStatus> => Service.CheckForUpdates(),
+  installUpdate: () => Service.InstallUpdate(),
+  setUpdateChecks: (on: boolean) => Service.SetUpdateChecks(on),
   manifests: (machine: string): Promise<Manifest[]> => Service.Manifests(machine),
   startAgent: (req: StartAgentRequest) => Service.StartAgent(req),
   prompt: (agent: string, text: string) => Service.Prompt(agent, text),
@@ -106,6 +116,7 @@ export interface Listeners {
   focus: (pane: string) => void;
   command: (name: string) => void;
   drop: (paths: string[]) => void;
+  update: (u: UpdateStatus) => void;
 }
 
 // listen subscribes to the app's events; the returned function stops.
@@ -120,6 +131,7 @@ export function listen(l: Listeners): () => void {
     Events.On("hive:focus", (e) => l.focus(e.data.pane)),
     Events.On("hive:command", (e) => l.command(e.data.command)),
     Events.On("hive:drop", (e) => l.drop(e.data.paths ?? [])),
+    Events.On("hive:update", (e) => l.update(e.data)),
   ];
   return () => offs.forEach((off) => off());
 }

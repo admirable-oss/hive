@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -194,6 +195,59 @@ func TestDesktopEndToEnd(t *testing.T) {
 		chromedp.KeyEvent("\r"),
 		text(".term-row", "e2e-42"),
 	)
+	// Keystroke-to-screen latency: a key typed into the focused pane until
+	// the shell's echo of it is on the screen, measured in the page (the
+	// app, its Go side, the daemon, the shell and back). This is a browser
+	// over loopback, not the native webview; the budget (M18) is 25 ms at
+	// the 99th percentile on a developer machine. CI machines are slower
+	// and shared, so CI holds the measurement to HIVE_DESKTOP_LATENCY_MS
+	// (default 25) and reports it either way.
+	budget := 25.0
+	if v := os.Getenv("HIVE_DESKTOP_LATENCY_MS"); v != "" {
+		if _, err := fmt.Sscan(v, &budget); err != nil {
+			t.Fatalf("HIVE_DESKTOP_LATENCY_MS=%q: %v", v, err)
+		}
+	}
+	var lat struct{ P50, P99, Max float64 }
+	{
+		tctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		out, err := chromedp.Run(tctx, chromedp.Evaluate[string](`(async (n) => {
+			const ta = document.querySelector('section[data-focused] textarea');
+			const scr = document.querySelector('section[data-focused] .term-screen');
+			const times = [];
+			for (let i = 0; i < n; i++) {
+				const before = scr.textContent;
+				const t0 = performance.now();
+				await new Promise((resolve) => {
+					const mo = new MutationObserver(() => { if (scr.textContent !== before) { mo.disconnect(); resolve(); } });
+					mo.observe(scr, { subtree: true, childList: true, characterData: true });
+					ta.value = 'abcdefghijklmnopqrstuvwxyz'[i % 26];
+					ta.dispatchEvent(new InputEvent('input', { bubbles: true }));
+					setTimeout(() => { mo.disconnect(); resolve(); }, 2000);
+				});
+				times.push(performance.now() - t0);
+				if (i % 20 === 19) { // keep the line short: erase what was typed
+					ta.value = '\u0015'; ta.dispatchEvent(new InputEvent('input', { bubbles: true }));
+					await new Promise((r) => setTimeout(r, 100));
+				}
+			}
+			times.sort((a, b) => a - b);
+			return JSON.stringify({ P50: times[Math.floor(n * 0.5)], P99: times[Math.min(n - 1, Math.floor(n * 0.99))], Max: times[n - 1] });
+		})(100)`, chromedp.EvalAwaitPromise))
+		cancel()
+		if err != nil {
+			t.Fatalf("latency: %v", err)
+		}
+		if err := json.Unmarshal([]byte(out), &lat); err != nil {
+			t.Fatalf("latency: %v (%s)", err, out)
+		}
+	}
+	t.Logf("keystroke to screen: p50 %.1f ms, p99 %.1f ms, max %.1f ms (budget p99 %.0f ms)", lat.P50, lat.P99, lat.Max, budget)
+	if lat.P99 > budget {
+		t.Errorf("keystroke-to-screen p99 is %.1f ms, over the %.0f ms budget", lat.P99, budget)
+	}
+	step(10*time.Second, chromedp.KeyEvent("\r"))
+
 	// An image a program prints shows over its cells.
 	step(30*time.Second,
 		chromedp.SendKeys(chromedp.CSS(`section[data-focused] textarea`), `printf '\033_Ga=T,f=100,i=7,c=8,r=4;`+tinyPNG+`\033\\'`),

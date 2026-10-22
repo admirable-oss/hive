@@ -4,6 +4,51 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.2.0 (unreleased): Desktop app 1.0 (M21)
+
+### Signed packages
+
+- The release workflow builds the desktop app on each system
+  (`desktop/build/release.sh`) and attaches it to the release: a universal
+  macOS zip signed with a Developer ID and notarized, a signed per-user
+  Windows installer, and the Linux AppImage, `.deb` and `.rpm` (amd64 and
+  arm64, the packages signed with PGP). The macOS and Windows packages bundle
+  the release's own `hive`, verified before packing.
+- `desktop-checksums.txt`, signed with the release key (`.sig` and
+  `.sshsig`), and a build provenance attestation for every package.
+- The `hive-desktop` Homebrew cask, updated on stable releases.
+- The `desktop` workflow's package run builds the same packages, unsigned,
+  without a tag.
+
+### In-app updates
+
+- The app checks for a newer release once a day (it can be turned off) and
+  on demand, on `update.channel`. It installs one only after
+  `desktop-checksums.txt` verifies against the release key built into the
+  app, and the package against its checksum.
+- Installing hands over to a supervisor: it keeps the previous version,
+  swaps the new one in, and puts the previous one back if the new one does
+  not start. Agents keep running throughout.
+- A release without desktop packages is not an update. Zips made on macOS
+  unpack without their AppleDouble files, which broke the bundle's signature.
+
+### Workspace
+
+- Drag a pane onto another to swap them, through the layout API
+  (`pane.swap`).
+- Environment windows: an environment, with its tabs, in a window of its own.
+- The app follows `[keys]`: the prefix key and its prefix-mode bindings, as
+  in `hive ui`. `hive config keys` prints the effective key map (`--json`
+  too).
+- The Goto palette covers tabs and environments as well as agents, panes and
+  actions.
+
+### Performance
+
+- Keystroke-to-screen latency (p99 under 25 ms) and the idle budget with 16
+  panes (under 1 % of a core, under 64 MB of heap) are measured and held in
+  CI on macOS and Linux.
+
 ## v1.1.0 (unreleased): Trusted distribution (M20)
 
 ### Verified installs

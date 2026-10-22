@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -396,6 +397,23 @@ func (f *Fleet) SplitPane(pane, dir string) (string, error) {
 
 func (f *Fleet) ResizePane(pane, dir string, cells int) error {
 	return f.do(pane, func(h *Hub, raw string) error { return h.ResizePane(raw, dir, cells) })
+}
+
+func (f *Fleet) FocusNeighbour(pane, dir string) error {
+	return f.do(pane, func(h *Hub, raw string) error { return h.FocusNeighbour(raw, dir) })
+}
+
+// SwapPane exchanges two panes, which must be on one machine (and in one
+// tab: the daemon checks).
+func (f *Fleet) SwapPane(pane, with string) error {
+	if machineOf(pane) != machineOf(with) {
+		return errors.New("panes on different machines cannot be swapped")
+	}
+	_, rawWith, err := f.route(with)
+	if err != nil {
+		return err
+	}
+	return f.do(pane, func(h *Hub, raw string) error { return h.SwapPane(raw, rawWith) })
 }
 
 func (f *Fleet) ZoomPane(pane string) error {

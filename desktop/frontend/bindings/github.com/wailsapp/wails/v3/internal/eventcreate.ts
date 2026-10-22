@@ -25,7 +25,8 @@ function configure() {
         "hive:observe:view": $$createType8,
         "hive:screen": $$createType9,
         "hive:settings": $$createType10,
-        "hive:workspace": $$createType11,
+        "hive:update": $$createType11,
+        "hive:workspace": $$createType12,
     }));
 }
 
@@ -41,6 +42,7 @@ const $$createType7 = core$0.ObservedScreen.createFrom;
 const $$createType8 = core$0.ObservedView.createFrom;
 const $$createType9 = core$0.ScreenUpdate.createFrom;
 const $$createType10 = core$0.Settings.createFrom;
-const $$createType11 = core$0.Workspace.createFrom;
+const $$createType11 = main$0.UpdateStatus.createFrom;
+const $$createType12 = core$0.Workspace.createFrom;
 
 configure();

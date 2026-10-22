@@ -66,6 +66,7 @@ func init() {
 	application.RegisterEvent[DropRequest](eventDrop)
 	application.RegisterEvent[core.ObservedView](core.EventObserveView)
 	application.RegisterEvent[core.ObservedScreen](core.EventObserveScreen)
+	application.RegisterEvent[UpdateStatus](eventUpdate)
 }
 
 // desktop is the app around the hub.
@@ -88,10 +89,14 @@ type desktop struct {
 	trayWS   *core.Workspace
 	trayKick chan struct{}
 
-	obs observers
+	obs     observers
+	updates *updates
 }
 
 func main() {
+	if superviseUpdate(os.Args) {
+		return
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	d := &desktop{log: log, dock: dock.New(), notes: notifications.New(), trayKick: make(chan struct{}, 1)}
 	d.obs.all = map[string]*core.Observation{}
@@ -101,13 +106,14 @@ func main() {
 		Clipboard: func(text string) { d.app.Clipboard.SetText(text) },
 		Focused:   func() bool { return d.focused.Load() > 0 },
 	})
+	d.updates = newUpdates(d)
 	svc := &HiveService{hub: d.hub, shell: d}
 
 	d.app = application.New(application.Options{
 		Name:        "Hive",
 		Description: "Coding agents that keep working when you close the window",
 		Services: []application.Service{
-			application.NewService(&lifecycle{hub: d.hub, onQuit: func() { d.rememberWindow(); d.closeObservers() }}),
+			application.NewService(&lifecycle{hub: d.hub, onQuit: func() { d.rememberWindow(); d.closeObservers(); d.updates.close() }}),
 			application.NewService(svc),
 			application.NewService(&ObserverService{d: d}),
 			application.NewService(&optional{name: "notifications", svc: d.notes, log: log, failed: &d.noNotes}),
@@ -151,6 +157,9 @@ func main() {
 		d.openLink(e.Context().URL())
 	})
 	d.app.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) { d.show() })
+	// Up and running: tell a waiting update supervisor, and start the
+	// daily update check.
+	d.app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) { d.updates.started() })
 	for _, a := range os.Args[1:] {
 		if strings.HasPrefix(a, "hive://") {
 			link := a
@@ -391,6 +400,36 @@ func (d *desktop) popOut(pane string) error {
 	return nil
 }
 
+// popOutEnvironment shows an environment, with its tabs, in a window of
+// its own.
+func (d *desktop) popOutEnvironment(env string) error {
+	name := "env-" + env
+	if w, ok := d.app.Window.GetByName(name); ok {
+		w.Show()
+		w.Focus()
+		return nil
+	}
+	found := false
+	for _, e := range d.hub.Workspace().Environments {
+		found = found || e.ID == env
+	}
+	if !found {
+		return fmt.Errorf("no environment %q", env)
+	}
+	d.newWindow(name, env+" — Hive", "/#/env/"+url.PathEscape(env), 1100, 720).Show()
+	return nil
+}
+
+func (d *desktop) updateStatus() UpdateStatus { return d.updates.status() }
+
+func (d *desktop) checkForUpdates(ctx context.Context) (UpdateStatus, error) {
+	return d.updates.check(ctx)
+}
+
+func (d *desktop) installUpdate(ctx context.Context) error { return d.updates.install(ctx) }
+
+func (d *desktop) setUpdateChecks(on bool) error { return d.updates.setAutomatic(on) }
+
 // --- menus and tray ---
 
 // accel is a shortcut that leaves the terminal its own keys: ⌘ on macOS,
@@ -415,6 +454,8 @@ func (d *desktop) menu() *application.Menu {
 		m.AddRole(application.AppMenu)
 	}
 	file := m.AddSubmenu("File")
+	file.Add("Check for Updates…").OnClick(d.command("check-updates"))
+	file.AddSeparator()
 	file.Add("New Agent…").SetAccelerator(accel("N")).OnClick(d.command("new-agent"))
 	file.Add("New Tab").SetAccelerator(accel("T")).OnClick(d.command("new-tab"))
 	file.Add("New Environment…").OnClick(d.command("new-environment"))
@@ -435,6 +476,7 @@ func (d *desktop) menu() *application.Menu {
 	view.Add("Split Down").SetAccelerator(accel("E")).OnClick(d.command("split-down"))
 	view.Add("Zoom Pane").SetAccelerator(accel("Z")).OnClick(d.command("zoom"))
 	view.Add("Open Pane in New Window").OnClick(d.command("pop-out"))
+	view.Add("Open Environment in New Window").OnClick(d.command("pop-out-env"))
 	view.Add("Open Observer Window…").OnClick(d.command("observe"))
 	view.AddSeparator()
 	view.Add("Next Agent Needing You").SetAccelerator(accel("J")).OnClick(d.command("next-attention"))

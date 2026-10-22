@@ -937,6 +937,36 @@ func (h *Hub) FocusPane(paneID string) error {
 	return h.call(func(ctx context.Context, c *hiveapi.Client) error { _, err := c.FocusPane(ctx, paneID, ""); return err })
 }
 
+// FocusNeighbour focuses the pane beside paneID that way (the focus-left,
+// …-right, …-up and …-down key bindings).
+func (h *Hub) FocusNeighbour(paneID, dir string) error {
+	if err := validID(paneID); err != nil {
+		return err
+	}
+	d, err := direction(dir)
+	if err != nil {
+		return err
+	}
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error { _, err := c.FocusPane(ctx, paneID, d); return err })
+}
+
+// SwapPane exchanges two panes of one tab, through the layout API
+// (pane.swap): what dragging a pane onto another does.
+func (h *Hub) SwapPane(paneID, withID string) error {
+	if err := validID(paneID); err != nil {
+		return err
+	}
+	if err := validID(withID); err != nil {
+		return err
+	}
+	if paneID == withID {
+		return nil
+	}
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		return c.Call(ctx, "pane.swap", map[string]string{"id": paneID, "with": withID}, nil)
+	})
+}
+
 func direction(d string) (hiveapi.Direction, error) {
 	switch hiveapi.Direction(d) {
 	case hiveapi.Left, hiveapi.Right, hiveapi.Up, hiveapi.Down:

@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { createStore, useStore as useZustand, type StoreApi } from "zustand";
-import type { Agent, Connection, IdentityCheck, ImageUpdate, MachineStatus, Pane, PairRequest, ScreenUpdate, Settings, Tab, Workspace } from "./api";
+import type { Agent, Connection, IdentityCheck, ImageUpdate, MachineStatus, Pane, PairRequest, ScreenUpdate, Settings, Tab, UpdateStatus, Workspace } from "./api";
 import { applyUpdate, type Screen } from "./screen";
 
 export type Dialog =
@@ -25,6 +25,8 @@ export interface UI {
   sidebar: boolean;
   palette: boolean;
   dialog?: Dialog;
+  // prefix: the prefix key was pressed; the next key runs a [keys] action.
+  prefix?: boolean;
 }
 
 export interface State {
@@ -32,6 +34,7 @@ export interface State {
   workspace: Workspace;
   settings: Settings;
   machines: MachineStatus[];
+  update?: UpdateStatus;
   ui: UI;
 }
 
@@ -66,7 +69,7 @@ export function initialState(): State {
   return {
     connection: { state: "connecting", session: "default" },
     workspace: emptyWorkspace,
-    settings: { notify_on: ["blocked", "done"], system_notifications: false, theme: "auto", prefix: ["ctrl+b"] },
+    settings: { notify_on: ["blocked", "done"], system_notifications: false, theme: "auto", prefix: ["ctrl+b"], keys: [], update_channel: "stable" },
     machines: [],
     ui: { sidebar: true, palette: false, optionIsMeta: readPref("hive.optionIsMeta") === "1" },
   };

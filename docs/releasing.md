@@ -86,6 +86,49 @@ the project's own.
 - **Use:** `gh workflow run nightly.yml --ref <ref> -f runner=hive-soak -f
   chaos=72h -f soak=8h`.
 
+## The desktop app
+
+Once the CLI is published, the release workflow builds the
+[desktop app](desktop.md) on each system (`desktop/build/release.sh`) and
+attaches it to the same release:
+
+| File | What it is |
+|---|---|
+| `hive-desktop_<version>_darwin_universal.zip` | The app for macOS (arm64 and amd64), signed with a Developer ID and notarized, with the release's `hive` inside |
+| `hive-desktop_<version>_windows_amd64_setup.exe` | The installer for Windows, signed, with the release's `hive.exe` (a per-user install) |
+| `hive-desktop_<version>_linux_<arch>.AppImage`, `.deb`, `.rpm` | The app for Linux on amd64 and arm64; the `.deb` and `.rpm` are signed with the project's PGP key |
+| `desktop-checksums.txt` | SHA-256 of every desktop package |
+| `desktop-checksums.txt.sig`, `.sshsig` | The release key's signatures of it; the app's updater checks the `.sig` |
+
+The bundled `hive` is the release's own. It is fetched from the release and
+verified before it is packed. Stable releases also update the `hive-desktop`
+cask in `admirable-oss/homebrew-tap`.
+
+These jobs run only when the repository variable `HIVE_DESKTOP_RELEASE` is
+`true`, because they need the platforms' signing credentials:
+
+| Name | Kind | What it is |
+|---|---|---|
+| `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD` | secrets | The Developer ID Application certificate, as a base64 `.p12`, and its password |
+| `MACOS_SIGNING_IDENTITY` | variable | Its name: `Developer ID Application: … (TEAMID)` |
+| `APPLE_ID`, `APPLE_APP_PASSWORD` | secrets | The Apple ID and an app-specific password, for notarization |
+| `APPLE_TEAM_ID` | variable | The team the certificate belongs to |
+| `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | secrets | The code signing certificate, as a base64 `.pfx`, and its password |
+| `LINUX_SIGNING_KEY`, `LINUX_SIGNING_PASSPHRASE` | secrets | An armored PGP private key for the `.deb` and `.rpm`, and its passphrase |
+
+A missing credential fails the job; nothing is published unsigned. The CLI's
+release is already out by then, and an app that finds a release without
+desktop packages sees no update.
+
+Try the release path without a tag. The `desktop` workflow builds the same
+packages, unsigned, on every system:
+
+```sh
+gh workflow run desktop.yml --ref main -f package=true
+# or locally, for this system:
+HIVE_DESKTOP_UNSIGNED=1 HIVE_CLI=$(command -v hive) desktop/build/release.sh v0.0.0-dev
+```
+
 ## Verifying a release
 
 Anyone can check a release without trusting this repository's word for it.
@@ -103,6 +146,10 @@ shasum -a 256 -c checksums.txt --ignore-missing
 
 # Where it was built: the provenance GitHub recorded for the archive.
 gh attestation verify hive_1.1.0_linux_amd64.tar.gz -R admirable-oss/hive
+
+# A desktop package: the same, with desktop-checksums.txt.
+ssh-keygen -Y verify -f allowed_signers -I hive-release -n hive-release -s desktop-checksums.txt.sshsig < desktop-checksums.txt
+shasum -a 256 -c desktop-checksums.txt --ignore-missing
 
 # That it is reproducible: build the tag yourself and compare checksums.
 git checkout v1.1.0 && make reproducible

@@ -25,6 +25,11 @@ type shell interface {
 	setClipboard(text string)
 	clipboard() string
 	popOut(paneID string) error
+	popOutEnvironment(envID string) error
+	updateStatus() UpdateStatus
+	checkForUpdates(ctx context.Context) (UpdateStatus, error)
+	installUpdate(ctx context.Context) error
+	setUpdateChecks(on bool) error
 	startAtLogin() (bool, error)
 	setStartAtLogin(on bool) error
 	openObserver(req core.ObserveRequest) (string, error)
@@ -205,6 +210,68 @@ func (s *HiveService) PopOut(ctx context.Context, paneID string) error {
 		return err
 	}
 	return s.shell.popOut(paneID)
+}
+
+// SwapPane exchanges two panes of one tab: what dragging a pane onto
+// another does.
+func (s *HiveService) SwapPane(ctx context.Context, paneID, withID string) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.SwapPane(paneID, withID)
+}
+
+// FocusNeighbour focuses the pane beside paneID that way (left, right, up
+// or down).
+func (s *HiveService) FocusNeighbour(ctx context.Context, paneID, dir string) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.FocusNeighbour(paneID, dir)
+}
+
+// OpenEnvironmentWindow shows an environment, with its tabs, in a window
+// of its own.
+func (s *HiveService) OpenEnvironmentWindow(ctx context.Context, envID string) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.shell.popOutEnvironment(envID)
+}
+
+// UpdateStatus says whether the app can update itself, and whether a newer
+// release is available.
+func (s *HiveService) UpdateStatus(ctx context.Context) (UpdateStatus, error) {
+	if err := guard(ctx); err != nil {
+		return UpdateStatus{}, err
+	}
+	return s.shell.updateStatus(), nil
+}
+
+// CheckForUpdates looks for a newer release now.
+func (s *HiveService) CheckForUpdates(ctx context.Context) (UpdateStatus, error) {
+	if err := guard(ctx); err != nil {
+		return UpdateStatus{}, err
+	}
+	return s.shell.checkForUpdates(ctx)
+}
+
+// InstallUpdate installs the available release, after checking its
+// signature and checksum, and restarts the app on it; agents keep running.
+// If the new version does not start, the previous one is put back.
+func (s *HiveService) InstallUpdate(ctx context.Context) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.shell.installUpdate(ctx)
+}
+
+// SetUpdateChecks turns the daily update check on or off.
+func (s *HiveService) SetUpdateChecks(ctx context.Context, on bool) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.shell.setUpdateChecks(on)
 }
 
 // History returns a pane's scrollback and screen as text (its last lines).
