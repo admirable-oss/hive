@@ -80,13 +80,16 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/checksums.txt
+      # Stable releases only: pre-releases stay out of the tap.
       - name: check out the Homebrew tap
+        if: ${{ !contains(github.ref_name, '-') }}
         uses: actions/checkout@v7
         with:
           repository: admirable-oss/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
       - name: publish the Homebrew formula
+        if: ${{ !contains(github.ref_name, '-') }}
         env:
           TAG: ${{ github.ref_name }}
         run: |
