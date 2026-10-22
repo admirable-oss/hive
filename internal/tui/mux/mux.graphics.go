@@ -480,9 +480,10 @@ func (s *graphicsViewState) consume(event vt.GraphicsEvent, protocol graphicsPro
 	}
 }
 
+// graphicsPlan places the view's images for one frame. The caller holds
+// v.mu: a frame locks every view in scene() and keeps them locked until
+// drawScene, so the images match the screen drawn with them.
 func (v *view) graphicsPlan(rect layout.Rect, screenX, screenY int, protocol graphicsProtocol, cellW, cellH int, resolved bool) (graphicsPlan, [][]byte) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
 	state := &v.graphicsState
 	var replies [][]byte
 	if !resolved {

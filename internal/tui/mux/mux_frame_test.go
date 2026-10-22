@@ -111,3 +111,16 @@ func TestFrameTime100Panes(t *testing.T) {
 		t.Errorf("only %d views streaming", n)
 	}
 }
+
+// TestAFrameDrawsAShownPane draws a frame with a live view through the real
+// renderer: a frame holds every view's lock from scene() to drawScene, so
+// nothing it calls meanwhile may take one again (that hung the UI before
+// the first pane was drawn). The latency tests cover this path too, but not
+// under -race or -short.
+func TestAFrameDrawsAShownPane(t *testing.T) {
+	h := newHarness(t, 80, 24, Options{HideSidebar: true, Clipboard: ClipboardOff})
+	h.waitFor("the pane's view", func() bool { return len(h.a.views) == 1 })
+	d := newDriver(h)
+	d.out.frame(h.a)
+	d.out.frame(h.a)
+}

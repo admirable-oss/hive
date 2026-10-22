@@ -62,11 +62,18 @@ func graphicsView(events ...vt.GraphicsEvent) *view {
 
 var paneRect = layout.Rect{W: 40, H: 12}
 
+// lockedPlan plans v's graphics holding its lock, as a frame does.
+func lockedPlan(v *view, rect layout.Rect, screenX, screenY int, protocol graphicsProtocol, cellW, cellH int, resolved bool) (graphicsPlan, [][]byte) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.graphicsPlan(rect, screenX, screenY, protocol, cellW, cellH, resolved)
+}
+
 func TestGraphicsPlan_KittyRemapsAndTranslates(t *testing.T) {
 	data := testImagePNG(t, 64, 64) // > one chunk once padded below
 	data = append(data, make([]byte, 6000)...)
 	v := graphicsView(kittyUpload(data, 5, 4, 2, vt.Cursor{X: 3, Y: 2})...)
-	plan, replies := v.graphicsPlan(paneRect, 10, 1, graphicsKitty, 8, 16, true)
+	plan, replies := lockedPlan(v, paneRect, 10, 1, graphicsKitty, 8, 16, true)
 	if len(replies) != 0 || len(plan.uploads) < 2 {
 		t.Fatalf("uploads %d, replies %d", len(plan.uploads), len(replies))
 	}
@@ -91,7 +98,7 @@ func TestGraphicsPlan_KittyRemapsAndTranslates(t *testing.T) {
 
 func TestGraphicsPlan_PartialPlacementIsSuppressed(t *testing.T) {
 	v := graphicsView(kittyUpload(testImagePNG(t, 8, 8), 1, 10, 2, vt.Cursor{X: 35, Y: 0})...)
-	plan, _ := v.graphicsPlan(paneRect, 0, 0, graphicsKitty, 8, 16, true)
+	plan, _ := lockedPlan(v, paneRect, 0, 0, graphicsKitty, 8, 16, true)
 	if len(plan.placements) != 0 {
 		t.Fatalf("a placement crossing the pane's edge was drawn: %v", plan.placements)
 	}
@@ -99,7 +106,7 @@ func TestGraphicsPlan_PartialPlacementIsSuppressed(t *testing.T) {
 
 func TestGraphicsPlan_CellsDrawHalfBlocks(t *testing.T) {
 	v := graphicsView(kittyUpload(testImagePNG(t, 8, 8), 1, 4, 2, vt.Cursor{X: 1, Y: 1})...)
-	plan, _ := v.graphicsPlan(paneRect, 0, 0, graphicsCells, 0, 0, true)
+	plan, _ := lockedPlan(v, paneRect, 0, 0, graphicsCells, 0, 0, true)
 	if len(plan.cells) != 1 || plan.cells[0].image == nil {
 		t.Fatalf("cells = %+v", plan.cells)
 	}
@@ -116,7 +123,7 @@ func TestGraphicsPlan_CellsDrawHalfBlocks(t *testing.T) {
 
 func TestGraphicsPlan_TextNamesImagesWithoutDecoding(t *testing.T) {
 	v := graphicsView(kittyUpload(testImagePNG(t, 8, 8), 1, 12, 2, vt.Cursor{X: 2, Y: 3})...)
-	plan, _ := v.graphicsPlan(paneRect, 0, 0, graphicsText, 0, 0, true)
+	plan, _ := lockedPlan(v, paneRect, 0, 0, graphicsText, 0, 0, true)
 	if len(plan.cells) != 1 || plan.cells[0].image != nil {
 		t.Fatalf("cells = %+v", plan.cells)
 	}
@@ -136,7 +143,7 @@ func TestGraphicsPlan_TextNamesImagesWithoutDecoding(t *testing.T) {
 
 func TestGraphicsPlan_TextClipsToNarrowPlacement(t *testing.T) {
 	v := graphicsView(kittyUpload(testImagePNG(t, 4, 4), 1, 3, 1, vt.Cursor{})...)
-	plan, _ := v.graphicsPlan(paneRect, 0, 0, graphicsText, 0, 0, true)
+	plan, _ := lockedPlan(v, paneRect, 0, 0, graphicsText, 0, 0, true)
 	scr := uv.NewScreenBuffer(40, 12)
 	applyCellGraphics(scr, plan.cells)
 	if c := scr.CellAt(3, 0); c != nil && c.Content == "e" {
@@ -147,7 +154,7 @@ func TestGraphicsPlan_TextClipsToNarrowPlacement(t *testing.T) {
 func TestGraphicsPlan_InvalidImageFallsBackToText(t *testing.T) {
 	bad := []byte("\x89PNG\r\n\x1a\n not really")
 	v := graphicsView(kittyUpload(bad, 1, 8, 1, vt.Cursor{})...)
-	plan, _ := v.graphicsPlan(paneRect, 0, 0, graphicsCells, 0, 0, true)
+	plan, _ := lockedPlan(v, paneRect, 0, 0, graphicsCells, 0, 0, true)
 	// The relay accepts it (its base64 is valid) but it does not decode:
 	// the placement is named as text rather than drawn or dropped.
 	if len(plan.cells) != 1 || plan.cells[0].image != nil {
@@ -169,7 +176,7 @@ func TestGraphicsPlan_SixelAndItermEncodePlacements(t *testing.T) {
 		{graphicsIterm, "\x1b]1337;File=inline=1"},
 	} {
 		v := graphicsView(kittyUpload(testImagePNG(t, 16, 16), 1, 2, 1, vt.Cursor{X: 1})...)
-		plan, _ := v.graphicsPlan(paneRect, 5, 0, tc.protocol, 8, 16, true)
+		plan, _ := lockedPlan(v, paneRect, 5, 0, tc.protocol, 8, 16, true)
 		seqs := plan.sixels
 		if tc.protocol == graphicsIterm {
 			seqs = plan.iterm
@@ -182,7 +189,7 @@ func TestGraphicsPlan_SixelAndItermEncodePlacements(t *testing.T) {
 
 func TestGraphicsPlan_OffDrawsNothing(t *testing.T) {
 	v := graphicsView(kittyUpload(testImagePNG(t, 8, 8), 1, 4, 2, vt.Cursor{})...)
-	plan, _ := v.graphicsPlan(paneRect, 0, 0, renderProtocol(ImageRenderOff, graphicsKitty), 8, 16, true)
+	plan, _ := lockedPlan(v, paneRect, 0, 0, renderProtocol(ImageRenderOff, graphicsKitty), 8, 16, true)
 	if len(plan.uploads)+len(plan.cells)+len(plan.sixels)+len(plan.iterm)+len(plan.placements) != 0 {
 		t.Fatalf("plan = %+v", plan)
 	}
@@ -199,7 +206,7 @@ func TestGraphicsPlan_UnsafeAndMalformedCommandsAreIgnored(t *testing.T) {
 	}
 	v := graphicsView(events...)
 	for _, protocol := range []graphicsProtocol{graphicsKitty, graphicsCells} {
-		plan, replies := v.graphicsPlan(paneRect, 0, 0, protocol, 8, 16, true)
+		plan, replies := lockedPlan(v, paneRect, 0, 0, protocol, 8, 16, true)
 		if len(plan.uploads)+len(plan.placements)+len(plan.cells)+len(replies) != 0 {
 			t.Fatalf("protocol %d: plan %+v replies %q", protocol, plan, replies)
 		}
@@ -208,7 +215,7 @@ func TestGraphicsPlan_UnsafeAndMalformedCommandsAreIgnored(t *testing.T) {
 
 func TestGraphicsPlan_QueryWithoutKittyIsRefused(t *testing.T) {
 	v := graphicsView(vt.GraphicsEvent{Command: []byte("\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\")})
-	_, replies := v.graphicsPlan(paneRect, 0, 0, graphicsCells, 0, 0, true)
+	_, replies := lockedPlan(v, paneRect, 0, 0, graphicsCells, 0, 0, true)
 	if len(replies) != 1 || !strings.Contains(string(replies[0]), "i=31;ENOTSUP") {
 		t.Fatalf("replies = %q", replies)
 	}
@@ -216,11 +223,11 @@ func TestGraphicsPlan_QueryWithoutKittyIsRefused(t *testing.T) {
 
 func TestGraphicsPlan_ScrollClearsPlacements(t *testing.T) {
 	v := graphicsView(kittyUpload(testImagePNG(t, 8, 8), 1, 4, 2, vt.Cursor{})...)
-	if plan, _ := v.graphicsPlan(paneRect, 0, 0, graphicsKitty, 8, 16, true); len(plan.placements) != 1 {
+	if plan, _ := lockedPlan(v, paneRect, 0, 0, graphicsKitty, 8, 16, true); len(plan.placements) != 1 {
 		t.Fatal("no placement before the scroll")
 	}
 	v.graphicsScrolled = true
-	if plan, _ := v.graphicsPlan(paneRect, 0, 0, graphicsKitty, 8, 16, true); len(plan.placements) != 0 {
+	if plan, _ := lockedPlan(v, paneRect, 0, 0, graphicsKitty, 8, 16, true); len(plan.placements) != 0 {
 		t.Fatalf("placements after a scroll: %v", plan.placements)
 	}
 }
@@ -238,8 +245,8 @@ func TestGraphicsMemory_SharedBudgetBoundsAllViews(t *testing.T) {
 	// does not fit, so it is named as text instead of drawn.
 	a, b := graphicsView(kittyUpload(testImagePNG(t, 64, 64), 1, 4, 2, vt.Cursor{})...), graphicsView(kittyUpload(testImagePNG(t, 64, 64), 1, 4, 2, vt.Cursor{})...)
 	a.graphicsState.mem, b.graphicsState.mem = mem, mem
-	pa, _ := a.graphicsPlan(paneRect, 0, 0, graphicsCells, 0, 0, true)
-	pb, _ := b.graphicsPlan(paneRect, 0, 0, graphicsCells, 0, 0, true)
+	pa, _ := lockedPlan(a, paneRect, 0, 0, graphicsCells, 0, 0, true)
+	pb, _ := lockedPlan(b, paneRect, 0, 0, graphicsCells, 0, 0, true)
 	if len(pa.cells) != 1 || pa.cells[0].image == nil || len(pb.cells) != 1 || pb.cells[0].image != nil {
 		t.Fatalf("first %+v second %+v", pa.cells, pb.cells)
 	}
@@ -265,12 +272,12 @@ func BenchmarkGraphicsFrame(b *testing.B) {
 	}{{"kitty", graphicsKitty}, {"sixel", graphicsSixel}, {"iterm", graphicsIterm}, {"cells", graphicsCells}, {"text", graphicsText}} {
 		b.Run(tc.name, func(b *testing.B) {
 			v := graphicsView(kittyUpload(data, 1, 40, 20, vt.Cursor{})...)
-			v.graphicsPlan(rect, 0, 0, tc.protocol, 8, 16, true)
+			lockedPlan(v, rect, 0, 0, tc.protocol, 8, 16, true)
 			scr := uv.NewScreenBuffer(80, 24)
 			b.ResetTimer()
 			for i := 0; b.Loop(); i++ {
 				x := i % 2 // a move each frame, so every protocol redoes its placement
-				plan, _ := v.graphicsPlan(rect, x, 0, tc.protocol, 8, 16, true)
+				plan, _ := lockedPlan(v, rect, x, 0, tc.protocol, 8, 16, true)
 				applyCellGraphics(scr, plan.cells)
 			}
 		})
@@ -290,7 +297,7 @@ func BenchmarkGraphicsUpload(b *testing.B) {
 			b.SetBytes(int64(len(data)))
 			for b.Loop() {
 				v := graphicsView(events...)
-				v.graphicsPlan(paneRect, 0, 0, tc.protocol, 8, 16, true)
+				lockedPlan(v, paneRect, 0, 0, tc.protocol, 8, 16, true)
 			}
 		})
 	}

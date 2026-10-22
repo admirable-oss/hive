@@ -71,7 +71,9 @@ type driver struct {
 func newDriver(h *harness) *driver {
 	scr := uv.NewTerminalScreen(io.Discard, []string{"TERM=xterm-256color"})
 	_ = scr.Resize(h.w, h.h)
-	out := &terminalOut{scr: scr}
+	// A probe the terminal has answered, as Run's is once it starts: frames
+	// plan the views' graphics.
+	out := &terminalOut{scr: scr, graphics: &graphicsProbe{}}
 	out.enter(true)
 	return &driver{a: h.a, out: out}
 }
