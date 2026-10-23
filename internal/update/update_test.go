@@ -280,6 +280,22 @@ func TestPreviewChannelTakesPreReleases(t *testing.T) {
 	}
 }
 
+// TestStableBeforeFirstRelease: until a stable release exists, GitHub has
+// no latest release and stable takes the newest release candidate.
+func TestStableBeforeFirstRelease(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/releases/latest", http.NotFound)
+	mux.HandleFunc("/api/releases", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[{"tag_name":"v1.3.0-rc.4","draft":true},{"tag_name":"v1.3.0-rc.3"},{"tag_name":"v1.3.0-rc.2"}]`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	src := update.Source{API: srv.URL + "/api"}
+	if tag, err := src.LatestOn(context.Background(), "stable"); err != nil || tag != "v1.3.0-rc.3" {
+		t.Fatalf("stable = %q, %v", tag, err)
+	}
+}
+
 // TestFetchFailsSafely: a release that cannot be verified or read installs
 // nothing, and says why.
 func TestFetchFailsSafely(t *testing.T) {

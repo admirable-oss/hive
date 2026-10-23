@@ -94,11 +94,13 @@ func (s Source) client() *http.Client {
 	return &http.Client{Timeout: 2 * time.Minute}
 }
 
-// Latest returns the tag of the latest release (e.g. "v0.8.0").
+// Latest returns the tag of the latest release (e.g. "v0.8.0"). Until
+// the first stable release there is no latest one: GitHub leaves
+// pre-releases out of it, so the newest release candidate stands in.
 func (s Source) Latest(ctx context.Context) (string, error) {
 	body, err := s.get(ctx, s.api()+"/releases/latest", 1<<20)
 	if errors.Is(err, errNotFound) {
-		return "", fmt.Errorf("no release of %s is published yet", Repository)
+		return s.newest(ctx)
 	}
 	if err != nil {
 		return "", fmt.Errorf("find the latest release: %w", err)
@@ -128,9 +130,14 @@ func (s Source) LatestOn(ctx context.Context, channel string) (string, error) {
 	case "", ChannelStable:
 		return s.Latest(ctx)
 	case ChannelPreview:
+		return s.newest(ctx)
 	default:
 		return "", fmt.Errorf("unknown channel %q (want %s or %s)", channel, ChannelStable, ChannelPreview)
 	}
+}
+
+// newest returns the newest published release tag, pre-releases included.
+func (s Source) newest(ctx context.Context) (string, error) {
 	body, err := s.get(ctx, s.api()+"/releases?per_page=30", 4<<20)
 	if err != nil {
 		return "", fmt.Errorf("list releases: %w", err)

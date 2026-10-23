@@ -147,6 +147,12 @@ func (c Config) latest(ctx context.Context) (string, error) {
 	switch c.Channel {
 	case "", "stable":
 		body, err := c.get(ctx, c.api()+"/releases/latest", 1<<20)
+		if errors.Is(err, errNotFound) {
+			// Until the first stable release there is no latest one:
+			// GitHub leaves pre-releases out of it, so the newest release
+			// candidate stands in.
+			return c.newest(ctx)
+		}
 		if err != nil {
 			return "", fmt.Errorf("find the latest release: %w", err)
 		}
@@ -158,29 +164,34 @@ func (c Config) latest(ctx context.Context) (string, error) {
 		}
 		return rel.Tag, nil
 	case "preview":
-		body, err := c.get(ctx, c.api()+"/releases?per_page=30", 4<<20)
-		if err != nil {
-			return "", fmt.Errorf("list releases: %w", err)
-		}
-		var rels []struct {
-			Tag   string `json:"tag_name"`
-			Draft bool   `json:"draft"`
-		}
-		if err := json.Unmarshal(body, &rels); err != nil {
-			return "", fmt.Errorf("list releases: %w", err)
-		}
-		best := ""
-		for _, r := range rels {
-			if !r.Draft && r.Tag != "" && (best == "" || Newer(r.Tag, best)) {
-				best = r.Tag
-			}
-		}
-		if best == "" {
-			return "", errors.New("no release is published yet")
-		}
-		return best, nil
+		return c.newest(ctx)
 	}
 	return "", fmt.Errorf("unknown update channel %q (want stable or preview)", c.Channel)
+}
+
+// newest returns the newest published release tag, pre-releases included.
+func (c Config) newest(ctx context.Context) (string, error) {
+	body, err := c.get(ctx, c.api()+"/releases?per_page=30", 4<<20)
+	if err != nil {
+		return "", fmt.Errorf("list releases: %w", err)
+	}
+	var rels []struct {
+		Tag   string `json:"tag_name"`
+		Draft bool   `json:"draft"`
+	}
+	if err := json.Unmarshal(body, &rels); err != nil {
+		return "", fmt.Errorf("list releases: %w", err)
+	}
+	best := ""
+	for _, r := range rels {
+		if !r.Draft && r.Tag != "" && (best == "" || Newer(r.Tag, best)) {
+			best = r.Tag
+		}
+	}
+	if best == "" {
+		return "", errors.New("no release is published yet")
+	}
+	return best, nil
 }
 
 // manifest downloads a release's desktop-checksums.txt and verifies its
