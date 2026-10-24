@@ -317,3 +317,27 @@ func TestACancelBeforeAResumeCancelsTheTask(t *testing.T) {
 		t.Fatalf("cancelled: %s %s", final.State, states(final))
 	}
 }
+
+func TestTrustArmsEventTriggers(t *testing.T) {
+	e := newEnv(t, workflow.Config{})
+	ctx := context.Background()
+	e.write(e.shared, "onblock.toml", "version = 1\nconcurrency = \"parallel\"\nenvironment = \"api\"\n[[on]]\nevent = \"agent.blocked\"\n[[step]]\nid = \"s\"\nrun = [\"ok\"]\n")
+	notify(e, "agent.state", map[string]any{"id": "p1", "state": "blocked"})
+	if n := len(runsOf(e, "onblock")); n != 0 {
+		t.Fatalf("untrusted, it does not fire: %d", n)
+	}
+	if _, err := e.svc.Trust(ctx, "onblock", false); err != nil {
+		t.Fatal(err)
+	}
+	notify(e, "agent.state", map[string]any{"id": "p1", "state": "blocked"})
+	if n := len(runsOf(e, "onblock")); n != 1 {
+		t.Fatalf("trusted, it fires at once: %d", n)
+	}
+	if _, err := e.svc.Trust(ctx, "onblock", true); err != nil {
+		t.Fatal(err)
+	}
+	notify(e, "agent.state", map[string]any{"id": "p1", "state": "blocked"})
+	if n := len(runsOf(e, "onblock")); n != 1 {
+		t.Fatalf("revoked, it stops: %d", n)
+	}
+}

@@ -260,6 +260,7 @@ func (s *Service) Trust(ctx context.Context, name string, revoke bool) (Workflow
 	} else {
 		s.log.Info("workflow trusted", "workflow", name, "path", w.Path, "digest", w.Digest)
 	}
+	s.triggers.definitionsChanged() // its triggers arm, or stop
 	s.ports.Events.Publish(EventChanged, map[string][]string{"names": {name}})
 	return v, nil
 }

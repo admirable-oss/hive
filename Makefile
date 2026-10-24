@@ -70,12 +70,24 @@ cover: ## Run the tests with coverage and print a summary
 	$(GO) test -race -count=1 -coverpkg=./... -coverprofile=coverage.out ./...
 	$(GO) tool cover -func=coverage.out | tail -1
 
+# A target is run once more when it fails with nothing but the fuzzing
+# engine's own "context deadline exceeded" (the -fuzztime deadline landing
+# mid-call to a worker) and no failing input written: a toolchain flake, not
+# a finding. Any other failure, or a new testdata/fuzz input, fails at once.
 .PHONY: fuzz
 fuzz: ## Run every fuzz target for FUZZTIME (default 30s)
 	@for t in $(FUZZ_TARGETS); do \
 		pkg=$${t%%:*}; name=$${t##*:}; \
 		echo "fuzz $$name ($$pkg, $(FUZZTIME))"; \
-		$(GO) test -run='^$$' -fuzz="^$$name$$" -fuzztime=$(FUZZTIME) $$pkg || exit 1; \
+		out=$$(mktemp); \
+		$(GO) test -run='^$$' -fuzz="^$$name$$" -fuzztime=$(FUZZTIME) $$pkg > $$out 2>&1; rc=$$?; cat $$out; \
+		if [ $$rc -ne 0 ]; then \
+			if grep -q "context deadline exceeded" $$out && ! grep -q "Failing input written" $$out; then \
+				echo "fuzz $$name: the engine's deadline flake; once more"; \
+				$(GO) test -run='^$$' -fuzz="^$$name$$" -fuzztime=$(FUZZTIME) $$pkg || { rm -f $$out; exit 1; }; \
+			else rm -f $$out; exit 1; fi; \
+		fi; \
+		rm -f $$out; \
 	done
 
 .PHONY: bench

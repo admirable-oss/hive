@@ -34,6 +34,12 @@ func newCLI(t *testing.T) *cli {
 		t.Fatal(err)
 	}
 	c := &cli{t: t, home: home, cfg: filepath.Join(home, "config.toml")}
+	// The test's temporary directories (its repositories) are removed by a
+	// cleanup t.TempDir registers on its first call; cleanups run last
+	// registered first. Registered here, before the daemon's stop, they are
+	// removed after it: a daemon still writing git objects (snapshots, the
+	// git tracker) into a repository cannot make their removal fail.
+	_ = t.TempDir()
 	t.Cleanup(func() {
 		c.run("stop")
 		c.killLeftoverDaemon()

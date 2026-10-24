@@ -52,7 +52,13 @@ func (t *triggers) load(st TriggerState) {
 	t.mu.Unlock()
 }
 
-func (t *triggers) definitionsChanged() { signal(t.changed) }
+// definitionsChanged rebuilds what may fire before it returns, so an
+// event right after a reload (or a trust) finds the triggers armed, and
+// has the run loop look at its schedules again.
+func (t *triggers) definitionsChanged() {
+	t.refresh(t.s.cfg.Now())
+	signal(t.changed)
+}
 
 // GitChanged says a repository's git state changed; watched repositories
 // are read again soon.
