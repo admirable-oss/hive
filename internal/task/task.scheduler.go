@@ -30,7 +30,7 @@ type placement struct {
 // place decides which queued tasks start now and where. plans must be in
 // the order they were submitted. kinds caps running tasks per agent kind
 // across plans.
-func place(plans []*Plan, machines []Machine, kinds map[string]int) []placement {
+func place(plans []*Plan, machines []Machine, kinds map[string]int, held func(p *Plan, t *Task) bool) []placement {
 	machineLoad := make(map[string]int, len(machines))
 	kindLoad := make(map[string]int, len(kinds))
 	queued := false
@@ -63,7 +63,7 @@ func place(plans []*Plan, machines []Machine, kinds map[string]int) []placement 
 		}
 		for i := range p.Tasks {
 			t := &p.Tasks[i]
-			if t.State != StateQueued {
+			if t.State != StateQueued || held != nil && held(p, t) {
 				continue
 			}
 			if p.MaxParallel > 0 && planLoad >= p.MaxParallel {
