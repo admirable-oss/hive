@@ -228,6 +228,9 @@ func TestMovingAPaneKeepsItsProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	pid := mover.Process.PID
+	// Its shell answers before it moves: a shell resized while it starts
+	// can exit (seen on Windows on Arm).
+	w.runAndWait(t, mover.ID, "echo up", `^up$`)
 
 	moved, err := w.panes.Move(ctx, pane.MoveRequest{Pane: mover.ID, TabID: dst.ID, Direction: layout.Down})
 	if err != nil {
