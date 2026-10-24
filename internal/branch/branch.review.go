@@ -43,7 +43,7 @@ func (s *Service) Diff(ctx context.Context, req DiffRequest) (Diff, error) {
 		return Diff{}, err
 	}
 	for _, p := range req.Paths {
-		if p == "" || filepath.IsAbs(p) || strings.ContainsRune(p, 0) {
+		if p == "" || !repoRelative(p) || strings.ContainsRune(p, 0) {
 			return Diff{}, fmt.Errorf("%w: path %q (paths are relative to the repository)", ErrInvalid, p)
 		}
 	}
@@ -252,7 +252,7 @@ func (s *Service) Comment(ctx context.Context, req CommentRequest) (Branch, erro
 		return Branch{}, fmt.Errorf("%w: the comment is longer than %d bytes", ErrInvalid, MaxCommentBytes)
 	case req.Line < 0, req.Line > 0 && req.Path == "":
 		return Branch{}, fmt.Errorf("%w: a line needs a path, and is counted from 1", ErrInvalid)
-	case filepath.IsAbs(req.Path):
+	case req.Path != "" && !repoRelative(req.Path):
 		return Branch{}, fmt.Errorf("%w: path %q (paths are relative to the repository)", ErrInvalid, req.Path)
 	}
 	b, err := s.find(ctx, req.Ref)
@@ -497,6 +497,12 @@ func (s *Service) gatesFor(repo string) []Gate {
 		}
 	}
 	return out
+}
+
+// repoRelative reports whether p reads as a path inside a repository:
+// not rooted on any platform, so "/etc" is refused on Windows too.
+func repoRelative(p string) bool {
+	return !filepath.IsAbs(p) && filepath.VolumeName(p) == "" && !strings.HasPrefix(p, "/") && !strings.HasPrefix(p, `\`)
 }
 
 // within reports whether path is inside dir.

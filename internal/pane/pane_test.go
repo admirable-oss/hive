@@ -631,8 +631,11 @@ func TestRespawnStartsAnEndedPaneInPlace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The shell answering proves it is up before it is called running.
+	w.runAndWait(t, first.ID, "echo up", `^up$`)
 	if _, err := w.panes.Respawn(ctx, first.ID, pane.Spec{}); !errors.Is(err, pane.ErrRunning) {
-		t.Fatalf("respawning a running pane: %v", err)
+		p, _ := w.procs.Get(ctx, first.ProcessID)
+		t.Fatalf("respawning a running pane: %v (process %+v)", err, p)
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for {
