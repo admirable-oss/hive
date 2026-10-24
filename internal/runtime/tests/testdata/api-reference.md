@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 13. Clients speak newline-delimited JSON over the daemon's unix
+API level 14. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -1065,6 +1065,113 @@ Result: [protocol.Empty](#protocolempty)
 | `scrollback` | `integer` |  |
 
 Result: [terminal.SnapshotResult](#terminalsnapshotresult)
+
+## workflow
+
+### `workflow.cancel`
+
+| Param | Type | |
+|---|---|---|
+| `by` | `string` | who asks, for a rerun's record |
+| `id` | `string` | the run's ID, or a unique prefix of it |
+
+Result: [workflow.Run](#workflowrun)
+
+### `workflow.fire`
+
+| Param | Type | |
+|---|---|---|
+| `data` | `any` | the payload, which expressions read as trigger.data |
+| `webhook` | `string` | the webhook's name, as workflows' [[on]] webhook says |
+
+Result: [\[\]workflow.RunSummary](#workflowrunsummary)
+
+### `workflow.get`
+
+| Param | Type | |
+|---|---|---|
+| `name` | `string` | the workflow's name (hive workflow list) |
+
+Result: [workflow.Workflow](#workflowworkflow)
+
+### `workflow.list`
+
+No params.
+
+Result: [\[\]workflow.Workflow](#workflowworkflow)
+
+### `workflow.reload`
+
+No params.
+
+Result: [\[\]workflow.Workflow](#workflowworkflow)
+
+### `workflow.rerun`
+
+| Param | Type | |
+|---|---|---|
+| `by` | `string` | who asks, for a rerun's record |
+| `id` | `string` | the run's ID, or a unique prefix of it |
+
+Result: [workflow.Run](#workflowrun)
+
+### `workflow.run`
+
+| Param | Type | |
+|---|---|---|
+| `by` | `string` | who asked, for the run's record |
+| `dir` | `string` | the directory steps run in unless they name an environment (absolute) |
+| `inputs` | `map[string]string` | the workflow's inputs, by name |
+| `name` | `string` | a known workflow's name |
+| `source` | `string` | the file's name, for errors |
+| `toml` | `string` | the text of a workflow file (instead of name) |
+
+Result: [workflow.Run](#workflowrun)
+
+### `workflow.runs`
+
+| Param | Type | |
+|---|---|---|
+| `limit` | `integer` | at most this many (0: every one kept) |
+| `workflow` | `string` | only this workflow's runs |
+
+Result: [\[\]workflow.RunSummary](#workflowrunsummary)
+
+### `workflow.status`
+
+| Param | Type | |
+|---|---|---|
+| `by` | `string` | who asks, for a rerun's record |
+| `id` | `string` | the run's ID, or a unique prefix of it |
+
+Result: [workflow.Run](#workflowrun)
+
+### `workflow.trust`
+
+| Param | Type | |
+|---|---|---|
+| `name` | `string` | the workflow's name |
+| `revoke` | `boolean` | stop its triggers instead |
+
+Result: [workflow.Workflow](#workflowworkflow)
+
+### `workflow.validate`
+
+| Param | Type | |
+|---|---|---|
+| `source` | `string` | the file's name, for errors (and the workflow's name when it gives none) |
+| `toml` | `string` | the text of a workflow file |
+
+Result: [workflow.Spec](#workflowspec)
+
+### `workflow.wait`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` | the run's ID, or a unique prefix of it |
+| `timeout_ms` | `integer` | give up after this many milliseconds (0: never) |
+
+Result: [workflow.WaitResult](#workflowwaitresult)
 
 ## worktree
 
@@ -2977,3 +3084,291 @@ An object.
 | `Shape` | `integer` |  |
 | `X` | `integer` |  |
 | `Y` | `integer` |  |
+
+### workflow.FireParams
+
+| Field | Type | |
+|---|---|---|
+| `data` | `any` | the payload, which expressions read as trigger.data |
+| `webhook` | `string` | the webhook's name, as workflows' [[on]] webhook says |
+
+### workflow.InputSpec
+
+| Field | Type | |
+|---|---|---|
+| `default` | `string` |  |
+| `description` | `string` |  |
+| `name` | `string` |  |
+| `required` | `boolean` |  |
+
+### workflow.LogEntry
+
+| Field | Type | |
+|---|---|---|
+| `message` | `string` |  |
+| `time` | `string` |  |
+
+### workflow.NameParams
+
+| Field | Type | |
+|---|---|---|
+| `name` | `string` | the workflow's name (hive workflow list) |
+
+### workflow.Repeat
+
+| Field | Type | |
+|---|---|---|
+| `max` | `integer` |  |
+| `until` | `string` |  |
+
+### workflow.Resolved
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `dir` | `string` |  |
+| `env` | `map[string]string` |  |
+| `environment_id` | `string` |  |
+| `kind` | `string` |  |
+| `prompt` | `string` |  |
+| `run` | `[]string` |  |
+| `shell` | `string` |  |
+| `with` | `map[string]string` |  |
+| `worktree` | `string` |  |
+
+### workflow.Result
+
+| Field | Type | |
+|---|---|---|
+| `attempt` | `integer` |  |
+| `changed` | `[]string` |  |
+| `changed_more` | `integer` |  |
+| `ended_at` | `string` |  |
+| `exit_code` | `integer` |  |
+| `index` | `integer` |  |
+| `item` | `string` |  |
+| `kind` | `string` |  |
+| `outcome` | `string` |  |
+| `output` | `[]string` |  |
+| `outputs` | `map[string]string` |  |
+| `plan` | `string` |  |
+| `reason` | `string` |  |
+| `resolved` | [workflow.Resolved](#workflowresolved) |  |
+| `screen` | `[]string` |  |
+| `started_at` | `string` |  |
+| `summary` | `string` |  |
+
+### workflow.Run
+
+| Field | Type | |
+|---|---|---|
+| `cancelled` | `boolean` |  |
+| `created_at` | `string` |  |
+| `digest` | `string` |  |
+| `dir` | `string` |  |
+| `ended_at` | `string` |  |
+| `id` | `string` |  |
+| `inputs` | `map[string]string` |  |
+| `outputs` | `map[string]string` |  |
+| `path` | `string` |  |
+| `reason` | `string` |  |
+| `rev` | `integer` |  |
+| `schema` | `integer` |  |
+| `source` | `string` |  |
+| `spec` | [workflow.Spec](#workflowspec) |  |
+| `started_at` | `string` |  |
+| `state` | `string` |  |
+| `steps` | [\[\]workflow.StepRun](#workflowsteprun) |  |
+| `trigger` | [workflow.Trigger](#workflowtrigger) |  |
+| `workflow` | `string` |  |
+
+### workflow.RunParams
+
+| Field | Type | |
+|---|---|---|
+| `by` | `string` | who asked, for the run's record |
+| `dir` | `string` | the directory steps run in unless they name an environment (absolute) |
+| `inputs` | `map[string]string` | the workflow's inputs, by name |
+| `name` | `string` | a known workflow's name |
+| `source` | `string` | the file's name, for errors |
+| `toml` | `string` | the text of a workflow file (instead of name) |
+
+### workflow.RunRef
+
+| Field | Type | |
+|---|---|---|
+| `by` | `string` | who asks, for a rerun's record |
+| `id` | `string` | the run's ID, or a unique prefix of it |
+
+### workflow.RunSummary
+
+| Field | Type | |
+|---|---|---|
+| `counts` | `map[string]integer` |  |
+| `created_at` | `string` |  |
+| `current` | `[]string` |  |
+| `ended_at` | `string` |  |
+| `id` | `string` |  |
+| `reason` | `string` |  |
+| `rev` | `integer` |  |
+| `started_at` | `string` |  |
+| `state` | `string` |  |
+| `total` | `integer` |  |
+| `trigger` | `string` |  |
+| `workflow` | `string` |  |
+
+### workflow.RunsParams
+
+| Field | Type | |
+|---|---|---|
+| `limit` | `integer` | at most this many (0: every one kept) |
+| `workflow` | `string` | only this workflow's runs |
+
+### workflow.Spec
+
+| Field | Type | |
+|---|---|---|
+| `concurrency` | `string` |  |
+| `description` | `string` |  |
+| `environment` | `string` |  |
+| `inputs` | [\[\]workflow.InputSpec](#workflowinputspec) |  |
+| `name` | `string` |  |
+| `outputs` | `map[string]string` |  |
+| `steps` | [\[\]workflow.StepSpec](#workflowstepspec) |  |
+| `timeout_ms` | `integer` |  |
+| `triggers` | [\[\]workflow.TriggerSpec](#workflowtriggerspec) |  |
+| `version` | `integer` |  |
+
+### workflow.StepRun
+
+| Field | Type | |
+|---|---|---|
+| `attempt` | `integer` |  |
+| `attempts` | `integer` |  |
+| `current` | [workflow.Result](#workflowresult) |  |
+| `ended_at` | `string` |  |
+| `id` | `string` |  |
+| `items` | `[]string` |  |
+| `iteration` | `integer` |  |
+| `kind` | `string` |  |
+| `log` | [\[\]workflow.LogEntry](#workflowlogentry) |  |
+| `next_at` | `string` |  |
+| `reason` | `string` |  |
+| `results` | [\[\]workflow.Result](#workflowresult) |  |
+| `started_at` | `string` |  |
+| `state` | `string` |  |
+
+### workflow.StepSpec
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `agent` | `[]string` |  |
+| `backoff_ms` | `integer` |  |
+| `base` | `string` |  |
+| `check` | `[]string` |  |
+| `dir` | `string` |  |
+| `env` | `map[string]string` |  |
+| `environment` | `string` |  |
+| `foreach` | `[]string` |  |
+| `foreach_expr` | `string` |  |
+| `id` | `string` |  |
+| `if` | `string` |  |
+| `isolate` | `boolean` |  |
+| `keep_agent` | `boolean` |  |
+| `labels` | `[]string` |  |
+| `machine` | `string` |  |
+| `match` | `string` |  |
+| `name` | `string` |  |
+| `needs` | `[]string` |  |
+| `no_summary` | `boolean` |  |
+| `on_failure` | `string` |  |
+| `prompt` | `string` |  |
+| `repeat` | [workflow.Repeat](#workflowrepeat) |  |
+| `retries` | `integer` |  |
+| `run` | `[]string` |  |
+| `shell` | `string` |  |
+| `timeout_ms` | `integer` |  |
+| `until` | `string` |  |
+| `with` | `map[string]string` |  |
+| `worktree` | `string` |  |
+
+### workflow.Trigger
+
+| Field | Type | |
+|---|---|---|
+| `by` | `string` |  |
+| `data` | `map[string]any` |  |
+| `from` | `string` |  |
+| `index` | `integer` |  |
+| `time` | `string` |  |
+| `type` | `string` |  |
+
+### workflow.TriggerInfo
+
+| Field | Type | |
+|---|---|---|
+| `description` | `string` |  |
+| `type` | `string` |  |
+
+### workflow.TriggerSpec
+
+| Field | Type | |
+|---|---|---|
+| `branches` | `[]string` |  |
+| `event` | `string` |  |
+| `every_ms` | `integer` |  |
+| `git` | `string` |  |
+| `inputs` | `map[string]string` |  |
+| `match` | `map[string]string` |  |
+| `remote` | `string` |  |
+| `repo` | `string` |  |
+| `schedule` | `string` |  |
+| `webhook` | `string` |  |
+
+### workflow.TrustParams
+
+| Field | Type | |
+|---|---|---|
+| `name` | `string` | the workflow's name |
+| `revoke` | `boolean` | stop its triggers instead |
+
+### workflow.ValidateParams
+
+| Field | Type | |
+|---|---|---|
+| `source` | `string` | the file's name, for errors (and the workflow's name when it gives none) |
+| `toml` | `string` | the text of a workflow file |
+
+### workflow.WaitParams
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` | the run's ID, or a unique prefix of it |
+| `timeout_ms` | `integer` | give up after this many milliseconds (0: never) |
+
+### workflow.WaitResult
+
+| Field | Type | |
+|---|---|---|
+| `outcome` | `string` |  |
+| `run` | [workflow.Run](#workflowrun) |  |
+
+### workflow.Workflow
+
+| Field | Type | |
+|---|---|---|
+| `description` | `string` |  |
+| `digest` | `string` |  |
+| `error` | `string` |  |
+| `inputs` | [\[\]workflow.InputSpec](#workflowinputspec) |  |
+| `last` | [workflow.RunSummary](#workflowrunsummary) |  |
+| `name` | `string` |  |
+| `next` | `string` |  |
+| `own` | `boolean` |  |
+| `path` | `string` |  |
+| `spec` | [workflow.Spec](#workflowspec) |  |
+| `steps` | `integer` |  |
+| `text` | `string` |  |
+| `triggers` | [\[\]workflow.TriggerInfo](#workflowtriggerinfo) |  |
+| `trusted` | `boolean` |  |

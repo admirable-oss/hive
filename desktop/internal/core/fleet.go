@@ -284,7 +284,7 @@ func (f *Fleet) Workspace() Workspace {
 var stateRank = map[string]int{"blocked": 5, "working": 4, "done": 3, "idle": 2, "unknown": 1, "exited": 0}
 
 func mergeWorkspaces(order []string, ws map[string]Workspace) Workspace {
-	out := Workspace{Environments: []Environment{}, Tabs: []Tab{}, Panes: []Pane{}, Agents: []Agent{}, Counts: map[string]int{}, Plans: []Plan{}, Branches: []Branch{}}
+	out := Workspace{Environments: []Environment{}, Tabs: []Tab{}, Panes: []Pane{}, Agents: []Agent{}, Counts: map[string]int{}, Plans: []Plan{}, Branches: []Branch{}, Workflows: []WorkflowRun{}}
 	for _, m := range order {
 		w := ws[m]
 		for _, e := range w.Environments {
@@ -319,6 +319,10 @@ func mergeWorkspaces(order []string, ws map[string]Workspace) Workspace {
 		for _, b := range w.Branches {
 			b.ID, b.EnvironmentID, b.Machine = qualify(m, b.ID), qualify(m, b.EnvironmentID), m
 			out.Branches = append(out.Branches, b)
+		}
+		for _, r := range w.Workflows {
+			r.ID, r.Machine = qualify(m, r.ID), m
+			out.Workflows = append(out.Workflows, r)
 		}
 		for k, v := range w.Counts {
 			out.Counts[k] += v
@@ -494,6 +498,23 @@ func (f *Fleet) ApproveTask(plan, task string, deny bool) error {
 
 func (f *Fleet) CancelPlan(plan string) error {
 	return f.do(plan, func(h *Hub, raw string) error { return h.CancelPlan(raw) })
+}
+
+// Workflow runs' actions go to the machine the run's ID names.
+func (f *Fleet) CancelWorkflowRun(id string) error {
+	return f.do(id, func(h *Hub, raw string) error { return h.CancelWorkflowRun(raw) })
+}
+
+func (f *Fleet) RerunWorkflow(id string) (string, error) {
+	h, raw, err := f.route(id)
+	if err != nil {
+		return "", err
+	}
+	run, err := h.RerunWorkflow(raw)
+	if err != nil {
+		return "", err
+	}
+	return qualify(machineOf(id), run), nil
 }
 
 // Branches' actions go to the machine the branch's ID names.

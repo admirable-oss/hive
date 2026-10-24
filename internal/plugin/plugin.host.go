@@ -39,6 +39,19 @@ type Context struct {
 	Pane        string `json:"pane,omitempty"`
 	// Capabilities are the capabilities the plugin holds now.
 	Capabilities []string `json:"capabilities"`
+	// Workflow is set when a workflow's step runs the action: the run, the
+	// step, what it gives the action, and the file outputs go to (also
+	// $HIVE_OUTPUT).
+	Workflow *WorkflowContext `json:"workflow,omitempty"`
+}
+
+// WorkflowContext is the workflow step an action runs for.
+type WorkflowContext struct {
+	Workflow string            `json:"workflow"`
+	Run      string            `json:"run"`
+	Step     string            `json:"step"`
+	With     map[string]string `json:"with,omitempty"`
+	Output   string            `json:"output,omitempty"`
 }
 
 // EventInfo is an event passed to a plugin.

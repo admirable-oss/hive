@@ -1593,7 +1593,7 @@ How branches work: [docs/branches.md](docs/branches.md). The design:
 
 ---
 
-## M24 · Workflow Automation — `v1.5.0` — **PROPOSED**
+## M24 · Workflow Automation — `v1.5.0` — **IN PROGRESS**
 
 Reusable workflows from agents, scripts and events.
 
@@ -1631,6 +1631,51 @@ way every time.
 tests and a fix-up agent on failure. It survives a daemon restart in the
 middle, records every run with its inputs and outputs, and runs the same
 way headless in CI.
+
+### M24 progress
+
+How workflows work: [docs/workflows.md](docs/workflows.md). The design:
+[RFC 0004](rfcs/0004-workflow-automation.md).
+
+- [x] Workflow files (`internal/workflow`): versioned TOML (`version = 1`),
+  checked strictly; agent, command and plugin action steps with `needs`,
+  inputs, outputs (`$HIVE_OUTPUT`, `[outputs]`), conditions, `on_failure`,
+  `foreach` and `repeat`; a deterministic `${{ … }}` expression language.
+- [x] Shareable: the person's own files in `~/.hive/workflows`, and shared
+  ones (`[workflows] paths`, such as a repository's `.hive/workflows`) that
+  fire only once trusted at their current text.
+- [x] Triggers: Hive events (with aliases such as `agent.done` and field
+  matches), cron schedules and `every`, git pushes and new branches (saved
+  references, so pushes while no daemon ran are seen), and webhooks through
+  `workflow.fire` for plugins. Concurrency (`queue`, `parallel`, `skip`) and
+  `max_runs`; a run never triggers its own workflow.
+- [x] Deterministic runs: each records the workflow's text and digest, its
+  inputs, its trigger, and every attempt's resolved command or prompt;
+  `hive workflow rerun` repeats one.
+- [x] Reliability: retries with exponential backoff, step and run
+  timeouts, cancellation, failure handling per step; runs saved as they
+  change and resumed after a restart (agent steps are M22 tasks whose
+  agents outlive the daemon; interrupted commands run again without
+  spending a retry).
+- [x] History kept by `[retention] workflow_runs` and `workflow_run_age`,
+  with each step's output, outputs and summary; `hive workflow report`.
+- [x] Headless mode for CI: `hive workflow run --headless` with a daemon
+  of its own, a JSON report and an exit status.
+- [x] Any provider: steps name agent kinds in order of preference, or
+  `"any"`, and run with whichever is installed.
+- [x] Wire API `workflow.*` at API level 14, `pkg/hiveapi`, MCP tools,
+  plugin capabilities (trust closed to plugins), the action context's
+  `workflow`, and frozen surfaces. The TUI's Overview and the desktop app
+  show runs and notify on failures.
+- [x] The acceptance, end to end (`TestM24WorkflowOnPush`): a push to a
+  trusted repository workflow runs an agent review, the tests and a fix-up
+  agent on failure; the daemon restarts in the middle of the review without
+  the agent being prompted again; the run is recorded with its trigger,
+  inputs and outputs; and the same file runs headless as CI would, with a
+  JSON report and exit 1.
+- [ ] Workflows as registry packages, once Plugin API 2 and the registry
+  can carry them (M26).
+- [ ] RFC 0004 discussed and accepted; then tag `v1.5.0`.
 
 ---
 

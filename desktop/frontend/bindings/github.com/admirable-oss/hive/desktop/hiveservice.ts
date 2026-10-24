@@ -46,6 +46,13 @@ export function CancelPlan(plan: string): $CancellablePromise<void> {
 }
 
 /**
+ * CancelWorkflowRun cancels a workflow run.
+ */
+export function CancelWorkflowRun(id: string): $CancellablePromise<void> {
+    return $Call.ByID(2061130357, id);
+}
+
+/**
  * CheckForUpdates looks for a newer release now.
  */
 export function CheckForUpdates(): $CancellablePromise<$models.UpdateStatus> {
@@ -331,6 +338,14 @@ export function RefreshView(paneID: string): $CancellablePromise<void> {
  */
 export function RenamePane(paneID: string, name: string): $CancellablePromise<void> {
     return $Call.ByID(2238607191, paneID, name);
+}
+
+/**
+ * RerunWorkflow runs a workflow run again, with its recorded text, inputs
+ * and trigger, and returns the new run's ID.
+ */
+export function RerunWorkflow(id: string): $CancellablePromise<string> {
+    return $Call.ByID(3257554258, id);
 }
 
 /**

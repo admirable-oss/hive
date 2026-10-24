@@ -93,7 +93,9 @@ var methodCapabilities = map[string]string{
 	"worktree.list": CapHiveRead, "plugin.list": CapHiveRead, "plugin.contributions": CapHiveRead,
 	"observer.activity": CapHiveRead, "task.list": CapHiveRead, "task.get": CapHiveRead, "task.wait": CapHiveRead,
 	"branch.list": CapHiveRead, "branch.get": CapHiveRead, "branch.check": CapHiveRead, "branch.diff": CapHiveRead,
-	"branch.conflicts": CapHiveRead,
+	"branch.conflicts": CapHiveRead, "workflow.list": CapHiveRead, "workflow.get": CapHiveRead,
+	"workflow.validate": CapHiveRead, "workflow.runs": CapHiveRead, "workflow.status": CapHiveRead,
+	"workflow.wait": CapHiveRead,
 
 	// Changing the workspace.
 	"agent.focus": CapHiveWrite, "agent.rename": CapHiveWrite, "agent.seen": CapHiveWrite, "agent.report": CapHiveWrite,
@@ -115,21 +117,23 @@ var methodCapabilities = map[string]string{
 	"process.stop": CapHiveProcess, "pane.run": CapHiveProcess, "environment.remove": CapHiveProcess,
 	"worktree.remove": CapHiveProcess, "task.run": CapHiveProcess, "task.cancel": CapHiveProcess,
 	"task.retry": CapHiveProcess, "task.approve": CapHiveProcess, "branch.ready": CapHiveProcess,
-	"branch.update": CapHiveProcess, "branch.clean": CapHiveProcess,
+	"branch.update": CapHiveProcess, "branch.clean": CapHiveProcess, "workflow.run": CapHiveProcess,
+	"workflow.rerun": CapHiveProcess, "workflow.cancel": CapHiveProcess, "workflow.fire": CapHiveProcess,
 
 	// Administration.
 	"debug.pprof": CapHiveAdmin, "debug.stats": CapHiveAdmin, "runtime.gc": CapHiveAdmin,
 	"session.restore": CapHiveAdmin, "plugin.reload": CapHiveAdmin, "plugin.run": CapHiveAdmin,
-	"plugin.cancel": CapHiveAdmin, "agent.reload": CapHiveAdmin,
+	"plugin.cancel": CapHiveAdmin, "agent.reload": CapHiveAdmin, "workflow.reload": CapHiveAdmin,
 }
 
 // closedMethods are daemon methods no plugin may call, whatever it holds:
 // an observer credential a plugin made would outlive the plugin and its
-// grants, and a push or a pull request is published only on a person's
-// own command.
+// grants, a push or a pull request is published only on a person's own
+// command, and only a person decides which shared workflows run by
+// themselves.
 var closedMethods = []string{
 	"observer.audit", "observer.create", "observer.get", "observer.list", "observer.revoke", "observer.validate",
-	"branch.push", "branch.pr",
+	"branch.push", "branch.pr", "workflow.trust",
 }
 
 // Closed reports whether method is classified as callable by no plugin.

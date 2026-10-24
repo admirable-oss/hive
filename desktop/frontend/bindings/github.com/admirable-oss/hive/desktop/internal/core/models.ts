@@ -1559,6 +1559,81 @@ export class Tab {
 }
 
 /**
+ * WorkflowRun is a run of a workflow, as the app shows it (hive workflow).
+ */
+export class WorkflowRun {
+    "id": string;
+    "workflow": string;
+    "state": string;
+
+    /**
+     * Trigger is what started it: manual, git, event, schedule, webhook.
+     */
+    "trigger": string;
+    "total": number;
+    "done": number;
+    "failed": number;
+
+    /**
+     * Current are the steps running.
+     */
+    "current": string[];
+    "reason"?: string;
+    "created_at": string;
+    "ended_at"?: string;
+
+    /**
+     * Machine is the saved machine it runs on ("" for this computer).
+     */
+    "machine"?: string;
+
+    /** Creates a new WorkflowRun instance. */
+    constructor($$source: Partial<WorkflowRun> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("workflow" in $$source)) {
+            this["workflow"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("trigger" in $$source)) {
+            this["trigger"] = "";
+        }
+        if (!("total" in $$source)) {
+            this["total"] = 0;
+        }
+        if (!("done" in $$source)) {
+            this["done"] = 0;
+        }
+        if (!("failed" in $$source)) {
+            this["failed"] = 0;
+        }
+        if (!("current" in $$source)) {
+            this["current"] = [];
+        }
+        if (!("created_at" in $$source)) {
+            this["created_at"] = "0001-01-01T00:00:00.000Z";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new WorkflowRun instance from a string or object.
+     */
+    static createFrom($$source: any = {}): WorkflowRun {
+        const $$createField7_0 = $$createType6;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("current" in $$parsedSource) {
+            $$parsedSource["current"] = $$createField7_0($$parsedSource["current"]);
+        }
+        return new WorkflowRun($$parsedSource as Partial<WorkflowRun>);
+    }
+}
+
+/**
  * Workspace is what the frontend shows: environments, tabs, panes and
  * agents. It leaves out what screens do not need and secrets may hide in:
  * environment variables, command lines and arguments.
@@ -1588,6 +1663,11 @@ export class Workspace {
      * Branches are the active branches of agents' worktrees (hive branch).
      */
     "branches"?: Branch[];
+
+    /**
+     * Workflows are the latest workflow runs (hive workflow), newest first.
+     */
+    "workflows"?: WorkflowRun[];
 
     /** Creates a new Workspace instance. */
     constructor($$source: Partial<Workspace> = {}) {
@@ -1624,6 +1704,7 @@ export class Workspace {
         const $$createField5_0 = $$createType12;
         const $$createField6_0 = $$createType35;
         const $$createField7_0 = $$createType37;
+        const $$createField8_0 = $$createType39;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("environments" in $$parsedSource) {
             $$parsedSource["environments"] = $$createField0_0($$parsedSource["environments"]);
@@ -1645,6 +1726,9 @@ export class Workspace {
         }
         if ("branches" in $$parsedSource) {
             $$parsedSource["branches"] = $$createField7_0($$parsedSource["branches"]);
+        }
+        if ("workflows" in $$parsedSource) {
+            $$parsedSource["workflows"] = $$createField8_0($$parsedSource["workflows"]);
         }
         return new Workspace($$parsedSource as Partial<Workspace>);
     }
@@ -1689,3 +1773,5 @@ const $$createType34 = Plan.createFrom;
 const $$createType35 = $Create.Array($$createType34);
 const $$createType36 = Branch.createFrom;
 const $$createType37 = $Create.Array($$createType36);
+const $$createType38 = WorkflowRun.createFrom;
+const $$createType39 = $Create.Array($$createType38);

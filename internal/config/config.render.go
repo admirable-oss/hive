@@ -97,6 +97,10 @@ exited_processes = {{dur .Retention.ExitedProcesses}}
 process_log_mb = {{.Retention.ProcessLogMB}}
 # How often the daemon cleans up by itself ("0s": never).
 gc_interval = {{dur .Retention.GCInterval}}
+# Finished workflow runs kept for ` + "`hive workflow runs`" + ` and reports, and for how
+# long; the oldest are forgotten first.
+workflow_runs = {{.Retention.WorkflowRuns}}
+workflow_run_age = {{dur .Retention.WorkflowRunAge}}
 
 [update]
 # The releases ` + "`hive update`" + ` installs: stable, or preview (release candidates too).
@@ -230,6 +234,17 @@ check_interval = {{dur .Branches.CheckInterval}}
 # Cleaned-up and removed branches remembered for ` + "`hive branch list --all`" + `.
 keep = {{.Branches.Keep}}
 {{gates .Branches.Gates}}{{forges .Branches.Forges}}
+[workflows]
+# Your own workflows are the *.toml files in ~/.hive/workflows. These are
+# more files and directories ("~/" is home), such as a repository's
+# .hive/workflows: shared files, whose triggers fire only once you trust
+# them (` + "`hive workflow trust <name>`" + `), and again after each change.
+paths = {{list .Workflows.Paths}}
+# Workflow runs running at once, across workflows; the rest wait.
+max_runs = {{.Workflows.MaxRuns}}
+# How often watched repositories (for git triggers) and workflow files are
+# read again, besides changes noticed.
+git_interval = {{dur .Workflows.GitInterval}}
 [notify]
 # When an agent wants you: blocked (waiting for your decision) or done
 # (finished, and you have not looked yet). Never for the pane you are in.

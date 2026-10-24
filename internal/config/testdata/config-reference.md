@@ -65,6 +65,8 @@ the defaults, so a typo never stops the daemon.
 | `exited_processes` | `"168h0m0s"` | Records and output of processes that ended, and that no pane shows, are removed after this long (`hive gc` removes them now). |
 | `process_log_mb` | `50` | Each agent's output log rotates at this size in MiB, keeping one older file (0 lets it grow). |
 | `gc_interval` | `"6h0m0s"` | How often the daemon cleans up by itself ("0s": never). |
+| `workflow_runs` | `200` | Finished workflow runs kept for `hive workflow runs` and reports, and for how long; the oldest are forgotten first. |
+| `workflow_run_age` | `"720h0m0s"` | Finished workflow runs kept for `hive workflow runs` and reports, and for how long; the oldest are forgotten first. |
 
 ## `[update]`
 
@@ -182,6 +184,14 @@ host = "git.example.com"
 type = "gitlab"                  # github | gitlab | command
 command = ["my-pr"]              # for type = "command": gets the request as JSON
 ```
+
+## `[workflows]`
+
+| Key | Default | Description |
+|---|---|---|
+| `paths` | `[]` | Your own workflows are the *.toml files in ~/.hive/workflows. These are more files and directories ("~/" is home), such as a repository's .hive/workflows: shared files, whose triggers fire only once you trust them (`hive workflow trust <name>`), and again after each change. |
+| `max_runs` | `4` | Workflow runs running at once, across workflows; the rest wait. |
+| `git_interval` | `"10s"` | How often watched repositories (for git triggers) and workflow files are read again, besides changes noticed. |
 
 ## `[notify]`
 

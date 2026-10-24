@@ -77,6 +77,25 @@ func (g *Git) Root(ctx context.Context, dir string) (string, error) {
 	return filepath.FromSlash(strings.TrimSpace(string(out))), nil
 }
 
+// Refs returns the repository's local and remote-tracking branches
+// (refs/heads/… and refs/remotes/…) with the commits they point at.
+func (g *Git) Refs(ctx context.Context, dir string) (map[string]string, error) {
+	out, err := g.Runner.Run(ctx, dir, "for-each-ref", "--format=%(refname) %(objectname)", "refs/heads", "refs/remotes")
+	if notRepo(err) {
+		return nil, ErrNotRepository
+	}
+	if err != nil {
+		return nil, err
+	}
+	refs := map[string]string{}
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		if name, commit, ok := strings.Cut(line, " "); ok {
+			refs[name] = commit
+		}
+	}
+	return refs, nil
+}
+
 // Dirs returns the working tree's git directory and the repository's common
 // directory (they differ for linked worktrees). Changes there (HEAD, index,
 // refs) are what the watcher listens for.

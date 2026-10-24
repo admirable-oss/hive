@@ -5020,9 +5020,862 @@
         "Blink"
       ],
       "type": "object"
+    },
+    "workflow.FireParams": {
+      "properties": {
+        "data": {
+          "description": "the payload, which expressions read as trigger.data"
+        },
+        "webhook": {
+          "description": "the webhook's name, as workflows' [[on]] webhook says",
+          "type": "string"
+        }
+      },
+      "required": [
+        "webhook"
+      ],
+      "type": "object"
+    },
+    "workflow.InputSpec": {
+      "properties": {
+        "default": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "workflow.LogEntry": {
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "time": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "time",
+        "message"
+      ],
+      "type": "object"
+    },
+    "workflow.NameParams": {
+      "properties": {
+        "name": {
+          "description": "the workflow's name (hive workflow list)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "workflow.Repeat": {
+      "properties": {
+        "max": {
+          "type": "integer"
+        },
+        "until": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "max",
+        "until"
+      ],
+      "type": "object"
+    },
+    "workflow.Resolved": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "environment_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "run": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "shell": {
+          "type": "string"
+        },
+        "with": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "worktree": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "workflow.Result": {
+      "properties": {
+        "attempt": {
+          "type": "integer"
+        },
+        "changed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "changed_more": {
+          "type": "integer"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "item": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "output": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "resolved": {
+          "$ref": "#/$defs/workflow.Resolved"
+        },
+        "screen": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "attempt",
+        "resolved"
+      ],
+      "type": "object"
+    },
+    "workflow.Run": {
+      "properties": {
+        "cancelled": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "path": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "integer"
+        },
+        "schema": {
+          "type": "integer"
+        },
+        "source": {
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/workflow.Spec"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/workflow.StepRun"
+          },
+          "type": "array"
+        },
+        "trigger": {
+          "$ref": "#/$defs/workflow.Trigger"
+        },
+        "workflow": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "workflow",
+        "digest",
+        "source",
+        "spec",
+        "inputs",
+        "trigger",
+        "state",
+        "rev",
+        "steps",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "workflow.RunParams": {
+      "properties": {
+        "by": {
+          "description": "who asked, for the run's record",
+          "type": "string"
+        },
+        "dir": {
+          "description": "the directory steps run in unless they name an environment (absolute)",
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "the workflow's inputs, by name",
+          "type": "object"
+        },
+        "name": {
+          "description": "a known workflow's name",
+          "type": "string"
+        },
+        "source": {
+          "description": "the file's name, for errors",
+          "type": "string"
+        },
+        "toml": {
+          "description": "the text of a workflow file (instead of name)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "workflow.RunRef": {
+      "properties": {
+        "by": {
+          "description": "who asks, for a rerun's record",
+          "type": "string"
+        },
+        "id": {
+          "description": "the run's ID, or a unique prefix of it",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "workflow.RunSummary": {
+      "properties": {
+        "counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "current": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "integer"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "trigger": {
+          "type": "string"
+        },
+        "workflow": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "workflow",
+        "state",
+        "rev",
+        "trigger",
+        "total",
+        "counts",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "workflow.RunsParams": {
+      "properties": {
+        "limit": {
+          "description": "at most this many (0: every one kept)",
+          "type": "integer"
+        },
+        "workflow": {
+          "description": "only this workflow's runs",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "workflow.Spec": {
+      "properties": {
+        "concurrency": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/workflow.InputSpec"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/workflow.StepSpec"
+          },
+          "type": "array"
+        },
+        "timeout_ms": {
+          "type": "integer"
+        },
+        "triggers": {
+          "items": {
+            "$ref": "#/$defs/workflow.TriggerSpec"
+          },
+          "type": "array"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "name",
+        "steps"
+      ],
+      "type": "object"
+    },
+    "workflow.StepRun": {
+      "properties": {
+        "attempt": {
+          "type": "integer"
+        },
+        "attempts": {
+          "type": "integer"
+        },
+        "current": {
+          "$ref": "#/$defs/workflow.Result"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "iteration": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "log": {
+          "items": {
+            "$ref": "#/$defs/workflow.LogEntry"
+          },
+          "type": "array"
+        },
+        "next_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/workflow.Result"
+          },
+          "type": "array"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "state"
+      ],
+      "type": "object"
+    },
+    "workflow.StepSpec": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "agent": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "backoff_ms": {
+          "type": "integer"
+        },
+        "base": {
+          "type": "string"
+        },
+        "check": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "foreach": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "foreach_expr": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "if": {
+          "type": "string"
+        },
+        "isolate": {
+          "type": "boolean"
+        },
+        "keep_agent": {
+          "type": "boolean"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "machine": {
+          "type": "string"
+        },
+        "match": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "no_summary": {
+          "type": "boolean"
+        },
+        "on_failure": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/workflow.Repeat"
+        },
+        "retries": {
+          "type": "integer"
+        },
+        "run": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "shell": {
+          "type": "string"
+        },
+        "timeout_ms": {
+          "type": "integer"
+        },
+        "until": {
+          "type": "string"
+        },
+        "with": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "worktree": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "needs"
+      ],
+      "type": "object"
+    },
+    "workflow.Trigger": {
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "from": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "time": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "time"
+      ],
+      "type": "object"
+    },
+    "workflow.TriggerInfo": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "description"
+      ],
+      "type": "object"
+    },
+    "workflow.TriggerSpec": {
+      "properties": {
+        "branches": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "event": {
+          "type": "string"
+        },
+        "every_ms": {
+          "type": "integer"
+        },
+        "git": {
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "match": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "remote": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "webhook": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "workflow.TrustParams": {
+      "properties": {
+        "name": {
+          "description": "the workflow's name",
+          "type": "string"
+        },
+        "revoke": {
+          "description": "stop its triggers instead",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "workflow.ValidateParams": {
+      "properties": {
+        "source": {
+          "description": "the file's name, for errors (and the workflow's name when it gives none)",
+          "type": "string"
+        },
+        "toml": {
+          "description": "the text of a workflow file",
+          "type": "string"
+        }
+      },
+      "required": [
+        "toml"
+      ],
+      "type": "object"
+    },
+    "workflow.WaitParams": {
+      "properties": {
+        "id": {
+          "description": "the run's ID, or a unique prefix of it",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "give up after this many milliseconds (0: never)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "workflow.WaitResult": {
+      "properties": {
+        "outcome": {
+          "type": "string"
+        },
+        "run": {
+          "$ref": "#/$defs/workflow.Run"
+        }
+      },
+      "required": [
+        "outcome",
+        "run"
+      ],
+      "type": "object"
+    },
+    "workflow.Workflow": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/workflow.InputSpec"
+          },
+          "type": "array"
+        },
+        "last": {
+          "$ref": "#/$defs/workflow.RunSummary"
+        },
+        "name": {
+          "type": "string"
+        },
+        "next": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "own": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/workflow.Spec"
+        },
+        "steps": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "triggers": {
+          "items": {
+            "$ref": "#/$defs/workflow.TriggerInfo"
+          },
+          "type": "array"
+        },
+        "trusted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "trusted"
+      ],
+      "type": "object"
     }
   },
-  "api_level": 13,
+  "api_level": 14,
   "methods": [
     {
       "name": "agent.explain",
@@ -6087,6 +6940,128 @@
       },
       "result": {
         "$ref": "#/$defs/terminal.SnapshotResult"
+      }
+    },
+    {
+      "name": "workflow.cancel",
+      "params": {
+        "$ref": "#/$defs/workflow.RunRef"
+      },
+      "result": {
+        "$ref": "#/$defs/workflow.Run"
+      }
+    },
+    {
+      "name": "workflow.fire",
+      "params": {
+        "$ref": "#/$defs/workflow.FireParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/workflow.RunSummary"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "workflow.get",
+      "params": {
+        "$ref": "#/$defs/workflow.NameParams"
+      },
+      "result": {
+        "$ref": "#/$defs/workflow.Workflow"
+      }
+    },
+    {
+      "name": "workflow.list",
+      "params": {
+        "properties": {},
+        "type": "object"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/workflow.Workflow"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "workflow.reload",
+      "params": {
+        "properties": {},
+        "type": "object"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/workflow.Workflow"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "workflow.rerun",
+      "params": {
+        "$ref": "#/$defs/workflow.RunRef"
+      },
+      "result": {
+        "$ref": "#/$defs/workflow.Run"
+      }
+    },
+    {
+      "name": "workflow.run",
+      "params": {
+        "$ref": "#/$defs/workflow.RunParams"
+      },
+      "result": {
+        "$ref": "#/$defs/workflow.Run"
+      }
+    },
+    {
+      "name": "workflow.runs",
+      "params": {
+        "$ref": "#/$defs/workflow.RunsParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/workflow.RunSummary"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "workflow.status",
+      "params": {
+        "$ref": "#/$defs/workflow.RunRef"
+      },
+      "result": {
+        "$ref": "#/$defs/workflow.Run"
+      }
+    },
+    {
+      "name": "workflow.trust",
+      "params": {
+        "$ref": "#/$defs/workflow.TrustParams"
+      },
+      "result": {
+        "$ref": "#/$defs/workflow.Workflow"
+      }
+    },
+    {
+      "name": "workflow.validate",
+      "params": {
+        "$ref": "#/$defs/workflow.ValidateParams"
+      },
+      "result": {
+        "$ref": "#/$defs/workflow.Spec"
+      }
+    },
+    {
+      "name": "workflow.wait",
+      "params": {
+        "$ref": "#/$defs/workflow.WaitParams"
+      },
+      "result": {
+        "$ref": "#/$defs/workflow.WaitResult"
       }
     },
     {

@@ -65,6 +65,11 @@ func (c *Config) schema() map[string]map[string]setter {
 			"gate":           c.gatesSchema,
 			"forge":          c.forgesSchema,
 		},
+		"workflows": {
+			"paths":        nameList(&c.Workflows.Paths, "a list of files and directories"),
+			"max_runs":     integer(&c.Workflows.MaxRuns, 1, 256),
+			"git_interval": duration(&c.Workflows.GitInterval, time.Second, time.Hour),
+		},
 		"session": {
 			"restore":                  boolean(&c.Session.Restore),
 			"resume_agents_on_restore": boolean(&c.Session.ResumeAgentsOnRestore),
@@ -167,6 +172,8 @@ func (c *Config) schema() map[string]map[string]setter {
 			"exited_processes": duration(&c.Retention.ExitedProcesses, time.Hour, 10*365*24*time.Hour),
 			"process_log_mb":   integer(&c.Retention.ProcessLogMB, 0, 100000),
 			"gc_interval":      durationOrOff(&c.Retention.GCInterval, time.Minute, 30*24*time.Hour),
+			"workflow_runs":    integer(&c.Retention.WorkflowRuns, 1, 100000),
+			"workflow_run_age": duration(&c.Retention.WorkflowRunAge, time.Hour, 10*365*24*time.Hour),
 		},
 		"ui": {
 			"sidebar":       boolean(&c.UI.Sidebar),

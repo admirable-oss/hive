@@ -34,5 +34,6 @@ export {
     Settings,
     StartAgentRequest,
     Tab,
+    WorkflowRun,
     Workspace
 } from "./models.js";
