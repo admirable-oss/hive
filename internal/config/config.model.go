@@ -21,6 +21,7 @@ type Config struct {
 	Worktrees Worktrees
 	Tasks     Tasks
 	Branches  Branches
+	Workflows Workflows
 	Session   Session
 	Retention Retention
 	Remote    Remote
@@ -118,6 +119,20 @@ type Branches struct {
 	Forges []Forge
 }
 
+// Workflows configures workflows (hive workflow): where shared ones are
+// read from, and how many run at once.
+type Workflows struct {
+	// Paths are more workflow files and directories ("~/" is home), for
+	// shared ones such as a repository's .hive/workflows. They fire only
+	// once trusted.
+	Paths []string
+	// MaxRuns caps the runs running at once, across workflows.
+	MaxRuns int
+	// GitInterval is how often watched repositories' references (and the
+	// workflow files) are read again.
+	GitInterval time.Duration
+}
+
 // Gate is a check before a branch is ready.
 type Gate struct {
 	Name    string
@@ -170,6 +185,10 @@ type Retention struct {
 	ProcessLogMB int
 	// GCInterval is how often the daemon cleans up by itself; 0 never.
 	GCInterval time.Duration
+	// WorkflowRuns and WorkflowRunAge bound the finished workflow runs
+	// kept; the oldest are forgotten first.
+	WorkflowRuns   int
+	WorkflowRunAge time.Duration
 }
 
 // Update configures `hive update`.
@@ -390,7 +409,11 @@ func Defaults() Config {
 			Restore: true, ResumeAgentsOnRestore: true, RestoreStagger: time.Second,
 			SnapshotInterval: 30 * time.Second, KeepSnapshots: 48, ReplayLines: 500,
 		},
-		Retention: Retention{ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour},
+		Workflows: Workflows{Paths: []string{}, MaxRuns: 4, GitInterval: 10 * time.Second},
+		Retention: Retention{
+			ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour,
+			WorkflowRuns: 200, WorkflowRunAge: 30 * 24 * time.Hour,
+		},
 		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48, ImageBudgetKB: 1024},
 		Discovery: Discovery{SSHPort: 22, Interfaces: []string{}, Browse: true},
 		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},

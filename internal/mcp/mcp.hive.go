@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -19,6 +20,8 @@ For work in several steps, write a plan and run it with task_run: tasks with pro
 Typical flow: env_list (find the environment of the repository) → agent_start with worktree set to a new branch per agent, so parallel agents never edit the same checkout → agent_prompt with wait=true (or several agent_prompt without wait, then agent_wait on each) → agent_read to collect what each one did.
 
 Each worktree's branch is followed: branch_list shows which branches overlap or would conflict, branch_diff reads a branch's changes, branch_comment sends review comments to the agent on it, and branch_ready runs its tests and other gates. Pushing, merging and pull requests are left to the user.
+
+Workflows are the user's reusable steps (agents, commands, plugin actions), started by triggers or by hand: workflow_list shows them and their inputs, workflow_run runs one by name, workflow_wait waits for a run and returns its report (each step's outcome and output), and workflow_runs lists recent runs. Only run a workflow the user asked for.
 
 States: working, blocked (waiting for a decision such as a permission prompt: read it with agent_read, answer with agent_send_keys), done (finished a turn), idle (ready for a prompt), exited. Waits end early when an agent blocks or exits; the outcome says so. An outcome of timeout is not a failure: call agent_wait again. Agents are named by their pane ID (or process ID), as returned by agent_start and agent_list. Never stop agents you did not start.`
 
@@ -141,6 +144,26 @@ type branchCommentArgs struct {
 	Path string `json:"path,omitempty" desc:"the file it is about"`
 	Line int    `json:"line,omitempty" desc:"the line it is about"`
 	Send bool   `json:"send,omitempty" desc:"send it, with the comments not sent yet, to the branch's agent now"`
+}
+
+type workflowRunArgs struct {
+	Name   string            `json:"name" desc:"the workflow's name (workflow_list)"`
+	Inputs map[string]string `json:"inputs,omitempty" desc:"its inputs, by name"`
+	Dir    string            `json:"dir,omitempty" desc:"the directory its steps run in unless they name an environment (absolute)"`
+}
+
+type workflowRunsArgs struct {
+	Workflow string `json:"workflow,omitempty" desc:"only this workflow's runs"`
+	Limit    int    `json:"limit,omitempty" desc:"at most this many (default 20)"`
+}
+
+type workflowRunRef struct {
+	ID string `json:"id" desc:"the run's ID (or a unique prefix)"`
+}
+
+type workflowWaitArgs struct {
+	ID             string `json:"id" desc:"the run's ID (or a unique prefix)"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty" desc:"give up after this long (default 300); the run keeps going"`
 }
 
 // mcpPatchBytes bounds a diff a model reads.
@@ -302,13 +325,52 @@ func HiveTools(c *hiveapi.Client) []Tool {
 			}),
 		NewTool("branch_ready", "Run a branch's configured gates (tests, lint, build) in its worktree; it is ready when they all pass. Returns the branch with each gate's result.",
 			func(ctx context.Context, a branchArgs) (any, error) { return c.ReadyBranch(ctx, a.Ref, nil) }),
+		NewTool("workflow_list", "List the user's workflows: their inputs, triggers, steps and latest run.",
+			func(ctx context.Context, _ none) (any, error) { return c.Workflows(ctx) }),
+		NewTool("workflow_run", "Run one of the user's workflows by name, with its inputs. Returns the run with its ID; workflow_wait waits for it. Only run a workflow the user asked for.",
+			func(ctx context.Context, a workflowRunArgs) (any, error) {
+				r, err := c.RunWorkflow(ctx, a.Name, hiveapi.WorkflowRunOptions{Inputs: a.Inputs, Dir: a.Dir, By: "mcp"})
+				if err != nil {
+					return nil, err
+				}
+				return r.Summary(), nil
+			}),
+		NewTool("workflow_runs", "List workflow runs, newest first, with their states and the steps running.",
+			func(ctx context.Context, a workflowRunsArgs) (any, error) {
+				return c.WorkflowRuns(ctx, a.Workflow, cmp.Or(a.Limit, 20))
+			}),
+		NewTool("workflow_status", "Show a workflow run's report: its trigger, inputs, and each step's outcome, output, outputs and summary.",
+			func(ctx context.Context, a workflowRunRef) (any, error) {
+				r, err := c.WorkflowRun(ctx, a.ID)
+				if err != nil {
+					return nil, err
+				}
+				return hiveapi.NewWorkflowReport(r), nil
+			}),
+		NewTool("workflow_wait", "Wait for a workflow run to finish. Returns the outcome (finished or timeout) and its report. A timeout means it still runs: wait again.",
+			func(ctx context.Context, a workflowWaitArgs) (any, error) {
+				res, err := c.WaitWorkflowRun(ctx, a.ID, seconds(a.TimeoutSeconds))
+				if err != nil {
+					return nil, err
+				}
+				return map[string]any{"outcome": res.Outcome, "report": hiveapi.NewWorkflowReport(res.Run)}, nil
+			}),
+		NewTool("workflow_cancel", "Cancel a workflow run: its agents' tasks are cancelled and its commands stopped.",
+			func(ctx context.Context, a workflowRunRef) (any, error) {
+				r, err := c.CancelWorkflowRun(ctx, a.ID)
+				if err != nil {
+					return nil, err
+				}
+				return r.Summary(), nil
+			}),
 	}
 	for i := range tools {
 		switch tools[i].Name {
 		case "agent_list", "agent_get", "agent_wait", "agent_read", "agent_explain", "pane_list", "pane_read", "env_list", "snapshot",
-			"task_list", "task_get", "task_wait", "branch_list", "branch_get", "branch_diff", "branch_conflicts":
+			"task_list", "task_get", "task_wait", "branch_list", "branch_get", "branch_diff", "branch_conflicts",
+			"workflow_list", "workflow_runs", "workflow_status", "workflow_wait":
 			tools[i].Annotations = ro
-		case "agent_stop", "task_cancel":
+		case "agent_stop", "task_cancel", "workflow_cancel":
 			tools[i].Annotations = &Annotations{Destructive: true}
 		}
 	}

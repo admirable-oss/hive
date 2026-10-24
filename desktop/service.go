@@ -348,6 +348,23 @@ func (s *HiveService) CancelPlan(ctx context.Context, plan string) error {
 	return s.hub.CancelPlan(plan)
 }
 
+// CancelWorkflowRun cancels a workflow run.
+func (s *HiveService) CancelWorkflowRun(ctx context.Context, id string) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.CancelWorkflowRun(id)
+}
+
+// RerunWorkflow runs a workflow run again, with its recorded text, inputs
+// and trigger, and returns the new run's ID.
+func (s *HiveService) RerunWorkflow(ctx context.Context, id string) (string, error) {
+	if err := guard(ctx); err != nil {
+		return "", err
+	}
+	return s.hub.RerunWorkflow(id)
+}
+
 // BranchDiff returns a branch's changes against its base, uncommitted
 // ones included.
 func (s *HiveService) BranchDiff(ctx context.Context, ref string) (core.BranchDiff, error) {

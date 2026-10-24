@@ -24,6 +24,7 @@ import (
 	"github.com/admirable-oss/hive/internal/shim"
 	"github.com/admirable-oss/hive/internal/task"
 	"github.com/admirable-oss/hive/internal/terminal"
+	"github.com/admirable-oss/hive/internal/workflow"
 )
 
 type Module struct {
@@ -36,6 +37,7 @@ type Module struct {
 	Agents       *agent.Service
 	Tasks        *task.Service
 	Branches     *branch.Service
+	Workflows    *workflow.Service
 }
 
 // NewModule assembles the daemon. Dependencies flow strictly downward:
@@ -137,6 +139,9 @@ func NewModule(cfg Config) *Module {
 	ops := &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs, pattern: cfg.Branches.agentPattern()}
 	tasks := newTasks(cfg, ops, agents, bus, log.With("module", "task"))
 	server.Go(tasks.run)
+	workflows := newWorkflows(cfg, tasks.svc, guardedEnvs, agents, plugins, bus, log.With("module", "workflow"))
+	server.Go(workflows.Run)
+	server.Go(func(ctx context.Context) { feedWorkflows(ctx, workflows, bus) })
 	obs := newObservers(cfg, log.With("module", "observer"), bus, guardedEnvs, panes, observer.Sources{
 		Agents: agents, Terminals: terms, Metadata: meta.List, Plans: tasks.svc,
 		Info: func() observer.Info {
@@ -170,6 +175,7 @@ func NewModule(cfg Config) *Module {
 	registerAgentOps(router, ops)
 	task.Register(router, tasks.svc)
 	branch.Register(router, branches)
+	workflow.Register(router, workflows)
 	registerSession(router, keep)
 	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)
 	registerPlugins(router, plugins, plugin.NewStore(cfg.pluginDir()))
@@ -187,6 +193,7 @@ func NewModule(cfg Config) *Module {
 		Agents:       agents,
 		Tasks:        tasks.svc,
 		Branches:     branches,
+		Workflows:    workflows,
 	}
 }
 

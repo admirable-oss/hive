@@ -34,3 +34,4 @@ anything breaking, and each roadmap.
 | [0001](0001-after-1.0.10.md) | The roadmap after 1.0.10 | Proposed |
 | [0002](0002-task-orchestration.md) | Tasks and plans (M22) | Proposed |
 | [0003](0003-git-native-development.md) | Branches, from worktree to merge (M23) | Proposed |
+| [0004](0004-workflow-automation.md) | Workflows, from a trigger to a report (M24) | Proposed |

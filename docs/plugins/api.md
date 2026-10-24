@@ -72,7 +72,11 @@ Every command runs in the plugin's directory and receives:
 
   `trigger` is `startup`, `action`, `event` or `migration`. An event context
   adds `"event": {"type", "data", "seq", "time", "missed"}`, and `environment`,
-  `tab` and `pane` are what the event is about.
+  `tab` and `pane` are what the event is about. An action a workflow step
+  runs ([workflows](../workflows.md)) adds `"workflow": {"workflow", "run",
+  "step", "with", "output"}`: `with` is what the step gives it, and `output`
+  (also `$HIVE_OUTPUT`) is a file it may write `name=value` lines to, which
+  become the step's outputs.
 - **Environment variables:**
 
   | Variable | Value |

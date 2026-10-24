@@ -107,6 +107,9 @@ type Hub struct {
 	asked map[string]bool
 	// overlaps is the branch overlaps known, so each is announced once.
 	overlaps map[string]bool
+	// failedRuns is the workflow runs known to have failed, so each is
+	// announced once.
+	failedRuns map[string]bool
 }
 
 // New returns a hub; Start connects it.
@@ -300,7 +303,7 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 		h.mu.Unlock()
 		_ = c.Close()
 	}()
-	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "branch.", "events.")
+	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "branch.", "workflow.run", "workflow.removed", "events.")
 	if err != nil {
 		return err
 	}
@@ -319,7 +322,7 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 				readErr <- err
 				return
 			}
-			if strings.HasPrefix(ev.Type, "task.") || strings.HasPrefix(ev.Type, "branch.") || ev.Type == "events_lost" {
+			if strings.HasPrefix(ev.Type, "task.") || strings.HasPrefix(ev.Type, "branch.") || strings.HasPrefix(ev.Type, "workflow.") || ev.Type == "events_lost" {
 				plansStale.Store(true)
 			}
 			select {
@@ -381,10 +384,16 @@ func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client, plans bool) error 
 		} else if ctx.Err() == nil {
 			h.log.Debug("no branches (a daemon older than M23?)", "err", err)
 		}
+		if list, err := c.WorkflowRuns(ctx, "", workflowRunsRead); err == nil {
+			ws.Workflows = workflowRunsOf(list)
+		} else if ctx.Err() == nil {
+			h.log.Debug("no workflows (a daemon older than M24?)", "err", err)
+		}
 	} else {
 		h.mu.Lock()
 		ws.Plans = h.ws.Plans // replaced whole on every read, never changed in place
 		ws.Branches = h.ws.Branches
+		ws.Workflows = h.ws.Workflows
 		h.mu.Unlock()
 	}
 	h.mu.Lock()
@@ -392,6 +401,7 @@ func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client, plans bool) error 
 	notes := h.notificationsLocked(ws)
 	notes = append(notes, h.approvalsLocked(ws)...)
 	notes = append(notes, h.overlapsLocked(ws)...)
+	notes = append(notes, h.failedRunsLocked(ws)...)
 	for id, v := range h.views {
 		p, ok := paneByID(ws, id)
 		switch {

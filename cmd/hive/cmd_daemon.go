@@ -207,6 +207,7 @@ func runDaemon(ctx context.Context, a *app) error {
 			Machines: a.machines().Path(), SSH: a.target(remote.Target{}).SSH, ControlDir: a.controlDir(),
 		},
 		Branches:           a.branchesConfig(),
+		Workflows:          a.workflowsConfig(),
 		ProcessLogMaxBytes: int64(a.cfg.Retention.ProcessLogMB) << 20,
 	})
 	if err := mod.Service.Start(ctx); err != nil {
@@ -395,6 +396,26 @@ changing it. On Windows the task starts with your logon environment.`,
 	cmd.Flags().BoolVar(&printOnly, "print", false, "print the service definition instead of installing it")
 	cmd.Flags().StringVar(&executable, "executable", "", "path of the hive binary the service runs (default: this binary)")
 	return cmd
+}
+
+// workflowsConfig maps [workflows] and the runs' retention for the
+// daemon, with "~/" in paths made absolute.
+func (a *app) workflowsConfig() runtime.WorkflowsConfig {
+	w := a.cfg.Workflows
+	out := runtime.WorkflowsConfig{
+		MaxRuns: w.MaxRuns, Interval: w.GitInterval, UserHome: a.home,
+		Keep: a.cfg.Retention.WorkflowRuns, KeepAge: a.cfg.Retention.WorkflowRunAge,
+	}
+	for _, p := range w.Paths {
+		if rest, ok := strings.CutPrefix(p, "~/"); ok && a.home != "" {
+			p = filepath.Join(a.home, rest)
+		}
+		if abs, err := filepath.Abs(p); err == nil {
+			p = abs
+		}
+		out.Paths = append(out.Paths, p)
+	}
+	return out
 }
 
 // branchesConfig maps [branches] for the daemon, with "~/" in gates'

@@ -157,6 +157,12 @@
     "terminal.graphics",
     "terminal.resize",
     "terminal.snapshot",
+    "workflow.get",
+    "workflow.list",
+    "workflow.runs",
+    "workflow.status",
+    "workflow.validate",
+    "workflow.wait",
     "worktree.create",
     "worktree.list",
     "worktree.open"

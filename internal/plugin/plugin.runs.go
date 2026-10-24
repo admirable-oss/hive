@@ -69,7 +69,11 @@ func (h *Host) Action(ctx context.Context, id, action string, c Context) (Result
 	do := func() (Result, error) {
 		defer cancel()
 		var out tailBuffer
-		code, err := h.run(rctx, l, a.Command, c, &out)
+		var extra map[string]string
+		if c.Workflow != nil && c.Workflow.Output != "" {
+			extra = map[string]string{"HIVE_OUTPUT": c.Workflow.Output}
+		}
+		code, err := h.runWithEnvironment(rctx, l, a.Command, c, &out, extra)
 		res := Result{ExitCode: code, Output: out.String(), Run: runID, Async: a.Async}
 		h.mu.Lock()
 		delete(l.runs, runID)

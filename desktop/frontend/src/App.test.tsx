@@ -192,3 +192,34 @@ describe("Branches", () => {
     expect(calls).toContain("sendComments(fix-login)");
   });
 });
+
+describe("Workflows", () => {
+  beforeEach(() => {
+    calls.length = 0;
+    act(() => {
+      store.set((s) => ({ ...s, connection: { state: "connected", session: "default", version: "1.5.0", api_level: 14 } }));
+      store.setUI({ dialog: undefined, sidebar: true }); // the review an earlier test opened
+      store.setWorkspace({
+        ...ws,
+        workflows: [
+          { id: "77aa0011", workflow: "review", state: "running", trigger: "git", total: 4, done: 1, failed: 0, current: ["test"], created_at: "" },
+          { id: "3f2a1b0c", workflow: "nightly", state: "failed", trigger: "schedule", total: 2, done: 2, failed: 1, current: [], reason: "step test failed: exit status 1", created_at: "" },
+          ...["a1", "a2", "a3", "a4"].map((id) => ({ id, workflow: "old", state: "succeeded", trigger: "manual", total: 1, done: 1, failed: 0, current: [], created_at: "" })),
+        ],
+      });
+    });
+  });
+
+  it("shows runs, cancels one going on and runs one again", () => {
+    render(<App />);
+    const runs = screen.getByRole("region", { name: "Workflows" });
+    expect(runs).toHaveTextContent("review");
+    expect(runs).toHaveTextContent("1/4 running · now test");
+    expect(runs).toHaveTextContent("2/2 failed · 1 failed");
+    expect(screen.getAllByRole("button", { name: /^Run a\d again$/ })).toHaveLength(2); // the latest finished, not all
+    fireEvent.click(screen.getByRole("button", { name: "Cancel run 77aa0011" }));
+    expect(calls).toContain("cancelWorkflowRun(77aa0011)");
+    fireEvent.click(screen.getByRole("button", { name: "Run 3f2a1b0c again" }));
+    expect(calls).toContain("rerunWorkflow(3f2a1b0c)");
+  });
+});

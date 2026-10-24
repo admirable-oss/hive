@@ -232,6 +232,24 @@ command hive web runtime remove (alias rm)
 command hive web serve
 command hive web share
 command hive web status
+command hive workflow
+command hive workflow (alias wf)
+command hive workflow (alias workflows)
+command hive workflow cancel
+command hive workflow fire
+command hive workflow list
+command hive workflow list (alias ls)
+command hive workflow reload
+command hive workflow report
+command hive workflow rerun
+command hive workflow run
+command hive workflow runs
+command hive workflow show
+command hive workflow status
+command hive workflow status (alias get)
+command hive workflow trust
+command hive workflow validate
+command hive workflow wait
 command hive worktree
 command hive worktree (alias wt)
 command hive worktree create
@@ -500,6 +518,19 @@ flag hive web share --pane stringArray
 flag hive web share --runtime stringArray
 flag hive web share --screens bool
 flag hive web share --uses int
+flag hive workflow fire --data string
+flag hive workflow report --lines int
+flag hive workflow rerun --timeout duration
+flag hive workflow rerun --wait bool
+flag hive workflow run --dir string
+flag hive workflow run --headless bool
+flag hive workflow run --input stringArray -i
+flag hive workflow run --timeout duration
+flag hive workflow run --wait bool
+flag hive workflow runs --limit int -n
+flag hive workflow runs --workflow string -w
+flag hive workflow trust --revoke bool
+flag hive workflow wait --timeout duration
 flag hive worktree create --base string
 flag hive worktree create --env stringArray -e
 flag hive worktree create --id string

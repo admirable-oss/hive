@@ -15,6 +15,10 @@ const Down
 const EventBranchOverlap
 const EventBranchRemoved
 const EventBranchUpdated
+const EventWorkflowChanged
+const EventWorkflowRemoved
+const EventWorkflowRun
+const EventWorkflowStep
 const ImageClear
 const ImageDelete
 const ImagePlace
@@ -70,6 +74,11 @@ const UntilIdle
 const UntilUnblocked
 const UntilWorking
 const Up
+const WorkflowCancelled
+const WorkflowFailed
+const WorkflowQueued
+const WorkflowRunning
+const WorkflowSucceeded
 field ImageOp.Cols int
 field ImageOp.Image uint32
 field ImageOp.Kind string
@@ -106,6 +115,7 @@ func (c *Client) BranchDiff(ctx context.Context, req DiffRequest) (Diff, error)
 func (c *Client) Branches(ctx context.Context, repo string, all bool) ([]Branch, error)
 func (c *Client) Call(ctx context.Context, method string, params, result any) error
 func (c *Client) CancelPlan(ctx context.Context, id, taskID string) (Plan, error)
+func (c *Client) CancelWorkflowRun(ctx context.Context, id string) (WorkflowRun, error)
 func (c *Client) CheckBranches(ctx context.Context, ref, repo string) ([]Branch, error)
 func (c *Client) CleanBranches(ctx context.Context, req CleanRequest) ([]Branch, error)
 func (c *Client) Close() error
@@ -117,6 +127,7 @@ func (c *Client) CreateTab(ctx context.Context, req CreateTabRequest) (TabCreate
 func (c *Client) Environments(ctx context.Context) ([]Environment, error)
 func (c *Client) Events(ctx context.Context, types ...string) (*EventStream, error)
 func (c *Client) Explain(ctx context.Context, id string) (Explanation, error)
+func (c *Client) FireWebhook(ctx context.Context, name string, data any) ([]WorkflowRunSummary, error)
 func (c *Client) FocusAgent(ctx context.Context, id string) (Agent, error)
 func (c *Client) FocusPane(ctx context.Context, id string, d Direction) (Pane, error)
 func (c *Client) FocusTab(ctx context.Context, id string) (Tab, error)
@@ -138,12 +149,15 @@ func (c *Client) ReadyBranch(ctx context.Context, ref string, gates []Gate) (Bra
 func (c *Client) RenameAgent(ctx context.Context, id, name string) (Agent, error)
 func (c *Client) RenamePane(ctx context.Context, id, name string) (Pane, error)
 func (c *Client) RenameTab(ctx context.Context, id, name string) (Tab, error)
+func (c *Client) RerunWorkflow(ctx context.Context, id string) (WorkflowRun, error)
 func (c *Client) ResizePane(ctx context.Context, id string, d Direction, cells int) (Pane, error)
 func (c *Client) ResizeTab(ctx context.Context, id string, width, height int) (Tab, error)
 func (c *Client) RetryPlan(ctx context.Context, id, taskID string) (Plan, error)
 func (c *Client) RunInPane(ctx context.Context, id, command string) error
 func (c *Client) RunPlan(ctx context.Context, spec PlanSpec) (Plan, error)
 func (c *Client) RunPlanFile(ctx context.Context, toml, source string) (Plan, error)
+func (c *Client) RunWorkflow(ctx context.Context, name string, o WorkflowRunOptions) (WorkflowRun, error)
+func (c *Client) RunWorkflowFile(ctx context.Context, text, source string, o WorkflowRunOptions) (WorkflowRun, error)
 func (c *Client) Schema(ctx context.Context) (Schema, error)
 func (c *Client) SendComments(ctx context.Context, ref string) (Branch, error)
 func (c *Client) SendKeys(ctx context.Context, id string, keys ...string) error
@@ -155,8 +169,14 @@ func (c *Client) Status(ctx context.Context) (Status, error)
 func (c *Client) StopAgent(ctx context.Context, id string) (Agent, error)
 func (c *Client) Tabs(ctx context.Context, environmentID string) ([]Tab, error)
 func (c *Client) UpdateBranch(ctx context.Context, req UpdateRequest) (UpdateResult, error)
+func (c *Client) ValidateWorkflow(ctx context.Context, text, source string) (WorkflowSpec, error)
 func (c *Client) Wait(ctx context.Context, id string, opts WaitOptions) (WaitResult, error)
 func (c *Client) WaitPlan(ctx context.Context, id string, opts PlanWaitOptions) (PlanWaitResult, error)
+func (c *Client) WaitWorkflowRun(ctx context.Context, id string, timeout time.Duration) (WorkflowWaitResult, error)
+func (c *Client) Workflow(ctx context.Context, name string) (Workflow, error)
+func (c *Client) WorkflowRun(ctx context.Context, id string) (WorkflowRun, error)
+func (c *Client) WorkflowRuns(ctx context.Context, name string, limit int) ([]WorkflowRunSummary, error)
+func (c *Client) Workflows(ctx context.Context) ([]Workflow, error)
 func (c *Client) ZoomPane(ctx context.Context, id string, on *bool) (Pane, error)
 func (k *KittyImages) Push(ev GraphicsEvent) []ImageOp
 func (o ObserverOptions) SocketPath() (string, error)
@@ -167,8 +187,10 @@ func Follow(ctx context.Context, opts ObserverOptions, fn func(ObserverUpdate) e
 func IsCode(err error, code string) bool
 func New(c client.Client) *Client
 func NewReport(p Plan) Report
+func NewWorkflowReport(r WorkflowRun) WorkflowReport
 func Observe(ctx context.Context, opts ObserverOptions) (*Observer, error)
 func ParsePlan(data []byte, source string) (PlanSpec, error)
+func ParseWorkflow(data []byte, source string) (WorkflowSpec, error)
 type Agent = agent.Agent
 type AgentList = agent.ListResult
 type AgentStarted = client.AgentStarted
@@ -275,4 +297,19 @@ type UpdateResult = branch.UpdateResult
 type WaitOptions = client.WaitOptions
 type WaitResult = agent.WaitResult
 type WatchRequest = observer.WatchRequest
+type Workflow = workflow.Workflow
+type WorkflowInput = workflow.InputSpec
+type WorkflowReport = workflow.Report
+type WorkflowResult = workflow.Result
+type WorkflowRun = workflow.Run
+type WorkflowRunOptions = client.RunOptions
+type WorkflowRunState = workflow.State
+type WorkflowRunSummary = workflow.RunSummary
+type WorkflowSpec = workflow.Spec
+type WorkflowStep = workflow.StepSpec
+type WorkflowStepRun = workflow.StepRun
+type WorkflowStepState = workflow.StepState
+type WorkflowStepView = workflow.StepView
+type WorkflowTrigger = workflow.TriggerSpec
+type WorkflowWaitResult = workflow.WaitResult
 var ErrUnavailable

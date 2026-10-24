@@ -80,7 +80,7 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 	add("agents",
 		newUICmd(a),
 		newAgentCmd(a),
-		newTaskCmd(a), newBranchCmd(a),
+		newTaskCmd(a), newBranchCmd(a), newWorkflowCmd(a),
 		newIntegrationCmd(a),
 		newPluginCmd(a),
 		newMCPCmd(a),

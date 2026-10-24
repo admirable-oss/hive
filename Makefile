@@ -35,7 +35,9 @@ FUZZ_TARGETS := \
 	./internal/plugin:FuzzParseManifest \
 	./internal/agent:FuzzParseManifest \
 	./internal/discovery:FuzzParseMessage \
-	./internal/task:FuzzParsePlan
+	./internal/task:FuzzParsePlan \
+	./internal/workflow:FuzzParseWorkflow \
+	./internal/workflow:FuzzExpressions
 
 .DEFAULT_GOAL := help
 

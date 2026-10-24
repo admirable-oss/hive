@@ -4,6 +4,64 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.5.0 (unreleased): Workflow automation (M24)
+
+Reusable workflows from agents, scripts and events ([docs/workflows.md](docs/workflows.md), [RFC 0004](rfcs/0004-workflow-automation.md)).
+
+### Workflows
+
+- A workflow is a TOML file (`version = 1`) of steps: agents' tasks, commands
+  (an argv or a shell line) and plugin actions, with inputs, outputs
+  (`$HIVE_OUTPUT`), conditions (`if`, `on_failure = "continue"`) and loops
+  (`foreach`, `repeat`). Steps run in order unless `needs` says otherwise,
+  and in parallel when it allows.
+- `${{ … }}` expressions read inputs, the trigger and earlier steps'
+  results, with comparisons, `&&`/`||` and functions such as `contains`,
+  `format` and `fromJSON`. They have no clock, environment or I/O.
+- Agent steps name kinds, not providers: `agent = ["claude", "codex"]` or
+  `"any"` runs with the first kind installed on the machine.
+
+### Triggers
+
+- Hive events (`agent.done`, `agent.blocked`, any event type or prefix with
+  field matches), cron schedules and `every`, git pushes and new branches
+  (seen even when they happened while no daemon ran), and webhooks fired by
+  plugins (`workflow.fire`) or `hive workflow fire`.
+- `concurrency` queues, skips or runs alongside; `[workflows] max_runs`
+  bounds runs across workflows. A run never triggers its own workflow.
+- Your own workflows live in `~/.hive/workflows`. Shared ones (a
+  repository's `.hive/workflows`, listed in `[workflows] paths`) fire only
+  once trusted with `hive workflow trust`, and again after each change.
+
+### Reliability and history
+
+- Retries with exponential backoff, step and run timeouts, and
+  cancellation that stops agents' tasks and commands with everything they
+  started.
+- Runs are saved as they change and resume after a daemon restart: agent
+  steps keep their agents and their tasks, and interrupted commands run
+  again without spending a retry.
+- Every run records the workflow's text, its inputs and its trigger, and
+  each step's resolved command or prompt and its results.
+  `hive workflow rerun` repeats a run exactly. `[retention] workflow_runs`
+  and `workflow_run_age` bound the history.
+
+### CI and clients
+
+- `hive workflow run --headless` runs a workflow with a daemon of its own,
+  prints its report (`--json`), and exits 0, 1 or 4.
+- The TUI's Overview and the desktop app's sidebar show workflow runs, and
+  notify when one fails. The desktop app cancels and reruns them.
+
+### API
+
+- `workflow.*` methods and events at API level 14. MCP tools
+  `workflow_list`, `workflow_run`, `workflow_runs`, `workflow_status`,
+  `workflow_wait` and `workflow_cancel`. `pkg/hiveapi`: `Workflows`,
+  `RunWorkflow`, `RunWorkflowFile`, `WaitWorkflowRun`, `RerunWorkflow`,
+  `FireWebhook`, `ParseWorkflow` and the rest. A plugin action run by a
+  workflow gets `workflow` in its context.
+
 ## v1.4.0 (unreleased): Git-native development (M23)
 
 Isolated work, clean handoffs ([docs/branches.md](docs/branches.md), [RFC 0003](rfcs/0003-git-native-development.md)).

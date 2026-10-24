@@ -47,7 +47,8 @@ const Version2 = "2"
 //	11 observer activity: observer.activity (method and event) (M15)
 //	12 orchestration: task.*, task.* events, agent.wait until=unblocked (M22)
 //	13 git-native development: branch.*, branch.* events, agent.start isolate (M23)
-const APILevel = 13
+//	14 workflow automation: workflow.*, workflow.* events (M24)
+const APILevel = 14
 
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.

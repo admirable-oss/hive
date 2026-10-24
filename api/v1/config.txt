@@ -52,6 +52,8 @@ remote.ssh
 retention.exited_processes
 retention.gc_interval
 retention.process_log_mb
+retention.workflow_run_age
+retention.workflow_runs
 session.keep_snapshots
 session.replay_history
 session.replay_lines
@@ -84,4 +86,7 @@ web.push_allow_any_endpoint
 web.push_contact
 web.tls_cert
 web.tls_key
+workflows.git_interval
+workflows.max_runs
+workflows.paths
 worktrees.directory

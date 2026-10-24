@@ -22,6 +22,7 @@ import (
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/task"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
+	"github.com/admirable-oss/hive/internal/workflow"
 )
 
 // Reconnecting after the event stream ended (the daemon restarted, the
@@ -52,6 +53,9 @@ type snapshot struct {
 	// branches is every active branch Hive follows; nil from a daemon
 	// without them.
 	branches []branch.Branch
+	// runs is the latest workflow runs' summaries, newest first; nil from
+	// a daemon without workflows.
+	runs []workflow.RunSummary
 }
 
 // observedState is observer.activity.
@@ -187,6 +191,7 @@ func load(ctx context.Context, c client.Client, api client.Workspace) (*snapshot
 	s.observed = loadObserved(ctx, c)
 	s.plans = loadPlans(ctx, c)
 	s.branches = loadBranches(ctx, c)
+	s.runs = loadWorkflowRuns(ctx, c)
 	slices.SortStableFunc(s.procs, func(a, b process.Process) int { return a.StartedAt.Compare(b.StartedAt) })
 	return &s, nil
 }
@@ -435,7 +440,7 @@ type eventsMsg struct {
 }
 
 // eventTypes are the events the UI follows.
-var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", "metadata.", "plugin.", "task.", "branch.", event.Lost}
+var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", "metadata.", "plugin.", "task.", "branch.", "workflow.", event.Lost}
 
 // subscribe opens the event stream and reads it until it ends.
 func (a *App) subscribe() {
@@ -514,6 +519,12 @@ func (a *App) apply(ev event.Event) {
 			a.applyBranchEvent(ev)
 		}
 		return // so do branches
+	}
+	if strings.HasPrefix(ev.Type, "workflow.") {
+		if s != nil {
+			a.applyWorkflowEvent(ev)
+		}
+		return // and workflow runs
 	}
 	if s == nil {
 		a.refresh()

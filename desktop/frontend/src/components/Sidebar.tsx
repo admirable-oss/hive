@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, FolderGit2, GitBranch, ListChecks, Monitor, MoreHorizontal, Plus, Server, TerminalSquare } from "lucide-react";
+import { Bell, FolderGit2, GitBranch, ListChecks, Monitor, MoreHorizontal, Plus, Server, TerminalSquare, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { Bee } from "./Bee";
 import { BranchItem } from "./Branches";
 import { PlanItem } from "./Plans";
 import { StateDot } from "./StateDot";
+import { visibleRuns, WorkflowItem } from "./Workflows";
 
 export { StateDot } from "./StateDot";
 
@@ -115,6 +116,23 @@ export function Sidebar({ mac }: { mac: boolean }) {
               <AnimatePresence initial={false}>
                 {(ws.plans ?? []).map((p) => (
                   <PlanItem key={p.id} p={p} />
+                ))}
+              </AnimatePresence>
+            </ul>
+          </section>
+        )}
+
+        {(ws.workflows ?? []).length > 0 && (
+          <section aria-label="Workflows">
+            <SectionTitle id="workflows">
+              <span className="flex items-center gap-1.5">
+                <Workflow className="size-3" /> Workflows
+              </span>
+            </SectionTitle>
+            <ul>
+              <AnimatePresence initial={false}>
+                {visibleRuns(ws.workflows ?? []).map((r) => (
+                  <WorkflowItem key={r.id} r={r} />
                 ))}
               </AnimatePresence>
             </ul>

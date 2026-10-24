@@ -70,6 +70,8 @@ type Config struct {
 	Tasks TasksConfig
 	// Branches is the [branches] policy: naming, cleanup, gates, forges.
 	Branches BranchesConfig
+	// Workflows is the [workflows] policy, and how long runs are kept.
+	Workflows WorkflowsConfig
 	// ProcessLogMaxBytes rotates each agent's output log past this size,
 	// keeping one older file. Zero lets logs grow.
 	ProcessLogMaxBytes int64
