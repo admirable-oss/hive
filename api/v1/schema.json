@@ -557,6 +557,724 @@
       ],
       "type": "object"
     },
+    "branch.Branch": {
+      "properties": {
+        "added": {
+          "description": "lines added",
+          "type": "integer"
+        },
+        "ahead": {
+          "description": "commits on the branch that its base lacks",
+          "type": "integer"
+        },
+        "base": {
+          "description": "what the branch merges into: a branch, or a commit",
+          "type": "string"
+        },
+        "base_commit": {
+          "description": "the commit it started from",
+          "type": "string"
+        },
+        "behind": {
+          "description": "commits on its base that the branch lacks",
+          "type": "integer"
+        },
+        "changed": {
+          "description": "the changed files (at most 200)",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "checking": {
+          "description": "its gates are running",
+          "type": "boolean"
+        },
+        "cleanup": {
+          "description": "why a merged branch's worktree was not removed",
+          "type": "string"
+        },
+        "closed_at": {
+          "description": "when its worktree was removed",
+          "format": "date-time",
+          "type": "string"
+        },
+        "comments": {
+          "description": "review comments, sent or waiting to be sent to its agent",
+          "items": {
+            "$ref": "#/$defs/branch.Comment"
+          },
+          "type": "array"
+        },
+        "committed": {
+          "description": "it has been seen with commits of its own",
+          "type": "boolean"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "deleted": {
+          "description": "lines deleted",
+          "type": "integer"
+        },
+        "dirty": {
+          "description": "uncommitted changes in the worktree",
+          "type": "boolean"
+        },
+        "environment_id": {
+          "description": "its worktree's environment, while there is one",
+          "type": "string"
+        },
+        "error": {
+          "description": "why it could not be read last time",
+          "type": "string"
+        },
+        "files": {
+          "description": "files changed against its base, uncommitted changes included",
+          "type": "integer"
+        },
+        "gates": {
+          "description": "the last run of its gates",
+          "items": {
+            "$ref": "#/$defs/branch.GateResult"
+          },
+          "type": "array"
+        },
+        "head": {
+          "description": "the commit checked out",
+          "type": "string"
+        },
+        "id": {
+          "description": "the branch's ID in Hive: its environment's ID when it was made",
+          "type": "string"
+        },
+        "in_progress": {
+          "description": "a merge or rebase is stopped there, for a person to resolve",
+          "type": "boolean"
+        },
+        "merged_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "name": {
+          "description": "the branch's name",
+          "type": "string"
+        },
+        "overlaps": {
+          "description": "other branches (or its base) changing the same files",
+          "items": {
+            "$ref": "#/$defs/branch.Overlap"
+          },
+          "type": "array"
+        },
+        "owner": {
+          "$ref": "#/$defs/branch.Owner",
+          "description": "the agent or task it was made for"
+        },
+        "path": {
+          "description": "its worktree, while there is one",
+          "type": "string"
+        },
+        "pull_request": {
+          "$ref": "#/$defs/branch.PullRequest",
+          "description": "the pull request opened for it, on request"
+        },
+        "pushed": {
+          "$ref": "#/$defs/branch.Push",
+          "description": "its last push, made on request"
+        },
+        "ready_at": {
+          "description": "when its gates passed",
+          "format": "date-time",
+          "type": "string"
+        },
+        "ready_tree": {
+          "description": "the files its gates passed on (a git tree)",
+          "type": "string"
+        },
+        "repo": {
+          "description": "the repository (its main working tree)",
+          "type": "string"
+        },
+        "rev": {
+          "type": "integer"
+        },
+        "saved": {
+          "description": "the ref keeping uncommitted work discarded with its worktree",
+          "type": "string"
+        },
+        "started": {
+          "description": "an agent has worked there",
+          "type": "boolean"
+        },
+        "state": {
+          "description": "created, working, ready, merged, cleaned or removed",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "repo",
+        "name",
+        "base",
+        "state",
+        "created_at",
+        "updated_at",
+        "rev"
+      ],
+      "type": "object"
+    },
+    "branch.CheckParams": {
+      "properties": {
+        "ref": {
+          "description": "read this branch's repository",
+          "type": "string"
+        },
+        "repo": {
+          "description": "read this repository (its main working tree); neither: every repository",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "branch.CleanRequest": {
+      "properties": {
+        "delete_branch": {
+          "description": "also delete the local branch once git agrees it has merged",
+          "type": "boolean"
+        },
+        "force": {
+          "description": "remove it even with uncommitted changes (they are saved under refs/hive/saved/ first)",
+          "type": "boolean"
+        },
+        "merged": {
+          "description": "every merged branch, instead of one",
+          "type": "boolean"
+        },
+        "ref": {
+          "description": "the branch",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "branch.Comment": {
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "by": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sent_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "sent_to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "body",
+        "at"
+      ],
+      "type": "object"
+    },
+    "branch.CommentRequest": {
+      "properties": {
+        "body": {
+          "description": "the comment",
+          "type": "string"
+        },
+        "by": {
+          "description": "who wrote it",
+          "type": "string"
+        },
+        "line": {
+          "description": "the line it is about, in the branch's version of the file",
+          "type": "integer"
+        },
+        "path": {
+          "description": "the file it is about",
+          "type": "string"
+        },
+        "ref": {
+          "description": "the branch",
+          "type": "string"
+        },
+        "send": {
+          "description": "send it (and every comment not sent yet) to the branch's agent now",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ref",
+        "body"
+      ],
+      "type": "object"
+    },
+    "branch.ConflictFile": {
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "branch.Conflicts": {
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "clean": {
+          "type": "boolean"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/branch.ConflictFile"
+          },
+          "type": "array"
+        },
+        "with": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch",
+        "with",
+        "clean"
+      ],
+      "type": "object"
+    },
+    "branch.ConflictsRequest": {
+      "properties": {
+        "ref": {
+          "description": "the branch",
+          "type": "string"
+        },
+        "with": {
+          "description": "another branch to merge with (default: its base)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "branch.Diff": {
+      "properties": {
+        "base": {
+          "description": "what it merges into",
+          "type": "string"
+        },
+        "branch": {
+          "description": "the branch's name",
+          "type": "string"
+        },
+        "dirty": {
+          "type": "boolean"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/git.FileChange"
+          },
+          "type": "array"
+        },
+        "from": {
+          "type": "string"
+        },
+        "head": {
+          "type": "string"
+        },
+        "patch": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "branch",
+        "base",
+        "from",
+        "to",
+        "files"
+      ],
+      "type": "object"
+    },
+    "branch.DiffRequest": {
+      "properties": {
+        "context": {
+          "description": "lines of context around each change (default 3)",
+          "type": "integer"
+        },
+        "limit": {
+          "description": "the most bytes of patch to return (default 512 KiB, at most 4 MiB)",
+          "type": "integer"
+        },
+        "paths": {
+          "description": "only these files",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ref": {
+          "description": "the branch: its ID, environment, agent, plan/task or name",
+          "type": "string"
+        },
+        "stat": {
+          "description": "only the files and their line counts, no patch",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "branch.Gate": {
+      "properties": {
+        "command": {
+          "description": "the command, as an argument vector",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "description": "what it checks",
+          "type": "string"
+        },
+        "repo": {
+          "description": "only for repositories in this directory (empty: every one)",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "how long it may take, in milliseconds (default 30 minutes)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "command"
+      ],
+      "type": "object"
+    },
+    "branch.GateResult": {
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "duration_ms": {
+          "type": "integer"
+        },
+        "error": {
+          "type": "string"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "output": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "skipped": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "command",
+        "passed",
+        "exit_code",
+        "duration_ms",
+        "at"
+      ],
+      "type": "object"
+    },
+    "branch.ListRequest": {
+      "properties": {
+        "all": {
+          "description": "include cleaned and removed branches",
+          "type": "boolean"
+        },
+        "repo": {
+          "description": "only this repository's branches (its main working tree)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "branch.Overlap": {
+      "properties": {
+        "branch": {
+          "description": "the other branch's name, or the base's",
+          "type": "string"
+        },
+        "conflicts": {
+          "description": "files a merge of the two would conflict on",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "files": {
+          "description": "files both change",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "unknown": {
+          "description": "conflicts are unknown: git is too old to compute them",
+          "type": "boolean"
+        },
+        "with": {
+          "description": "the other branch's ID; empty when it is the base",
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch",
+        "files"
+      ],
+      "type": "object"
+    },
+    "branch.Owner": {
+      "properties": {
+        "agent": {
+          "description": "the agent's ID",
+          "type": "string"
+        },
+        "kind": {
+          "description": "the agent's kind",
+          "type": "string"
+        },
+        "plan": {
+          "description": "the plan of the task it was made for",
+          "type": "string"
+        },
+        "task": {
+          "description": "the task it was made for",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "branch.PullRequest": {
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "draft": {
+          "type": "boolean"
+        },
+        "forge": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "forge",
+        "url",
+        "at"
+      ],
+      "type": "object"
+    },
+    "branch.PullRequestRequest": {
+      "properties": {
+        "base": {
+          "description": "the branch it would merge into (default: the branch's base)",
+          "type": "string"
+        },
+        "body": {
+          "description": "the description (default: its commits and gates)",
+          "type": "string"
+        },
+        "draft": {
+          "description": "open it as a draft",
+          "type": "boolean"
+        },
+        "push": {
+          "description": "push the branch first if the remote lacks its commits",
+          "type": "boolean"
+        },
+        "ref": {
+          "description": "the branch",
+          "type": "string"
+        },
+        "remote": {
+          "description": "the remote (default: its upstream's, else origin)",
+          "type": "string"
+        },
+        "title": {
+          "description": "the title (default: its first commit's subject)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "branch.Push": {
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "remote": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "remote",
+        "commit",
+        "at"
+      ],
+      "type": "object"
+    },
+    "branch.PushRequest": {
+      "properties": {
+        "ref": {
+          "description": "the branch",
+          "type": "string"
+        },
+        "remote": {
+          "description": "the remote to push to (default: its upstream's, else origin)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "branch.ReadyRequest": {
+      "properties": {
+        "gates": {
+          "description": "gates to run instead of the configured ones",
+          "items": {
+            "$ref": "#/$defs/branch.Gate"
+          },
+          "type": "array"
+        },
+        "ref": {
+          "description": "the branch",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "branch.Ref": {
+      "properties": {
+        "ref": {
+          "description": "the branch: its ID, environment, agent, plan/task or name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "branch.UpdateRequest": {
+      "properties": {
+        "abort": {
+          "description": "undo a merge or rebase stopped on a conflict",
+          "type": "boolean"
+        },
+        "rebase": {
+          "description": "rebase onto the base instead of merging it",
+          "type": "boolean"
+        },
+        "ref": {
+          "description": "the branch",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "branch.UpdateResult": {
+      "properties": {
+        "branch": {
+          "$ref": "#/$defs/branch.Branch"
+        },
+        "conflicts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "branch"
+      ],
+      "type": "object"
+    },
     "environment.CreateRequest": {
       "properties": {
         "env": {
@@ -696,6 +1414,32 @@
       },
       "required": [
         "seq"
+      ],
+      "type": "object"
+    },
+    "git.FileChange": {
+      "properties": {
+        "added": {
+          "type": "integer"
+        },
+        "deleted": {
+          "type": "integer"
+        },
+        "from": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "added",
+        "deleted"
       ],
       "type": "object"
     },
@@ -2984,6 +3728,9 @@
         "environment_id": {
           "type": "string"
         },
+        "isolate": {
+          "type": "boolean"
+        },
         "kind": {
           "type": "string"
         },
@@ -4275,7 +5022,7 @@
       "type": "object"
     }
   },
-  "api_level": 12,
+  "api_level": 13,
   "methods": [
     {
       "name": "agent.explain",
@@ -4444,6 +5191,123 @@
       },
       "result": {
         "$ref": "#/$defs/runtime.APISnapshot"
+      }
+    },
+    {
+      "name": "branch.check",
+      "params": {
+        "$ref": "#/$defs/branch.CheckParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/branch.Branch"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "branch.clean",
+      "params": {
+        "$ref": "#/$defs/branch.CleanRequest"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/branch.Branch"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "branch.comment",
+      "params": {
+        "$ref": "#/$defs/branch.CommentRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.Branch"
+      }
+    },
+    {
+      "name": "branch.conflicts",
+      "params": {
+        "$ref": "#/$defs/branch.ConflictsRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.Conflicts"
+      }
+    },
+    {
+      "name": "branch.diff",
+      "params": {
+        "$ref": "#/$defs/branch.DiffRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.Diff"
+      }
+    },
+    {
+      "name": "branch.get",
+      "params": {
+        "$ref": "#/$defs/branch.Ref"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.Branch"
+      }
+    },
+    {
+      "name": "branch.list",
+      "params": {
+        "$ref": "#/$defs/branch.ListRequest"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/branch.Branch"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "branch.pr",
+      "params": {
+        "$ref": "#/$defs/branch.PullRequestRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.Branch"
+      }
+    },
+    {
+      "name": "branch.push",
+      "params": {
+        "$ref": "#/$defs/branch.PushRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.Branch"
+      }
+    },
+    {
+      "name": "branch.ready",
+      "params": {
+        "$ref": "#/$defs/branch.ReadyRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.Branch"
+      }
+    },
+    {
+      "name": "branch.send",
+      "params": {
+        "$ref": "#/$defs/branch.Ref"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.Branch"
+      }
+    },
+    {
+      "name": "branch.update",
+      "params": {
+        "$ref": "#/$defs/branch.UpdateRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.UpdateResult"
       }
     },
     {

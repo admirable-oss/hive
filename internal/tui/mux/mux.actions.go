@@ -62,6 +62,8 @@ func (a *App) do(act keymap.Action) {
 		a.openPicker()
 	case keymap.Overview:
 		a.toggleOverview()
+	case keymap.Review:
+		a.openReview()
 	case keymap.NextAgent:
 		a.nextAgent()
 	case keymap.OpenNotification:

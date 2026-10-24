@@ -50,6 +50,8 @@ type Workspace struct {
 	Counts map[string]int `json:"counts"`
 	// Plans are the running plans (hive task), then the latest finished.
 	Plans []Plan `json:"plans,omitempty"`
+	// Branches are the active branches of agents' worktrees (hive branch).
+	Branches []Branch `json:"branches,omitempty"`
 }
 
 // Plan is a plan of tasks for agents and its progress.
@@ -193,7 +195,7 @@ type Manifest struct {
 func workspaceOf(s hiveapi.Snapshot) Workspace {
 	w := Workspace{
 		Environments: []Environment{}, Tabs: []Tab{}, Panes: []Pane{}, Agents: []Agent{},
-		State: string(s.Rollups.Session), Counts: map[string]int{}, Plans: []Plan{},
+		State: string(s.Rollups.Session), Counts: map[string]int{}, Plans: []Plan{}, Branches: []Branch{},
 	}
 	for _, e := range s.Environments {
 		env := Environment{ID: e.ID, Name: cmp(e.Name, e.ID), Path: e.Path, State: string(s.Rollups.Environments[e.ID]), Worktree: e.Worktree != nil}

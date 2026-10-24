@@ -68,6 +68,8 @@ type Config struct {
 	Observers ObserversConfig
 	// Tasks is the [tasks] policy for plans.
 	Tasks TasksConfig
+	// Branches is the [branches] policy: naming, cleanup, gates, forges.
+	Branches BranchesConfig
 	// ProcessLogMaxBytes rotates each agent's output log past this size,
 	// keeping one older file. Zero lets logs grow.
 	ProcessLogMaxBytes int64

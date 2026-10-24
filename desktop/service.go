@@ -348,6 +348,65 @@ func (s *HiveService) CancelPlan(ctx context.Context, plan string) error {
 	return s.hub.CancelPlan(plan)
 }
 
+// BranchDiff returns a branch's changes against its base, uncommitted
+// ones included.
+func (s *HiveService) BranchDiff(ctx context.Context, ref string) (core.BranchDiff, error) {
+	if err := guard(ctx); err != nil {
+		return core.BranchDiff{}, err
+	}
+	return s.hub.BranchDiff(ref)
+}
+
+// CommentBranch adds a review comment, on a file and line when given;
+// send sends the comments not sent yet to the branch's agent.
+func (s *HiveService) CommentBranch(ctx context.Context, ref, path string, line int, body string, send bool) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.CommentBranch(ref, path, line, body, send)
+}
+
+// SendComments sends a branch's comments not sent yet to its agent.
+func (s *HiveService) SendComments(ctx context.Context, ref string) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.SendComments(ref)
+}
+
+// ReadyBranch runs a branch's gates and says whether it is ready.
+func (s *HiveService) ReadyBranch(ctx context.Context, ref string) (bool, error) {
+	if err := guard(ctx); err != nil {
+		return false, err
+	}
+	return s.hub.ReadyBranch(ref)
+}
+
+// PushBranch pushes a branch to its remote, because the person asked.
+func (s *HiveService) PushBranch(ctx context.Context, ref string) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.PushBranch(ref)
+}
+
+// OpenPullRequest opens a pull request for a branch and returns its URL.
+func (s *HiveService) OpenPullRequest(ctx context.Context, ref string, draft, push bool) (string, error) {
+	if err := guard(ctx); err != nil {
+		return "", err
+	}
+	return s.hub.OpenPullRequest(ref, draft, push)
+}
+
+// CleanBranch removes a branch's worktree (force: also with uncommitted
+// changes, saved first).
+func (s *HiveService) CleanBranch(ctx context.Context, ref string, force bool) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.CleanBranch(ref, force)
+}
+
 // CreateEnvironment makes an environment for a directory on a machine
 // ("" for this computer).
 func (s *HiveService) CreateEnvironment(ctx context.Context, machine, id, dir string) error {

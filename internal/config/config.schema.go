@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/notify"
 	"github.com/admirable-oss/hive/internal/plugin"
@@ -53,6 +54,16 @@ func (c *Config) schema() map[string]map[string]setter {
 			"labels":     nameList(&c.Tasks.Labels, "a list of labels"),
 			"keep_plans": integer(&c.Tasks.KeepPlans, 1, 10000),
 			"kinds":      intTable(&c.Tasks.Kinds, 1, 256),
+		},
+		"branches": {
+			"agent_pattern":  pattern(&c.Branches.AgentPattern),
+			"task_pattern":   pattern(&c.Branches.TaskPattern),
+			"cleanup":        oneOf(&c.Branches.Cleanup, []string{"merged", "never"}),
+			"delete_merged":  boolean(&c.Branches.DeleteMerged),
+			"check_interval": duration(&c.Branches.CheckInterval, time.Second, time.Hour),
+			"keep":           integer(&c.Branches.Keep, 1, 10000),
+			"gate":           c.gatesSchema,
+			"forge":          c.forgesSchema,
 		},
 		"session": {
 			"restore":                  boolean(&c.Session.Restore),
@@ -768,4 +779,152 @@ func str(dst *string) setter {
 	return func(raw any) error {
 		return setString(raw, func(v string) error { *dst = strings.TrimSpace(v); return nil })
 	}
+}
+
+// pattern reads a branch naming pattern.
+func pattern(dst *string) setter {
+	return func(raw any) error {
+		return setString(raw, func(s string) error {
+			if err := branch.CheckPattern(s); err != nil {
+				return errors.New(strings.TrimPrefix(err.Error(), "branch: invalid: "))
+			}
+			*dst = s
+			return nil
+		})
+	}
+}
+
+// argv reads a command as a list of strings, the program first.
+func argv(t map[string]any, name string) ([]string, error) {
+	raw, ok := t[name]
+	if !ok {
+		return nil, nil
+	}
+	list, ok := raw.([]any)
+	if !ok || len(list) == 0 {
+		return nil, fmt.Errorf("%s: a list of strings, the program first", name)
+	}
+	out := make([]string, len(list))
+	for i, x := range list {
+		s, ok := x.(string)
+		if !ok || (i == 0 && strings.TrimSpace(s) == "") {
+			return nil, fmt.Errorf("%s: a list of strings, the program first", name)
+		}
+		out[i] = s
+	}
+	return out, nil
+}
+
+// gatesSchema reads [[branches.gate]]; a broken entry is skipped with a
+// warning, the rest apply.
+func (c *Config) gatesSchema(raw any) error {
+	list, err := tables(raw)
+	if err != nil {
+		return err
+	}
+	var gates []Gate
+	var bad []string
+	for i, t := range list {
+		g, err := gate(t)
+		if err != nil {
+			bad = append(bad, fmt.Sprintf("[%d]: %v", i, err))
+			continue
+		}
+		gates = append(gates, g)
+	}
+	c.Branches.Gates = gates
+	if len(bad) > 0 {
+		return fmt.Errorf("%s (ignored)", strings.Join(bad, "; "))
+	}
+	return nil
+}
+
+func gate(t map[string]any) (Gate, error) {
+	if err := unknownFields(t, "name", "command", "timeout", "repo"); err != nil {
+		return Gate{}, err
+	}
+	var g Gate
+	var err error
+	if g.Name, err = stringField(t, "name"); err != nil {
+		return g, err
+	}
+	if g.Command, err = argv(t, "command"); err != nil {
+		return g, err
+	}
+	if len(g.Command) == 0 {
+		return g, errors.New("command is required")
+	}
+	if g.Name == "" {
+		g.Name = filepath.Base(g.Command[0])
+	}
+	timeout, err := stringField(t, "timeout")
+	if err != nil {
+		return g, err
+	}
+	if timeout != "" {
+		if g.Timeout, err = time.ParseDuration(timeout); err != nil || g.Timeout < time.Second || g.Timeout > 24*time.Hour {
+			return g, fmt.Errorf("timeout %q (a duration from 1s to 24h)", timeout)
+		}
+	}
+	if g.Repo, err = stringField(t, "repo"); err != nil {
+		return g, err
+	}
+	if g.Repo != "" && !strings.HasPrefix(g.Repo, "~/") && !filepath.IsAbs(g.Repo) {
+		return g, fmt.Errorf("repo %q must be absolute or start with ~/", g.Repo)
+	}
+	return g, nil
+}
+
+// forgesSchema reads [[branches.forge]].
+func (c *Config) forgesSchema(raw any) error {
+	list, err := tables(raw)
+	if err != nil {
+		return err
+	}
+	var forges []Forge
+	var bad []string
+	for i, t := range list {
+		f, err := forge(t)
+		if err != nil {
+			bad = append(bad, fmt.Sprintf("[%d]: %v", i, err))
+			continue
+		}
+		forges = append(forges, f)
+	}
+	c.Branches.Forges = forges
+	if len(bad) > 0 {
+		return fmt.Errorf("%s (ignored)", strings.Join(bad, "; "))
+	}
+	return nil
+}
+
+func forge(t map[string]any) (Forge, error) {
+	if err := unknownFields(t, "host", "type", "command"); err != nil {
+		return Forge{}, err
+	}
+	var f Forge
+	var err error
+	if f.Host, err = stringField(t, "host"); err != nil {
+		return f, err
+	}
+	f.Host = strings.ToLower(strings.TrimSpace(f.Host))
+	if f.Host == "" || strings.ContainsAny(f.Host, "/: ") {
+		return f, fmt.Errorf("host %q (a host name, like git.example.com)", f.Host)
+	}
+	if f.Type, err = stringField(t, "type"); err != nil {
+		return f, err
+	}
+	if !slices.Contains(ForgeTypes, f.Type) {
+		return f, fmt.Errorf("type %q (want %s)", f.Type, strings.Join(ForgeTypes, ", "))
+	}
+	if f.Command, err = argv(t, "command"); err != nil {
+		return f, err
+	}
+	switch {
+	case f.Type == "command" && len(f.Command) == 0:
+		return f, errors.New("type command needs a command")
+	case f.Type != "command" && len(f.Command) > 0:
+		return f, errors.New("command is for type command")
+	}
+	return f, nil
 }

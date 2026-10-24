@@ -5,6 +5,12 @@ const calls: string[] = [];
 vi.mock("./api", () => {
   const record = (name: string) => (...args: unknown[]) => {
     calls.push(`${name}(${args.join(",")})`);
+    if (name === "branchDiff") {
+      return Promise.resolve({
+        branch: "hive/claude/3f2a91", base: "main", dirty: true, files: [{ path: "login.go", status: "M", added: 1, deleted: 1 }],
+        patch: "diff --git a/login.go b/login.go\n--- a/login.go\n+++ b/login.go\n@@ -1,2 +1,2 @@\n package login\n-old\n+new\n",
+      });
+    }
     return Promise.resolve(name === "manifests" ? [{ id: "claude", name: "Claude Code" }] : "");
   };
   return {
@@ -140,5 +146,49 @@ describe("Plans", () => {
     expect(calls).toContain("focusPane(p1)");
     fireEvent.click(screen.getByRole("button", { name: "Cancel plan ship it" }));
     expect(calls).toContain("cancelPlan(3f2a1b0c)");
+  });
+});
+
+describe("Branches", () => {
+  beforeEach(() => {
+    calls.length = 0;
+    act(() => {
+      store.set((s) => ({ ...s, connection: { state: "connected", session: "default", version: "1.4.0", api_level: 13 } }));
+      store.setWorkspace({
+        ...ws,
+        branches: [
+          {
+            id: "fix-login", name: "hive/claude/3f2a91", base: "main", state: "working", environment_id: "fix-login",
+            files: 1, added: 1, deleted: 1, ahead: 0, behind: 0, dirty: true, comments: 1, pending: 1,
+            overlaps: [{ branch: "hive/codex/77aa01", files: ["login.go"], conflicts: ["login.go"] }],
+            gates: [{ name: "test", passed: false, exit_code: 1, output: ["FAIL"], duration_ms: 1200 }],
+          },
+        ],
+      });
+    });
+  });
+
+  it("shows a branch's conflicts and reviews it", async () => {
+    render(<App />);
+    const branches = screen.getByRole("region", { name: "Branches" });
+    expect(branches).toHaveTextContent("hive/claude/3f2a91");
+    expect(branches).toHaveTextContent("conflicts with hive/codex/77aa01");
+    fireEvent.click(screen.getByRole("button", { name: "Review hive/claude/3f2a91" }));
+    expect(calls).toContain("branchDiff(fix-login)");
+    expect(screen.getByRole("list", { name: "Overlaps" })).toHaveTextContent("would conflict in login.go");
+    expect(screen.getByRole("list", { name: "Gates" })).toHaveTextContent("test: exit 1");
+
+    // A comment on the added line goes to the agent.
+    fireEvent.click(await screen.findByRole("button", { name: "+new" }));
+    fireEvent.change(screen.getByPlaceholderText(/login.go:2/), { target: { value: "Explain this" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add and send" }));
+    expect(calls).toContain("commentBranch(fix-login,login.go,2,Explain this,true)");
+    await act(async () => {}); // the comment's call settles
+
+    fireEvent.click(screen.getByRole("button", { name: /Run gates/ }));
+    expect(calls).toContain("readyBranch(fix-login)");
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: /Send 1 comments/ }));
+    expect(calls).toContain("sendComments(fix-login)");
   });
 });

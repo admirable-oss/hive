@@ -17,6 +17,23 @@ command hive agent wait
 command hive api
 command hive api schema
 command hive api snapshot
+command hive branch
+command hive branch (alias br)
+command hive branch (alias branches)
+command hive branch check
+command hive branch clean
+command hive branch comment
+command hive branch conflicts
+command hive branch diff
+command hive branch get
+command hive branch list
+command hive branch list (alias ls)
+command hive branch pr
+command hive branch pr (alias pull-request)
+command hive branch push
+command hive branch ready
+command hive branch send
+command hive branch update
 command hive config
 command hive config default
 command hive config import-herdr
@@ -248,6 +265,7 @@ flag hive agent read --lines int -n
 flag hive agent read --source string -s
 flag hive agent start --base string
 flag hive agent start --env string
+flag hive agent start --isolate bool
 flag hive agent start --kind string -k
 flag hive agent start --name string
 flag hive agent start --var stringArray -e
@@ -256,6 +274,31 @@ flag hive agent wait --after int64
 flag hive agent wait --stall duration
 flag hive agent wait --timeout duration
 flag hive agent wait --until string
+flag hive branch check --repo string
+flag hive branch clean --delete-branch bool
+flag hive branch clean --force bool -f
+flag hive branch clean --merged bool
+flag hive branch comment --by string
+flag hive branch comment --file string
+flag hive branch comment --line int
+flag hive branch comment --send bool
+flag hive branch conflicts --with string
+flag hive branch diff --color string
+flag hive branch diff --limit int
+flag hive branch diff --stat bool
+flag hive branch diff --unified int -U
+flag hive branch list --all bool -a
+flag hive branch list --repo string
+flag hive branch pr --base string
+flag hive branch pr --body string
+flag hive branch pr --draft bool
+flag hive branch pr --push bool
+flag hive branch pr --remote string
+flag hive branch pr --title string
+flag hive branch push --remote string
+flag hive branch ready --name string
+flag hive branch update --abort bool
+flag hive branch update --rebase bool
 flag hive config import-herdr --from string
 flag hive config import-herdr --herdr-keys bool
 flag hive config import-herdr --write bool

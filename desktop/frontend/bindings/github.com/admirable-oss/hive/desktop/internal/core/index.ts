@@ -3,8 +3,13 @@
 
 export {
     Agent,
+    Branch,
+    BranchDiff,
+    BranchGate,
+    BranchOverlap,
     Connection,
     CursorState,
+    DiffFile,
     Discovery,
     Environment,
     IdentityCheck,

@@ -458,3 +458,76 @@ type = "weather"
 		t.Fatalf("reset-keys dropped commands:\n%s", out)
 	}
 }
+
+func TestBranches(t *testing.T) {
+	cfg, warnings, err := config.Parse([]byte(`
+[branches]
+agent_pattern = "agents/{kind}-{date}"
+cleanup = "never"
+delete_merged = true
+check_interval = "1m"
+
+[[branches.gate]]
+name = "test"
+command = ["go", "test", "./..."]
+timeout = "20m"
+repo = "~/src/api"
+
+[[branches.gate]]
+command = ["make", "lint"]
+
+[[branches.gate]]
+name = "no command"
+
+[[branches.gate]]
+command = ["x"]
+repo = "relative"
+
+[[branches.forge]]
+host = "Git.Example.com"
+type = "gitlab"
+
+[[branches.forge]]
+host = "pr.corp"
+type = "command"
+command = ["corp-pr", "--json"]
+
+[[branches.forge]]
+host = "x.corp"
+type = "bitbucket"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 2 || !strings.Contains(warnings[1], "command is required") || !strings.Contains(warnings[1], "must be absolute") ||
+		!strings.Contains(warnings[0], `type "bitbucket"`) {
+		t.Fatalf("warnings = %q", warnings)
+	}
+	b := cfg.Branches
+	if b.AgentPattern != "agents/{kind}-{date}" || b.TaskPattern != "hive/{plan}/{task}" || b.Cleanup != "never" || !b.DeleteMerged || b.CheckInterval != time.Minute {
+		t.Fatalf("branches = %+v", b)
+	}
+	wantGates := []config.Gate{
+		{Name: "test", Command: []string{"go", "test", "./..."}, Timeout: 20 * time.Minute, Repo: "~/src/api"},
+		{Name: "make", Command: []string{"make", "lint"}},
+	}
+	if !reflect.DeepEqual(b.Gates, wantGates) {
+		t.Fatalf("gates = %+v", b.Gates)
+	}
+	wantForges := []config.Forge{
+		{Host: "git.example.com", Type: "gitlab"},
+		{Host: "pr.corp", Type: "command", Command: []string{"corp-pr", "--json"}},
+	}
+	if !reflect.DeepEqual(b.Forges, wantForges) {
+		t.Fatalf("forges = %+v", b.Forges)
+	}
+	again, w, err := config.Parse(config.Render(cfg))
+	if err != nil || len(w) != 0 || !reflect.DeepEqual(again, cfg) {
+		t.Fatalf("round trip: %v %v\n%+v", err, w, again.Branches)
+	}
+
+	_, warnings, _ = config.Parse([]byte("[branches]\nagent_pattern = \"hive/{who}\"\ntask_pattern = \"a..b/{task}\"\ncleanup = \"always\"\n"))
+	if len(warnings) != 3 {
+		t.Fatalf("bad patterns and policy: %q", warnings)
+	}
+}

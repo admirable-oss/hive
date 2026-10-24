@@ -109,6 +109,7 @@ checks this both ways.
 | `observers/credentials.json` | 1 | refused, file left as is (`v1.0.10`) | refused with its path |
 | `machines.json` | 1 (`labels` and `capacity` added in `v1.3.0`; older releases ignore them, and drop them if they save the file) | refused, file left as is (`v1.0.10`) | refused with its path |
 | `tasks/<plan>.json` (`v1.3.0`) | 1 | that plan is not loaded, file left as is | moved to `*.corrupt-<time>`; the other plans load |
+| `branches.json` (`v1.4.0`) | 1 | no branch is loaded, and the file is never written over | moved to `*.corrupt-<time>`; worktree environments are followed again from scratch |
 | `identity.json` | 1 | refused, file left as is (`v1.0.10`) | refused (`ErrBadIdentity`); never replaced by a new identity |
 | `web/access.json`, `web/runtimes.json`, `web/push.json` | 1 | refused, file left as is (`v1.0.10`) | refused |
 

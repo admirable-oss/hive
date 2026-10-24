@@ -4,6 +4,64 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.4.0 (unreleased): Git-native development (M23)
+
+Isolated work, clean handoffs ([docs/branches.md](docs/branches.md), [RFC 0003](rfcs/0003-git-native-development.md)).
+
+### Branch lifecycle
+
+- Every worktree Hive makes (for an agent, a task, or `hive worktree
+  create`) has a branch Hive follows: `created`, `working`, `ready`,
+  `merged`, then `cleaned` (or `removed` before it merged), with its base
+  and the agent or task it was made for.
+- `hive agent start --isolate` starts an agent on a branch Hive names
+  (`[branches] agent_pattern`, default `hive/{kind}/{id}`). Isolated tasks
+  use `task_pattern` (default `hive/{plan}/{task}`, as before).
+- Merged worktrees are removed once nothing uncommitted and no running
+  process is in them (`cleanup = "merged"`). Unmerged branches are never
+  deleted. `hive branch clean --force` saves uncommitted work under
+  `refs/hive/saved/` before removing a worktree.
+
+### Overlaps and conflicts
+
+- Branches that change the same files are reported as they do, with the
+  files a merge would conflict on, before anyone merges. Uncommitted work
+  counts: worktrees are compared through snapshots made without touching
+  them. A base that moved under a branch is reported too.
+- `hive branch conflicts` shows each conflict with its markers, without
+  merging. `hive branch update [--rebase]` brings the base in on request and
+  stops on a conflict for you. Hive never resolves one.
+
+### Review
+
+- `hive branch diff`: a branch's changes against its fork point,
+  uncommitted ones included.
+- `hive branch comment` and `send`: review comments that go back to the
+  branch's agent as one prompt.
+- `hive branch ready` runs `[[branches.gate]]` (tests, lint, build) in the
+  worktree; the branch is ready only while its files are those the gates
+  passed on.
+- The TUI marks each worktree's state in the sidebar, lists branches in the
+  Overview, notifies on new overlaps, and reviews a branch with prefix `D`.
+  The desktop app has a Branches section and a review window.
+
+### Publishing, by consent
+
+- `hive branch push` (never forced) and `hive branch pr` (GitHub through
+  `gh`, GitLab through `glab`, other hosts with `[[branches.forge]]`, using
+  your own login). A pull request needs its branch pushed (or `--push`) and
+  committed.
+- Plugins cannot push or open pull requests, and the MCP tools offer only
+  reading, comments and gates.
+
+### API
+
+- `branch.*` methods and events at API level 13; `agent.start` takes
+  `isolate`. MCP tools `branch_list`, `branch_get`, `branch_diff`,
+  `branch_conflicts`, `branch_comment` and `branch_ready`. `pkg/hiveapi`:
+  `Branches`, `BranchDiff`, `ReadyBranch`, `CommentBranch`,
+  `OpenPullRequest`, `CleanBranches` and the rest.
+
 ## v1.3.0 (unreleased): Parallel agent orchestration (M22)
 
 Many agents, one plan ([docs/tasks.md](docs/tasks.md), [RFC 0002](rfcs/0002-task-orchestration.md)).

@@ -284,7 +284,7 @@ func (f *Fleet) Workspace() Workspace {
 var stateRank = map[string]int{"blocked": 5, "working": 4, "done": 3, "idle": 2, "unknown": 1, "exited": 0}
 
 func mergeWorkspaces(order []string, ws map[string]Workspace) Workspace {
-	out := Workspace{Environments: []Environment{}, Tabs: []Tab{}, Panes: []Pane{}, Agents: []Agent{}, Counts: map[string]int{}, Plans: []Plan{}}
+	out := Workspace{Environments: []Environment{}, Tabs: []Tab{}, Panes: []Pane{}, Agents: []Agent{}, Counts: map[string]int{}, Plans: []Plan{}, Branches: []Branch{}}
 	for _, m := range order {
 		w := ws[m]
 		for _, e := range w.Environments {
@@ -315,6 +315,10 @@ func mergeWorkspaces(order []string, ws map[string]Workspace) Workspace {
 			}
 			p.Waiting = waiting
 			out.Plans = append(out.Plans, p)
+		}
+		for _, b := range w.Branches {
+			b.ID, b.EnvironmentID, b.Machine = qualify(m, b.ID), qualify(m, b.EnvironmentID), m
+			out.Branches = append(out.Branches, b)
 		}
 		for k, v := range w.Counts {
 			out.Counts[k] += v
@@ -490,6 +494,47 @@ func (f *Fleet) ApproveTask(plan, task string, deny bool) error {
 
 func (f *Fleet) CancelPlan(plan string) error {
 	return f.do(plan, func(h *Hub, raw string) error { return h.CancelPlan(raw) })
+}
+
+// Branches' actions go to the machine the branch's ID names.
+func (f *Fleet) BranchDiff(ref string) (BranchDiff, error) {
+	h, raw, err := f.route(ref)
+	if err != nil {
+		return BranchDiff{}, err
+	}
+	return h.BranchDiff(raw)
+}
+
+func (f *Fleet) CommentBranch(ref, path string, line int, body string, send bool) error {
+	return f.do(ref, func(h *Hub, raw string) error { return h.CommentBranch(raw, path, line, body, send) })
+}
+
+func (f *Fleet) SendComments(ref string) error {
+	return f.do(ref, func(h *Hub, raw string) error { return h.SendComments(raw) })
+}
+
+func (f *Fleet) ReadyBranch(ref string) (bool, error) {
+	h, raw, err := f.route(ref)
+	if err != nil {
+		return false, err
+	}
+	return h.ReadyBranch(raw)
+}
+
+func (f *Fleet) PushBranch(ref string) error {
+	return f.do(ref, func(h *Hub, raw string) error { return h.PushBranch(raw) })
+}
+
+func (f *Fleet) OpenPullRequest(ref string, draft, push bool) (string, error) {
+	h, raw, err := f.route(ref)
+	if err != nil {
+		return "", err
+	}
+	return h.OpenPullRequest(raw, draft, push)
+}
+
+func (f *Fleet) CleanBranch(ref string, force bool) error {
+	return f.do(ref, func(h *Hub, raw string) error { return h.CleanBranch(raw, force) })
 }
 
 // Manifests lists the agents a machine's Hive can start.

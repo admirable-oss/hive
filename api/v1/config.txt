@@ -1,3 +1,11 @@
+branches.agent_pattern
+branches.check_interval
+branches.cleanup
+branches.delete_merged
+branches.forge
+branches.gate
+branches.keep
+branches.task_pattern
 daemon.autostart
 daemon.shutdown_timeout
 discovery.advertise

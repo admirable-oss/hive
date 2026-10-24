@@ -44,34 +44,37 @@ type Action string
 
 // Workspace actions (any mode but copy).
 const (
-	SplitRight    Action = "split-right"
-	SplitDown     Action = "split-down"
-	ClosePane     Action = "close-pane"
-	Zoom          Action = "zoom"
-	FocusLeft     Action = "focus-left"
-	FocusRight    Action = "focus-right"
-	FocusUp       Action = "focus-up"
-	FocusDown     Action = "focus-down"
-	FocusNext     Action = "focus-next"
-	FocusPrev     Action = "focus-prev"
-	SwapNext      Action = "swap-next"
-	SwapPrev      Action = "swap-prev"
-	ResizeLeft    Action = "resize-left"
-	ResizeRight   Action = "resize-right"
-	ResizeUp      Action = "resize-up"
-	ResizeDown    Action = "resize-down"
-	NewTab        Action = "new-tab"
-	CloseTab      Action = "close-tab"
-	NextTab       Action = "next-tab"
-	PrevTab       Action = "prev-tab"
-	NextEnv       Action = "next-env"
-	PrevEnv       Action = "prev-env"
-	RenameTab     Action = "rename-tab"
-	RenamePane    Action = "rename-pane"
-	Popup         Action = "popup"
-	Goto          Action = "goto"
-	Help          Action = "help"
-	Overview      Action = "overview"
+	SplitRight  Action = "split-right"
+	SplitDown   Action = "split-down"
+	ClosePane   Action = "close-pane"
+	Zoom        Action = "zoom"
+	FocusLeft   Action = "focus-left"
+	FocusRight  Action = "focus-right"
+	FocusUp     Action = "focus-up"
+	FocusDown   Action = "focus-down"
+	FocusNext   Action = "focus-next"
+	FocusPrev   Action = "focus-prev"
+	SwapNext    Action = "swap-next"
+	SwapPrev    Action = "swap-prev"
+	ResizeLeft  Action = "resize-left"
+	ResizeRight Action = "resize-right"
+	ResizeUp    Action = "resize-up"
+	ResizeDown  Action = "resize-down"
+	NewTab      Action = "new-tab"
+	CloseTab    Action = "close-tab"
+	NextTab     Action = "next-tab"
+	PrevTab     Action = "prev-tab"
+	NextEnv     Action = "next-env"
+	PrevEnv     Action = "prev-env"
+	RenameTab   Action = "rename-tab"
+	RenamePane  Action = "rename-pane"
+	Popup       Action = "popup"
+	Goto        Action = "goto"
+	Help        Action = "help"
+	Overview    Action = "overview"
+	// Review shows the current environment's branch: its diff, comments
+	// for its agent, its gates.
+	Review        Action = "review"
 	ToggleSidebar Action = "toggle-sidebar"
 	EditScroll    Action = "edit-scrollback"
 	Paste         Action = "paste"
@@ -164,6 +167,7 @@ var descriptions = map[Action]string{
 	RenameTab: "rename the tab", RenamePane: "rename the pane",
 	Popup: "open a shell in a popup", Goto: "go to an agent or pane (fuzzy)",
 	Help: "show key bindings", Overview: "Overview dashboard (toggle)",
+	Review:        "review this environment's branch: its diff, comments for its agent, its gates",
 	ToggleSidebar: "show or hide the sidebar", EditScroll: "open the pane's scrollback in $EDITOR",
 	Paste: "paste the last copied text", PasteImage: "paste a clipboard image to the focused pane",
 	Palette: "plugin palette: actions, links and settings plugins offer here", Detach: "leave the UI (agents keep running)",
@@ -226,7 +230,7 @@ func defaults() map[Mode]map[Action][]string {
 		NewTab: {"c"}, CloseTab: {"&"}, NextTab: {"n"}, PrevTab: {"p"},
 		NextEnv: {")"}, PrevEnv: {"("},
 		RenameTab: {","}, RenamePane: {"."},
-		Popup: {"f"}, Goto: {"w", "s"}, Help: {"?"}, Overview: {"O"},
+		Popup: {"f"}, Goto: {"w", "s"}, Help: {"?"}, Overview: {"O"}, Review: {"D"},
 		ToggleSidebar: {"b"}, EditScroll: {"e"}, Paste: {"]"}, PasteImage: {"I"}, Detach: {"d"},
 		Palette:       {":", "P"},
 		EnterNavigate: {"space"}, EnterResize: {"r"}, EnterCopy: {"[", "v"},

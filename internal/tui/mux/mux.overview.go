@@ -324,6 +324,7 @@ func (o *overview) view(a *App) compositor.Overlay {
 	}
 	// Plans follow the agents; their rows are not selectable.
 	lines = append(lines, a.planLines(a.width)...)
+	lines = append(lines, a.branchLines(a.width)...)
 	title := fmt.Sprintf("Overview · %d running · %d awaiting · %d complete", n.running, n.awaiting, n.complete)
 	if n.idle > 0 {
 		title += fmt.Sprintf(" · %d idle", n.idle)

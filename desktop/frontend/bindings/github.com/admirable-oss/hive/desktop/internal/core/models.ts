@@ -62,6 +62,245 @@ export class Agent {
 }
 
 /**
+ * Branch is the branch of a worktree Hive made for an agent or a task,
+ * as the app shows it (hive branch).
+ */
+export class Branch {
+    "id": string;
+    "name": string;
+    "base": string;
+    "state": string;
+    "environment_id"?: string;
+    "path"?: string;
+
+    /**
+     * Agent and Kind are what it was made for; Task is plan/task.
+     */
+    "agent"?: string;
+    "kind"?: string;
+    "task"?: string;
+    "files": number;
+    "added": number;
+    "deleted": number;
+    "ahead": number;
+    "behind": number;
+    "dirty"?: boolean;
+    "in_progress"?: boolean;
+    "checking"?: boolean;
+    "overlaps": BranchOverlap[];
+    "gates": BranchGate[];
+    "comments": number;
+    "pending": number;
+
+    /**
+     * PullRequest is its pull request's URL, once opened.
+     */
+    "pull_request"?: string;
+    "pushed"?: boolean;
+
+    /**
+     * Cleanup says why a merged branch's worktree is still there.
+     */
+    "cleanup"?: string;
+    "error"?: string;
+
+    /**
+     * Machine is the saved machine it is on ("" for this computer).
+     */
+    "machine"?: string;
+
+    /** Creates a new Branch instance. */
+    constructor($$source: Partial<Branch> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("base" in $$source)) {
+            this["base"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("files" in $$source)) {
+            this["files"] = 0;
+        }
+        if (!("added" in $$source)) {
+            this["added"] = 0;
+        }
+        if (!("deleted" in $$source)) {
+            this["deleted"] = 0;
+        }
+        if (!("ahead" in $$source)) {
+            this["ahead"] = 0;
+        }
+        if (!("behind" in $$source)) {
+            this["behind"] = 0;
+        }
+        if (!("overlaps" in $$source)) {
+            this["overlaps"] = [];
+        }
+        if (!("gates" in $$source)) {
+            this["gates"] = [];
+        }
+        if (!("comments" in $$source)) {
+            this["comments"] = 0;
+        }
+        if (!("pending" in $$source)) {
+            this["pending"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Branch instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Branch {
+        const $$createField17_0 = $$createType1;
+        const $$createField18_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("overlaps" in $$parsedSource) {
+            $$parsedSource["overlaps"] = $$createField17_0($$parsedSource["overlaps"]);
+        }
+        if ("gates" in $$parsedSource) {
+            $$parsedSource["gates"] = $$createField18_0($$parsedSource["gates"]);
+        }
+        return new Branch($$parsedSource as Partial<Branch>);
+    }
+}
+
+/**
+ * BranchDiff is a branch's changes against its base, uncommitted ones
+ * included.
+ */
+export class BranchDiff {
+    "branch": string;
+    "base": string;
+    "dirty"?: boolean;
+    "files": DiffFile[];
+    "patch": string;
+    "truncated"?: boolean;
+
+    /** Creates a new BranchDiff instance. */
+    constructor($$source: Partial<BranchDiff> = {}) {
+        if (!("branch" in $$source)) {
+            this["branch"] = "";
+        }
+        if (!("base" in $$source)) {
+            this["base"] = "";
+        }
+        if (!("files" in $$source)) {
+            this["files"] = [];
+        }
+        if (!("patch" in $$source)) {
+            this["patch"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BranchDiff instance from a string or object.
+     */
+    static createFrom($$source: any = {}): BranchDiff {
+        const $$createField3_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("files" in $$parsedSource) {
+            $$parsedSource["files"] = $$createField3_0($$parsedSource["files"]);
+        }
+        return new BranchDiff($$parsedSource as Partial<BranchDiff>);
+    }
+}
+
+/**
+ * BranchGate is how a gate's last run ended.
+ */
+export class BranchGate {
+    "name": string;
+    "passed": boolean;
+    "skipped"?: boolean;
+    "exit_code": number;
+    "error"?: string;
+    "output": string[];
+    "duration_ms": number;
+
+    /** Creates a new BranchGate instance. */
+    constructor($$source: Partial<BranchGate> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("passed" in $$source)) {
+            this["passed"] = false;
+        }
+        if (!("exit_code" in $$source)) {
+            this["exit_code"] = 0;
+        }
+        if (!("output" in $$source)) {
+            this["output"] = [];
+        }
+        if (!("duration_ms" in $$source)) {
+            this["duration_ms"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BranchGate instance from a string or object.
+     */
+    static createFrom($$source: any = {}): BranchGate {
+        const $$createField5_0 = $$createType6;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("output" in $$parsedSource) {
+            $$parsedSource["output"] = $$createField5_0($$parsedSource["output"]);
+        }
+        return new BranchGate($$parsedSource as Partial<BranchGate>);
+    }
+}
+
+/**
+ * BranchOverlap is another branch (or the base) changing the same files.
+ */
+export class BranchOverlap {
+    "branch": string;
+    "files": string[];
+    "conflicts": string[];
+
+    /** Creates a new BranchOverlap instance. */
+    constructor($$source: Partial<BranchOverlap> = {}) {
+        if (!("branch" in $$source)) {
+            this["branch"] = "";
+        }
+        if (!("files" in $$source)) {
+            this["files"] = [];
+        }
+        if (!("conflicts" in $$source)) {
+            this["conflicts"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BranchOverlap instance from a string or object.
+     */
+    static createFrom($$source: any = {}): BranchOverlap {
+        const $$createField1_0 = $$createType6;
+        const $$createField2_0 = $$createType6;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("files" in $$parsedSource) {
+            $$parsedSource["files"] = $$createField1_0($$parsedSource["files"]);
+        }
+        if ("conflicts" in $$parsedSource) {
+            $$parsedSource["conflicts"] = $$createField2_0($$parsedSource["conflicts"]);
+        }
+        return new BranchOverlap($$parsedSource as Partial<BranchOverlap>);
+    }
+}
+
+/**
  * Connection is how the app is connected, as the frontend shows it.
  */
 export class Connection {
@@ -138,6 +377,43 @@ export class CursorState {
 }
 
 /**
+ * DiffFile is one changed file.
+ */
+export class DiffFile {
+    "path": string;
+    "from"?: string;
+    "status": string;
+    "added": number;
+    "deleted": number;
+
+    /** Creates a new DiffFile instance. */
+    constructor($$source: Partial<DiffFile> = {}) {
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("added" in $$source)) {
+            this["added"] = 0;
+        }
+        if (!("deleted" in $$source)) {
+            this["deleted"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DiffFile instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DiffFile {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DiffFile($$parsedSource as Partial<DiffFile>);
+    }
+}
+
+/**
  * Discovery is what a search found, and why it may have found nothing.
  */
 export class Discovery {
@@ -164,9 +440,9 @@ export class Discovery {
      * Creates a new Discovery instance from a string or object.
      */
     static createFrom($$source: any = {}): Discovery {
-        const $$createField0_0 = $$createType1;
-        const $$createField1_0 = $$createType2;
-        const $$createField2_0 = $$createType2;
+        const $$createField0_0 = $$createType8;
+        const $$createField1_0 = $$createType6;
+        const $$createField2_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("runtimes" in $$parsedSource) {
             $$parsedSource["runtimes"] = $$createField0_0($$parsedSource["runtimes"]);
@@ -359,7 +635,7 @@ export class KeyBinding {
      * Creates a new KeyBinding instance from a string or object.
      */
     static createFrom($$source: any = {}): KeyBinding {
-        const $$createField2_0 = $$createType2;
+        const $$createField2_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("keys" in $$parsedSource) {
             $$parsedSource["keys"] = $$createField2_0($$parsedSource["keys"]);
@@ -391,7 +667,7 @@ export class Line {
      * Creates a new Line instance from a string or object.
      */
     static createFrom($$source: any = {}): Line {
-        const $$createField1_0 = $$createType4;
+        const $$createField1_0 = $$createType10;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("runs" in $$parsedSource) {
             $$parsedSource["runs"] = $$createField1_0($$parsedSource["runs"]);
@@ -443,8 +719,8 @@ export class MachineStatus {
      * Creates a new MachineStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): MachineStatus {
-        const $$createField7_0 = $$createType5;
-        const $$createField8_0 = $$createType6;
+        const $$createField7_0 = $$createType11;
+        const $$createField8_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("connection" in $$parsedSource) {
             $$parsedSource["connection"] = $$createField7_0($$parsedSource["connection"]);
@@ -526,7 +802,7 @@ export class Nearby {
      * Creates a new Nearby instance from a string or object.
      */
     static createFrom($$source: any = {}): Nearby {
-        const $$createField2_0 = $$createType2;
+        const $$createField2_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("addresses" in $$parsedSource) {
             $$parsedSource["addresses"] = $$createField2_0($$parsedSource["addresses"]);
@@ -574,7 +850,7 @@ export class ObserveRequest {
      * Creates a new ObserveRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): ObserveRequest {
-        const $$createField1_0 = $$createType2;
+        const $$createField1_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("environments" in $$parsedSource) {
             $$parsedSource["environments"] = $$createField1_0($$parsedSource["environments"]);
@@ -651,8 +927,8 @@ export class ObservedScreen {
      * Creates a new ObservedScreen instance from a string or object.
      */
     static createFrom($$source: any = {}): ObservedScreen {
-        const $$createField4_0 = $$createType8;
-        const $$createField5_0 = $$createType9;
+        const $$createField4_0 = $$createType14;
+        const $$createField5_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField4_0($$parsedSource["lines"]);
@@ -697,8 +973,8 @@ export class ObservedView {
      * Creates a new ObservedView instance from a string or object.
      */
     static createFrom($$source: any = {}): ObservedView {
-        const $$createField0_0 = $$createType10;
-        const $$createField3_0 = $$createType11;
+        const $$createField0_0 = $$createType16;
+        const $$createField3_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("observer" in $$parsedSource) {
             $$parsedSource["observer"] = $$createField0_0($$parsedSource["observer"]);
@@ -834,7 +1110,7 @@ export class Pane {
      * Creates a new Pane instance from a string or object.
      */
     static createFrom($$source: any = {}): Pane {
-        const $$createField5_0 = $$createType13;
+        const $$createField5_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rect" in $$parsedSource) {
             $$parsedSource["rect"] = $$createField5_0($$parsedSource["rect"]);
@@ -903,8 +1179,8 @@ export class Plan {
      * Creates a new Plan instance from a string or object.
      */
     static createFrom($$source: any = {}): Plan {
-        const $$createField5_0 = $$createType6;
-        const $$createField9_0 = $$createType15;
+        const $$createField5_0 = $$createType12;
+        const $$createField9_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("counts" in $$parsedSource) {
             $$parsedSource["counts"] = $$createField5_0($$parsedSource["counts"]);
@@ -1098,8 +1374,8 @@ export class ScreenUpdate {
      * Creates a new ScreenUpdate instance from a string or object.
      */
     static createFrom($$source: any = {}): ScreenUpdate {
-        const $$createField5_0 = $$createType9;
-        const $$createField8_0 = $$createType17;
+        const $$createField5_0 = $$createType15;
+        const $$createField8_0 = $$createType23;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cursor" in $$parsedSource) {
             $$parsedSource["cursor"] = $$createField5_0($$parsedSource["cursor"]);
@@ -1178,9 +1454,9 @@ export class Settings {
      * Creates a new Settings instance from a string or object.
      */
     static createFrom($$source: any = {}): Settings {
-        const $$createField0_0 = $$createType2;
-        const $$createField3_0 = $$createType2;
-        const $$createField4_0 = $$createType19;
+        const $$createField0_0 = $$createType6;
+        const $$createField3_0 = $$createType6;
+        const $$createField4_0 = $$createType25;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("notify_on" in $$parsedSource) {
             $$parsedSource["notify_on"] = $$createField0_0($$parsedSource["notify_on"]);
@@ -1206,6 +1482,11 @@ export class StartAgentRequest {
      * Worktree is a branch to start it on, in a new worktree.
      */
     "worktree"?: string;
+
+    /**
+     * Isolate starts it in a new worktree on a branch Hive names.
+     */
+    "isolate"?: boolean;
     "name"?: string;
 
     /** Creates a new StartAgentRequest instance. */
@@ -1303,6 +1584,11 @@ export class Workspace {
      */
     "plans"?: Plan[];
 
+    /**
+     * Branches are the active branches of agents' worktrees (hive branch).
+     */
+    "branches"?: Branch[];
+
     /** Creates a new Workspace instance. */
     constructor($$source: Partial<Workspace> = {}) {
         if (!("environments" in $$source)) {
@@ -1331,12 +1617,13 @@ export class Workspace {
      * Creates a new Workspace instance from a string or object.
      */
     static createFrom($$source: any = {}): Workspace {
-        const $$createField0_0 = $$createType21;
-        const $$createField1_0 = $$createType23;
-        const $$createField2_0 = $$createType25;
-        const $$createField3_0 = $$createType27;
-        const $$createField5_0 = $$createType6;
-        const $$createField6_0 = $$createType29;
+        const $$createField0_0 = $$createType27;
+        const $$createField1_0 = $$createType29;
+        const $$createField2_0 = $$createType31;
+        const $$createField3_0 = $$createType33;
+        const $$createField5_0 = $$createType12;
+        const $$createField6_0 = $$createType35;
+        const $$createField7_0 = $$createType37;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("environments" in $$parsedSource) {
             $$parsedSource["environments"] = $$createField0_0($$parsedSource["environments"]);
@@ -1356,38 +1643,49 @@ export class Workspace {
         if ("plans" in $$parsedSource) {
             $$parsedSource["plans"] = $$createField6_0($$parsedSource["plans"]);
         }
+        if ("branches" in $$parsedSource) {
+            $$parsedSource["branches"] = $$createField7_0($$parsedSource["branches"]);
+        }
         return new Workspace($$parsedSource as Partial<Workspace>);
     }
 }
 
 // Private type creation functions
-const $$createType0 = Nearby.createFrom;
+const $$createType0 = BranchOverlap.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $Create.Array($Create.Any);
-const $$createType3 = Run.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = Connection.createFrom;
-const $$createType6 = $Create.Map($Create.Any, $Create.Any);
-const $$createType7 = ObservedRow.createFrom;
+const $$createType2 = BranchGate.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = DiffFile.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = $Create.Array($Create.Any);
+const $$createType7 = Nearby.createFrom;
 const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = CursorState.createFrom;
-const $$createType10 = Observer.createFrom;
-const $$createType11 = Workspace.createFrom;
-const $$createType12 = Rect.createFrom;
-const $$createType13 = $Create.Nullable($$createType12);
-const $$createType14 = PlanTask.createFrom;
-const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = Line.createFrom;
-const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = KeyBinding.createFrom;
-const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = Environment.createFrom;
+const $$createType9 = Run.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = Connection.createFrom;
+const $$createType12 = $Create.Map($Create.Any, $Create.Any);
+const $$createType13 = ObservedRow.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = CursorState.createFrom;
+const $$createType16 = Observer.createFrom;
+const $$createType17 = Workspace.createFrom;
+const $$createType18 = Rect.createFrom;
+const $$createType19 = $Create.Nullable($$createType18);
+const $$createType20 = PlanTask.createFrom;
 const $$createType21 = $Create.Array($$createType20);
-const $$createType22 = Tab.createFrom;
+const $$createType22 = Line.createFrom;
 const $$createType23 = $Create.Array($$createType22);
-const $$createType24 = Pane.createFrom;
+const $$createType24 = KeyBinding.createFrom;
 const $$createType25 = $Create.Array($$createType24);
-const $$createType26 = Agent.createFrom;
+const $$createType26 = Environment.createFrom;
 const $$createType27 = $Create.Array($$createType26);
-const $$createType28 = Plan.createFrom;
+const $$createType28 = Tab.createFrom;
 const $$createType29 = $Create.Array($$createType28);
+const $$createType30 = Pane.createFrom;
+const $$createType31 = $Create.Array($$createType30);
+const $$createType32 = Agent.createFrom;
+const $$createType33 = $Create.Array($$createType32);
+const $$createType34 = Plan.createFrom;
+const $$createType35 = $Create.Array($$createType34);
+const $$createType36 = Branch.createFrom;
+const $$createType37 = $Create.Array($$createType36);

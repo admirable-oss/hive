@@ -1511,7 +1511,7 @@ How plans work: [docs/tasks.md](docs/tasks.md). The design:
 
 ---
 
-## M23 · Git-Native Development — `v1.4.0` — **PROPOSED**
+## M23 · Git-Native Development — `v1.4.0` — **IN PROGRESS**
 
 Isolated work, clean handoffs.
 
@@ -1549,6 +1549,47 @@ every commit, merge and push.
 Hive reports their overlap before merging, shows each diff for review,
 gates readiness on tests passing, and opens a pull request only on request.
 Merged worktrees are cleaned up and unmerged work is never lost.
+
+### M23 progress
+
+How branches work: [docs/branches.md](docs/branches.md). The design:
+[RFC 0003](rfcs/0003-git-native-development.md).
+
+- [x] Branch lifecycle: every worktree Hive makes is followed
+  (`internal/branch`) from created through working, ready and merged to
+  cleaned (or removed), with its base and owner recorded and shown in the
+  TUI's sidebar and the desktop app. Merges are detected by fast-forward,
+  merge commit or squash.
+- [x] Naming patterns for agents (`hive agent start --isolate`,
+  `[branches] agent_pattern`) and tasks (`task_pattern`).
+- [x] Cleanup policies: merged worktrees are removed once nothing
+  uncommitted or running is in them; unmerged branches are never deleted;
+  a forced cleanup saves uncommitted work under `refs/hive/saved/` first.
+- [x] Overlaps between agents' branches, uncommitted work included
+  (snapshots made without touching a worktree), and the files a merge would
+  conflict on (`git merge-tree`), as they happen and before any merge. The
+  base moving under a branch is reported too.
+- [x] Merge and rebase on request (`hive branch update`), stopping on a
+  conflict for a person; `hive branch conflicts` shows them without
+  merging.
+- [x] Review: `hive branch diff`, a review overlay in the TUI (prefix `D`)
+  and a review window in the desktop app; comments that go back to the
+  agent as a prompt.
+- [x] Gates (`[[branches.gate]]`): tests, lint and build run in the
+  branch's worktree; ready only when they pass on unchanged files.
+- [x] Publishing by consent: `hive branch push` (never forced) and
+  `hive branch pr` (GitHub through `gh`, GitLab through `glab`, other hosts
+  by `[[branches.forge]]`), closed to plugins and absent from MCP. Forges
+  register through `branch.Forges`, the hook for M26 plugins.
+- [x] Wire API `branch.*` at API level 13, the `branch_*` MCP tools,
+  `pkg/hiveapi` support, plugin capabilities and frozen surfaces.
+- [x] The acceptance, end to end (`TestM23ParallelBranches`): three agents
+  in parallel branches of one repository, their overlap and conflict
+  reported before merging, each diff reviewed, readiness gated on tests,
+  a pull request opened only on request, the merged worktree cleaned up,
+  and the unmerged work kept (and saved when forced).
+- [ ] Forges from plugins, once Plugin API 2 can contribute them (M26).
+- [ ] RFC 0003 discussed and accepted; then tag `v1.4.0`.
 
 ---
 

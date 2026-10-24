@@ -9,6 +9,9 @@ export type Dialog =
   | { kind: "new-environment" }
   | { kind: "machines" }
   | { kind: "observe" }
+  // review shows a branch's diff, its overlaps and gates, and takes
+  // comments for its agent.
+  | { kind: "review"; branch: string }
   // identity shows a proven identity before it is trusted: for pairing
   // (pair set) or for a saved machine (machine set).
   | { kind: "identity"; check: IdentityCheck; pair?: PairRequest; machine?: string }
@@ -45,7 +48,7 @@ interface Screens {
   images: Record<string, ImageUpdate[] | undefined>;
 }
 
-export const emptyWorkspace: Workspace = { environments: [], tabs: [], panes: [], agents: [], state: "", counts: {}, plans: [] };
+export const emptyWorkspace: Workspace = { environments: [], tabs: [], panes: [], agents: [], state: "", counts: {}, plans: [], branches: [] };
 
 // Per-window preferences live in the webview's storage: nothing that
 // matters if lost, and never terminal contents.

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/notify"
 )
@@ -19,6 +20,7 @@ type Config struct {
 	Git       Git
 	Worktrees Worktrees
 	Tasks     Tasks
+	Branches  Branches
 	Session   Session
 	Retention Retention
 	Remote    Remote
@@ -90,6 +92,50 @@ type Tasks struct {
 	// ([tasks.kinds] claude = 4).
 	Kinds map[string]int
 }
+
+// Branches configures the branches of the worktrees Hive makes: their
+// names, their cleanup, the gates before they are ready, and the forges
+// pull requests go to.
+type Branches struct {
+	// AgentPattern names an isolated agent's branch; TaskPattern an
+	// isolated task's.
+	AgentPattern string
+	TaskPattern  string
+	// Cleanup is merged (remove a merged branch's worktree once nothing
+	// uncommitted or running is in it) or never.
+	Cleanup string
+	// DeleteMerged also deletes the local branch of such a worktree.
+	DeleteMerged bool
+	// CheckInterval is how often branches are compared when no change was
+	// noticed.
+	CheckInterval time.Duration
+	// Keep is how many closed branches are remembered.
+	Keep int
+	// Gates run in a branch's worktree before it is ready
+	// ([[branches.gate]]).
+	Gates []Gate
+	// Forges route hosts to forges ([[branches.forge]]).
+	Forges []Forge
+}
+
+// Gate is a check before a branch is ready.
+type Gate struct {
+	Name    string
+	Command []string
+	Timeout time.Duration
+	// Repo limits it to repositories in this directory ("~/" is home).
+	Repo string
+}
+
+// Forge routes a host's pull requests.
+type Forge struct {
+	Host    string
+	Type    string // github | gitlab | command
+	Command []string
+}
+
+// ForgeTypes are the kinds of forge a host can be routed to.
+var ForgeTypes = []string{"github", "gitlab", "command"}
 
 // Session configures snapshots of the workspace and its restore after a
 // reboot (see package persist).
@@ -336,6 +382,10 @@ func Defaults() Config {
 		Terminal: Terminal{DefaultWidth: 220, DefaultHeight: 50, ScrollbackMB: 10},
 		Git:      Git{RefreshInterval: 5 * time.Second},
 		Tasks:    Tasks{Capacity: 8, Labels: []string{}, KeepPlans: 100},
+		Branches: Branches{
+			AgentPattern: branch.DefaultAgentPattern, TaskPattern: branch.DefaultTaskPattern,
+			Cleanup: "merged", CheckInterval: 30 * time.Second, Keep: branch.DefaultKeep,
+		},
 		Session: Session{
 			Restore: true, ResumeAgentsOnRestore: true, RestoreStagger: time.Second,
 			SnapshotInterval: 30 * time.Second, KeepSnapshots: 48, ReplayLines: 500,

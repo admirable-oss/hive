@@ -153,6 +153,36 @@ Per agent kind, the most tasks running at once across plans:
 claude = 4
 ```
 
+## `[branches]`
+
+| Key | Default | Description |
+|---|---|---|
+| `agent_pattern` | `"hive/{kind}/{id}"` | The branch of an agent started with `--isolate`: {kind}, {name}, {env}, {date} and {id} (6 random hex digits). |
+| `task_pattern` | `"hive/{plan}/{task}"` | The branch of an isolated task: {plan}, {task}, {kind}, {date}, {id}. |
+| `cleanup` | `"merged"` | A merged branch's worktree: "merged" removes it once nothing uncommitted and no running process is in it; "never" leaves it to you. |
+| `delete_merged` | `false` | Also delete the local branch of a worktree removed that way, when git agrees it has merged. |
+| `check_interval` | `"30s"` | How often branches are compared again when no change was noticed. |
+| `keep` | `100` | Cleaned-up and removed branches remembered for `hive branch list --all`. |
+
+Gates a branch passes before it is ready (`hive branch ready`), run in its worktree in order:
+
+```toml
+[[branches.gate]]
+name = "test"
+command = ["go", "test", "./..."]
+timeout = "20m"                  # default 30m
+repo = "~/src/api"               # only this repository's branches
+```
+
+Pull requests go to GitHub (through gh) or GitLab (glab) by the remote's host. Other hosts:
+
+```toml
+[[branches.forge]]
+host = "git.example.com"
+type = "gitlab"                  # github | gitlab | command
+command = ["my-pr"]              # for type = "command": gets the request as JSON
+```
+
 ## `[notify]`
 
 | Key | Default | Description |

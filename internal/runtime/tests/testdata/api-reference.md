@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 12. Clients speak newline-delimited JSON over the daemon's unix
+API level 13. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -131,6 +131,7 @@ Result: `map[string]boolean`
 | `base` | `string` |  |
 | `env` | `map[string]string` |  |
 | `environment_id` | `string` |  |
+| `isolate` | `boolean` |  |
 | `kind` | `string` |  |
 | `name` | `string` |  |
 | `worktree` | `string` |  |
@@ -170,6 +171,129 @@ Result: [protocol.Schema](#protocolschema)
 No params.
 
 Result: [runtime.APISnapshot](#runtimeapisnapshot)
+
+## branch
+
+### `branch.check`
+
+| Param | Type | |
+|---|---|---|
+| `ref` | `string` | read this branch's repository |
+| `repo` | `string` | read this repository (its main working tree); neither: every repository |
+
+Result: [\[\]branch.Branch](#branchbranch)
+
+### `branch.clean`
+
+| Param | Type | |
+|---|---|---|
+| `delete_branch` | `boolean` | also delete the local branch once git agrees it has merged |
+| `force` | `boolean` | remove it even with uncommitted changes (they are saved under refs/hive/saved/ first) |
+| `merged` | `boolean` | every merged branch, instead of one |
+| `ref` | `string` | the branch |
+
+Result: [\[\]branch.Branch](#branchbranch)
+
+### `branch.comment`
+
+| Param | Type | |
+|---|---|---|
+| `body` | `string` | the comment |
+| `by` | `string` | who wrote it |
+| `line` | `integer` | the line it is about, in the branch's version of the file |
+| `path` | `string` | the file it is about |
+| `ref` | `string` | the branch |
+| `send` | `boolean` | send it (and every comment not sent yet) to the branch's agent now |
+
+Result: [branch.Branch](#branchbranch)
+
+### `branch.conflicts`
+
+| Param | Type | |
+|---|---|---|
+| `ref` | `string` | the branch |
+| `with` | `string` | another branch to merge with (default: its base) |
+
+Result: [branch.Conflicts](#branchconflicts)
+
+### `branch.diff`
+
+| Param | Type | |
+|---|---|---|
+| `context` | `integer` | lines of context around each change (default 3) |
+| `limit` | `integer` | the most bytes of patch to return (default 512 KiB, at most 4 MiB) |
+| `paths` | `[]string` | only these files |
+| `ref` | `string` | the branch: its ID, environment, agent, plan/task or name |
+| `stat` | `boolean` | only the files and their line counts, no patch |
+
+Result: [branch.Diff](#branchdiff)
+
+### `branch.get`
+
+| Param | Type | |
+|---|---|---|
+| `ref` | `string` | the branch: its ID, environment, agent, plan/task or name |
+
+Result: [branch.Branch](#branchbranch)
+
+### `branch.list`
+
+| Param | Type | |
+|---|---|---|
+| `all` | `boolean` | include cleaned and removed branches |
+| `repo` | `string` | only this repository's branches (its main working tree) |
+
+Result: [\[\]branch.Branch](#branchbranch)
+
+### `branch.pr`
+
+| Param | Type | |
+|---|---|---|
+| `base` | `string` | the branch it would merge into (default: the branch's base) |
+| `body` | `string` | the description (default: its commits and gates) |
+| `draft` | `boolean` | open it as a draft |
+| `push` | `boolean` | push the branch first if the remote lacks its commits |
+| `ref` | `string` | the branch |
+| `remote` | `string` | the remote (default: its upstream's, else origin) |
+| `title` | `string` | the title (default: its first commit's subject) |
+
+Result: [branch.Branch](#branchbranch)
+
+### `branch.push`
+
+| Param | Type | |
+|---|---|---|
+| `ref` | `string` | the branch |
+| `remote` | `string` | the remote to push to (default: its upstream's, else origin) |
+
+Result: [branch.Branch](#branchbranch)
+
+### `branch.ready`
+
+| Param | Type | |
+|---|---|---|
+| `gates` | [\[\]branch.Gate](#branchgate) | gates to run instead of the configured ones |
+| `ref` | `string` | the branch |
+
+Result: [branch.Branch](#branchbranch)
+
+### `branch.send`
+
+| Param | Type | |
+|---|---|---|
+| `ref` | `string` | the branch: its ID, environment, agent, plan/task or name |
+
+Result: [branch.Branch](#branchbranch)
+
+### `branch.update`
+
+| Param | Type | |
+|---|---|---|
+| `abort` | `boolean` | undo a merge or rebase stopped on a conflict |
+| `rebase` | `boolean` | rebase onto the base instead of merging it |
+| `ref` | `string` | the branch |
+
+Result: [branch.UpdateResult](#branchupdateresult)
 
 ## client
 
@@ -1204,6 +1328,249 @@ Result: [protocol.Empty](#protocolempty)
 | `state` | `string` |  |
 | `ttl_ms` | `integer` |  |
 
+### branch.Branch
+
+| Field | Type | |
+|---|---|---|
+| `added` | `integer` | lines added |
+| `ahead` | `integer` | commits on the branch that its base lacks |
+| `base` | `string` | what the branch merges into: a branch, or a commit |
+| `base_commit` | `string` | the commit it started from |
+| `behind` | `integer` | commits on its base that the branch lacks |
+| `changed` | `[]string` | the changed files (at most 200) |
+| `checking` | `boolean` | its gates are running |
+| `cleanup` | `string` | why a merged branch's worktree was not removed |
+| `closed_at` | `string` | when its worktree was removed |
+| `comments` | [\[\]branch.Comment](#branchcomment) | review comments, sent or waiting to be sent to its agent |
+| `committed` | `boolean` | it has been seen with commits of its own |
+| `created_at` | `string` |  |
+| `deleted` | `integer` | lines deleted |
+| `dirty` | `boolean` | uncommitted changes in the worktree |
+| `environment_id` | `string` | its worktree's environment, while there is one |
+| `error` | `string` | why it could not be read last time |
+| `files` | `integer` | files changed against its base, uncommitted changes included |
+| `gates` | [\[\]branch.GateResult](#branchgateresult) | the last run of its gates |
+| `head` | `string` | the commit checked out |
+| `id` | `string` | the branch's ID in Hive: its environment's ID when it was made |
+| `in_progress` | `boolean` | a merge or rebase is stopped there, for a person to resolve |
+| `merged_at` | `string` |  |
+| `name` | `string` | the branch's name |
+| `overlaps` | [\[\]branch.Overlap](#branchoverlap) | other branches (or its base) changing the same files |
+| `owner` | [branch.Owner](#branchowner) | the agent or task it was made for |
+| `path` | `string` | its worktree, while there is one |
+| `pull_request` | [branch.PullRequest](#branchpullrequest) | the pull request opened for it, on request |
+| `pushed` | [branch.Push](#branchpush) | its last push, made on request |
+| `ready_at` | `string` | when its gates passed |
+| `ready_tree` | `string` | the files its gates passed on (a git tree) |
+| `repo` | `string` | the repository (its main working tree) |
+| `rev` | `integer` |  |
+| `saved` | `string` | the ref keeping uncommitted work discarded with its worktree |
+| `started` | `boolean` | an agent has worked there |
+| `state` | `string` | created, working, ready, merged, cleaned or removed |
+| `updated_at` | `string` |  |
+
+### branch.CheckParams
+
+| Field | Type | |
+|---|---|---|
+| `ref` | `string` | read this branch's repository |
+| `repo` | `string` | read this repository (its main working tree); neither: every repository |
+
+### branch.CleanRequest
+
+| Field | Type | |
+|---|---|---|
+| `delete_branch` | `boolean` | also delete the local branch once git agrees it has merged |
+| `force` | `boolean` | remove it even with uncommitted changes (they are saved under refs/hive/saved/ first) |
+| `merged` | `boolean` | every merged branch, instead of one |
+| `ref` | `string` | the branch |
+
+### branch.Comment
+
+| Field | Type | |
+|---|---|---|
+| `at` | `string` |  |
+| `body` | `string` |  |
+| `by` | `string` |  |
+| `id` | `integer` |  |
+| `line` | `integer` |  |
+| `path` | `string` |  |
+| `sent_at` | `string` |  |
+| `sent_to` | `string` |  |
+
+### branch.CommentRequest
+
+| Field | Type | |
+|---|---|---|
+| `body` | `string` | the comment |
+| `by` | `string` | who wrote it |
+| `line` | `integer` | the line it is about, in the branch's version of the file |
+| `path` | `string` | the file it is about |
+| `ref` | `string` | the branch |
+| `send` | `boolean` | send it (and every comment not sent yet) to the branch's agent now |
+
+### branch.ConflictFile
+
+| Field | Type | |
+|---|---|---|
+| `content` | `string` |  |
+| `path` | `string` |  |
+| `truncated` | `boolean` |  |
+
+### branch.Conflicts
+
+| Field | Type | |
+|---|---|---|
+| `branch` | `string` |  |
+| `clean` | `boolean` |  |
+| `files` | [\[\]branch.ConflictFile](#branchconflictfile) |  |
+| `with` | `string` |  |
+
+### branch.ConflictsRequest
+
+| Field | Type | |
+|---|---|---|
+| `ref` | `string` | the branch |
+| `with` | `string` | another branch to merge with (default: its base) |
+
+### branch.Diff
+
+| Field | Type | |
+|---|---|---|
+| `base` | `string` | what it merges into |
+| `branch` | `string` | the branch's name |
+| `dirty` | `boolean` |  |
+| `files` | [\[\]git.FileChange](#gitfilechange) |  |
+| `from` | `string` |  |
+| `head` | `string` |  |
+| `patch` | `string` |  |
+| `to` | `string` |  |
+| `truncated` | `boolean` |  |
+
+### branch.DiffRequest
+
+| Field | Type | |
+|---|---|---|
+| `context` | `integer` | lines of context around each change (default 3) |
+| `limit` | `integer` | the most bytes of patch to return (default 512 KiB, at most 4 MiB) |
+| `paths` | `[]string` | only these files |
+| `ref` | `string` | the branch: its ID, environment, agent, plan/task or name |
+| `stat` | `boolean` | only the files and their line counts, no patch |
+
+### branch.Gate
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` | the command, as an argument vector |
+| `name` | `string` | what it checks |
+| `repo` | `string` | only for repositories in this directory (empty: every one) |
+| `timeout_ms` | `integer` | how long it may take, in milliseconds (default 30 minutes) |
+
+### branch.GateResult
+
+| Field | Type | |
+|---|---|---|
+| `at` | `string` |  |
+| `command` | `[]string` |  |
+| `duration_ms` | `integer` |  |
+| `error` | `string` |  |
+| `exit_code` | `integer` |  |
+| `name` | `string` |  |
+| `output` | `[]string` |  |
+| `passed` | `boolean` |  |
+| `skipped` | `boolean` |  |
+
+### branch.ListRequest
+
+| Field | Type | |
+|---|---|---|
+| `all` | `boolean` | include cleaned and removed branches |
+| `repo` | `string` | only this repository's branches (its main working tree) |
+
+### branch.Overlap
+
+| Field | Type | |
+|---|---|---|
+| `branch` | `string` | the other branch's name, or the base's |
+| `conflicts` | `[]string` | files a merge of the two would conflict on |
+| `files` | `[]string` | files both change |
+| `unknown` | `boolean` | conflicts are unknown: git is too old to compute them |
+| `with` | `string` | the other branch's ID; empty when it is the base |
+
+### branch.Owner
+
+| Field | Type | |
+|---|---|---|
+| `agent` | `string` | the agent's ID |
+| `kind` | `string` | the agent's kind |
+| `plan` | `string` | the plan of the task it was made for |
+| `task` | `string` | the task it was made for |
+
+### branch.PullRequest
+
+| Field | Type | |
+|---|---|---|
+| `at` | `string` |  |
+| `draft` | `boolean` |  |
+| `forge` | `string` |  |
+| `number` | `integer` |  |
+| `url` | `string` |  |
+
+### branch.PullRequestRequest
+
+| Field | Type | |
+|---|---|---|
+| `base` | `string` | the branch it would merge into (default: the branch's base) |
+| `body` | `string` | the description (default: its commits and gates) |
+| `draft` | `boolean` | open it as a draft |
+| `push` | `boolean` | push the branch first if the remote lacks its commits |
+| `ref` | `string` | the branch |
+| `remote` | `string` | the remote (default: its upstream's, else origin) |
+| `title` | `string` | the title (default: its first commit's subject) |
+
+### branch.Push
+
+| Field | Type | |
+|---|---|---|
+| `at` | `string` |  |
+| `commit` | `string` |  |
+| `remote` | `string` |  |
+
+### branch.PushRequest
+
+| Field | Type | |
+|---|---|---|
+| `ref` | `string` | the branch |
+| `remote` | `string` | the remote to push to (default: its upstream's, else origin) |
+
+### branch.ReadyRequest
+
+| Field | Type | |
+|---|---|---|
+| `gates` | [\[\]branch.Gate](#branchgate) | gates to run instead of the configured ones |
+| `ref` | `string` | the branch |
+
+### branch.Ref
+
+| Field | Type | |
+|---|---|---|
+| `ref` | `string` | the branch: its ID, environment, agent, plan/task or name |
+
+### branch.UpdateRequest
+
+| Field | Type | |
+|---|---|---|
+| `abort` | `boolean` | undo a merge or rebase stopped on a conflict |
+| `rebase` | `boolean` | rebase onto the base instead of merging it |
+| `ref` | `string` | the branch |
+
+### branch.UpdateResult
+
+| Field | Type | |
+|---|---|---|
+| `branch` | [branch.Branch](#branchbranch) |  |
+| `conflicts` | `[]string` |  |
+
 ### environment.CreateRequest
 
 | Field | Type | |
@@ -1260,6 +1627,16 @@ Result: [protocol.Empty](#protocolempty)
 | Field | Type | |
 |---|---|---|
 | `seq` | `integer` |  |
+
+### git.FileChange
+
+| Field | Type | |
+|---|---|---|
+| `added` | `integer` |  |
+| `deleted` | `integer` |  |
+| `from` | `string` |  |
+| `path` | `string` |  |
+| `status` | `string` |  |
 
 ### git.Status
 
@@ -2122,6 +2499,7 @@ An object.
 | `base` | `string` |  |
 | `env` | `map[string]string` |  |
 | `environment_id` | `string` |  |
+| `isolate` | `boolean` |  |
 | `kind` | `string` |  |
 | `name` | `string` |  |
 | `worktree` | `string` |  |

@@ -60,6 +60,7 @@ Running it for real: what works with what across releases ([compatibility matrix
 | Local discovery: opt-in mDNS announcements, pairing that proves each machine's identity over SSH before you confirm, identity changes caught and held until you accept them ([docs](docs/discovery.md)) | ✅ working |
 | Desktop app (preview): environments, agents and live terminals in a window, a tray that counts who needs you, native notifications, `hive://` links; macOS, Windows, Linux, on Wails ([docs](docs/desktop.md)) | 🧪 preview |
 | Plans: many agents through tasks with dependencies, in parallel within limits, across machines by label, with approvals, retries, results and reports; they survive a daemon restart ([docs](docs/tasks.md)) | 🧪 new in 1.3 |
+| Branches: every agent's worktree followed from creation to cleanup; overlaps and conflicts between agents found before merging, uncommitted work included; diffs, review comments back to the agent, gates; push and pull requests only when you ask ([docs](docs/branches.md)) | 🧪 new in 1.4 |
 
 ## Quick start
 
@@ -141,6 +142,7 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive session save \| restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again (the daemon does both by itself) |
 | `hive --remote <host> …` · `hive --machine <name> …` | Run any command (or the multiplexer) against Hive on another machine over SSH; installs it there after asking |
 | `hive task run \| list \| get \| wait \| approve \| cancel \| retry \| report` | Run plans of tasks for many agents, with dependencies, limits, approvals and results ([plans](docs/tasks.md)) |
+| `hive branch list \| get \| diff \| conflicts \| update \| ready \| comment \| send \| push \| pr \| clean` | Follow agents' branches: overlaps and conflicts, review, gates, and publishing on your command ([branches](docs/branches.md)) |
 | `hive plugin search \| install \| update [id] \| rollback <id> \| init <id> \| link \| list \| info \| enable \| disable \| uninstall \| run \| logs` | Discover catalog plugins or manage Git and local plugins; updates retain a rollback release and plugin data is preserved |
 | `hive plugin doctor \| reload [id] \| grant \| revoke \| config <id> \| contributions \| capabilities \| cancel \| export \| import` | Check plugin health and compatibility, manage capabilities and settings, back them up |
 | `hive observer create \| list \| show \| revoke \| validate \| audit` | Read-only credentials for dashboards and notifiers: scoped to environments or panes, expiring, revocable ([observers](docs/observers.md)) |

@@ -18,6 +18,8 @@ For work in several steps, write a plan and run it with task_run: tasks with pro
 
 Typical flow: env_list (find the environment of the repository) → agent_start with worktree set to a new branch per agent, so parallel agents never edit the same checkout → agent_prompt with wait=true (or several agent_prompt without wait, then agent_wait on each) → agent_read to collect what each one did.
 
+Each worktree's branch is followed: branch_list shows which branches overlap or would conflict, branch_diff reads a branch's changes, branch_comment sends review comments to the agent on it, and branch_ready runs its tests and other gates. Pushing, merging and pull requests are left to the user.
+
 States: working, blocked (waiting for a decision such as a permission prompt: read it with agent_read, answer with agent_send_keys), done (finished a turn), idle (ready for a prompt), exited. Waits end early when an agent blocks or exits; the outcome says so. An outcome of timeout is not a failure: call agent_wait again. Agents are named by their pane ID (or process ID), as returned by agent_start and agent_list. Never stop agents you did not start.`
 
 // waitDefault bounds waits that do not say, so a tool call returns while
@@ -36,6 +38,7 @@ type startArgs struct {
 	Kind          string   `json:"kind" desc:"the agent: claude, codex, opencode, gemini, cursor-agent, copilot, amp or aider"`
 	EnvironmentID string   `json:"environment_id" desc:"the environment to start in (env_list)"`
 	Worktree      string   `json:"worktree,omitempty" desc:"a branch: start in a new git worktree on it, with its own environment (recommended for parallel agents)"`
+	Isolate       bool     `json:"isolate,omitempty" desc:"start in a new git worktree on a branch Hive names (when worktree names none)"`
 	Base          string   `json:"base,omitempty" desc:"where a new worktree branch starts (default HEAD)"`
 	Name          string   `json:"name,omitempty" desc:"a name for its tab and pane"`
 	Args          []string `json:"args,omitempty" desc:"extra command-line arguments for the agent"`
@@ -112,6 +115,37 @@ type approveArgs struct {
 	Note string `json:"note,omitempty" desc:"why"`
 }
 
+type branchListArgs struct {
+	Repo string `json:"repo,omitempty" desc:"only this repository's branches (its main working tree)"`
+	All  bool   `json:"all,omitempty" desc:"include cleaned and removed branches"`
+}
+
+type branchArgs struct {
+	Ref string `json:"ref" desc:"the branch: its ID, environment, agent ID, plan/task or name"`
+}
+
+type branchDiffArgs struct {
+	Ref   string   `json:"ref" desc:"the branch: its ID, environment, agent ID, plan/task or name"`
+	Paths []string `json:"paths,omitempty" desc:"only these files"`
+	Stat  bool     `json:"stat,omitempty" desc:"only the files and their line counts"`
+}
+
+type branchConflictsArgs struct {
+	Ref  string `json:"ref" desc:"the branch"`
+	With string `json:"with,omitempty" desc:"another branch to merge with (default: its base)"`
+}
+
+type branchCommentArgs struct {
+	Ref  string `json:"ref" desc:"the branch"`
+	Body string `json:"body" desc:"the comment"`
+	Path string `json:"path,omitempty" desc:"the file it is about"`
+	Line int    `json:"line,omitempty" desc:"the line it is about"`
+	Send bool   `json:"send,omitempty" desc:"send it, with the comments not sent yet, to the branch's agent now"`
+}
+
+// mcpPatchBytes bounds a diff a model reads.
+const mcpPatchBytes = 128 << 10
+
 type none struct{}
 
 func seconds(n int) time.Duration {
@@ -139,7 +173,7 @@ func HiveTools(c *hiveapi.Client) []Tool {
 		NewTool("agent_start", "Start a coding agent in a new tab. Set worktree to a new branch name to give it its own git checkout; do this for every agent working in parallel on one repository. Returns the agent with its pane ID, which names it in the other tools.",
 			func(ctx context.Context, a startArgs) (any, error) {
 				res, err := c.StartAgent(ctx, hiveapi.StartAgent{
-					Kind: a.Kind, EnvironmentID: a.EnvironmentID, Worktree: a.Worktree, Base: a.Base, Name: a.Name, Args: a.Args,
+					Kind: a.Kind, EnvironmentID: a.EnvironmentID, Worktree: a.Worktree, Isolate: a.Isolate, Base: a.Base, Name: a.Name, Args: a.Args,
 				})
 				if err != nil {
 					return nil, err
@@ -250,11 +284,29 @@ func HiveTools(c *hiveapi.Client) []Tool {
 				p, err := c.ApproveTask(ctx, a.ID, a.Task, hiveapi.ApproveOptions{Deny: a.Deny, Note: a.Note, By: "mcp"})
 				return planBrief(p), err
 			}),
+		NewTool("branch_list", "List the branches of agents' worktrees: their state (created, working, ready, merged), their changes, and the other branches they overlap or conflict with.",
+			func(ctx context.Context, a branchListArgs) (any, error) { return c.Branches(ctx, a.Repo, a.All) }),
+		NewTool("branch_get", "Show one branch: its base, changes, overlaps and conflicts, gates and review comments.",
+			func(ctx context.Context, a branchArgs) (any, error) { return c.Branch(ctx, a.Ref) }),
+		NewTool("branch_diff", "Read a branch's changes against its base, uncommitted ones included, as a unified diff (or only the files with stat).",
+			func(ctx context.Context, a branchDiffArgs) (any, error) {
+				return c.BranchDiff(ctx, hiveapi.DiffRequest{Ref: a.Ref, Paths: a.Paths, Stat: a.Stat, Limit: mcpPatchBytes})
+			}),
+		NewTool("branch_conflicts", "Show what merging a branch with its base (or another branch) would conflict on, with the conflict markers, without merging anything.",
+			func(ctx context.Context, a branchConflictsArgs) (any, error) {
+				return c.BranchConflicts(ctx, a.Ref, a.With)
+			}),
+		NewTool("branch_comment", "Add a review comment to a branch; with send, the comments not sent yet go to the agent working on it as one prompt.",
+			func(ctx context.Context, a branchCommentArgs) (any, error) {
+				return c.CommentBranch(ctx, hiveapi.CommentRequest{Ref: a.Ref, Body: a.Body, Path: a.Path, Line: a.Line, Send: a.Send, By: "mcp"})
+			}),
+		NewTool("branch_ready", "Run a branch's configured gates (tests, lint, build) in its worktree; it is ready when they all pass. Returns the branch with each gate's result.",
+			func(ctx context.Context, a branchArgs) (any, error) { return c.ReadyBranch(ctx, a.Ref, nil) }),
 	}
 	for i := range tools {
 		switch tools[i].Name {
 		case "agent_list", "agent_get", "agent_wait", "agent_read", "agent_explain", "pane_list", "pane_read", "env_list", "snapshot",
-			"task_list", "task_get", "task_wait":
+			"task_list", "task_get", "task_wait", "branch_list", "branch_get", "branch_diff", "branch_conflicts":
 			tools[i].Annotations = ro
 		case "agent_stop", "task_cancel":
 			tools[i].Annotations = &Annotations{Destructive: true}

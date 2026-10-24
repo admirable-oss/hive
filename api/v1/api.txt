@@ -32,6 +32,30 @@ api.schema params: object
 api.schema result: protocol.Schema
 api.snapshot params: object
 api.snapshot result: runtime.APISnapshot
+branch.check params: branch.CheckParams
+branch.check result: []branch.Branch
+branch.clean params: branch.CleanRequest
+branch.clean result: []branch.Branch
+branch.comment params: branch.CommentRequest
+branch.comment result: branch.Branch
+branch.conflicts params: branch.ConflictsRequest
+branch.conflicts result: branch.Conflicts
+branch.diff params: branch.DiffRequest
+branch.diff result: branch.Diff
+branch.get params: branch.Ref
+branch.get result: branch.Branch
+branch.list params: branch.ListRequest
+branch.list result: []branch.Branch
+branch.pr params: branch.PullRequestRequest
+branch.pr result: branch.Branch
+branch.push params: branch.PushRequest
+branch.push result: branch.Branch
+branch.ready params: branch.ReadyRequest
+branch.ready result: branch.Branch
+branch.send params: branch.Ref
+branch.send result: branch.Branch
+branch.update params: branch.UpdateRequest
+branch.update result: branch.UpdateResult
 client.report params: protocol.LinkReport
 client.report result: protocol.Empty
 debug.pprof params: runtime.PprofRequest
@@ -75,6 +99,18 @@ method agent.stop
 method agent.wait
 method api.schema
 method api.snapshot
+method branch.check
+method branch.clean
+method branch.comment
+method branch.conflicts
+method branch.diff
+method branch.get
+method branch.list
+method branch.pr
+method branch.push
+method branch.ready
+method branch.send
+method branch.update
 method client.report
 method debug.stats
 method environment.create
@@ -421,6 +457,157 @@ type agent.reportParams.session_id: string
 type agent.reportParams.state: string
 type agent.reportParams.ttl_ms: integer
 type agent.reportParams: object
+type branch.Branch.added: integer
+type branch.Branch.ahead: integer
+type branch.Branch.base: string
+type branch.Branch.base_commit: string
+type branch.Branch.behind: integer
+type branch.Branch.changed: []string
+type branch.Branch.checking: boolean
+type branch.Branch.cleanup: string
+type branch.Branch.closed_at: string
+type branch.Branch.comments: []branch.Comment
+type branch.Branch.committed: boolean
+type branch.Branch.created_at: string
+type branch.Branch.deleted: integer
+type branch.Branch.dirty: boolean
+type branch.Branch.environment_id: string
+type branch.Branch.error: string
+type branch.Branch.files: integer
+type branch.Branch.gates: []branch.GateResult
+type branch.Branch.head: string
+type branch.Branch.id: string
+type branch.Branch.in_progress: boolean
+type branch.Branch.merged_at: string
+type branch.Branch.name: string
+type branch.Branch.overlaps: []branch.Overlap
+type branch.Branch.owner: branch.Owner
+type branch.Branch.path: string
+type branch.Branch.pull_request: branch.PullRequest
+type branch.Branch.pushed: branch.Push
+type branch.Branch.ready_at: string
+type branch.Branch.ready_tree: string
+type branch.Branch.repo: string
+type branch.Branch.rev: integer
+type branch.Branch.saved: string
+type branch.Branch.started: boolean
+type branch.Branch.state: string
+type branch.Branch.updated_at: string
+type branch.Branch: object
+type branch.CheckParams.ref: string
+type branch.CheckParams.repo: string
+type branch.CheckParams: object
+type branch.CleanRequest.delete_branch: boolean
+type branch.CleanRequest.force: boolean
+type branch.CleanRequest.merged: boolean
+type branch.CleanRequest.ref: string
+type branch.CleanRequest: object
+type branch.Comment.at: string
+type branch.Comment.body: string
+type branch.Comment.by: string
+type branch.Comment.id: integer
+type branch.Comment.line: integer
+type branch.Comment.path: string
+type branch.Comment.sent_at: string
+type branch.Comment.sent_to: string
+type branch.Comment: object
+type branch.CommentRequest.body: string
+type branch.CommentRequest.by: string
+type branch.CommentRequest.line: integer
+type branch.CommentRequest.path: string
+type branch.CommentRequest.ref: string
+type branch.CommentRequest.send: boolean
+type branch.CommentRequest: object
+type branch.ConflictFile.content: string
+type branch.ConflictFile.path: string
+type branch.ConflictFile.truncated: boolean
+type branch.ConflictFile: object
+type branch.Conflicts.branch: string
+type branch.Conflicts.clean: boolean
+type branch.Conflicts.files: []branch.ConflictFile
+type branch.Conflicts.with: string
+type branch.Conflicts: object
+type branch.ConflictsRequest.ref: string
+type branch.ConflictsRequest.with: string
+type branch.ConflictsRequest: object
+type branch.Diff.base: string
+type branch.Diff.branch: string
+type branch.Diff.dirty: boolean
+type branch.Diff.files: []git.FileChange
+type branch.Diff.from: string
+type branch.Diff.head: string
+type branch.Diff.patch: string
+type branch.Diff.to: string
+type branch.Diff.truncated: boolean
+type branch.Diff: object
+type branch.DiffRequest.context: integer
+type branch.DiffRequest.limit: integer
+type branch.DiffRequest.paths: []string
+type branch.DiffRequest.ref: string
+type branch.DiffRequest.stat: boolean
+type branch.DiffRequest: object
+type branch.Gate.command: []string
+type branch.Gate.name: string
+type branch.Gate.repo: string
+type branch.Gate.timeout_ms: integer
+type branch.Gate: object
+type branch.GateResult.at: string
+type branch.GateResult.command: []string
+type branch.GateResult.duration_ms: integer
+type branch.GateResult.error: string
+type branch.GateResult.exit_code: integer
+type branch.GateResult.name: string
+type branch.GateResult.output: []string
+type branch.GateResult.passed: boolean
+type branch.GateResult.skipped: boolean
+type branch.GateResult: object
+type branch.ListRequest.all: boolean
+type branch.ListRequest.repo: string
+type branch.ListRequest: object
+type branch.Overlap.branch: string
+type branch.Overlap.conflicts: []string
+type branch.Overlap.files: []string
+type branch.Overlap.unknown: boolean
+type branch.Overlap.with: string
+type branch.Overlap: object
+type branch.Owner.agent: string
+type branch.Owner.kind: string
+type branch.Owner.plan: string
+type branch.Owner.task: string
+type branch.Owner: object
+type branch.PullRequest.at: string
+type branch.PullRequest.draft: boolean
+type branch.PullRequest.forge: string
+type branch.PullRequest.number: integer
+type branch.PullRequest.url: string
+type branch.PullRequest: object
+type branch.PullRequestRequest.base: string
+type branch.PullRequestRequest.body: string
+type branch.PullRequestRequest.draft: boolean
+type branch.PullRequestRequest.push: boolean
+type branch.PullRequestRequest.ref: string
+type branch.PullRequestRequest.remote: string
+type branch.PullRequestRequest.title: string
+type branch.PullRequestRequest: object
+type branch.Push.at: string
+type branch.Push.commit: string
+type branch.Push.remote: string
+type branch.Push: object
+type branch.PushRequest.ref: string
+type branch.PushRequest.remote: string
+type branch.PushRequest: object
+type branch.ReadyRequest.gates: []branch.Gate
+type branch.ReadyRequest.ref: string
+type branch.ReadyRequest: object
+type branch.Ref.ref: string
+type branch.Ref: object
+type branch.UpdateRequest.abort: boolean
+type branch.UpdateRequest.rebase: boolean
+type branch.UpdateRequest.ref: string
+type branch.UpdateRequest: object
+type branch.UpdateResult.branch: branch.Branch
+type branch.UpdateResult.conflicts: []string
+type branch.UpdateResult: object
 type environment.CreateRequest.env: map[string]string
 type environment.CreateRequest.id: string
 type environment.CreateRequest.root: string
@@ -450,6 +637,12 @@ type event.subscribeParams.types: []string
 type event.subscribeParams: object
 type event.subscribeResult.seq: integer
 type event.subscribeResult: object
+type git.FileChange.added: integer
+type git.FileChange.deleted: integer
+type git.FileChange.from: string
+type git.FileChange.path: string
+type git.FileChange.status: string
+type git.FileChange: object
 type git.Status.ahead: integer
 type git.Status.behind: integer
 type git.Status.branch: string
@@ -952,6 +1145,7 @@ type runtime.AgentStartRequest.args: []string
 type runtime.AgentStartRequest.base: string
 type runtime.AgentStartRequest.env: map[string]string
 type runtime.AgentStartRequest.environment_id: string
+type runtime.AgentStartRequest.isolate: boolean
 type runtime.AgentStartRequest.kind: string
 type runtime.AgentStartRequest.name: string
 type runtime.AgentStartRequest.worktree: string

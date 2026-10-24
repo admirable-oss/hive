@@ -29,6 +29,16 @@ export function ApproveTask(plan: string, task: string, deny: boolean): $Cancell
 }
 
 /**
+ * BranchDiff returns a branch's changes against its base, uncommitted
+ * ones included.
+ */
+export function BranchDiff(ref: string): $CancellablePromise<core$0.BranchDiff> {
+    return $Call.ByID(296346064, ref).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * CancelPlan cancels a plan.
  */
 export function CancelPlan(plan: string): $CancellablePromise<void> {
@@ -40,7 +50,7 @@ export function CancelPlan(plan: string): $CancellablePromise<void> {
  */
 export function CheckForUpdates(): $CancellablePromise<$models.UpdateStatus> {
     return $Call.ByID(3748524094).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
 }
 
@@ -50,7 +60,7 @@ export function CheckForUpdates(): $CancellablePromise<$models.UpdateStatus> {
  */
 export function CheckPair(req: core$0.PairRequest): $CancellablePromise<core$0.IdentityCheck> {
     return $Call.ByID(2730525321, req).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -59,8 +69,16 @@ export function CheckPair(req: core$0.PairRequest): $CancellablePromise<core$0.I
  */
 export function CheckTrust(name: string): $CancellablePromise<core$0.IdentityCheck> {
     return $Call.ByID(1644724141, name).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
+}
+
+/**
+ * CleanBranch removes a branch's worktree (force: also with uncommitted
+ * changes, saved first).
+ */
+export function CleanBranch(ref: string, force: boolean): $CancellablePromise<void> {
+    return $Call.ByID(4185765792, ref, force);
 }
 
 /**
@@ -85,11 +103,19 @@ export function CloseView(viewer: string, paneID: string): $CancellablePromise<v
 }
 
 /**
+ * CommentBranch adds a review comment, on a file and line when given;
+ * send sends the comments not sent yet to the branch's agent.
+ */
+export function CommentBranch(ref: string, path: string, line: number, body: string, send: boolean): $CancellablePromise<void> {
+    return $Call.ByID(3012515796, ref, path, line, body, send);
+}
+
+/**
  * Connection is how the app is connected to the daemon.
  */
 export function Connection(): $CancellablePromise<core$0.Connection> {
     return $Call.ByID(437067979).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
@@ -113,7 +139,7 @@ export function CreateEnvironment(machine: string, id: string, dir: string): $Ca
  */
 export function Discover(): $CancellablePromise<core$0.Discovery> {
     return $Call.ByID(4043157768).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -144,7 +170,7 @@ export function FocusTab(tabID: string): $CancellablePromise<void> {
  */
 export function History(paneID: string, lines: number): $CancellablePromise<string[]> {
     return $Call.ByID(1715230469, paneID, lines).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
@@ -176,7 +202,7 @@ export function MachineAction(name: string, action: string): $CancellablePromise
  */
 export function Machines(): $CancellablePromise<core$0.MachineStatus[]> {
     return $Call.ByID(1926130017).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType7($result);
     });
 }
 
@@ -186,7 +212,7 @@ export function Machines(): $CancellablePromise<core$0.MachineStatus[]> {
  */
 export function Manifests(machine: string): $CancellablePromise<core$0.Manifest[]> {
     return $Call.ByID(3955373223, machine).then(($result: any) => {
-        return $$createType8($result);
+        return $$createType9($result);
     });
 }
 
@@ -220,6 +246,13 @@ export function OpenLink(link: string): $CancellablePromise<void> {
  */
 export function OpenObserver(req: core$0.ObserveRequest): $CancellablePromise<string> {
     return $Call.ByID(3166996649, req);
+}
+
+/**
+ * OpenPullRequest opens a pull request for a branch and returns its URL.
+ */
+export function OpenPullRequest(ref: string, draft: boolean, push: boolean): $CancellablePromise<string> {
+    return $Call.ByID(3191614025, ref, draft, push);
 }
 
 /**
@@ -266,6 +299,20 @@ export function Prompt(agentID: string, text: string): $CancellablePromise<strin
 }
 
 /**
+ * PushBranch pushes a branch to its remote, because the person asked.
+ */
+export function PushBranch(ref: string): $CancellablePromise<void> {
+    return $Call.ByID(2598426159, ref);
+}
+
+/**
+ * ReadyBranch runs a branch's gates and says whether it is ready.
+ */
+export function ReadyBranch(ref: string): $CancellablePromise<boolean> {
+    return $Call.ByID(1178833194, ref);
+}
+
+/**
  * RefreshMachines reads the saved machines again.
  */
 export function RefreshMachines(): $CancellablePromise<void> {
@@ -308,6 +355,13 @@ export function Retry(): $CancellablePromise<void> {
 }
 
 /**
+ * SendComments sends a branch's comments not sent yet to its agent.
+ */
+export function SendComments(ref: string): $CancellablePromise<void> {
+    return $Call.ByID(1873877903, ref);
+}
+
+/**
  * SetStartAtLogin makes the app start when you log in, or not.
  */
 export function SetStartAtLogin(on: boolean): $CancellablePromise<void> {
@@ -326,7 +380,7 @@ export function SetUpdateChecks(on: boolean): $CancellablePromise<void> {
  */
 export function Settings(): $CancellablePromise<core$0.Settings> {
     return $Call.ByID(1996682342).then(($result: any) => {
-        return $$createType9($result);
+        return $$createType10($result);
     });
 }
 
@@ -379,7 +433,7 @@ export function Trust(name: string, expectID: string): $CancellablePromise<void>
  */
 export function UpdateStatus(): $CancellablePromise<$models.UpdateStatus> {
     return $Call.ByID(2686036196).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
 }
 
@@ -388,7 +442,7 @@ export function UpdateStatus(): $CancellablePromise<$models.UpdateStatus> {
  */
 export function Workspace(): $CancellablePromise<core$0.Workspace> {
     return $Call.ByID(2298421584).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType11($result);
     });
 }
 
@@ -400,14 +454,15 @@ export function ZoomPane(paneID: string): $CancellablePromise<void> {
 }
 
 // Private type creation functions
-const $$createType0 = $models.UpdateStatus.createFrom;
-const $$createType1 = core$0.IdentityCheck.createFrom;
-const $$createType2 = core$0.Connection.createFrom;
-const $$createType3 = core$0.Discovery.createFrom;
-const $$createType4 = $Create.Array($Create.Any);
-const $$createType5 = core$0.MachineStatus.createFrom;
-const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = core$0.Manifest.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = core$0.Settings.createFrom;
-const $$createType10 = core$0.Workspace.createFrom;
+const $$createType0 = core$0.BranchDiff.createFrom;
+const $$createType1 = $models.UpdateStatus.createFrom;
+const $$createType2 = core$0.IdentityCheck.createFrom;
+const $$createType3 = core$0.Connection.createFrom;
+const $$createType4 = core$0.Discovery.createFrom;
+const $$createType5 = $Create.Array($Create.Any);
+const $$createType6 = core$0.MachineStatus.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = core$0.Manifest.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = core$0.Settings.createFrom;
+const $$createType11 = core$0.Workspace.createFrom;

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -45,6 +46,9 @@ type Config struct {
 	// change to wake the scheduler, so machines that gain capacity are
 	// used (default 5 seconds).
 	Rescan time.Duration
+	// BranchName names an isolated task's branch when its plan names
+	// none; nil uses hive/<plan>/<task>.
+	BranchName func(plan, task, kind string) (string, error)
 }
 
 // DefaultKeep is how many finished plans are kept by default.
@@ -598,6 +602,19 @@ func (s *Service) Submit(ctx context.Context, spec PlanSpec) (Plan, error) {
 	s.mu.Lock()
 	p.ID = s.newIDLocked()
 	s.mu.Unlock()
+	if s.cfg.BranchName != nil {
+		for i := range p.Tasks {
+			t := &p.Tasks[i].Spec
+			if !t.Isolate || t.Worktree != "" {
+				continue
+			}
+			// Named now and kept with the plan: a resumed or retried
+			// task finds its worktree by it.
+			if t.Worktree, err = s.cfg.BranchName(p.ID, t.ID, t.Kind); err != nil {
+				return Plan{}, errors.Join(ErrInvalid, fmt.Errorf("task %s: %w", t.ID, err))
+			}
+		}
+	}
 	// Saved before it is accepted: a plan the caller was told about
 	// survives a crash right after.
 	if err := s.store.Put(ctx, p.clone()); err != nil {

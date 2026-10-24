@@ -78,11 +78,14 @@ type AgentStartRequest struct {
 	EnvironmentID string `json:"environment_id"`
 	// Worktree, when set, is a branch to start the agent on, in a new
 	// worktree of the environment's repository with its own environment.
-	Worktree string            `json:"worktree,omitempty"`
-	Base     string            `json:"base,omitempty"`
-	Name     string            `json:"name,omitempty"`
-	Args     []string          `json:"args,omitempty"`
-	Env      map[string]string `json:"env,omitempty"`
+	Worktree string `json:"worktree,omitempty"`
+	// Isolate starts it in a new worktree on a branch named by [branches]
+	// agent_pattern, when Worktree names none.
+	Isolate bool              `json:"isolate,omitempty"`
+	Base    string            `json:"base,omitempty"`
+	Name    string            `json:"name,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
 }
 
 // AgentStarted is what Start returns.

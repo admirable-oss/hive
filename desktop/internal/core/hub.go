@@ -105,6 +105,8 @@ type Hub struct {
 	// asked is the tasks known to wait for approval, by plan/task, so each
 	// request is announced once.
 	asked map[string]bool
+	// overlaps is the branch overlaps known, so each is announced once.
+	overlaps map[string]bool
 }
 
 // New returns a hub; Start connects it.
@@ -298,7 +300,7 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 		h.mu.Unlock()
 		_ = c.Close()
 	}()
-	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "events.")
+	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "branch.", "events.")
 	if err != nil {
 		return err
 	}
@@ -317,7 +319,7 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 				readErr <- err
 				return
 			}
-			if strings.HasPrefix(ev.Type, "task.") || ev.Type == "events_lost" {
+			if strings.HasPrefix(ev.Type, "task.") || strings.HasPrefix(ev.Type, "branch.") || ev.Type == "events_lost" {
 				plansStale.Store(true)
 			}
 			select {
@@ -374,15 +376,22 @@ func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client, plans bool) error 
 		} else if ctx.Err() == nil {
 			h.log.Debug("no plans (a daemon older than tasks?)", "err", err)
 		}
+		if list, err := c.Branches(ctx, "", false); err == nil {
+			ws.Branches = branchesOf(list)
+		} else if ctx.Err() == nil {
+			h.log.Debug("no branches (a daemon older than M23?)", "err", err)
+		}
 	} else {
 		h.mu.Lock()
 		ws.Plans = h.ws.Plans // replaced whole on every read, never changed in place
+		ws.Branches = h.ws.Branches
 		h.mu.Unlock()
 	}
 	h.mu.Lock()
 	h.ws = ws
 	notes := h.notificationsLocked(ws)
 	notes = append(notes, h.approvalsLocked(ws)...)
+	notes = append(notes, h.overlapsLocked(ws)...)
 	for id, v := range h.views {
 		p, ok := paneByID(ws, id)
 		switch {
@@ -916,7 +925,9 @@ type StartAgentRequest struct {
 	EnvironmentID string `json:"environment_id"`
 	// Worktree is a branch to start it on, in a new worktree.
 	Worktree string `json:"worktree,omitempty"`
-	Name     string `json:"name,omitempty"`
+	// Isolate starts it in a new worktree on a branch Hive names.
+	Isolate bool   `json:"isolate,omitempty"`
+	Name    string `json:"name,omitempty"`
 }
 
 // StartAgent starts an agent in a new tab, and returns its pane.
@@ -932,7 +943,7 @@ func (h *Hub) StartAgent(req StartAgentRequest) (string, error) {
 	}
 	var pane string
 	err := h.call(func(ctx context.Context, c *hiveapi.Client) error {
-		res, err := c.StartAgent(ctx, hiveapi.StartAgent{Kind: req.Kind, EnvironmentID: req.EnvironmentID, Worktree: req.Worktree, Name: req.Name})
+		res, err := c.StartAgent(ctx, hiveapi.StartAgent{Kind: req.Kind, EnvironmentID: req.EnvironmentID, Worktree: req.Worktree, Isolate: req.Isolate, Name: req.Name})
 		pane = res.Pane.ID
 		return err
 	})

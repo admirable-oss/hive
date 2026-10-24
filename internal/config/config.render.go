@@ -28,6 +28,8 @@ var renderTmpl = template.Must(template.New("config").Funcs(template.FuncMap{
 	"list":         tomlList,
 	"notifyAgents": renderNotifyAgents,
 	"taskKinds":    renderTaskKinds,
+	"gates":        renderGates,
+	"forges":       renderForges,
 	"keyCommands":  renderKeyCommands,
 	"status":       renderStatus,
 }).Parse(`# Hive configuration. Every key is optional; omitted keys use the defaults.
@@ -211,6 +213,23 @@ labels = {{list .Tasks.Labels}}
 # forgotten first.
 keep_plans = {{.Tasks.KeepPlans}}
 {{taskKinds .Tasks.Kinds}}
+[branches]
+# The branch of an agent started with ` + "`--isolate`" + `: {kind}, {name}, {env}, {date}
+# and {id} (6 random hex digits).
+agent_pattern = {{q .Branches.AgentPattern}}
+# The branch of an isolated task: {plan}, {task}, {kind}, {date}, {id}.
+task_pattern = {{q .Branches.TaskPattern}}
+# A merged branch's worktree: "merged" removes it once nothing uncommitted
+# and no running process is in it; "never" leaves it to you.
+cleanup = {{q .Branches.Cleanup}}
+# Also delete the local branch of a worktree removed that way, when git
+# agrees it has merged.
+delete_merged = {{.Branches.DeleteMerged}}
+# How often branches are compared again when no change was noticed.
+check_interval = {{dur .Branches.CheckInterval}}
+# Cleaned-up and removed branches remembered for ` + "`hive branch list --all`" + `.
+keep = {{.Branches.Keep}}
+{{gates .Branches.Gates}}{{forges .Branches.Forges}}
 [notify]
 # When an agent wants you: blocked (waiting for your decision) or done
 # (finished, and you have not looked yet). Never for the pane you are in.
@@ -342,6 +361,51 @@ func renderTaskKinds(kinds map[string]int) string {
 	b.WriteString("\n[tasks.kinds]\n")
 	for _, id := range slices.Sorted(maps.Keys(kinds)) {
 		fmt.Fprintf(&b, "%s = %d\n", tomlKey(id), kinds[id])
+	}
+	return b.String()
+}
+
+func renderGates(gates []Gate) string {
+	if len(gates) == 0 {
+		return `# Gates a branch passes before it is ready (` + "`hive branch ready`" + `), run in
+# its worktree in order:
+# [[branches.gate]]
+# name = "test"
+# command = ["go", "test", "./..."]
+# timeout = "20m"                  # default 30m
+# repo = "~/src/api"               # only this repository's branches
+`
+	}
+	var b strings.Builder
+	for _, g := range gates {
+		fmt.Fprintf(&b, "\n[[branches.gate]]\nname = %s\ncommand = %s\n", tomlString(g.Name), tomlList(g.Command))
+		if g.Timeout > 0 {
+			fmt.Fprintf(&b, "timeout = %s\n", tomlString(g.Timeout.String()))
+		}
+		if g.Repo != "" {
+			fmt.Fprintf(&b, "repo = %s\n", tomlString(g.Repo))
+		}
+	}
+	return b.String()
+}
+
+func renderForges(forges []Forge) string {
+	if len(forges) == 0 {
+		return `
+# Pull requests go to GitHub (through gh) or GitLab (glab) by the remote's
+# host. Other hosts:
+# [[branches.forge]]
+# host = "git.example.com"
+# type = "gitlab"                  # github | gitlab | command
+# command = ["my-pr"]              # for type = "command": gets the request as JSON
+`
+	}
+	var b strings.Builder
+	for _, f := range forges {
+		fmt.Fprintf(&b, "\n[[branches.forge]]\nhost = %s\ntype = %s\n", tomlString(f.Host), tomlString(f.Type))
+		if len(f.Command) > 0 {
+			fmt.Fprintf(&b, "command = %s\n", tomlList(f.Command))
+		}
 	}
 	return b.String()
 }

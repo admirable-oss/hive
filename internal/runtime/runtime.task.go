@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/agent"
+	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/pgroup"
@@ -61,7 +62,12 @@ func newTasks(cfg Config, ops *agentOps, agents *agent.Service, events task.Even
 	machines := newTaskMachines(cfg.Tasks, runner, log)
 	svc := task.NewModule(task.ModuleConfig{
 		BaseDir: cfg.root(),
-		Service: task.Config{Logger: log, Keep: cfg.Tasks.Keep, Kinds: cfg.Tasks.Kinds},
+		Service: task.Config{
+			Logger: log, Keep: cfg.Tasks.Keep, Kinds: cfg.Tasks.Kinds,
+			BranchName: func(plan, id, kind string) (string, error) {
+				return branch.Expand(cfg.Branches.taskPattern(), branch.PatternVars{Plan: plan, Task: id, Kind: kind, Name: id}, time.Now())
+			},
+		},
 	}, machines, events).Service
 	return &tasks{svc: svc, machines: machines}
 }
@@ -155,6 +161,13 @@ func (w taskWorkspace) Changes(ctx context.Context, dir, base string, limit int)
 const commandOutputBytes = 64 << 10
 
 func (w taskWorkspace) Run(ctx context.Context, dir string, argv []string, env map[string]string) (int, []string, error) {
+	return runCheck(ctx, dir, argv, env)
+}
+
+// runCheck runs a check (a task's condition, a branch's gate) in dir and
+// returns its exit status and its last lines of output. One that runs
+// past ctx is stopped with everything it started.
+func runCheck(ctx context.Context, dir string, argv []string, env map[string]string) (int, []string, error) {
 	if len(argv) == 0 || dir == "" {
 		return -1, nil, errors.New("no command, or no directory to run it in")
 	}

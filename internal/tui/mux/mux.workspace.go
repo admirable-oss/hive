@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/agent"
+	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
@@ -48,6 +49,9 @@ type snapshot struct {
 	// plans is every plan's summary, newest first; nil from a daemon
 	// without tasks.
 	plans []task.Summary
+	// branches is every active branch Hive follows; nil from a daemon
+	// without them.
+	branches []branch.Branch
 }
 
 // observedState is observer.activity.
@@ -182,6 +186,7 @@ func load(ctx context.Context, c client.Client, api client.Workspace) (*snapshot
 	s.meta = loadMetadata(ctx, c)
 	s.observed = loadObserved(ctx, c)
 	s.plans = loadPlans(ctx, c)
+	s.branches = loadBranches(ctx, c)
 	slices.SortStableFunc(s.procs, func(a, b process.Process) int { return a.StartedAt.Compare(b.StartedAt) })
 	return &s, nil
 }
@@ -430,7 +435,7 @@ type eventsMsg struct {
 }
 
 // eventTypes are the events the UI follows.
-var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", "metadata.", "plugin.", "task.", event.Lost}
+var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", "metadata.", "plugin.", "task.", "branch.", event.Lost}
 
 // subscribe opens the event stream and reads it until it ends.
 func (a *App) subscribe() {
@@ -503,6 +508,12 @@ func (a *App) apply(ev event.Event) {
 			a.applyTaskEvent(ev)
 		}
 		return // plans carry their own state: no read needed
+	}
+	if strings.HasPrefix(ev.Type, "branch.") {
+		if s != nil {
+			a.applyBranchEvent(ev)
+		}
+		return // so do branches
 	}
 	if s == nil {
 		a.refresh()

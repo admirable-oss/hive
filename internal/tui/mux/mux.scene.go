@@ -223,6 +223,7 @@ func (a *App) sidebarRows() []compositor.SidebarRow {
 			if e.ID != a.ws.envID && a.envActivity(e.ID) {
 				spans = append(spans, compositor.Span{Text: " •", Style: uv.Style{Fg: a.theme.Accent}})
 			}
+			spans = append(spans, a.branchSpans(e.ID)...)
 			if g := gitSummary(e.Git); g != "" {
 				spans = append(spans, compositor.Span{Text: "  " + g, Style: muted})
 			}

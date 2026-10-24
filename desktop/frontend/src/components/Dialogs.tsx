@@ -11,6 +11,7 @@ import { Field, NativeSelect } from "./Field";
 import { IdentitySheet, Machines } from "./Machines";
 import { close, Modal } from "./Modal";
 import { ObserveDialog } from "./ObserveDialog";
+import { Review } from "./Branches";
 
 function NewAgent({ env: initial }: { env?: string }) {
   const envs = useStore((s) => s.workspace.environments);
@@ -19,6 +20,7 @@ function NewAgent({ env: initial }: { env?: string }) {
   const [kind, setKind] = useState("");
   const [env, setEnv] = useState(initial ?? fallback ?? "");
   const [worktree, setWorktree] = useState("");
+  const [isolate, setIsolate] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const machine = envs.find((e) => e.id === env)?.machine ?? "";
@@ -35,7 +37,7 @@ function NewAgent({ env: initial }: { env?: string }) {
     e.preventDefault();
     setBusy(true);
     api
-      .startAgent({ kind, environment_id: env, worktree: worktree.trim() || undefined, name: name.trim() || undefined })
+      .startAgent({ kind, environment_id: env, worktree: worktree.trim() || undefined, isolate: isolate || undefined, name: name.trim() || undefined })
       .then((pane) => {
         close();
         store.reveal(pane);
@@ -74,6 +76,12 @@ function NewAgent({ env: initial }: { env?: string }) {
             <Input className="pl-8 font-mono" value={worktree} onChange={(e) => setWorktree(e.target.value)} placeholder="fix/login" />
           </div>
         </Field>
+        {!worktree.trim() && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 accent-primary" checked={isolate} onChange={(e) => setIsolate(e.target.checked)} />
+            Its own worktree, on a branch Hive names
+          </label>
+        )}
         <Field label="Name" hint="optional">
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
@@ -254,5 +262,7 @@ export function Dialogs() {
       return <ObserveDialog />;
     case "identity":
       return <IdentitySheet d={d} />;
+    case "review":
+      return <Review branch={d.branch} />;
   }
 }

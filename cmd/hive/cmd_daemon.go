@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/daemonctl"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/remote"
@@ -204,6 +206,7 @@ func runDaemon(ctx context.Context, a *app) error {
 			// Tasks placed on saved machines reach them as --machine does.
 			Machines: a.machines().Path(), SSH: a.target(remote.Target{}).SSH, ControlDir: a.controlDir(),
 		},
+		Branches:           a.branchesConfig(),
 		ProcessLogMaxBytes: int64(a.cfg.Retention.ProcessLogMB) << 20,
 	})
 	if err := mod.Service.Start(ctx); err != nil {
@@ -392,4 +395,25 @@ changing it. On Windows the task starts with your logon environment.`,
 	cmd.Flags().BoolVar(&printOnly, "print", false, "print the service definition instead of installing it")
 	cmd.Flags().StringVar(&executable, "executable", "", "path of the hive binary the service runs (default: this binary)")
 	return cmd
+}
+
+// branchesConfig maps [branches] for the daemon, with "~/" in gates'
+// repositories made absolute.
+func (a *app) branchesConfig() runtime.BranchesConfig {
+	b := a.cfg.Branches
+	out := runtime.BranchesConfig{
+		AgentPattern: b.AgentPattern, TaskPattern: b.TaskPattern, Cleanup: b.Cleanup,
+		DeleteMerged: b.DeleteMerged, Interval: b.CheckInterval, Keep: b.Keep,
+	}
+	for _, g := range b.Gates {
+		repo := g.Repo
+		if rest, ok := strings.CutPrefix(repo, "~/"); ok && a.home != "" {
+			repo = filepath.Join(a.home, rest)
+		}
+		out.Gates = append(out.Gates, branch.Gate{Name: g.Name, Command: g.Command, TimeoutMS: g.Timeout.Milliseconds(), Repo: repo})
+	}
+	for _, f := range b.Forges {
+		out.Forges = append(out.Forges, runtime.ForgeConfig{Host: f.Host, Type: f.Type, Command: f.Command})
+	}
+	return out
 }

@@ -92,6 +92,8 @@ var methodCapabilities = map[string]string{
 	"terminal.snapshot": CapHiveRead, "terminal.frames": CapHiveRead, "terminal.graphics": CapHiveRead,
 	"worktree.list": CapHiveRead, "plugin.list": CapHiveRead, "plugin.contributions": CapHiveRead,
 	"observer.activity": CapHiveRead, "task.list": CapHiveRead, "task.get": CapHiveRead, "task.wait": CapHiveRead,
+	"branch.list": CapHiveRead, "branch.get": CapHiveRead, "branch.check": CapHiveRead, "branch.diff": CapHiveRead,
+	"branch.conflicts": CapHiveRead,
 
 	// Changing the workspace.
 	"agent.focus": CapHiveWrite, "agent.rename": CapHiveWrite, "agent.seen": CapHiveWrite, "agent.report": CapHiveWrite,
@@ -105,13 +107,15 @@ var methodCapabilities = map[string]string{
 	// Typing into terminals.
 	"agent.prompt": CapHiveInput, "agent.send_keys": CapHiveInput, "pane.input": CapHiveInput,
 	"pane.send_keys": CapHiveInput, "pane.send_text": CapHiveInput, "terminal.input": CapHiveInput,
-	"terminal.attach": CapHiveInput, "terminal.image": CapHiveInput,
+	"terminal.attach": CapHiveInput, "terminal.image": CapHiveInput, "branch.comment": CapHiveInput,
+	"branch.send": CapHiveInput,
 
 	// Starting and stopping programs, and removing what holds work.
 	"agent.start": CapHiveProcess, "agent.stop": CapHiveProcess, "process.start": CapHiveProcess,
 	"process.stop": CapHiveProcess, "pane.run": CapHiveProcess, "environment.remove": CapHiveProcess,
 	"worktree.remove": CapHiveProcess, "task.run": CapHiveProcess, "task.cancel": CapHiveProcess,
-	"task.retry": CapHiveProcess, "task.approve": CapHiveProcess,
+	"task.retry": CapHiveProcess, "task.approve": CapHiveProcess, "branch.ready": CapHiveProcess,
+	"branch.update": CapHiveProcess, "branch.clean": CapHiveProcess,
 
 	// Administration.
 	"debug.pprof": CapHiveAdmin, "debug.stats": CapHiveAdmin, "runtime.gc": CapHiveAdmin,
@@ -121,9 +125,11 @@ var methodCapabilities = map[string]string{
 
 // closedMethods are daemon methods no plugin may call, whatever it holds:
 // an observer credential a plugin made would outlive the plugin and its
-// grants.
+// grants, and a push or a pull request is published only on a person's
+// own command.
 var closedMethods = []string{
 	"observer.audit", "observer.create", "observer.get", "observer.list", "observer.revoke", "observer.validate",
+	"branch.push", "branch.pr",
 }
 
 // Closed reports whether method is classified as callable by no plugin.

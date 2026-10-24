@@ -176,6 +176,7 @@ type Client struct {
 	agents client.Agents
 	ws     client.Workspace
 	tasks  client.Tasks
+	brs    client.Branches
 }
 
 // Connect connects to the daemon and checks that it answers.
@@ -207,7 +208,7 @@ func ConnectContext(ctx context.Context, opts Options) (*Client, error) {
 
 // New wraps an existing connection (the hive command's own).
 func New(c client.Client) *Client {
-	return &Client{c: c, agents: client.NewAgents(c), ws: client.NewWorkspace(c), tasks: client.NewTasks(c)}
+	return &Client{c: c, agents: client.NewAgents(c), ws: client.NewWorkspace(c), tasks: client.NewTasks(c), brs: client.NewBranches(c)}
 }
 
 // Close closes the connection; agents keep running.

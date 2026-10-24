@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/admirable-oss/hive/internal/agent"
+	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/process"
@@ -22,6 +23,8 @@ type agentOps struct {
 	envs      environment.Service
 	worktrees *worktrees
 	procs     process.Service
+	// pattern names the branch of an agent started with Isolate.
+	pattern string
 }
 
 // AgentStartRequest starts an agent by its manifest.
@@ -33,6 +36,9 @@ type AgentStartRequest struct {
 	// of the environment's repository on that branch, with its own
 	// environment, so agents working in parallel never share a checkout.
 	Worktree string `json:"worktree,omitempty"`
+	// Isolate starts the agent in a new worktree on a branch named by
+	// [branches] agent_pattern, when Worktree names none.
+	Isolate bool `json:"isolate,omitempty"`
 	// Base is where a new worktree branch starts (default HEAD).
 	Base string `json:"base,omitempty"`
 	// Name names the tab and the pane (default the manifest's ID).
@@ -79,6 +85,11 @@ func (o *agentOps) start(ctx context.Context, req AgentStartRequest, reuse bool)
 	if err != nil {
 		return AgentStarted{}, err
 	}
+	if req.Worktree == "" && req.Isolate {
+		if req.Worktree, err = branchName(cmp(o.pattern, branch.DefaultAgentPattern), m.ID, req.Name, env.ID); err != nil {
+			return AgentStarted{}, fmt.Errorf("%w: %w", errInvalidRequest, err)
+		}
+	}
 	if req.Worktree != "" {
 		if env.Path == "" {
 			return AgentStarted{}, fmt.Errorf("%w: environment %q has no directory to make a worktree of", errInvalidRequest, env.ID)
@@ -116,6 +127,9 @@ func (o *agentOps) start(ctx context.Context, req AgentStartRequest, reuse bool)
 	a, err := o.agents.Get(ctx, p.ProcessID)
 	if err != nil {
 		return AgentStarted{}, err
+	}
+	if env.Worktree != nil && o.worktrees != nil {
+		o.worktrees.track(ctx, env, env.Worktree.Repo, env.Worktree.Branch, req.Base, ownerOf(a, req.Env))
 	}
 	return AgentStarted{Agent: a, Tab: tab, Pane: p, Environment: env}, nil
 }

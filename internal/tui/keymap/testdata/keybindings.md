@@ -91,6 +91,7 @@ One key after the prefix, then back to terminal mode.
 | `H` `alt+left` | `resize_left` | move the left border |
 | `L` `alt+right` | `resize_right` | move the right border |
 | `K` `alt+up` | `resize_up` | move the top border |
+| `D` | `review` | review this environment's branch: its diff, comments for its agent, its gates |
 | `ctrl+b` | `send_prefix` | send the prefix key to the pane |
 | `"` `-` | `split_down` | split the pane, new pane below |
 | `%` `\|` | `split_right` | split the pane, new pane on the right |

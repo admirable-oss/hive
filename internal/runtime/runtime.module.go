@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/admirable-oss/hive/internal/agent"
+	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
@@ -34,6 +35,7 @@ type Module struct {
 	Events       *event.Bus
 	Agents       *agent.Service
 	Tasks        *task.Service
+	Branches     *branch.Service
 }
 
 // NewModule assembles the daemon. Dependencies flow strictly downward:
@@ -126,8 +128,13 @@ func NewModule(cfg Config) *Module {
 	plugins := newPluginHost(cfg, log.With("module", "plugin"), router, bus)
 	server.Go(plugins.Run)
 	server.Go(func(ctx context.Context) { forwardEvents(ctx, bus, plugins) })
-	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir(), events: bus}
-	ops := &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs}
+	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir(), events: bus, log: gitLog}
+	branchLog := log.With("module", "branch")
+	branches := newBranches(cfg, guardedEnvs, procs, agents, wts, bus, branchLog)
+	wts.branches = branches
+	server.Go(branches.Run)
+	server.Go(func(ctx context.Context) { feedBranches(ctx, branches, guardedEnvs, wts, bus, branchLog) })
+	ops := &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs, pattern: cfg.Branches.agentPattern()}
 	tasks := newTasks(cfg, ops, agents, bus, log.With("module", "task"))
 	server.Go(tasks.run)
 	obs := newObservers(cfg, log.With("module", "observer"), bus, guardedEnvs, panes, observer.Sources{
@@ -162,6 +169,7 @@ func NewModule(cfg Config) *Module {
 	registerWorktrees(router, wts)
 	registerAgentOps(router, ops)
 	task.Register(router, tasks.svc)
+	branch.Register(router, branches)
 	registerSession(router, keep)
 	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)
 	registerPlugins(router, plugins, plugin.NewStore(cfg.pluginDir()))
@@ -178,6 +186,7 @@ func NewModule(cfg Config) *Module {
 		Events:       bus,
 		Agents:       agents,
 		Tasks:        tasks.svc,
+		Branches:     branches,
 	}
 }
 

@@ -1,4 +1,10 @@
 const APILevel
+const BranchCleaned
+const BranchCreated
+const BranchMerged
+const BranchReady
+const BranchRemoved
+const BranchWorking
 const CodeConflict
 const CodeInvalidParams
 const CodeNotFound
@@ -6,6 +12,9 @@ const CodePermissionDenied
 const CodeTimeout
 const CodeUnavailable
 const Down
+const EventBranchOverlap
+const EventBranchRemoved
+const EventBranchUpdated
 const ImageClear
 const ImageDelete
 const ImagePlace
@@ -91,11 +100,18 @@ func (c *Client) Agent(ctx context.Context, id string) (Agent, error)
 func (c *Client) AgentDirectory(ctx context.Context, all bool) (AgentList, error)
 func (c *Client) Agents(ctx context.Context, all bool) ([]Agent, error)
 func (c *Client) ApproveTask(ctx context.Context, id, taskID string, opts ApproveOptions) (Plan, error)
+func (c *Client) Branch(ctx context.Context, ref string) (Branch, error)
+func (c *Client) BranchConflicts(ctx context.Context, ref, with string) (Conflicts, error)
+func (c *Client) BranchDiff(ctx context.Context, req DiffRequest) (Diff, error)
+func (c *Client) Branches(ctx context.Context, repo string, all bool) ([]Branch, error)
 func (c *Client) Call(ctx context.Context, method string, params, result any) error
 func (c *Client) CancelPlan(ctx context.Context, id, taskID string) (Plan, error)
+func (c *Client) CheckBranches(ctx context.Context, ref, repo string) ([]Branch, error)
+func (c *Client) CleanBranches(ctx context.Context, req CleanRequest) ([]Branch, error)
 func (c *Client) Close() error
 func (c *Client) ClosePane(ctx context.Context, id string) error
 func (c *Client) CloseTab(ctx context.Context, id string) error
+func (c *Client) CommentBranch(ctx context.Context, req CommentRequest) (Branch, error)
 func (c *Client) CreateEnvironment(ctx context.Context, id, dir string, vars map[string]string) (Environment, error)
 func (c *Client) CreateTab(ctx context.Context, req CreateTabRequest) (TabCreated, error)
 func (c *Client) Environments(ctx context.Context) ([]Environment, error)
@@ -108,14 +124,17 @@ func (c *Client) Frames(ctx context.Context, processID string, width, height int
 func (c *Client) Graphics(ctx context.Context, processID string, width, height int) (*GraphicsStream, error)
 func (c *Client) Input(ctx context.Context, processID string, data []byte) error
 func (c *Client) Manifests(ctx context.Context) ([]Manifest, error)
+func (c *Client) OpenPullRequest(ctx context.Context, req PullRequestRequest) (Branch, error)
 func (c *Client) Panes(ctx context.Context, envID, tabID string) ([]Pane, error)
 func (c *Client) Plan(ctx context.Context, id string) (Plan, error)
 func (c *Client) Plans(ctx context.Context) ([]PlanSummary, error)
 func (c *Client) Popup(ctx context.Context, options PopupOptions) (Pane, error)
 func (c *Client) Processes(ctx context.Context, environmentID string) ([]Process, error)
 func (c *Client) Prompt(ctx context.Context, id, text string, opts PromptOptions) (PromptResult, error)
+func (c *Client) PushBranch(ctx context.Context, ref, remote string) (Branch, error)
 func (c *Client) Read(ctx context.Context, id string, opts ReadOptions) ([]string, error)
 func (c *Client) ReadPane(ctx context.Context, id string, opts ReadOptions) ([]string, error)
+func (c *Client) ReadyBranch(ctx context.Context, ref string, gates []Gate) (Branch, error)
 func (c *Client) RenameAgent(ctx context.Context, id, name string) (Agent, error)
 func (c *Client) RenamePane(ctx context.Context, id, name string) (Pane, error)
 func (c *Client) RenameTab(ctx context.Context, id, name string) (Tab, error)
@@ -126,6 +145,7 @@ func (c *Client) RunInPane(ctx context.Context, id, command string) error
 func (c *Client) RunPlan(ctx context.Context, spec PlanSpec) (Plan, error)
 func (c *Client) RunPlanFile(ctx context.Context, toml, source string) (Plan, error)
 func (c *Client) Schema(ctx context.Context) (Schema, error)
+func (c *Client) SendComments(ctx context.Context, ref string) (Branch, error)
 func (c *Client) SendKeys(ctx context.Context, id string, keys ...string) error
 func (c *Client) SendText(ctx context.Context, paneID, text string, paste bool) error
 func (c *Client) Snapshot(ctx context.Context) (Snapshot, error)
@@ -134,6 +154,7 @@ func (c *Client) StartAgent(ctx context.Context, req StartAgent) (AgentStarted, 
 func (c *Client) Status(ctx context.Context) (Status, error)
 func (c *Client) StopAgent(ctx context.Context, id string) (Agent, error)
 func (c *Client) Tabs(ctx context.Context, environmentID string) ([]Tab, error)
+func (c *Client) UpdateBranch(ctx context.Context, req UpdateRequest) (UpdateResult, error)
 func (c *Client) Wait(ctx context.Context, id string, opts WaitOptions) (WaitResult, error)
 func (c *Client) WaitPlan(ctx context.Context, id string, opts PlanWaitOptions) (PlanWaitResult, error)
 func (c *Client) ZoomPane(ctx context.Context, id string, on *bool) (Pane, error)
@@ -153,13 +174,22 @@ type AgentList = agent.ListResult
 type AgentStarted = client.AgentStarted
 type AgentStatus = agent.Status
 type ApproveOptions = client.ApproveOptions
+type Branch = branch.Branch
+type BranchOwner = branch.Owner
+type BranchState = branch.State
 type Cell = vt.Cell
 type CellStyle = vt.Style
+type CleanRequest = branch.CleanRequest
 type Client struct
 type Color = vt.Color
+type Comment = branch.Comment
+type CommentRequest = branch.CommentRequest
+type Conflicts = branch.Conflicts
 type CreateTabRequest = pane.CreateTabRequest
 type Cursor = vt.Cursor
 type CursorShape = vt.CursorShape
+type Diff = branch.Diff
+type DiffRequest = branch.DiffRequest
 type Direction = layout.Direction
 type Environment = environment.Environment
 type Error = protocol.Error
@@ -169,6 +199,8 @@ type EventsRequest = observer.EventsRequest
 type Explanation = agent.Explanation
 type Frame = vt.Frame
 type FrameStream = client.FrameStream
+type Gate = branch.Gate
+type GateResult = branch.GateResult
 type GraphicsEvent = vt.GraphicsEvent
 type GraphicsStream = client.GraphicsStream
 type HistoryRequest = observer.HistoryRequest
@@ -198,6 +230,8 @@ type Options struct
 type Outcome = agent.Outcome
 type OutputRequest = observer.OutputRequest
 type OutputResult = observer.OutputResult
+type Overlap = branch.Overlap
+type OverlapEvent = branch.OverlapEvent
 type Pane = pane.Pane
 type Plan = task.Plan
 type PlanSpec = task.PlanSpec
@@ -209,6 +243,8 @@ type PopupOptions struct
 type Process = process.Process
 type PromptOptions = client.PromptOptions
 type PromptResult = agent.PromptResult
+type PullRequest = branch.PullRequest
+type PullRequestRequest = branch.PullRequestRequest
 type ReadOptions = client.ReadRequest
 type Rect = layout.Rect
 type Report = task.Report
@@ -234,6 +270,8 @@ type TaskState = task.State
 type TaskView = task.TaskView
 type TerminalScreen = vt.Screen
 type Until = agent.Until
+type UpdateRequest = branch.UpdateRequest
+type UpdateResult = branch.UpdateResult
 type WaitOptions = client.WaitOptions
 type WaitResult = agent.WaitResult
 type WatchRequest = observer.WatchRequest

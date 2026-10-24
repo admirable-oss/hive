@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 
+	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/protocol"
@@ -23,6 +25,10 @@ type worktrees struct {
 	envs   environment.Service // the guarded service: deletes stop agents
 	dir    string
 	events interface{ Publish(typ string, data any) }
+	// branches follows the branches of the worktrees made here; nil
+	// follows none.
+	branches *branch.Service
+	log      *slog.Logger
 }
 
 // Worktree events: data is a WorktreeEvent.
@@ -165,6 +171,7 @@ func (w *worktrees) Create(ctx context.Context, req WorktreeCreateRequest) (envi
 		return environment.Environment{}, err
 	}
 	w.publish(EventWorktreeCreated, WorktreeEvent{Path: path, Repo: main.Path, Branch: req.Branch, Environment: &env})
+	w.track(ctx, env, main.Path, req.Branch, req.Base, nil)
 	return env, nil
 }
 
@@ -226,10 +233,14 @@ func (w *worktrees) Open(ctx context.Context, req WorktreeOpenRequest) (environm
 	if err != nil {
 		return environment.Environment{}, err
 	}
-	return w.envs.Create(ctx, environment.CreateRequest{
+	env, err := w.envs.Create(ctx, environment.CreateRequest{
 		ID: id, Root: wt.Path, Env: req.Env,
 		Worktree: &environment.Worktree{Repo: main.Path, Branch: wt.Branch},
 	})
+	if err == nil && !wt.Main {
+		w.track(ctx, env, main.Path, wt.Branch, "", nil)
+	}
+	return env, err
 }
 
 func (w *worktrees) Remove(ctx context.Context, req WorktreeRemoveRequest) error {
@@ -273,6 +284,9 @@ func (w *worktrees) Remove(ctx context.Context, req WorktreeRemoveRequest) error
 	}
 	if err := w.git.RemoveWorktree(ctx, main.Path, path, req.Force); err != nil {
 		return err
+	}
+	if w.branches != nil {
+		w.branches.WorktreeRemoved(path)
 	}
 	w.publish(EventWorktreeRemoved, WorktreeEvent{Path: path, Repo: main.Path})
 	return nil

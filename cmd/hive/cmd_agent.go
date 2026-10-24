@@ -102,8 +102,11 @@ func newAgentStartCmd(a *app) *cobra.Command {
 		Long: `Start an agent by its manifest (` + "`hive agent manifests`" + ` lists them) in a new tab of an
 environment. With --worktree, it starts on that branch in a new git worktree
 of the environment's repository, with its own environment, so agents working
-in parallel never edit the same checkout.`,
+in parallel never edit the same checkout. --isolate does the same on a branch
+Hive names (hive/<kind>/<id> unless [branches] agent_pattern says otherwise).
+Hive follows the branch from then on: see ` + "`hive branch`" + `.`,
 		Example: `  hive agent start --kind claude --env api
+  hive agent start --kind claude --env api --isolate
   hive agent start --kind codex --env api --worktree fix/login -- --model o4-mini`,
 		Args: argsBeforeDash(0, 0),
 		RunE: withTimeout(time.Minute, func(ctx context.Context, cmd *cobra.Command, args []string) error {
@@ -132,6 +135,7 @@ in parallel never edit the same checkout.`,
 	cmd.Flags().StringVarP(&req.Kind, "kind", "k", "", "the agent: claude, codex, … (hive agent manifests)")
 	cmd.Flags().StringVar(&req.EnvironmentID, "env", "", "the environment (default $HIVE_ENV_ID)")
 	cmd.Flags().StringVarP(&req.Worktree, "worktree", "w", "", "start on this branch in a new worktree")
+	cmd.Flags().BoolVar(&req.Isolate, "isolate", false, "start in a new worktree on a branch named by [branches] agent_pattern")
 	cmd.Flags().StringVar(&req.Base, "base", "", "where a new worktree branch starts (default HEAD)")
 	cmd.Flags().StringVar(&req.Name, "name", "", "a name for its tab and pane (default the kind)")
 	cmd.Flags().StringArrayVarP(&vars, "var", "e", nil, "a variable for the agent, as KEY=VALUE (repeatable)")
