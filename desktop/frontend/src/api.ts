@@ -2,6 +2,7 @@
 // HiveService and the app's events. Tests replace this module.
 import { Events, System, Window } from "@wailsio/runtime";
 import * as Service from "../bindings/github.com/admirable-oss/hive/desktop/hiveservice";
+import { queueInput } from "./input";
 import * as Observer from "../bindings/github.com/admirable-oss/hive/desktop/observerservice";
 import type {
   Connection,
@@ -70,7 +71,7 @@ export const api = {
   openView: (pane: string, cols: number, rows: number) => Service.OpenView(viewer, pane, cols, rows),
   closeView: (pane: string) => Service.CloseView(viewer, pane),
   refreshView: (pane: string) => Service.RefreshView(pane),
-  input: (pane: string, data: string) => Service.Input(pane, data),
+  input: (pane: string, data: string) => queueInput(pane, data, (p, d) => Service.Input(p, d)),
   paste: (pane: string, text: string) => Service.Paste(pane, text),
   pasteClipboard: (pane: string) => Service.PasteClipboard(pane),
   copy: (text: string) => Service.Copy(text),
