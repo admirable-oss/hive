@@ -103,20 +103,22 @@ func TestSaverDebouncesAndSkipsUnchanged(t *testing.T) {
 	sv := persist.NewSaver(st, func(context.Context) (persist.Snapshot, error) {
 		collected.Add(1)
 		return snap(env.Load().(string)), nil
-	}, 50*time.Millisecond, -1, nil)
+	}, 300*time.Millisecond, -1, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { sv.Run(ctx); close(done) }()
 	defer func() { cancel(); <-done }()
 
-	// A burst of changes makes one snapshot.
+	// A burst of changes makes one snapshot. It is sent at once: spaced
+	// out with sleeps, a slow machine's burst outlasts the debounce. The
+	// debounce is long too, since a loaded runner can pause the burst
+	// itself for tens of milliseconds.
 	for range 20 {
 		sv.Changed()
-		time.Sleep(time.Millisecond)
 	}
 	waitFor(t, func() bool { _, err := os.Stat(st.Path()); return err == nil })
-	time.Sleep(120 * time.Millisecond)
+	time.Sleep(450 * time.Millisecond)
 	if n := collected.Load(); n != 1 {
 		t.Fatalf("collected %d times for one burst", n)
 	}
