@@ -63,11 +63,16 @@ func TestPhoneLayout(t *testing.T) {
 			if !get(ctx, t, chromedp.Evaluate[bool](`(() => { const p = document.querySelector('#screen pre.screen'); p.textContent += '\n' + 'x'.repeat(220); return p.scrollWidth > p.clientWidth && getComputedStyle(p).overflowX === 'auto' && document.documentElement.scrollWidth <= window.innerWidth + 1; })()`)) {
 				t.Error("a wide screen does not scroll sideways in its own box")
 			}
-			// Fit makes the whole width readable without scrolling.
-			run(ctx, t, 10*time.Second, chromedp.Click(chromedp.CSS(`[data-screen="fit"]`)))
-			if get(ctx, t, chromedp.Evaluate[bool](`(() => { const p = document.querySelector('#screen pre.screen'); return parseFloat(getComputedStyle(p).fontSize) >= 13; })()`)) {
-				t.Error("Fit did not shrink the screen's text to its width")
-			}
+			// Fit makes the whole width readable without scrolling. The agent
+			// keeps drawing, and each update replaces the screen and its
+			// tools, so a click can land on a button just replaced: Fit is
+			// pressed again until the text is smaller.
+			run(ctx, t, 10*time.Second, until(`(() => {
+				const p = document.querySelector('#screen pre.screen');
+				if (p && parseFloat(getComputedStyle(p).fontSize) < 13) return true;
+				document.querySelector('[data-screen="fit"]')?.click();
+				return false;
+			})()`))
 			// Back returns to Attention; the tab bar reaches every section.
 			run(ctx, t, 15*time.Second,
 				chromedp.Click(chromedp.CSS("a[data-back]")),
