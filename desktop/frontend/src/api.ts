@@ -12,6 +12,7 @@ import type {
   ObservedScreen,
   ObservedView,
   IdentityCheck,
+  Insights,
   MachineStatus,
   Manifest,
   PairRequest,
@@ -29,6 +30,7 @@ export type {
   ObservedScreen,
   ObservedView,
   IdentityCheck,
+  Insights,
   MachineStatus,
   Manifest,
   PairRequest,
@@ -37,7 +39,7 @@ export type {
   StartAgentRequest,
   Workspace,
 };
-export type { Nearby, KeyBinding } from "../bindings/github.com/admirable-oss/hive/desktop/internal/core/models";
+export type { Ask, BudgetStatus, InsightsRow, Nearby, KeyBinding } from "../bindings/github.com/admirable-oss/hive/desktop/internal/core/models";
 export type { UpdateStatus } from "../bindings/github.com/admirable-oss/hive/desktop/models";
 import type { UpdateStatus } from "../bindings/github.com/admirable-oss/hive/desktop/models";
 export type {
@@ -101,6 +103,8 @@ export const api = {
   cancelPlan: (plan: string) => Service.CancelPlan(plan),
   cancelWorkflowRun: (run: string) => Service.CancelWorkflowRun(run),
   rerunWorkflow: (run: string): Promise<string> => Service.RerunWorkflow(run),
+  insights: (machine: string): Promise<Insights> => Service.Insights(machine),
+  resumeBudget: (machine: string, budget: string, key: string) => Service.ResumeBudget(machine, budget, key),
   branchDiff: (branch: string) => Service.BranchDiff(branch),
   commentBranch: (branch: string, path: string, line: number, body: string, send: boolean) => Service.CommentBranch(branch, path, line, body, send),
   sendComments: (branch: string) => Service.SendComments(branch),

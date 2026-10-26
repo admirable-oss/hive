@@ -17,6 +17,7 @@ import (
 
 	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/daemonctl"
+	"github.com/admirable-oss/hive/internal/insights"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/remote"
 	"github.com/admirable-oss/hive/internal/runtime"
@@ -208,6 +209,7 @@ func runDaemon(ctx context.Context, a *app) error {
 		},
 		Branches:           a.branchesConfig(),
 		Workflows:          a.workflowsConfig(),
+		Insights:           a.insightsConfig(),
 		ProcessLogMaxBytes: int64(a.cfg.Retention.ProcessLogMB) << 20,
 	})
 	if err := mod.Service.Start(ctx); err != nil {
@@ -414,6 +416,21 @@ func (a *app) workflowsConfig() runtime.WorkflowsConfig {
 			p = abs
 		}
 		out.Paths = append(out.Paths, p)
+	}
+	return out
+}
+
+// insightsConfig maps [insights], its budgets and the days kept for the
+// daemon.
+func (a *app) insightsConfig() runtime.InsightsConfig {
+	in := a.cfg.Insights
+	out := runtime.InsightsConfig{Disabled: !in.Enabled, KeepDays: a.cfg.Retention.InsightsDays}
+	for _, b := range in.Budgets {
+		out.Budgets = append(out.Budgets, insights.Budget{
+			Name: b.Name, Per: b.Per, Environment: b.Environment, Kind: b.Kind,
+			Limits: insights.Limits{CostUSD: b.Cost, Tokens: b.Tokens, WorkingMS: b.Working.Milliseconds()},
+			WarnAt: b.WarnAt, Action: b.Action,
+		})
 	}
 	return out
 }

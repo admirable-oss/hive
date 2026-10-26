@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 14. Clients speak newline-delimited JSON over the daemon's unix
+API level 15. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -41,6 +41,18 @@ Result: [observer.EventsResult](#observereventsresult)
 | `since` | `integer` |  |
 
 Result: [observer.Page](#observerpage)
+
+### `observe.insights`
+
+| Param | Type | |
+|---|---|---|
+| `asks` | `integer` | how many of the latest asks (default 20, at most 1000) |
+| `by` | `string` | group rows by kind (default), agent, environment, task, day or model |
+| `from` | `string` | from this time (default: the start of today, the daemon's local time) |
+| `to` | `string` | until this time (default: now) |
+| `within` | [observer.Scope](#observerscope) | count only what is also in this scope |
+
+Result: [observer.Insights](#observerinsights)
 
 ### `observe.output`
 
@@ -122,6 +134,94 @@ Result: [observer.WatchResult](#observerwatchresult)
 | `staged` | `integer` |  |
 | `untracked` | `integer` |  |
 | `upstream` | `string` |  |
+
+### insights.Amounts
+
+| Field | Type | |
+|---|---|---|
+| `cost_known` | `boolean` |  |
+| `cost_usd` | `number` |  |
+| `tokens` | `integer` |  |
+| `tokens_known` | `boolean` |  |
+| `working_ms` | `integer` |  |
+
+### insights.Ask
+
+| Field | Type | |
+|---|---|---|
+| `agent` | `string` |  |
+| `end` | `string` |  |
+| `environment` | `string` |  |
+| `kind` | `string` |  |
+| `name` | `string` |  |
+| `open` | `boolean` |  |
+| `pane` | `string` |  |
+| `plan` | `string` |  |
+| `reason` | `string` |  |
+| `start` | `string` |  |
+| `state` | `string` |  |
+| `task` | `string` |  |
+| `waited_ms` | `integer` |  |
+
+### insights.Budget
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `cost_usd` | `number` |  |
+| `environment` | `string` |  |
+| `kind` | `string` |  |
+| `name` | `string` |  |
+| `per` | `string` |  |
+| `tokens` | `integer` |  |
+| `warn_at` | `number` |  |
+| `working_ms` | `integer` |  |
+
+### insights.BudgetStatus
+
+| Field | Type | |
+|---|---|---|
+| `budget` | [insights.Budget](#insightsbudget) |  |
+| `fraction` | `number` |  |
+| `held` | `boolean` |  |
+| `key` | `string` |  |
+| `level` | `string` |  |
+| `resumed` | `boolean` |  |
+| `used` | [insights.Amounts](#insightsamounts) |  |
+| `window` | `string` |  |
+
+### insights.Row
+
+| Field | Type | |
+|---|---|---|
+| `agents` | `integer` |  |
+| `asks` | `integer` |  |
+| `cost_usd` | `number` |  |
+| `key` | `string` |  |
+| `models` | `[]string` |  |
+| `sources` | `[]string` |  |
+| `states_ms` | `map[string]integer` |  |
+| `tokens` | [insights.Tokens](#insightstokens) |  |
+| `waiting_ms` | `integer` |  |
+
+### insights.Summary
+
+| Field | Type | |
+|---|---|---|
+| `by` | `string` |  |
+| `from` | `string` |  |
+| `rows` | [\[\]insights.Row](#insightsrow) |  |
+| `to` | `string` |  |
+| `total` | [insights.Row](#insightsrow) |  |
+
+### insights.Tokens
+
+| Field | Type | |
+|---|---|---|
+| `cache_read` | `integer` |  |
+| `cache_write` | `integer` |  |
+| `input` | `integer` |  |
+| `output` | `integer` |  |
 
 ### metadata.Token
 
@@ -228,6 +328,24 @@ Result: [observer.WatchResult](#observerwatchresult)
 | `epoch` | `string` |  |
 | `limit` | `integer` |  |
 | `since` | `integer` |  |
+
+### observer.Insights
+
+| Field | Type | |
+|---|---|---|
+| `asks` | [\[\]insights.Ask](#insightsask) |  |
+| `budgets` | [\[\]insights.BudgetStatus](#insightsbudgetstatus) |  |
+| `summary` | [insights.Summary](#insightssummary) |  |
+
+### observer.InsightsRequest
+
+| Field | Type | |
+|---|---|---|
+| `asks` | `integer` | how many of the latest asks (default 20, at most 1000) |
+| `by` | `string` | group rows by kind (default), agent, environment, task, day or model |
+| `from` | `string` | from this time (default: the start of today, the daemon's local time) |
+| `to` | `string` | until this time (default: now) |
+| `within` | [observer.Scope](#observerscope) | count only what is also in this scope |
 
 ### observer.Metadata
 

@@ -62,6 +62,55 @@ export class Agent {
 }
 
 /**
+ * Ask is a time an agent waited on a person.
+ */
+export class Ask {
+    "who": string;
+    "kind": string;
+    "environment": string;
+    "task"?: string;
+    "reason": string;
+    "start": string;
+    "waited_ms": number;
+    "open": boolean;
+
+    /** Creates a new Ask instance. */
+    constructor($$source: Partial<Ask> = {}) {
+        if (!("who" in $$source)) {
+            this["who"] = "";
+        }
+        if (!("kind" in $$source)) {
+            this["kind"] = "";
+        }
+        if (!("environment" in $$source)) {
+            this["environment"] = "";
+        }
+        if (!("reason" in $$source)) {
+            this["reason"] = "";
+        }
+        if (!("start" in $$source)) {
+            this["start"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("waited_ms" in $$source)) {
+            this["waited_ms"] = 0;
+        }
+        if (!("open" in $$source)) {
+            this["open"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Ask instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Ask {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Ask($$parsedSource as Partial<Ask>);
+    }
+}
+
+/**
  * Branch is the branch of a worktree Hive made for an agent or a task,
  * as the app shows it (hive branch).
  */
@@ -297,6 +346,70 @@ export class BranchOverlap {
             $$parsedSource["conflicts"] = $$createField2_0($$parsedSource["conflicts"]);
         }
         return new BranchOverlap($$parsedSource as Partial<BranchOverlap>);
+    }
+}
+
+/**
+ * BudgetStatus is how a budget stands for one key.
+ */
+export class BudgetStatus {
+    "name": string;
+    "per": string;
+    "key": string;
+    "window": string;
+
+    /**
+     * Used says what it used of each limit: "$21.30 of $25.00".
+     */
+    "used": string;
+    "fraction": number;
+    "level": string;
+    "action": string;
+    "held": boolean;
+    "resumed": boolean;
+
+    /** Creates a new BudgetStatus instance. */
+    constructor($$source: Partial<BudgetStatus> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("per" in $$source)) {
+            this["per"] = "";
+        }
+        if (!("key" in $$source)) {
+            this["key"] = "";
+        }
+        if (!("window" in $$source)) {
+            this["window"] = "";
+        }
+        if (!("used" in $$source)) {
+            this["used"] = "";
+        }
+        if (!("fraction" in $$source)) {
+            this["fraction"] = 0;
+        }
+        if (!("level" in $$source)) {
+            this["level"] = "";
+        }
+        if (!("action" in $$source)) {
+            this["action"] = "";
+        }
+        if (!("held" in $$source)) {
+            this["held"] = false;
+        }
+        if (!("resumed" in $$source)) {
+            this["resumed"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BudgetStatus instance from a string or object.
+     */
+    static createFrom($$source: any = {}): BudgetStatus {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new BudgetStatus($$parsedSource as Partial<BudgetStatus>);
     }
 }
 
@@ -609,6 +722,143 @@ export class ImageUpdate {
 }
 
 /**
+ * Insights is a machine's time and usage today, as the Insights window
+ * shows it (hive insights).
+ */
+export class Insights {
+    /**
+     * Machine is the saved machine they are of ("" for this computer).
+     */
+    "machine"?: string;
+    "from": string;
+    "to": string;
+    "rows": InsightsRow[];
+    "total": InsightsRow;
+    "asks": Ask[];
+    "budgets": BudgetStatus[];
+
+    /** Creates a new Insights instance. */
+    constructor($$source: Partial<Insights> = {}) {
+        if (!("from" in $$source)) {
+            this["from"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("to" in $$source)) {
+            this["to"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("rows" in $$source)) {
+            this["rows"] = [];
+        }
+        if (!("total" in $$source)) {
+            this["total"] = (new InsightsRow());
+        }
+        if (!("asks" in $$source)) {
+            this["asks"] = [];
+        }
+        if (!("budgets" in $$source)) {
+            this["budgets"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Insights instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Insights {
+        const $$createField3_0 = $$createType10;
+        const $$createField4_0 = $$createType9;
+        const $$createField5_0 = $$createType12;
+        const $$createField6_0 = $$createType14;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("rows" in $$parsedSource) {
+            $$parsedSource["rows"] = $$createField3_0($$parsedSource["rows"]);
+        }
+        if ("total" in $$parsedSource) {
+            $$parsedSource["total"] = $$createField4_0($$parsedSource["total"]);
+        }
+        if ("asks" in $$parsedSource) {
+            $$parsedSource["asks"] = $$createField5_0($$parsedSource["asks"]);
+        }
+        if ("budgets" in $$parsedSource) {
+            $$parsedSource["budgets"] = $$createField6_0($$parsedSource["budgets"]);
+        }
+        return new Insights($$parsedSource as Partial<Insights>);
+    }
+}
+
+/**
+ * InsightsRow is one agent kind's time and usage.
+ */
+export class InsightsRow {
+    "key": string;
+    "agents": number;
+    "working_ms": number;
+    "blocked_ms": number;
+
+    /**
+     * IdleMS counts idle and done: ready for a prompt either way.
+     */
+    "idle_ms": number;
+    "waiting_ms": number;
+    "asks": number;
+
+    /**
+     * Tokens and CostUSD are nil when nothing reported them: unknown.
+     */
+    "tokens": number | null;
+    "cost_usd": number | null;
+    "sources": string[];
+
+    /** Creates a new InsightsRow instance. */
+    constructor($$source: Partial<InsightsRow> = {}) {
+        if (!("key" in $$source)) {
+            this["key"] = "";
+        }
+        if (!("agents" in $$source)) {
+            this["agents"] = 0;
+        }
+        if (!("working_ms" in $$source)) {
+            this["working_ms"] = 0;
+        }
+        if (!("blocked_ms" in $$source)) {
+            this["blocked_ms"] = 0;
+        }
+        if (!("idle_ms" in $$source)) {
+            this["idle_ms"] = 0;
+        }
+        if (!("waiting_ms" in $$source)) {
+            this["waiting_ms"] = 0;
+        }
+        if (!("asks" in $$source)) {
+            this["asks"] = 0;
+        }
+        if (!("tokens" in $$source)) {
+            this["tokens"] = null;
+        }
+        if (!("cost_usd" in $$source)) {
+            this["cost_usd"] = null;
+        }
+        if (!("sources" in $$source)) {
+            this["sources"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new InsightsRow instance from a string or object.
+     */
+    static createFrom($$source: any = {}): InsightsRow {
+        const $$createField9_0 = $$createType6;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("sources" in $$parsedSource) {
+            $$parsedSource["sources"] = $$createField9_0($$parsedSource["sources"]);
+        }
+        return new InsightsRow($$parsedSource as Partial<InsightsRow>);
+    }
+}
+
+/**
  * KeyBinding is one binding of the effective key map.
  */
 export class KeyBinding {
@@ -667,7 +917,7 @@ export class Line {
      * Creates a new Line instance from a string or object.
      */
     static createFrom($$source: any = {}): Line {
-        const $$createField1_0 = $$createType10;
+        const $$createField1_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("runs" in $$parsedSource) {
             $$parsedSource["runs"] = $$createField1_0($$parsedSource["runs"]);
@@ -719,8 +969,8 @@ export class MachineStatus {
      * Creates a new MachineStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): MachineStatus {
-        const $$createField7_0 = $$createType11;
-        const $$createField8_0 = $$createType12;
+        const $$createField7_0 = $$createType17;
+        const $$createField8_0 = $$createType18;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("connection" in $$parsedSource) {
             $$parsedSource["connection"] = $$createField7_0($$parsedSource["connection"]);
@@ -927,8 +1177,8 @@ export class ObservedScreen {
      * Creates a new ObservedScreen instance from a string or object.
      */
     static createFrom($$source: any = {}): ObservedScreen {
-        const $$createField4_0 = $$createType14;
-        const $$createField5_0 = $$createType15;
+        const $$createField4_0 = $$createType20;
+        const $$createField5_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField4_0($$parsedSource["lines"]);
@@ -973,8 +1223,8 @@ export class ObservedView {
      * Creates a new ObservedView instance from a string or object.
      */
     static createFrom($$source: any = {}): ObservedView {
-        const $$createField0_0 = $$createType16;
-        const $$createField3_0 = $$createType17;
+        const $$createField0_0 = $$createType22;
+        const $$createField3_0 = $$createType23;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("observer" in $$parsedSource) {
             $$parsedSource["observer"] = $$createField0_0($$parsedSource["observer"]);
@@ -1110,7 +1360,7 @@ export class Pane {
      * Creates a new Pane instance from a string or object.
      */
     static createFrom($$source: any = {}): Pane {
-        const $$createField5_0 = $$createType19;
+        const $$createField5_0 = $$createType25;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rect" in $$parsedSource) {
             $$parsedSource["rect"] = $$createField5_0($$parsedSource["rect"]);
@@ -1179,8 +1429,8 @@ export class Plan {
      * Creates a new Plan instance from a string or object.
      */
     static createFrom($$source: any = {}): Plan {
-        const $$createField5_0 = $$createType12;
-        const $$createField9_0 = $$createType21;
+        const $$createField5_0 = $$createType18;
+        const $$createField9_0 = $$createType27;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("counts" in $$parsedSource) {
             $$parsedSource["counts"] = $$createField5_0($$parsedSource["counts"]);
@@ -1374,8 +1624,8 @@ export class ScreenUpdate {
      * Creates a new ScreenUpdate instance from a string or object.
      */
     static createFrom($$source: any = {}): ScreenUpdate {
-        const $$createField5_0 = $$createType15;
-        const $$createField8_0 = $$createType23;
+        const $$createField5_0 = $$createType21;
+        const $$createField8_0 = $$createType29;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cursor" in $$parsedSource) {
             $$parsedSource["cursor"] = $$createField5_0($$parsedSource["cursor"]);
@@ -1456,7 +1706,7 @@ export class Settings {
     static createFrom($$source: any = {}): Settings {
         const $$createField0_0 = $$createType6;
         const $$createField3_0 = $$createType6;
-        const $$createField4_0 = $$createType25;
+        const $$createField4_0 = $$createType31;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("notify_on" in $$parsedSource) {
             $$parsedSource["notify_on"] = $$createField0_0($$parsedSource["notify_on"]);
@@ -1697,14 +1947,14 @@ export class Workspace {
      * Creates a new Workspace instance from a string or object.
      */
     static createFrom($$source: any = {}): Workspace {
-        const $$createField0_0 = $$createType27;
-        const $$createField1_0 = $$createType29;
-        const $$createField2_0 = $$createType31;
-        const $$createField3_0 = $$createType33;
-        const $$createField5_0 = $$createType12;
-        const $$createField6_0 = $$createType35;
-        const $$createField7_0 = $$createType37;
-        const $$createField8_0 = $$createType39;
+        const $$createField0_0 = $$createType33;
+        const $$createField1_0 = $$createType35;
+        const $$createField2_0 = $$createType37;
+        const $$createField3_0 = $$createType39;
+        const $$createField5_0 = $$createType18;
+        const $$createField6_0 = $$createType41;
+        const $$createField7_0 = $$createType43;
+        const $$createField8_0 = $$createType45;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("environments" in $$parsedSource) {
             $$parsedSource["environments"] = $$createField0_0($$parsedSource["environments"]);
@@ -1744,34 +1994,40 @@ const $$createType5 = $Create.Array($$createType4);
 const $$createType6 = $Create.Array($Create.Any);
 const $$createType7 = Nearby.createFrom;
 const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = Run.createFrom;
+const $$createType9 = InsightsRow.createFrom;
 const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = Connection.createFrom;
-const $$createType12 = $Create.Map($Create.Any, $Create.Any);
-const $$createType13 = ObservedRow.createFrom;
+const $$createType11 = Ask.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = BudgetStatus.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = CursorState.createFrom;
-const $$createType16 = Observer.createFrom;
-const $$createType17 = Workspace.createFrom;
-const $$createType18 = Rect.createFrom;
-const $$createType19 = $Create.Nullable($$createType18);
-const $$createType20 = PlanTask.createFrom;
-const $$createType21 = $Create.Array($$createType20);
-const $$createType22 = Line.createFrom;
-const $$createType23 = $Create.Array($$createType22);
-const $$createType24 = KeyBinding.createFrom;
-const $$createType25 = $Create.Array($$createType24);
-const $$createType26 = Environment.createFrom;
+const $$createType15 = Run.createFrom;
+const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = Connection.createFrom;
+const $$createType18 = $Create.Map($Create.Any, $Create.Any);
+const $$createType19 = ObservedRow.createFrom;
+const $$createType20 = $Create.Array($$createType19);
+const $$createType21 = CursorState.createFrom;
+const $$createType22 = Observer.createFrom;
+const $$createType23 = Workspace.createFrom;
+const $$createType24 = Rect.createFrom;
+const $$createType25 = $Create.Nullable($$createType24);
+const $$createType26 = PlanTask.createFrom;
 const $$createType27 = $Create.Array($$createType26);
-const $$createType28 = Tab.createFrom;
+const $$createType28 = Line.createFrom;
 const $$createType29 = $Create.Array($$createType28);
-const $$createType30 = Pane.createFrom;
+const $$createType30 = KeyBinding.createFrom;
 const $$createType31 = $Create.Array($$createType30);
-const $$createType32 = Agent.createFrom;
+const $$createType32 = Environment.createFrom;
 const $$createType33 = $Create.Array($$createType32);
-const $$createType34 = Plan.createFrom;
+const $$createType34 = Tab.createFrom;
 const $$createType35 = $Create.Array($$createType34);
-const $$createType36 = Branch.createFrom;
+const $$createType36 = Pane.createFrom;
 const $$createType37 = $Create.Array($$createType36);
-const $$createType38 = WorkflowRun.createFrom;
+const $$createType38 = Agent.createFrom;
 const $$createType39 = $Create.Array($$createType38);
+const $$createType40 = Plan.createFrom;
+const $$createType41 = $Create.Array($$createType40);
+const $$createType42 = Branch.createFrom;
+const $$createType43 = $Create.Array($$createType42);
+const $$createType44 = WorkflowRun.createFrom;
+const $$createType45 = $Create.Array($$createType44);

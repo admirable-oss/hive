@@ -746,6 +746,30 @@ func (s *Service) All(ctx context.Context) []Plan {
 	return out
 }
 
+// TaskOf is the plan and task an agent of this machine works or last
+// worked on, newest plan first; "" for none.
+func (s *Service) TaskOf(ctx context.Context, agentID string) (plan, task string) {
+	if agentID == "" || s.ready(ctx) != nil {
+		return "", ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := len(s.order) - 1; i >= 0; i-- {
+		p := s.order[i]
+		for j := range p.Tasks {
+			t := &p.Tasks[j]
+			if t.AgentID == agentID && (t.Machine == "" || t.Machine == LocalMachine) {
+				return p.ID, t.Spec.ID
+			}
+		}
+	}
+	return "", ""
+}
+
+// Wake has the scheduler look at queued tasks again: what Hold says may
+// have changed.
+func (s *Service) Wake() { signal(s.wake) }
+
 // Cancel cancels a plan's unfinished tasks, or one task. Running agents
 // are stopped; the plan finishes once they have.
 func (s *Service) Cancel(ctx context.Context, id, taskID string) (Plan, error) {

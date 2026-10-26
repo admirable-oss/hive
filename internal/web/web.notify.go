@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/agent"
+	"github.com/admirable-oss/hive/internal/insights"
 	"github.com/admirable-oss/hive/internal/observer"
 )
 
@@ -22,6 +23,7 @@ const (
 	KindBlocked = "blocked" // an agent waits for someone's decision
 	KindDone    = "done"    // an agent finished a task
 	KindFailed  = "failed"  // an agent's program exited with an error
+	KindBudget  = "budget"  // a budget warns or is exceeded (insights)
 	KindTest    = "test"
 )
 
@@ -77,6 +79,9 @@ type notifier struct {
 	// transition is called for each transition found (notify; tests
 	// record them instead).
 	transition func(rt, kind string, a observer.Agent, detail string)
+	// alert is called for each budget alert (notifyAlert; tests record
+	// them instead).
+	alert func(rt string, a insights.Alert)
 }
 
 type deviceRate struct {
@@ -91,6 +96,7 @@ func newNotifier(s *Server, p *pusher) *notifier {
 		queue: make(chan pushJob, queueLength), stop: make(chan struct{}),
 	}
 	n.transition = n.notify
+	n.alert = n.notifyAlert
 	for range senders {
 		n.wg.Go(n.sender)
 	}
@@ -249,6 +255,13 @@ func (n *notifier) update(rt string, u observer.Update) {
 		if a.CompletionSeq > old.completion {
 			note(KindDone, a, "")
 		}
+	case u.Event != nil && u.Event.Type == insights.EventAlert && primed:
+		// Each level is raised once per budget, key and window, by the
+		// daemon: an alert is news whenever it comes.
+		var al insights.Alert
+		if json.Unmarshal(u.Event.Data, &al) == nil && al.Budget != "" {
+			fire = append(fire, func() { n.alert(rt, al) })
+		}
 	case u.Event != nil && u.Event.Type == "process.exited" && primed:
 		var p observer.Process
 		if json.Unmarshal(u.Event.Data, &p) != nil || p.ExitCode == nil || *p.ExitCode == 0 {
@@ -293,6 +306,44 @@ func (n *notifier) notify(rt, kind string, a observer.Agent, detail string) {
 		}
 		n.enqueue(sub, message(rt, kind, a, detail, prefs.Detail, now))
 	}
+}
+
+// notifyAlert tells every device that may hear about a budget alert in rt.
+func (n *notifier) notifyAlert(rt string, al insights.Alert) {
+	subs, err := n.s.store.Subscriptions("")
+	if err != nil {
+		return
+	}
+	now := n.s.now()
+	env := al.Target()
+	for _, sub := range subs {
+		sess, g, ok := n.s.store.Active(sub.Session)
+		if !ok || !slices.Contains(g.Runtimes, rt) || !g.Scope.Sees(observer.Target{Environment: env}) {
+			continue
+		}
+		prefs := n.s.store.PrefsOf(sess.ID)
+		if !prefs.wants(KindBudget) || prefs.muted(rt, env, "", now) || !n.allow(sub.ID, now) {
+			continue
+		}
+		n.enqueue(sub, alertMessage(rt, al, prefs.Detail, now))
+	}
+}
+
+// alertMessage builds a budget alert's notification: amounts, never
+// screen contents.
+func alertMessage(rt string, al insights.Alert, privacy string, now time.Time) pushMessage {
+	sum := sha256.Sum256([]byte(rt + "/budget/" + al.Budget + "/" + al.Key))
+	topic := base64.RawURLEncoding.EncodeToString(sum[:])[:32]
+	nt := Notification{Kind: KindBudget, Time: now.UnixMilli(), Tag: "hive-" + topic, URL: "/r/" + url.PathEscape(rt) + "?from=notification"}
+	switch privacy {
+	case DetailPrivate:
+		nt.Title, nt.Body = "Hive", "A budget needs your attention"
+	default:
+		nt.Title = "Budget " + al.Budget + " " + map[string]string{insights.LevelExceeded: "exceeded", insights.LevelWarning: "near its limit"}[al.Level]
+		nt.Body = truncate(al.Message, 120) + " · " + rt
+	}
+	payload, _ := json.Marshal(nt)
+	return pushMessage{Payload: payload, TTL: 4 * time.Hour, Urgent: al.Level == insights.LevelExceeded, Topic: topic}
 }
 
 func (p Prefs) wants(kind string) bool {

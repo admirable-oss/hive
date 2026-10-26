@@ -8,6 +8,7 @@ import (
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
+	"github.com/admirable-oss/hive/internal/insights"
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/process"
@@ -68,6 +69,7 @@ var Types = []string{
 	task.EventTask,           // PlanTask: a task of a plan changed
 	task.EventPlan,           // Plan without Tasks: how a plan stands (observers that see all)
 	task.EventRemoved,        // {"ids"}: finished plans forgotten (observers that see all)
+	insights.EventAlert,      // Alert: a budget warns or is exceeded (where its key is seen)
 	Resync,                   // ResyncData
 }
 
@@ -198,6 +200,10 @@ func Translate(ev event.Event, locate Locator) (Event, bool) {
 		}
 		err = json.Unmarshal(ev.Data, &r)
 		data = r
+	case insights.EventAlert:
+		var a insights.Alert
+		err = json.Unmarshal(ev.Data, &a)
+		data, target = a, Target{Environment: a.Target()}
 	default:
 		return Event{}, false
 	}

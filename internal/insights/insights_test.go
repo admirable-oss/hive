@@ -108,7 +108,7 @@ func newEnv(t *testing.T, cfg Config) *env {
 	t.Helper()
 	e := &env{
 		t: t, dir: filepath.Join(t.TempDir(), "insights"),
-		clock:  &clock{t: time.Date(2026, 10, 24, 9, 0, 0, 0, time.UTC)},
+		clock: &clock{t: time.Date(2026, 10, 24, 9, 0, 0, 0, time.UTC)},
 		agents: &fakeAgents{list: []agent.Agent{
 			{ID: "x1", Kind: "claude", Name: "Claude Code", EnvironmentID: "api", PaneID: "p1", Status: agent.Status{State: agent.StateIdle}},
 			{ID: "x2", Kind: "codex", Name: "Codex", EnvironmentID: "web", PaneID: "p2", Status: agent.Status{State: agent.StateIdle}},
@@ -169,8 +169,6 @@ func row(s Summary, key string) Row {
 	return Row{}
 }
 
-func i64(v int64) *int64 { return &v }
-
 func f64(v float64) *float64 { return &v }
 
 func TestTimeInState(t *testing.T) {
@@ -188,7 +186,7 @@ func TestTimeInState(t *testing.T) {
 
 	s := e.summary(ByKind)
 	c := row(s, "claude")
-	if c.StatesMS[StateIdle] != (10 * time.Minute).Milliseconds() || c.StatesMS[StateWorking] != (45*time.Minute).Milliseconds() ||
+	if c.StatesMS[StateIdle] != (10*time.Minute).Milliseconds() || c.StatesMS[StateWorking] != (45*time.Minute).Milliseconds() ||
 		c.StatesMS[StateBlocked] != (5*time.Minute).Milliseconds() || c.StatesMS[StateDone] != time.Minute.Milliseconds() {
 		t.Fatalf("claude's time in state: %+v", c.StatesMS)
 	}

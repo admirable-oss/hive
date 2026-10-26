@@ -1,5 +1,5 @@
 {
-  "api_level": 14,
+  "api_level": 15,
   "methods": [
     {
       "name": "observe.auth",
@@ -27,6 +27,15 @@
       },
       "result": {
         "$ref": "#/$defs/observer.Page"
+      }
+    },
+    {
+      "name": "observe.insights",
+      "params": {
+        "$ref": "#/$defs/observer.InsightsRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/observer.Insights"
       }
     },
     {
@@ -148,6 +157,260 @@
       },
       "required": [
         "root"
+      ],
+      "type": "object"
+    },
+    "insights.Amounts": {
+      "properties": {
+        "cost_known": {
+          "type": "boolean"
+        },
+        "cost_usd": {
+          "type": "number"
+        },
+        "tokens": {
+          "type": "integer"
+        },
+        "tokens_known": {
+          "type": "boolean"
+        },
+        "working_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cost_usd",
+        "tokens",
+        "working_ms",
+        "cost_known",
+        "tokens_known"
+      ],
+      "type": "object"
+    },
+    "insights.Ask": {
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "open": {
+          "type": "boolean"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        },
+        "waited_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "agent",
+        "state",
+        "start",
+        "waited_ms"
+      ],
+      "type": "object"
+    },
+    "insights.Budget": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "cost_usd": {
+          "type": "number"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "per": {
+          "type": "string"
+        },
+        "tokens": {
+          "type": "integer"
+        },
+        "warn_at": {
+          "type": "number"
+        },
+        "working_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "per"
+      ],
+      "type": "object"
+    },
+    "insights.BudgetStatus": {
+      "properties": {
+        "budget": {
+          "$ref": "#/$defs/insights.Budget"
+        },
+        "fraction": {
+          "type": "number"
+        },
+        "held": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "resumed": {
+          "type": "boolean"
+        },
+        "used": {
+          "$ref": "#/$defs/insights.Amounts"
+        },
+        "window": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "budget",
+        "key",
+        "window",
+        "used",
+        "fraction"
+      ],
+      "type": "object"
+    },
+    "insights.Row": {
+      "properties": {
+        "agents": {
+          "type": "integer"
+        },
+        "asks": {
+          "type": "integer"
+        },
+        "cost_usd": {
+          "type": "number"
+        },
+        "key": {
+          "type": "string"
+        },
+        "models": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "states_ms": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "tokens": {
+          "$ref": "#/$defs/insights.Tokens"
+        },
+        "waiting_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "key",
+        "states_ms",
+        "waiting_ms",
+        "asks",
+        "agents"
+      ],
+      "type": "object"
+    },
+    "insights.Summary": {
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "from": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/insights.Row"
+          },
+          "type": "array"
+        },
+        "to": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "total": {
+          "$ref": "#/$defs/insights.Row"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "by",
+        "rows",
+        "total"
+      ],
+      "type": "object"
+    },
+    "insights.Tokens": {
+      "properties": {
+        "cache_read": {
+          "type": "integer"
+        },
+        "cache_write": {
+          "type": "integer"
+        },
+        "input": {
+          "type": "integer"
+        },
+        "output": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "input",
+        "output",
+        "cache_read",
+        "cache_write"
       ],
       "type": "object"
     },
@@ -420,6 +683,58 @@
         "epoch",
         "since"
       ],
+      "type": "object"
+    },
+    "observer.Insights": {
+      "properties": {
+        "asks": {
+          "items": {
+            "$ref": "#/$defs/insights.Ask"
+          },
+          "type": "array"
+        },
+        "budgets": {
+          "items": {
+            "$ref": "#/$defs/insights.BudgetStatus"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "$ref": "#/$defs/insights.Summary"
+        }
+      },
+      "required": [
+        "summary",
+        "budgets",
+        "asks"
+      ],
+      "type": "object"
+    },
+    "observer.InsightsRequest": {
+      "properties": {
+        "asks": {
+          "description": "how many of the latest asks (default 20, at most 1000)",
+          "type": "integer"
+        },
+        "by": {
+          "description": "group rows by kind (default), agent, environment, task, day or model",
+          "type": "string"
+        },
+        "from": {
+          "description": "from this time (default: the start of today, the daemon's local time)",
+          "format": "date-time",
+          "type": "string"
+        },
+        "to": {
+          "description": "until this time (default: now)",
+          "format": "date-time",
+          "type": "string"
+        },
+        "within": {
+          "$ref": "#/$defs/observer.Scope",
+          "description": "count only what is also in this scope"
+        }
+      },
       "type": "object"
     },
     "observer.Metadata": {

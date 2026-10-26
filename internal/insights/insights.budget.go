@@ -144,7 +144,7 @@ func (s *Service) checkLocked(now time.Time) []Alert {
 			}
 			s.state.Raised[rk] = level
 			alert := Alert{
-				Time: now, Budget: b.Name, Per: b.Per, Key: key, Window: window, Level: level,
+				Time: now, Budget: b.Name, Per: b.Per, Key: key, Environment: b.Environment, Window: window, Level: level,
 				Used: a, Limit: b.Limits, Action: b.Action,
 			}
 			alert.Message = alertMessage(b, key, level, a, f)

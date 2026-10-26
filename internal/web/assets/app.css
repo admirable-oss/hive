@@ -99,6 +99,11 @@ table.agents th, table.agents td { text-align: left; padding: .45rem .5rem; bord
 table.agents th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
 .kind { color: var(--muted); font-size: .85rem; }
 .why { color: var(--muted); max-width: 28rem; }
+.insights td, .insights th[scope=row] { font-variant-numeric: tabular-nums; }
+.budgets, .asks { list-style: none; padding: 0; margin: .6rem 0 0; }
+.budgets li, .asks li { padding: .15rem 0; }
+.budget-warning { color: var(--warn); }
+.budget-exceeded { color: var(--bad); }
 @media (max-width: 700px) {
   table.agents thead { display: none; }
   table.agents tr { display: block; border-bottom: 1px solid var(--line); padding: .4rem 0; }

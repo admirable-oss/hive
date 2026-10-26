@@ -1484,6 +1484,647 @@
       ],
       "type": "object"
     },
+    "insights.Alert": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "budget": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "held": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "limit": {
+          "$ref": "#/$defs/insights.Limits"
+        },
+        "message": {
+          "type": "string"
+        },
+        "per": {
+          "type": "string"
+        },
+        "time": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "used": {
+          "$ref": "#/$defs/insights.Amounts"
+        },
+        "window": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "time",
+        "budget",
+        "per",
+        "key",
+        "window",
+        "level",
+        "used",
+        "limit",
+        "action",
+        "message"
+      ],
+      "type": "object"
+    },
+    "insights.Amounts": {
+      "properties": {
+        "cost_known": {
+          "type": "boolean"
+        },
+        "cost_usd": {
+          "type": "number"
+        },
+        "tokens": {
+          "type": "integer"
+        },
+        "tokens_known": {
+          "type": "boolean"
+        },
+        "working_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cost_usd",
+        "tokens",
+        "working_ms",
+        "cost_known",
+        "tokens_known"
+      ],
+      "type": "object"
+    },
+    "insights.Ask": {
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "open": {
+          "type": "boolean"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        },
+        "waited_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "agent",
+        "state",
+        "start",
+        "waited_ms"
+      ],
+      "type": "object"
+    },
+    "insights.AsksParams": {
+      "properties": {
+        "by": {
+          "description": "group rows by kind (default), agent, environment, task, day or model",
+          "type": "string"
+        },
+        "environment": {
+          "description": "only this environment",
+          "type": "string"
+        },
+        "from": {
+          "description": "from this time (default: the start of today, local time)",
+          "format": "date-time",
+          "type": "string"
+        },
+        "kind": {
+          "description": "only this agent kind",
+          "type": "string"
+        },
+        "limit": {
+          "description": "at most this many (default and most 1000)",
+          "type": "integer"
+        },
+        "to": {
+          "description": "until this time (default: now)",
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "insights.Budget": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "cost_usd": {
+          "type": "number"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "per": {
+          "type": "string"
+        },
+        "tokens": {
+          "type": "integer"
+        },
+        "warn_at": {
+          "type": "number"
+        },
+        "working_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "per"
+      ],
+      "type": "object"
+    },
+    "insights.BudgetStatus": {
+      "properties": {
+        "budget": {
+          "$ref": "#/$defs/insights.Budget"
+        },
+        "fraction": {
+          "type": "number"
+        },
+        "held": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "resumed": {
+          "type": "boolean"
+        },
+        "used": {
+          "$ref": "#/$defs/insights.Amounts"
+        },
+        "window": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "budget",
+        "key",
+        "window",
+        "used",
+        "fraction"
+      ],
+      "type": "object"
+    },
+    "insights.ExportParams": {
+      "properties": {
+        "by": {
+          "description": "group rows by kind (default), agent, environment, task, day or model",
+          "type": "string"
+        },
+        "environment": {
+          "description": "only this environment",
+          "type": "string"
+        },
+        "from": {
+          "description": "from this time (default: the start of today, local time)",
+          "format": "date-time",
+          "type": "string"
+        },
+        "kind": {
+          "description": "only this agent kind",
+          "type": "string"
+        },
+        "to": {
+          "description": "until this time (default: now)",
+          "format": "date-time",
+          "type": "string"
+        },
+        "what": {
+          "description": "spans, usage or alerts",
+          "type": "string"
+        }
+      },
+      "required": [
+        "what"
+      ],
+      "type": "object"
+    },
+    "insights.Limits": {
+      "properties": {
+        "cost_usd": {
+          "type": "number"
+        },
+        "tokens": {
+          "type": "integer"
+        },
+        "working_ms": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "insights.QueryParams": {
+      "properties": {
+        "by": {
+          "description": "group rows by kind (default), agent, environment, task, day or model",
+          "type": "string"
+        },
+        "environment": {
+          "description": "only this environment",
+          "type": "string"
+        },
+        "from": {
+          "description": "from this time (default: the start of today, local time)",
+          "format": "date-time",
+          "type": "string"
+        },
+        "kind": {
+          "description": "only this agent kind",
+          "type": "string"
+        },
+        "to": {
+          "description": "until this time (default: now)",
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "insights.Record": {
+      "properties": {
+        "alert": {
+          "$ref": "#/$defs/insights.Alert"
+        },
+        "span": {
+          "$ref": "#/$defs/insights.Span"
+        },
+        "type": {
+          "type": "string"
+        },
+        "usage": {
+          "$ref": "#/$defs/insights.Usage"
+        },
+        "v": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "type"
+      ],
+      "type": "object"
+    },
+    "insights.ResumeParams": {
+      "properties": {
+        "budget": {
+          "description": "the budget's name",
+          "type": "string"
+        },
+        "key": {
+          "description": "one key of it (a plan, environment or kind; default: every held one)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "budget"
+      ],
+      "type": "object"
+    },
+    "insights.Row": {
+      "properties": {
+        "agents": {
+          "type": "integer"
+        },
+        "asks": {
+          "type": "integer"
+        },
+        "cost_usd": {
+          "type": "number"
+        },
+        "key": {
+          "type": "string"
+        },
+        "models": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "states_ms": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "tokens": {
+          "$ref": "#/$defs/insights.Tokens"
+        },
+        "waiting_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "key",
+        "states_ms",
+        "waiting_ms",
+        "asks",
+        "agents"
+      ],
+      "type": "object"
+    },
+    "insights.Span": {
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent",
+        "state",
+        "start",
+        "end"
+      ],
+      "type": "object"
+    },
+    "insights.Summary": {
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "from": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/insights.Row"
+          },
+          "type": "array"
+        },
+        "to": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "total": {
+          "$ref": "#/$defs/insights.Row"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "by",
+        "rows",
+        "total"
+      ],
+      "type": "object"
+    },
+    "insights.Tokens": {
+      "properties": {
+        "cache_read": {
+          "type": "integer"
+        },
+        "cache_write": {
+          "type": "integer"
+        },
+        "input": {
+          "type": "integer"
+        },
+        "output": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "input",
+        "output",
+        "cache_read",
+        "cache_write"
+      ],
+      "type": "object"
+    },
+    "insights.Usage": {
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "cost_usd": {
+          "type": "number"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "session": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        },
+        "time": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tokens": {
+          "$ref": "#/$defs/insights.Tokens"
+        }
+      },
+      "required": [
+        "agent",
+        "time",
+        "source"
+      ],
+      "type": "object"
+    },
+    "insights.UsageParams": {
+      "properties": {
+        "cache_read": {
+          "description": "input tokens read from a cache",
+          "type": "integer"
+        },
+        "cache_write": {
+          "description": "input tokens written to a cache",
+          "type": "integer"
+        },
+        "cost_usd": {
+          "description": "cost in US dollars, as the agent or provider stated it",
+          "type": "number"
+        },
+        "id": {
+          "description": "the agent's pane or process ID",
+          "type": "string"
+        },
+        "input": {
+          "description": "input tokens (not cached)",
+          "type": "integer"
+        },
+        "model": {
+          "description": "the model the usage is for",
+          "type": "string"
+        },
+        "output": {
+          "description": "output tokens",
+          "type": "integer"
+        },
+        "session": {
+          "description": "the agent's session (default: the agent): totals are per session",
+          "type": "string"
+        },
+        "source": {
+          "description": "where the numbers come from: report (default), transcript, statusline, or a name of the reporter's",
+          "type": "string"
+        },
+        "total": {
+          "description": "the numbers are the session's totals so far (what grew is recorded), not an increment",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "insights.UsageResult": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/insights.Who"
+        },
+        "recorded": {
+          "$ref": "#/$defs/insights.Usage"
+        }
+      },
+      "required": [
+        "agent"
+      ],
+      "type": "object"
+    },
+    "insights.Who": {
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent"
+      ],
+      "type": "object"
+    },
     "layout.Node": {
       "properties": {
         "first": {
@@ -5875,7 +6516,7 @@
       "type": "object"
     }
   },
-  "api_level": 14,
+  "api_level": 15,
   "methods": [
     {
       "name": "agent.explain",
@@ -6249,6 +6890,73 @@
       "pipe": true,
       "result": {
         "$ref": "#/$defs/event.subscribeResult"
+      }
+    },
+    {
+      "name": "insights.asks",
+      "params": {
+        "$ref": "#/$defs/insights.AsksParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/insights.Ask"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "insights.budgets",
+      "params": {
+        "properties": {},
+        "type": "object"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/insights.BudgetStatus"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "insights.export",
+      "params": {
+        "$ref": "#/$defs/insights.ExportParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/insights.Record"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "insights.resume",
+      "params": {
+        "$ref": "#/$defs/insights.ResumeParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/insights.BudgetStatus"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "insights.summary",
+      "params": {
+        "$ref": "#/$defs/insights.QueryParams"
+      },
+      "result": {
+        "$ref": "#/$defs/insights.Summary"
+      }
+    },
+    {
+      "name": "insights.usage",
+      "params": {
+        "$ref": "#/$defs/insights.UsageParams"
+      },
+      "result": {
+        "$ref": "#/$defs/insights.UsageResult"
       }
     },
     {

@@ -189,6 +189,16 @@ export function Input(paneID: string, data: string): $CancellablePromise<void> {
 }
 
 /**
+ * Insights returns a machine's time and usage today ("" for this
+ * computer): by kind, the latest asks, and the budgets.
+ */
+export function Insights(machine: string): $CancellablePromise<core$0.Insights> {
+    return $Call.ByID(3780836230, machine).then(($result: any) => {
+        return $$createType6($result);
+    });
+}
+
+/**
  * InstallUpdate installs the available release, after checking its
  * signature and checksum, and restarts the app on it; agents keep running.
  * If the new version does not start, the previous one is put back.
@@ -209,7 +219,7 @@ export function MachineAction(name: string, action: string): $CancellablePromise
  */
 export function Machines(): $CancellablePromise<core$0.MachineStatus[]> {
     return $Call.ByID(1926130017).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType8($result);
     });
 }
 
@@ -219,7 +229,7 @@ export function Machines(): $CancellablePromise<core$0.MachineStatus[]> {
  */
 export function Manifests(machine: string): $CancellablePromise<core$0.Manifest[]> {
     return $Call.ByID(3955373223, machine).then(($result: any) => {
-        return $$createType9($result);
+        return $$createType10($result);
     });
 }
 
@@ -363,6 +373,14 @@ export function ResizeTab(tabID: string, cols: number, rows: number): $Cancellab
 }
 
 /**
+ * ResumeBudget lets new tasks start again under a budget that holds them,
+ * until its window ends: for one key, or every held one when key is "".
+ */
+export function ResumeBudget(machine: string, name: string, key: string): $CancellablePromise<void> {
+    return $Call.ByID(2277972513, machine, name, key);
+}
+
+/**
  * Retry connects again now.
  */
 export function Retry(): $CancellablePromise<void> {
@@ -395,7 +413,7 @@ export function SetUpdateChecks(on: boolean): $CancellablePromise<void> {
  */
 export function Settings(): $CancellablePromise<core$0.Settings> {
     return $Call.ByID(1996682342).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType11($result);
     });
 }
 
@@ -457,7 +475,7 @@ export function UpdateStatus(): $CancellablePromise<$models.UpdateStatus> {
  */
 export function Workspace(): $CancellablePromise<core$0.Workspace> {
     return $Call.ByID(2298421584).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType12($result);
     });
 }
 
@@ -475,9 +493,10 @@ const $$createType2 = core$0.IdentityCheck.createFrom;
 const $$createType3 = core$0.Connection.createFrom;
 const $$createType4 = core$0.Discovery.createFrom;
 const $$createType5 = $Create.Array($Create.Any);
-const $$createType6 = core$0.MachineStatus.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = core$0.Manifest.createFrom;
-const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = core$0.Settings.createFrom;
-const $$createType11 = core$0.Workspace.createFrom;
+const $$createType6 = core$0.Insights.createFrom;
+const $$createType7 = core$0.MachineStatus.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = core$0.Manifest.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = core$0.Settings.createFrom;
+const $$createType12 = core$0.Workspace.createFrom;

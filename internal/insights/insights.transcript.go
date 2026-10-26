@@ -92,7 +92,7 @@ func ReadTranscript(r io.Reader) (t Transcript, ok bool) {
 	case len(claude) > 0:
 		for _, id := range order {
 			u := claude[id]
-			t.Tokens = t.Tokens.add(Tokens{Input: u.Input, Output: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite})
+			t.Tokens = t.Tokens.add(Tokens(u))
 		}
 		t.Format = "claude"
 		return t, true

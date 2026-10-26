@@ -22,6 +22,7 @@ type Config struct {
 	Tasks     Tasks
 	Branches  Branches
 	Workflows Workflows
+	Insights  Insights
 	Session   Session
 	Retention Retention
 	Remote    Remote
@@ -133,6 +134,45 @@ type Workflows struct {
 	GitInterval time.Duration
 }
 
+// Insights configures agent insights (hive insights): whether agents'
+// time and usage are recorded, and the budgets on them.
+type Insights struct {
+	// Enabled records each agent's time in each state and the usage it
+	// reports; off, nothing is recorded (what was can still be read).
+	Enabled bool
+	// Budgets limit cost, tokens or working time ([[insights.budget]]).
+	Budgets []Budget
+}
+
+// Budget limits cost, tokens or agents' working time, for each key of
+// what it applies to separately.
+type Budget struct {
+	Name string
+	// Per is what it applies to: day, plan, environment or kind.
+	Per string
+	// Environment and Kind narrow what counts to one environment or agent
+	// kind.
+	Environment string
+	Kind        string
+	// Cost (US dollars), Tokens and Working are its limits; zero is none,
+	// and at least one is set.
+	Cost    float64
+	Tokens  int64
+	Working time.Duration
+	// WarnAt is the share of a limit that raises a warning.
+	WarnAt float64
+	// Action is what an exceeded budget does: warn, or pause (hold new
+	// tasks in its scope).
+	Action string
+}
+
+// BudgetPers are what a budget can apply to, and BudgetActions what it can
+// do once exceeded.
+var (
+	BudgetPers    = []string{"day", "plan", "environment", "kind"}
+	BudgetActions = []string{"warn", "pause"}
+)
+
 // Gate is a check before a branch is ready.
 type Gate struct {
 	Name    string
@@ -189,6 +229,9 @@ type Retention struct {
 	// kept; the oldest are forgotten first.
 	WorkflowRuns   int
 	WorkflowRunAge time.Duration
+	// InsightsDays is how many days of insights (agents' time and usage)
+	// are kept.
+	InsightsDays int
 }
 
 // Update configures `hive update`.
@@ -410,9 +453,10 @@ func Defaults() Config {
 			SnapshotInterval: 30 * time.Second, KeepSnapshots: 48, ReplayLines: 500,
 		},
 		Workflows: Workflows{Paths: []string{}, MaxRuns: 4, GitInterval: 10 * time.Second},
+		Insights:  Insights{Enabled: true},
 		Retention: Retention{
 			ExitedProcesses: 7 * 24 * time.Hour, ProcessLogMB: 50, GCInterval: 6 * time.Hour,
-			WorkflowRuns: 200, WorkflowRunAge: 30 * 24 * time.Hour,
+			WorkflowRuns: 200, WorkflowRunAge: 30 * 24 * time.Hour, InsightsDays: 90,
 		},
 		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48, ImageBudgetKB: 1024},
 		Discovery: Discovery{SSHPort: 22, Interfaces: []string{}, Browse: true},

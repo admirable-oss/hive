@@ -23,6 +23,8 @@ Each worktree's branch is followed: branch_list shows which branches overlap or 
 
 Workflows are the user's reusable steps (agents, commands, plugin actions), started by triggers or by hand: workflow_list shows them and their inputs, workflow_run runs one by name, workflow_wait waits for a run and returns its report (each step's outcome and output), and workflow_runs lists recent runs. Only run a workflow the user asked for.
 
+Insights say where agents' time went and what they used, on this machine: insights_summary gives each kind's (or agent's, environment's, task's, day's, model's) time working, blocked and idle, the time it waited on the user, and its tokens and cost where the agent reported them (absent means unknown, not zero); insights_budgets shows the user's spending budgets and whether one holds new tasks. Only the user resumes a held budget.
+
 States: working, blocked (waiting for a decision such as a permission prompt: read it with agent_read, answer with agent_send_keys), done (finished a turn), idle (ready for a prompt), exited. Waits end early when an agent blocks or exits; the outcome says so. An outcome of timeout is not a failure: call agent_wait again. Agents are named by their pane ID (or process ID), as returned by agent_start and agent_list. Never stop agents you did not start.`
 
 // waitDefault bounds waits that do not say, so a tool call returns while
@@ -165,6 +167,16 @@ type workflowWaitArgs struct {
 	ID             string `json:"id" desc:"the run's ID (or a unique prefix)"`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty" desc:"give up after this long (default 300); the run keeps going"`
 }
+
+type insightsArgs struct {
+	By          string `json:"by,omitempty" desc:"group rows by kind (default), agent, environment, task, day or model"`
+	Days        int    `json:"days,omitempty" desc:"the last this many days, today included (default 1: today)"`
+	Kind        string `json:"kind,omitempty" desc:"only agents of this kind"`
+	Environment string `json:"environment,omitempty" desc:"only this environment"`
+}
+
+// mcpInsightsDays bounds a summary's range in days.
+const mcpInsightsDays = 366
 
 // mcpPatchBytes bounds a diff a model reads.
 const mcpPatchBytes = 128 << 10
@@ -363,12 +375,21 @@ func HiveTools(c *hiveapi.Client) []Tool {
 				}
 				return r.Summary(), nil
 			}),
+		NewTool("insights_summary", "Show where agents' time went and what they used: per group, the time in each state (working, blocked, idle, done) in milliseconds, the time waiting on the user and how many times it asked, and tokens and cost in US dollars where agents reported them (absent: unknown), with each number's source.",
+			func(ctx context.Context, a insightsArgs) (any, error) {
+				days := min(max(a.Days, 1), mcpInsightsDays)
+				y, m, d := time.Now().Date()
+				from := time.Date(y, m, d-(days-1), 0, 0, 0, 0, time.Local)
+				return c.InsightsSummary(ctx, hiveapi.InsightsQuery{From: from, By: a.By, Kind: a.Kind, Environment: a.Environment})
+			}),
+		NewTool("insights_budgets", "List the user's budgets on cost, tokens and working time: each one's use of its limits today (or per plan, environment or kind), its level (warning, exceeded) and whether it holds new tasks.",
+			func(ctx context.Context, _ none) (any, error) { return c.Budgets(ctx) }),
 	}
 	for i := range tools {
 		switch tools[i].Name {
 		case "agent_list", "agent_get", "agent_wait", "agent_read", "agent_explain", "pane_list", "pane_read", "env_list", "snapshot",
 			"task_list", "task_get", "task_wait", "branch_list", "branch_get", "branch_diff", "branch_conflicts",
-			"workflow_list", "workflow_runs", "workflow_status", "workflow_wait":
+			"workflow_list", "workflow_runs", "workflow_status", "workflow_wait", "insights_summary", "insights_budgets":
 			tools[i].Annotations = ro
 		case "agent_stop", "task_cancel", "workflow_cancel":
 			tools[i].Annotations = &Annotations{Destructive: true}

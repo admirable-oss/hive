@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -69,6 +70,7 @@ func (c Config) withDefaults() Config {
 	if c.Interval <= 0 {
 		c.Interval = 15 * time.Second
 	}
+	c.Budgets = slices.Clone(c.Budgets) // the caller's stay as given
 	for i := range c.Budgets {
 		b := &c.Budgets[i]
 		if b.WarnAt <= 0 || b.WarnAt > 1 {
@@ -549,7 +551,7 @@ func (s *Service) ReportUsage(ctx context.Context, r UsageReport) (UsageResult, 
 	}
 	a, err := s.ports.Agents.Get(ctx, r.ID)
 	if err != nil {
-		return UsageResult{}, fmt.Errorf("%w: %v", ErrNotFound, err)
+		return UsageResult{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
 	if r.Source == "" {
 		r.Source = SourceReport

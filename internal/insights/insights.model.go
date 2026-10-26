@@ -113,14 +113,34 @@ type Alert struct {
 	Budget string    `json:"budget"`
 	Per    string    `json:"per"`
 	Key    string    `json:"key"`
-	Window string    `json:"window"`
-	Level  string    `json:"level"` // warning | exceeded | unenforceable
-	Used   Amounts   `json:"used"`
-	Limit  Limits    `json:"limit"`
-	Action string    `json:"action"`
+	// Environment is the budget's environment, when it counts only one.
+	Environment string  `json:"environment,omitempty"`
+	Window      string  `json:"window"`
+	Level       string  `json:"level"` // warning | exceeded | unenforceable
+	Used        Amounts `json:"used"`
+	Limit       Limits  `json:"limit"`
+	Action      string  `json:"action"`
 	// Held says new work in its scope is held.
 	Held    bool   `json:"held,omitempty"`
 	Message string `json:"message"`
+}
+
+// Target is where an alert or a budget's key belongs, for observers'
+// scopes: an environment's, or everywhere's ("").
+func (a Alert) Target() string {
+	if a.Per == PerEnvironment {
+		return a.Key
+	}
+	return a.Environment
+}
+
+// Target is where a budget's key belongs: an environment's, or
+// everywhere's ("").
+func (s BudgetStatus) Target() string {
+	if s.Budget.Per == PerEnvironment {
+		return s.Key
+	}
+	return s.Budget.Environment
 }
 
 // Alert levels.

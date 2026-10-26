@@ -14,6 +14,7 @@ import (
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
+	"github.com/admirable-oss/hive/internal/insights"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/observer"
@@ -38,6 +39,7 @@ type Module struct {
 	Tasks        *task.Service
 	Branches     *branch.Service
 	Workflows    *workflow.Service
+	Insights     *insights.Service
 }
 
 // NewModule assembles the daemon. Dependencies flow strictly downward:
@@ -137,13 +139,18 @@ func NewModule(cfg Config) *Module {
 	server.Go(branches.Run)
 	server.Go(func(ctx context.Context) { feedBranches(ctx, branches, guardedEnvs, wts, bus, branchLog) })
 	ops := &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs, pattern: cfg.Branches.agentPattern()}
-	tasks := newTasks(cfg, ops, agents, bus, log.With("module", "task"))
+	insightTasks := &insightsTasks{}
+	ins := newInsights(cfg, agents, insightTasks, bus, log.With("module", "insights"))
+	server.Go(ins.Run)
+	server.Go(func(ctx context.Context) { feedInsights(ctx, ins, agents, insightTasks, bus) })
+	tasks := newTasks(cfg, ops, agents, bus, ins.Hold, log.With("module", "task"))
+	insightTasks.svc = tasks.svc
 	server.Go(tasks.run)
 	workflows := newWorkflows(cfg, tasks.svc, guardedEnvs, agents, plugins, bus, log.With("module", "workflow"))
 	server.Go(workflows.Run)
 	server.Go(func(ctx context.Context) { feedWorkflows(ctx, workflows, bus) })
 	obs := newObservers(cfg, log.With("module", "observer"), bus, guardedEnvs, panes, observer.Sources{
-		Agents: agents, Terminals: terms, Metadata: meta.List, Plans: tasks.svc,
+		Agents: agents, Terminals: terms, Metadata: meta.List, Plans: tasks.svc, Insights: ins,
 		Info: func() observer.Info {
 			snap := server.Snapshot()
 			return observer.Info{Version: snap.Version, Session: snap.Session, StartedAt: snap.StartedAt, AgentsSurviveRestart: snap.AgentsSurviveRestart}
@@ -176,6 +183,7 @@ func NewModule(cfg Config) *Module {
 	task.Register(router, tasks.svc)
 	branch.Register(router, branches)
 	workflow.Register(router, workflows)
+	insights.Register(router, ins)
 	registerSession(router, keep)
 	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)
 	registerPlugins(router, plugins, plugin.NewStore(cfg.pluginDir()))
@@ -194,6 +202,7 @@ func NewModule(cfg Config) *Module {
 		Tasks:        tasks.svc,
 		Branches:     branches,
 		Workflows:    workflows,
+		Insights:     ins,
 	}
 }
 

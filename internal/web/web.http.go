@@ -296,7 +296,7 @@ func (s *Server) page(sess Session, grant Grant, path string, q url.Values) *pag
 		if c == nil {
 			continue
 		}
-		p.runtimes = append(p.runtimes, &shown{rt: rt, v: c.model.View()})
+		p.runtimes = append(p.runtimes, &shown{rt: rt, v: c.model.View(), c: c})
 	}
 	return p
 }
@@ -618,7 +618,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request, sess Session, gr
 		return rc.Flush()
 	}
 	sent := map[string]string{}
-	renderAll := func() error {
+	renderAll := func() error { //nolint:contextcheck // insights are read for every viewer of a scope, and kept
 		p := s.page(sess, grant, view.path, view.query)
 		for _, n := range s.fragments(view, p, watch) {
 			var b bytes.Buffer

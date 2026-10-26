@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -30,6 +31,7 @@ var renderTmpl = template.Must(template.New("config").Funcs(template.FuncMap{
 	"taskKinds":    renderTaskKinds,
 	"gates":        renderGates,
 	"forges":       renderForges,
+	"budgets":      renderBudgets,
 	"keyCommands":  renderKeyCommands,
 	"status":       renderStatus,
 }).Parse(`# Hive configuration. Every key is optional; omitted keys use the defaults.
@@ -101,6 +103,8 @@ gc_interval = {{dur .Retention.GCInterval}}
 # long; the oldest are forgotten first.
 workflow_runs = {{.Retention.WorkflowRuns}}
 workflow_run_age = {{dur .Retention.WorkflowRunAge}}
+# Days of insights (agents' time and usage) kept.
+insights_days = {{.Retention.InsightsDays}}
 
 [update]
 # The releases ` + "`hive update`" + ` installs: stable, or preview (release candidates too).
@@ -245,6 +249,13 @@ max_runs = {{.Workflows.MaxRuns}}
 # How often watched repositories (for git triggers) and workflow files are
 # read again, besides changes noticed.
 git_interval = {{dur .Workflows.GitInterval}}
+
+[insights]
+# Record each agent's time working, blocked, idle and done, how long it waited
+# on you and what it asked, and the tokens and cost agents report
+# (` + "`hive insights`" + `). Kept in the Hive root only: nothing is sent anywhere.
+enabled = {{.Insights.Enabled}}
+{{budgets .Insights.Budgets}}
 [notify]
 # When an agent wants you: blocked (waiting for your decision) or done
 # (finished, and you have not looked yet). Never for the pane you are in.
@@ -402,6 +413,57 @@ func renderGates(gates []Gate) string {
 		}
 	}
 	return b.String()
+}
+
+func renderBudgets(budgets []Budget) string {
+	if len(budgets) == 0 {
+		return `# Budgets on cost, tokens or agents' working time, for each key of per
+# separately: today; each plan, over its life; each environment or agent kind,
+# today. A budget warns at warn_at of any of its limits; once over, "pause"
+# holds new tasks in its scope until the day ends or ` + "`hive insights resume`" + `.
+# Agents already working are never stopped. Cost and tokens count only what
+# agents report.
+# [[insights.budget]]
+# name = "daily"
+# per = "day"                      # day | plan | environment | kind
+# environment = "api"              # only what runs in this environment
+# kind = "claude"                  # only this agent kind
+# cost = 25.0                      # US dollars
+# tokens = 20000000
+# working = "10h"                  # agents' working time
+# warn_at = 0.8                    # warn at this share of a limit
+# action = "pause"                 # warn | pause
+`
+	}
+	var b strings.Builder
+	for _, bu := range budgets {
+		fmt.Fprintf(&b, "\n[[insights.budget]]\nname = %s\nper = %s\n", tomlString(bu.Name), tomlString(bu.Per))
+		for _, f := range []struct{ k, v string }{{"environment", bu.Environment}, {"kind", bu.Kind}} {
+			if f.v != "" {
+				fmt.Fprintf(&b, "%s = %s\n", f.k, tomlString(f.v))
+			}
+		}
+		if bu.Cost > 0 {
+			fmt.Fprintf(&b, "cost = %s\n", tomlFloat(bu.Cost))
+		}
+		if bu.Tokens > 0 {
+			fmt.Fprintf(&b, "tokens = %d\n", bu.Tokens)
+		}
+		if bu.Working > 0 {
+			fmt.Fprintf(&b, "working = %s\n", tomlString(bu.Working.String()))
+		}
+		fmt.Fprintf(&b, "warn_at = %s\naction = %s\n", tomlFloat(bu.WarnAt), tomlString(bu.Action))
+	}
+	return b.String()
+}
+
+// tomlFloat writes v as a TOML float, which keeps a decimal point.
+func tomlFloat(v float64) string {
+	s := strconv.FormatFloat(v, 'g', -1, 64)
+	if !strings.ContainsAny(s, ".eE") {
+		s += ".0"
+	}
+	return s
 }
 
 func renderForges(forges []Forge) string {

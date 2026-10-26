@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/insights"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/terminal"
@@ -26,6 +27,7 @@ const (
 	methodHistory  = "observe.history"
 	methodEvents   = "observe.events"
 	methodWatch    = "observe.watch"
+	methodInsights = "observe.insights"
 )
 
 // Screen and output bounds.
@@ -40,6 +42,10 @@ const (
 	DefaultWatchInterval = 250 * time.Millisecond
 	MinWatchInterval     = 100 * time.Millisecond
 	MaxWatchInterval     = 10 * time.Second
+	// DefaultInsightsAsks and MaxInsightsAsks bound observe.insights's
+	// asks.
+	DefaultInsightsAsks = 20
+	MaxInsightsAsks     = 1000
 	// rescopeEvery is how often a watch re-checks its pane is in scope
 	// (a pane can move to another environment).
 	rescopeEvery = time.Second
@@ -144,6 +150,29 @@ type WatchResult struct {
 	ProcessID string `json:"process_id"`
 }
 
+// InsightsRequest asks for time and usage over a range (observe.insights):
+// today by default, by kind.
+type InsightsRequest struct {
+	From time.Time `json:"from,omitzero" desc:"from this time (default: the start of today, the daemon's local time)"`
+	To   time.Time `json:"to,omitzero" desc:"until this time (default: now)"`
+	By   string    `json:"by,omitempty" desc:"group rows by kind (default), agent, environment, task, day or model"`
+	// Asks is how many of the latest asks (DefaultInsightsAsks; at most
+	// MaxInsightsAsks).
+	Asks int `json:"asks,omitempty" desc:"how many of the latest asks (default 20, at most 1000)"`
+	// Within narrows what is counted to a part of the credential's scope:
+	// what a page showing part of it may show.
+	Within *Scope `json:"within,omitempty" desc:"count only what is also in this scope"`
+}
+
+// Insights is the time and usage of what the credential sees: a summary,
+// its budgets, and the latest times agents waited on a person (what they
+// asked only with the screens permission).
+type Insights struct {
+	Summary insights.Summary        `json:"summary"`
+	Budgets []insights.BudgetStatus `json:"budgets"`
+	Asks    []insights.Ask          `json:"asks"`
+}
+
 func (s *Server) register(r *protocol.Router) {
 	r.MustRegister(methodAuth, protocol.Method(func(ctx context.Context, p AuthRequest) (AuthResult, error) {
 		client := ""
@@ -179,6 +208,67 @@ func (s *Server) register(r *protocol.Router) {
 	}))
 	r.MustRegister(methodEvents, protocol.PipeMethod(s.events))
 	r.MustRegister(methodWatch, protocol.PipeMethod(s.watch))
+	r.MustRegister(methodInsights, protocol.Method(s.insights))
+}
+
+// insights answers observe.insights: only rows of what the credential sees
+// (and Within) are counted, budgets show where their keys are seen, and
+// asks' reasons, read from agents' screens, need screens.
+func (s *Server) insights(ctx context.Context, p InsightsRequest) (Insights, error) {
+	c := sessionOf(ctx)
+	cred, err := c.credential()
+	if err != nil {
+		return Insights{}, err
+	}
+	src := s.cfg.Sources.Insights
+	if src == nil {
+		return Insights{}, protocol.NewError(protocol.ErrorCodeUnavailable, errors.New("observer: this daemon keeps no insights"))
+	}
+	if p.Within != nil {
+		if err := p.Within.Validate(); err != nil {
+			return Insights{}, protocol.NewError(protocol.ErrorCodeInvalidParams, err)
+		}
+	}
+	sees := func(t Target) bool { return cred.Scope.Sees(t) && (p.Within == nil || p.Within.Sees(t)) }
+	q := insights.Query{
+		From: p.From, To: p.To, By: p.By,
+		Sees: func(env, pane string) bool { return sees(Target{Environment: env, Pane: pane}) },
+	}
+	sum, err := src.Summary(ctx, q)
+	if err != nil {
+		return Insights{}, insightsError(err)
+	}
+	n := p.Asks
+	if n <= 0 {
+		n = DefaultInsightsAsks
+	}
+	asks, err := src.Asks(ctx, q, min(n, MaxInsightsAsks))
+	if err != nil {
+		return Insights{}, insightsError(err)
+	}
+	if !cred.Screens {
+		for i := range asks {
+			asks[i].Reason = ""
+		}
+	}
+	out := Insights{Summary: sum, Budgets: []insights.BudgetStatus{}, Asks: asks}
+	if out.Asks == nil {
+		out.Asks = []insights.Ask{}
+	}
+	for _, b := range src.Budgets(ctx) {
+		if sees(Target{Environment: b.Target()}) {
+			out.Budgets = append(out.Budgets, b)
+		}
+	}
+	return out, nil
+}
+
+// insightsError gives package insights' errors their protocol codes.
+func insightsError(err error) error {
+	if errors.Is(err, insights.ErrInvalid) {
+		return protocol.NewError(protocol.ErrorCodeInvalidParams, err)
+	}
+	return err
 }
 
 func (s *Server) status(ctx context.Context, _ protocol.Empty) (Status, error) {

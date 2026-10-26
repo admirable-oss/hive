@@ -178,6 +178,7 @@ type Client struct {
 	tasks  client.Tasks
 	brs    client.Branches
 	wfs    client.Workflows
+	ins    client.Insights
 }
 
 // Connect connects to the daemon and checks that it answers.
@@ -211,7 +212,7 @@ func ConnectContext(ctx context.Context, opts Options) (*Client, error) {
 func New(c client.Client) *Client {
 	return &Client{
 		c: c, agents: client.NewAgents(c), ws: client.NewWorkspace(c), tasks: client.NewTasks(c),
-		brs: client.NewBranches(c), wfs: client.NewWorkflows(c),
+		brs: client.NewBranches(c), wfs: client.NewWorkflows(c), ins: client.NewInsights(c),
 	}
 }
 

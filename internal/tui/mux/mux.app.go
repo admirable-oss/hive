@@ -90,6 +90,9 @@ type uiState struct {
 	collapsed map[string]bool // sidebar panels
 
 	mouse mouseState
+	// insightsTicking says insights are read again while the Overview is
+	// open.
+	insightsTicking bool
 }
 
 // New returns an App for c; its background work ends with ctx. Call
@@ -292,6 +295,10 @@ func (a *App) Handle(m Msg) {
 		a.expireToasts()
 	case beeTickMsg:
 		a.beeTick()
+	case insightsMsg:
+		a.insightsLoaded(m)
+	case insightsTickMsg:
+		a.insightsTick(m)
 	case welcomeTickMsg:
 		a.welcomeTick()
 	case func():
