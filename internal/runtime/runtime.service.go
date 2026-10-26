@@ -79,6 +79,11 @@ type Server struct {
 	conns     map[net.Conn]struct{}
 	cancel    context.CancelFunc
 	workers   []func(ctx context.Context)
+	// stopWorkers ends the workers; workerWG waits for them. They end
+	// before the lock is let go of, so nothing writes to the root once a
+	// caller sees the daemon stopped.
+	stopWorkers context.CancelFunc
+	workerWG    sync.WaitGroup
 	// onShutdown runs as the daemon stops, before agents are let go of.
 	onShutdown []func(ctx context.Context)
 
@@ -144,12 +149,14 @@ func (s *Server) Start(ctx context.Context) error {
 	// Connections outlive Start's ctx (often a request or signal context), so
 	// they get their own, cancelled by Stop.
 	serveCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	workerCtx, stopWorkers := context.WithCancel(serveCtx)
 
 	started = true
 	s.mu.Lock()
 	s.lock = lock
 	s.listener = ln
 	s.cancel = cancel
+	s.stopWorkers = stopWorkers
 	s.status = StatusRunning
 	s.startedAt = time.Now()
 	s.mu.Unlock()
@@ -157,18 +164,19 @@ func (s *Server) Start(ctx context.Context) error {
 	s.wg.Add(1)
 	go s.accept(serveCtx, ln)
 	for _, w := range s.workers {
-		s.wg.Add(1)
+		s.workerWG.Add(1)
 		go func() {
-			defer s.wg.Done()
-			w(serveCtx)
+			defer s.workerWG.Done()
+			w(workerCtx)
 		}()
 	}
 	s.log.Info("daemon listening", "path", s.cfg.SocketPath, "version", buildinfo.Get().Version, "pid", os.Getpid())
 	return nil
 }
 
-// Go adds a background task that runs from Start until Stop. It must be
-// called before Start.
+// Go adds a background task that runs from Start until the daemon stops:
+// its ctx ends once agents are stopped or let go of, and the daemon waits
+// for it before giving up its lock. It must be called before Start.
 func (s *Server) Go(task func(ctx context.Context)) {
 	s.workers = append(s.workers, task)
 }
@@ -262,6 +270,15 @@ func (s *Server) shutdown(ctx context.Context, stopAgents bool) error {
 			s.log.Info("daemon stopping; agents could not outlive it and were stopped")
 		}
 	}
+
+	// Workers see the agents' last events, then finish their writes (an
+	// insights save, say) before a caller can find the daemon gone and
+	// remove its root or start another.
+	s.mu.Lock()
+	stopWorkers := s.stopWorkers
+	s.mu.Unlock()
+	stopWorkers()
+	s.workerWG.Wait()
 
 	s.mu.Lock()
 	s.status = StatusStopped

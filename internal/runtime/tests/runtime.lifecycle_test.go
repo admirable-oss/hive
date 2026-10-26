@@ -81,6 +81,32 @@ func TestRuntime_RemoteShutdownClosesDone(t *testing.T) {
 	}
 }
 
+// A caller that sees the daemon stop may remove its root at once (hive
+// session remove), so workers' last writes land before the reply.
+func TestRuntime_ShutdownWaitsForWorkersLastWrites(t *testing.T) {
+	path := shortSock(t)
+	mod := runtime.NewModule(runtime.Config{SocketPath: path})
+	last := filepath.Join(t.TempDir(), "last")
+	mod.Service.Go(func(ctx context.Context) {
+		<-ctx.Done()
+		time.Sleep(100 * time.Millisecond) // a slow final save
+		_ = os.WriteFile(last, nil, 0o600)
+	})
+	if err := mod.Service.Start(context.Background()); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() { _ = mod.Service.Stop(context.Background()) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := client.NewService(client.Config{SocketPath: path}).Shutdown(ctx, true); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
+	if _, err := os.Stat(last); err != nil {
+		t.Fatalf("the shutdown reply came before the worker's last write: %v", err)
+	}
+}
+
 func TestRuntime_StartRecoversStaleProcesses(t *testing.T) {
 	path := shortSock(t)
 	root := filepath.Dir(path)
