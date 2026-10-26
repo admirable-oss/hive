@@ -95,7 +95,8 @@ var methodCapabilities = map[string]string{
 	"branch.list": CapHiveRead, "branch.get": CapHiveRead, "branch.check": CapHiveRead, "branch.diff": CapHiveRead,
 	"branch.conflicts": CapHiveRead, "workflow.list": CapHiveRead, "workflow.get": CapHiveRead,
 	"workflow.validate": CapHiveRead, "workflow.runs": CapHiveRead, "workflow.status": CapHiveRead,
-	"workflow.wait": CapHiveRead,
+	"workflow.wait": CapHiveRead, "insights.summary": CapHiveRead, "insights.asks": CapHiveRead,
+	"insights.budgets": CapHiveRead, "insights.export": CapHiveRead,
 
 	// Changing the workspace.
 	"agent.focus": CapHiveWrite, "agent.rename": CapHiveWrite, "agent.seen": CapHiveWrite, "agent.report": CapHiveWrite,
@@ -105,6 +106,7 @@ var methodCapabilities = map[string]string{
 	"pane.swap": CapHiveWrite, "pane.zoom": CapHiveWrite, "tab.close": CapHiveWrite, "tab.create": CapHiveWrite,
 	"tab.focus": CapHiveWrite, "tab.rename": CapHiveWrite, "tab.resize": CapHiveWrite, "terminal.resize": CapHiveWrite,
 	"session.save": CapHiveWrite, "worktree.create": CapHiveWrite, "worktree.open": CapHiveWrite,
+	"insights.usage": CapHiveWrite,
 
 	// Typing into terminals.
 	"agent.prompt": CapHiveInput, "agent.send_keys": CapHiveInput, "pane.input": CapHiveInput,
@@ -129,11 +131,11 @@ var methodCapabilities = map[string]string{
 // closedMethods are daemon methods no plugin may call, whatever it holds:
 // an observer credential a plugin made would outlive the plugin and its
 // grants, a push or a pull request is published only on a person's own
-// command, and only a person decides which shared workflows run by
-// themselves.
+// command, only a person decides which shared workflows run by
+// themselves, and only a person lifts a budget's hold on spending.
 var closedMethods = []string{
 	"observer.audit", "observer.create", "observer.get", "observer.list", "observer.revoke", "observer.validate",
-	"branch.push", "branch.pr", "workflow.trust",
+	"branch.push", "branch.pr", "workflow.trust", "insights.resume",
 }
 
 // Closed reports whether method is classified as callable by no plugin.

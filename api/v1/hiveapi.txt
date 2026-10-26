@@ -5,6 +5,9 @@ const BranchMerged
 const BranchReady
 const BranchRemoved
 const BranchWorking
+const BudgetExceeded
+const BudgetUnenforceable
+const BudgetWarning
 const CodeConflict
 const CodeInvalidParams
 const CodeNotFound
@@ -15,6 +18,8 @@ const Down
 const EventBranchOverlap
 const EventBranchRemoved
 const EventBranchUpdated
+const EventInsightsAlert
+const EventInsightsResumed
 const EventWorkflowChanged
 const EventWorkflowRemoved
 const EventWorkflowRun
@@ -23,6 +28,15 @@ const ImageClear
 const ImageDelete
 const ImagePlace
 const ImageReply
+const InsightsAlerts
+const InsightsByAgent
+const InsightsByDay
+const InsightsByEnvironment
+const InsightsByKind
+const InsightsByModel
+const InsightsByTask
+const InsightsSpans
+const InsightsUsages
 const Left
 const ModeAltScreen
 const ModeAppCursorKeys
@@ -74,6 +88,9 @@ const UntilIdle
 const UntilUnblocked
 const UntilWorking
 const Up
+const UsageFromReport
+const UsageFromStatusline
+const UsageFromTranscript
 const WorkflowCancelled
 const WorkflowFailed
 const WorkflowQueued
@@ -109,10 +126,12 @@ func (c *Client) Agent(ctx context.Context, id string) (Agent, error)
 func (c *Client) AgentDirectory(ctx context.Context, all bool) (AgentList, error)
 func (c *Client) Agents(ctx context.Context, all bool) ([]Agent, error)
 func (c *Client) ApproveTask(ctx context.Context, id, taskID string, opts ApproveOptions) (Plan, error)
+func (c *Client) Asks(ctx context.Context, q InsightsQuery, limit int) ([]Ask, error)
 func (c *Client) Branch(ctx context.Context, ref string) (Branch, error)
 func (c *Client) BranchConflicts(ctx context.Context, ref, with string) (Conflicts, error)
 func (c *Client) BranchDiff(ctx context.Context, req DiffRequest) (Diff, error)
 func (c *Client) Branches(ctx context.Context, repo string, all bool) ([]Branch, error)
+func (c *Client) Budgets(ctx context.Context) ([]BudgetStatus, error)
 func (c *Client) Call(ctx context.Context, method string, params, result any) error
 func (c *Client) CancelPlan(ctx context.Context, id, taskID string) (Plan, error)
 func (c *Client) CancelWorkflowRun(ctx context.Context, id string) (WorkflowRun, error)
@@ -127,6 +146,7 @@ func (c *Client) CreateTab(ctx context.Context, req CreateTabRequest) (TabCreate
 func (c *Client) Environments(ctx context.Context) ([]Environment, error)
 func (c *Client) Events(ctx context.Context, types ...string) (*EventStream, error)
 func (c *Client) Explain(ctx context.Context, id string) (Explanation, error)
+func (c *Client) ExportInsights(ctx context.Context, q InsightsQuery, what string) ([]InsightsRecord, error)
 func (c *Client) FireWebhook(ctx context.Context, name string, data any) ([]WorkflowRunSummary, error)
 func (c *Client) FocusAgent(ctx context.Context, id string) (Agent, error)
 func (c *Client) FocusPane(ctx context.Context, id string, d Direction) (Pane, error)
@@ -134,6 +154,7 @@ func (c *Client) FocusTab(ctx context.Context, id string) (Tab, error)
 func (c *Client) Frames(ctx context.Context, processID string, width, height int) (*FrameStream, error)
 func (c *Client) Graphics(ctx context.Context, processID string, width, height int) (*GraphicsStream, error)
 func (c *Client) Input(ctx context.Context, processID string, data []byte) error
+func (c *Client) InsightsSummary(ctx context.Context, q InsightsQuery) (InsightsSummary, error)
 func (c *Client) Manifests(ctx context.Context) ([]Manifest, error)
 func (c *Client) OpenPullRequest(ctx context.Context, req PullRequestRequest) (Branch, error)
 func (c *Client) Panes(ctx context.Context, envID, tabID string) ([]Pane, error)
@@ -149,9 +170,11 @@ func (c *Client) ReadyBranch(ctx context.Context, ref string, gates []Gate) (Bra
 func (c *Client) RenameAgent(ctx context.Context, id, name string) (Agent, error)
 func (c *Client) RenamePane(ctx context.Context, id, name string) (Pane, error)
 func (c *Client) RenameTab(ctx context.Context, id, name string) (Tab, error)
+func (c *Client) ReportUsage(ctx context.Context, r UsageReport) (UsageResult, error)
 func (c *Client) RerunWorkflow(ctx context.Context, id string) (WorkflowRun, error)
 func (c *Client) ResizePane(ctx context.Context, id string, d Direction, cells int) (Pane, error)
 func (c *Client) ResizeTab(ctx context.Context, id string, width, height int) (Tab, error)
+func (c *Client) ResumeBudget(ctx context.Context, budget, key string) ([]BudgetStatus, error)
 func (c *Client) RetryPlan(ctx context.Context, id, taskID string) (Plan, error)
 func (c *Client) RunInPane(ctx context.Context, id, command string) error
 func (c *Client) RunPlan(ctx context.Context, spec PlanSpec) (Plan, error)
@@ -196,9 +219,15 @@ type AgentList = agent.ListResult
 type AgentStarted = client.AgentStarted
 type AgentStatus = agent.Status
 type ApproveOptions = client.ApproveOptions
+type Ask = insights.Ask
 type Branch = branch.Branch
 type BranchOwner = branch.Owner
 type BranchState = branch.State
+type Budget = insights.Budget
+type BudgetAlert = insights.Alert
+type BudgetAmounts = insights.Amounts
+type BudgetLimits = insights.Limits
+type BudgetStatus = insights.BudgetStatus
 type Cell = vt.Cell
 type CellStyle = vt.Style
 type CleanRequest = branch.CleanRequest
@@ -227,6 +256,14 @@ type GraphicsEvent = vt.GraphicsEvent
 type GraphicsStream = client.GraphicsStream
 type HistoryRequest = observer.HistoryRequest
 type ImageOp struct
+type InsightsQuery = insights.QueryParams
+type InsightsRecord = insights.Record
+type InsightsRow = insights.Row
+type InsightsSpan = insights.Span
+type InsightsSummary = insights.Summary
+type InsightsTokens = insights.Tokens
+type InsightsUsage = insights.Usage
+type InsightsWho = insights.Who
 type KittyImages struct
 type LineUpdate = vt.LineUpdate
 type Manifest = agent.Manifest
@@ -294,6 +331,8 @@ type TerminalScreen = vt.Screen
 type Until = agent.Until
 type UpdateRequest = branch.UpdateRequest
 type UpdateResult = branch.UpdateResult
+type UsageReport = insights.UsageParams
+type UsageResult = insights.UsageResult
 type WaitOptions = client.WaitOptions
 type WaitResult = agent.WaitResult
 type WatchRequest = observer.WatchRequest

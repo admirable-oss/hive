@@ -128,6 +128,13 @@ func (c *Client) History(ctx context.Context, req HistoryRequest) (Page, error) 
 	return p, err
 }
 
+// Insights returns the time and usage of what the credential sees.
+func (c *Client) Insights(ctx context.Context, req InsightsRequest) (Insights, error) {
+	var in Insights
+	err := c.Call(ctx, methodInsights, req, &in)
+	return in, err
+}
+
 // Schema describes the observer API.
 func (c *Client) Schema(ctx context.Context) (protocol.Schema, error) {
 	var s protocol.Schema

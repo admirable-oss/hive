@@ -72,6 +72,8 @@ type Config struct {
 	Branches BranchesConfig
 	// Workflows is the [workflows] policy, and how long runs are kept.
 	Workflows WorkflowsConfig
+	// Insights is the [insights] policy: recording and budgets.
+	Insights InsightsConfig
 	// ProcessLogMaxBytes rotates each agent's output log past this size,
 	// keeping one older file. Zero lets logs grow.
 	ProcessLogMaxBytes int64

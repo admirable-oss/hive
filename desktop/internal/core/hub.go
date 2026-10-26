@@ -303,7 +303,7 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 		h.mu.Unlock()
 		_ = c.Close()
 	}()
-	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "branch.", "workflow.run", "workflow.removed", "events.")
+	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "branch.", "workflow.run", "workflow.removed", "insights.alert", "events.")
 	if err != nil {
 		return err
 	}
@@ -321,6 +321,14 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 			if err != nil {
 				readErr <- err
 				return
+			}
+			if ev.Type == hiveapi.EventInsightsAlert {
+				// Announced as it comes: alerts are raised once, and change
+				// nothing in the workspace.
+				if n, ok := h.alertNotification(ev.Data); ok && h.cfg.Notify != nil {
+					h.cfg.Notify(n)
+				}
+				continue
 			}
 			if strings.HasPrefix(ev.Type, "task.") || strings.HasPrefix(ev.Type, "branch.") || strings.HasPrefix(ev.Type, "workflow.") || ev.Type == "events_lost" {
 				plansStale.Store(true)

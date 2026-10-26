@@ -9,6 +9,8 @@ export type Dialog =
   | { kind: "new-environment" }
   | { kind: "machines" }
   | { kind: "observe" }
+  // insights shows a machine's time and usage today, and its budgets.
+  | { kind: "insights"; machine?: string }
   // review shows a branch's diff, its overlaps and gates, and takes
   // comments for its agent.
   | { kind: "review"; branch: string }

@@ -67,6 +67,7 @@ the defaults, so a typo never stops the daemon.
 | `gc_interval` | `"6h0m0s"` | How often the daemon cleans up by itself ("0s": never). |
 | `workflow_runs` | `200` | Finished workflow runs kept for `hive workflow runs` and reports, and for how long; the oldest are forgotten first. |
 | `workflow_run_age` | `"720h0m0s"` | Finished workflow runs kept for `hive workflow runs` and reports, and for how long; the oldest are forgotten first. |
+| `insights_days` | `90` | Days of insights (agents' time and usage) kept. |
 
 ## `[update]`
 
@@ -192,6 +193,27 @@ command = ["my-pr"]              # for type = "command": gets the request as JSO
 | `paths` | `[]` | Your own workflows are the *.toml files in ~/.hive/workflows. These are more files and directories ("~/" is home), such as a repository's .hive/workflows: shared files, whose triggers fire only once you trust them (`hive workflow trust <name>`), and again after each change. |
 | `max_runs` | `4` | Workflow runs running at once, across workflows; the rest wait. |
 | `git_interval` | `"10s"` | How often watched repositories (for git triggers) and workflow files are read again, besides changes noticed. |
+
+## `[insights]`
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Record each agent's time working, blocked, idle and done, how long it waited on you and what it asked, and the tokens and cost agents report (`hive insights`). Kept in the Hive root only: nothing is sent anywhere. |
+
+Budgets on cost, tokens or agents' working time, for each key of per separately: today; each plan, over its life; each environment or agent kind, today. A budget warns at warn_at of any of its limits; once over, "pause" holds new tasks in its scope until the day ends or `hive insights resume`. Agents already working are never stopped. Cost and tokens count only what agents report.
+
+```toml
+[[insights.budget]]
+name = "daily"
+per = "day"                      # day | plan | environment | kind
+environment = "api"              # only what runs in this environment
+kind = "claude"                  # only this agent kind
+cost = 25.0                      # US dollars
+tokens = 20000000
+working = "10h"                  # agents' working time
+warn_at = 0.8                    # warn at this share of a limit
+action = "pause"                 # warn | pause
+```
 
 ## `[notify]`
 

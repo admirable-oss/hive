@@ -179,6 +179,26 @@ func TestHiveToolsHaveSchemas(t *testing.T) {
 	}
 }
 
+// TestInsightsToolsOnlyRead: the insights tools only read, and no tool
+// lifts a budget's hold on spending: only a person does.
+func TestInsightsToolsOnlyRead(t *testing.T) {
+	found := 0
+	for _, tool := range HiveTools(nil) {
+		if strings.Contains(tool.Name, "resume") {
+			t.Errorf("%s: only a person resumes a budget", tool.Name)
+		}
+		if strings.HasPrefix(tool.Name, "insights_") {
+			found++
+			if tool.Annotations == nil || !tool.Annotations.ReadOnly {
+				t.Errorf("%s is not read-only: %+v", tool.Name, tool.Annotations)
+			}
+		}
+	}
+	if found != 2 {
+		t.Fatalf("insights tools: %d, want insights_summary and insights_budgets", found)
+	}
+}
+
 func TestClosingStdinCancelsRunningCalls(t *testing.T) {
 	started := make(chan struct{})
 	block := NewTool("block", "waits until cancelled", func(ctx context.Context, _ struct{}) (any, error) {

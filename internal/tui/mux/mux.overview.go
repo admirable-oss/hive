@@ -65,6 +65,7 @@ func (a *App) openOverview(sel string) {
 	a.ui.overview = &overview{selID: sel, bee: bee.New()}
 	a.ui.overview.sync(a)
 	a.ui.overview.animate(a)
+	a.followInsights()
 	a.syncViews()
 }
 
@@ -326,6 +327,7 @@ func (o *overview) view(a *App) compositor.Overlay {
 	lines = append(lines, a.planLines(a.width)...)
 	lines = append(lines, a.branchLines(a.width)...)
 	lines = append(lines, a.workflowLines(a.width)...)
+	lines = append(lines, a.insightsLines(a.width)...)
 	title := fmt.Sprintf("Overview · %d running · %d awaiting · %d complete", n.running, n.awaiting, n.complete)
 	if n.idle > 0 {
 		title += fmt.Sprintf(" · %d idle", n.idle)

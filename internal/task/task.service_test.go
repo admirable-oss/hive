@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -428,4 +429,54 @@ func TestWaitForAChange(t *testing.T) {
 		t.Fatalf("an unknown plan: %v", err)
 	}
 	h.wait(p.ID, task.WaitFinished)
+}
+
+func TestHeldTasksWaitInTheQueue(t *testing.T) {
+	ms := newMachines(work(10*time.Millisecond), task.Machine{Name: task.LocalMachine, Capacity: 10, Local: true})
+	var held atomic.Bool
+	held.Store(true)
+	h := run(t, task.Config{Hold: func(_ *task.Plan, tk *task.Task) string {
+		if held.Load() && tk.Spec.Kind == "codex" {
+			return "held by budget daily until tomorrow"
+		}
+		return ""
+	}}, newMemStore(), ms)
+	a, b := spec("a"), spec("b")
+	b.Kind = "codex"
+	p, err := h.svc.Submit(t.Context(), task.PlanSpec{Tasks: []task.Spec{a, b}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "a to finish and b to be held", func() bool {
+		got, _ := h.svc.Get(t.Context(), p.ID)
+		return got.Task("a").State == task.StateSucceeded && got.Task("b").State == task.StateQueued &&
+			strings.HasPrefix(got.Task("b").Reason, "held by budget daily")
+	})
+	held.Store(false)
+	res := h.wait(p.ID, task.WaitFinished)
+	if res.Plan.State != task.PlanSucceeded || res.Plan.Task("b").Reason != "" {
+		t.Fatalf("released, it runs: %+v", res.Plan.Task("b"))
+	}
+}
+
+func TestTaskOfAnAgent(t *testing.T) {
+	ms := newMachines(work(10*time.Millisecond),
+		task.Machine{Name: task.LocalMachine, Capacity: 4, Local: true}, task.Machine{Name: "box", Capacity: 4})
+	h := run(t, task.Config{}, newMemStore(), ms)
+	here, there := spec("here"), spec("there")
+	here.Machine, there.Machine = task.LocalMachine, "box"
+	p, err := h.svc.Submit(t.Context(), task.PlanSpec{Tasks: []task.Spec{here, there}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.wait(p.ID, task.WaitFinished)
+	if plan, tk := h.svc.TaskOf(t.Context(), "agent-here"); plan != p.ID || tk != "here" {
+		t.Fatalf("this machine's agent works on its task: %q %q", plan, tk)
+	}
+	if plan, _ := h.svc.TaskOf(t.Context(), "agent-there"); plan != "" {
+		t.Fatalf("another machine's agent is not this machine's: %q", plan)
+	}
+	if plan, _ := h.svc.TaskOf(t.Context(), "nobody"); plan != "" {
+		t.Fatalf("an agent without a task has none: %q", plan)
+	}
 }

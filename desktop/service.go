@@ -348,6 +348,24 @@ func (s *HiveService) CancelPlan(ctx context.Context, plan string) error {
 	return s.hub.CancelPlan(plan)
 }
 
+// Insights returns a machine's time and usage today ("" for this
+// computer): by kind, the latest asks, and the budgets.
+func (s *HiveService) Insights(ctx context.Context, machine string) (core.Insights, error) {
+	if err := guard(ctx); err != nil {
+		return core.Insights{}, err
+	}
+	return s.hub.Insights(machine)
+}
+
+// ResumeBudget lets new tasks start again under a budget that holds them,
+// until its window ends: for one key, or every held one when key is "".
+func (s *HiveService) ResumeBudget(ctx context.Context, machine, name, key string) error {
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	return s.hub.ResumeBudget(machine, name, key)
+}
+
 // CancelWorkflowRun cancels a workflow run.
 func (s *HiveService) CancelWorkflowRun(ctx context.Context, id string) error {
 	if err := guard(ctx); err != nil {

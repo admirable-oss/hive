@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, FolderGit2, GitBranch, ListChecks, Monitor, MoreHorizontal, Plus, Server, TerminalSquare, Workflow } from "lucide-react";
+import { Bell, ChartColumn, FolderGit2, GitBranch, ListChecks, Monitor, MoreHorizontal, Plus, Server, TerminalSquare, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -45,6 +45,9 @@ function AgentItem({ a }: { a: Agent }) {
     </motion.li>
   );
 }
+
+// insightsLevel is the API level that keeps insights (M25).
+const insightsLevel = 15;
 
 const connTone: Record<string, string> = {
   connected: "bg-done",
@@ -270,10 +273,15 @@ export function Sidebar({ mac }: { mac: boolean }) {
         </section>
       </ScrollArea>
 
-      <div className="border-t border-sidebar-border p-2.5">
-        <Button className="w-full" onClick={() => store.setUI({ dialog: { kind: "new-agent" } })}>
+      <div className="flex gap-1.5 border-t border-sidebar-border p-2.5">
+        <Button className="flex-1" onClick={() => store.setUI({ dialog: { kind: "new-agent" } })}>
           <Plus /> New agent
         </Button>
+        {(conn.api_level ?? 0) >= insightsLevel && (
+          <Button variant="outline" size="icon" aria-label="Insights" title="Insights: time and usage today" onClick={() => store.setUI({ dialog: { kind: "insights" } })}>
+            <ChartColumn />
+          </Button>
+        )}
       </div>
     </nav>
   );

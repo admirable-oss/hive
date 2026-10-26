@@ -49,6 +49,10 @@ type Config struct {
 	// BranchName names an isolated task's branch when its plan names
 	// none; nil uses hive/<plan>/<task>.
 	BranchName func(plan, task, kind string) (string, error)
+	// Hold says why a queued task must not start yet (a budget over its
+	// limit, say); "" lets it start. It is called under the service's
+	// lock, so it must not call the service.
+	Hold func(p *Plan, t *Task) string
 }
 
 // DefaultKeep is how many finished plans are kept by default.
@@ -295,7 +299,7 @@ func (s *Service) schedule(ctx context.Context, mc *machineCache) time.Time {
 		// again rather than place it nowhere.
 		signal(s.wake)
 	}
-	for _, pl := range place(s.order, machines, s.cfg.Kinds) {
+	for _, pl := range place(s.order, machines, s.cfg.Kinds, s.heldLocked(now)) {
 		p, i := pl.plan, pl.index
 		t := &p.Tasks[i]
 		if pl.reason != "" {
@@ -321,6 +325,40 @@ func (s *Service) schedule(ctx context.Context, mc *machineCache) time.Time {
 		go s.execute(st, ex)
 	}
 	return next
+}
+
+// heldLocked marks the queued tasks Hold holds with why, and returns
+// the test place skips them by. A task no longer held loses the reason.
+func (s *Service) heldLocked(now time.Time) func(p *Plan, t *Task) bool {
+	if s.cfg.Hold == nil {
+		return nil
+	}
+	held := map[*Task]bool{}
+	for _, p := range s.order {
+		if p.State.Finished() {
+			continue
+		}
+		for i := range p.Tasks {
+			t := &p.Tasks[i]
+			if t.State != StateQueued {
+				continue
+			}
+			why := s.cfg.Hold(p, t)
+			held[t] = why != ""
+			was := strings.HasPrefix(t.Reason, "held by ")
+			switch {
+			case why != "" && t.Reason != why:
+				t.Reason = why
+				t.Log = appendLog(t.Log, now, why)
+				s.commitLocked(p, i)
+			case why == "" && was:
+				t.Reason = ""
+				t.Log = appendLog(t.Log, now, "no longer held")
+				s.commitLocked(p, i)
+			}
+		}
+	}
+	return func(_ *Plan, t *Task) bool { return held[t] }
 }
 
 // needsMachines reports whether a task waits for a machine.
@@ -707,6 +745,30 @@ func (s *Service) All(ctx context.Context) []Plan {
 	}
 	return out
 }
+
+// TaskOf is the plan and task an agent of this machine works or last
+// worked on, newest plan first; "" for none.
+func (s *Service) TaskOf(ctx context.Context, agentID string) (plan, task string) {
+	if agentID == "" || s.ready(ctx) != nil {
+		return "", ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := len(s.order) - 1; i >= 0; i-- {
+		p := s.order[i]
+		for j := range p.Tasks {
+			t := &p.Tasks[j]
+			if t.AgentID == agentID && (t.Machine == "" || t.Machine == LocalMachine) {
+				return p.ID, t.Spec.ID
+			}
+		}
+	}
+	return "", ""
+}
+
+// Wake has the scheduler look at queued tasks again: what Hold says may
+// have changed.
+func (s *Service) Wake() { signal(s.wake) }
 
 // Cancel cancels a plan's unfinished tasks, or one task. Running agents
 // are stopped; the plan finishes once they have.

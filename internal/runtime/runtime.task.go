@@ -57,13 +57,13 @@ type tasks struct {
 
 // newTasks builds the task service over this machine's agents and the
 // saved machines. It reads the plans a previous daemon left when it runs.
-func newTasks(cfg Config, ops *agentOps, agents *agent.Service, events task.Events, log *slog.Logger) *tasks {
+func newTasks(cfg Config, ops *agentOps, agents *agent.Service, events task.Events, hold func(*task.Plan, *task.Task) string, log *slog.Logger) *tasks {
 	runner := task.NewRunner(task.RunnerConfig{Logger: log}, taskAgents{ops: ops, agents: agents}, taskWorkspace{git: git.New()})
 	machines := newTaskMachines(cfg.Tasks, runner, log)
 	svc := task.NewModule(task.ModuleConfig{
 		BaseDir: cfg.root(),
 		Service: task.Config{
-			Logger: log, Keep: cfg.Tasks.Keep, Kinds: cfg.Tasks.Kinds,
+			Logger: log, Keep: cfg.Tasks.Keep, Kinds: cfg.Tasks.Kinds, Hold: hold,
 			BranchName: func(plan, id, kind string) (string, error) {
 				return branch.Expand(cfg.Branches.taskPattern(), branch.PatternVars{Plan: plan, Task: id, Kind: kind, Name: id}, time.Now())
 			},

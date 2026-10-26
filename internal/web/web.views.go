@@ -40,6 +40,9 @@ type page struct {
 type shown struct {
 	rt Runtime
 	v  RuntimeView
+	// c is its connection, for what pages read on demand (insights); nil
+	// in tests of the views alone.
+	c *conn
 }
 
 func (p *page) runtime(name string) *shown {
@@ -427,6 +430,7 @@ func runtimeFragments(p *page, r *shown) []g.Node {
 				agentsTable(p, p.agents([]*shown{r}, "", ""), emptyText(r, "No agents this link can see.")),
 			),
 		),
+		fragment("insights", r.v.Version, insightsSection(p, r)),
 		fragment("plans", r.v.Version, plansSection(p, r)),
 		fragment("activity", r.v.Version, activityList(p, r, "", "")),
 	}

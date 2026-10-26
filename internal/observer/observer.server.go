@@ -13,6 +13,7 @@ import (
 
 	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/insights"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
@@ -66,6 +67,12 @@ type Sources struct {
 	// Plans lists the plans, newest first; nil means none.
 	Plans interface {
 		All(ctx context.Context) []task.Plan
+	}
+	// Insights reads time and usage; nil means none are kept.
+	Insights interface {
+		Summary(ctx context.Context, q insights.Query) (insights.Summary, error)
+		Asks(ctx context.Context, q insights.Query, limit int) ([]insights.Ask, error)
+		Budgets(ctx context.Context) []insights.BudgetStatus
 	}
 	// Info describes the daemon.
 	Info func() Info

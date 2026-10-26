@@ -19,6 +19,8 @@ images.log_graphics
 images.max_kb
 images.max_megapixels
 images.render
+insights.budget
+insights.enabled
 keys.command
 keys.copy
 keys.navigate
@@ -51,6 +53,7 @@ remote.image_budget_kb
 remote.ssh
 retention.exited_processes
 retention.gc_interval
+retention.insights_days
 retention.process_log_mb
 retention.workflow_run_age
 retention.workflow_runs

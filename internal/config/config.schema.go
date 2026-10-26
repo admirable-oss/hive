@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/logging"
@@ -69,6 +71,10 @@ func (c *Config) schema() map[string]map[string]setter {
 			"paths":        nameList(&c.Workflows.Paths, "a list of files and directories"),
 			"max_runs":     integer(&c.Workflows.MaxRuns, 1, 256),
 			"git_interval": duration(&c.Workflows.GitInterval, time.Second, time.Hour),
+		},
+		"insights": {
+			"enabled": boolean(&c.Insights.Enabled),
+			"budget":  c.budgetsSchema,
 		},
 		"session": {
 			"restore":                  boolean(&c.Session.Restore),
@@ -174,6 +180,7 @@ func (c *Config) schema() map[string]map[string]setter {
 			"gc_interval":      durationOrOff(&c.Retention.GCInterval, time.Minute, 30*24*time.Hour),
 			"workflow_runs":    integer(&c.Retention.WorkflowRuns, 1, 100000),
 			"workflow_run_age": duration(&c.Retention.WorkflowRunAge, time.Hour, 10*365*24*time.Hour),
+			"insights_days":    integer(&c.Retention.InsightsDays, 1, 3650),
 		},
 		"ui": {
 			"sidebar":       boolean(&c.UI.Sidebar),
@@ -934,4 +941,118 @@ func forge(t map[string]any) (Forge, error) {
 		return f, errors.New("command is for type command")
 	}
 	return f, nil
+}
+
+// budgetsSchema reads [[insights.budget]]; a broken entry, or a second one
+// with a name already taken, is skipped with a warning, the rest apply.
+func (c *Config) budgetsSchema(raw any) error {
+	list, err := tables(raw)
+	if err != nil {
+		return err
+	}
+	var budgets []Budget
+	var bad []string
+	for i, t := range list {
+		b, err := budget(t)
+		if err == nil && slices.ContainsFunc(budgets, func(o Budget) bool { return o.Name == b.Name }) {
+			err = fmt.Errorf("name %q is taken", b.Name)
+		}
+		if err != nil {
+			bad = append(bad, fmt.Sprintf("[%d]: %v", i, err))
+			continue
+		}
+		budgets = append(budgets, b)
+	}
+	c.Insights.Budgets = budgets
+	if len(bad) > 0 {
+		return fmt.Errorf("%s (ignored)", strings.Join(bad, "; "))
+	}
+	return nil
+}
+
+// maxBudgetName bounds a budget's name, which `hive insights resume`
+// takes.
+const maxBudgetName = 64
+
+func budget(t map[string]any) (Budget, error) {
+	if err := unknownFields(t, "name", "per", "environment", "kind", "cost", "tokens", "working", "warn_at", "action"); err != nil {
+		return Budget{}, err
+	}
+	b := Budget{Per: "day", WarnAt: 0.8, Action: "warn"}
+	var err error
+	if b.Name, err = stringField(t, "name"); err != nil {
+		return b, err
+	}
+	b.Name = strings.TrimSpace(b.Name)
+	if b.Name == "" || len(b.Name) > maxBudgetName || strings.ContainsFunc(b.Name, unicode.IsControl) {
+		return b, fmt.Errorf("name %q (up to %d characters, required)", b.Name, maxBudgetName)
+	}
+	for _, f := range []struct {
+		name   string
+		dst    *string
+		values []string
+	}{{"per", &b.Per, BudgetPers}, {"action", &b.Action, BudgetActions}} {
+		v, err := stringField(t, f.name)
+		if err != nil {
+			return b, err
+		}
+		if v = strings.ToLower(strings.TrimSpace(v)); v == "" {
+			continue
+		}
+		if !slices.Contains(f.values, v) {
+			return b, fmt.Errorf("%s %q (want %s)", f.name, v, strings.Join(f.values, ", "))
+		}
+		*f.dst = v
+	}
+	if b.Environment, err = stringField(t, "environment"); err != nil {
+		return b, err
+	}
+	if b.Kind, err = stringField(t, "kind"); err != nil {
+		return b, err
+	}
+	b.Environment, b.Kind = strings.TrimSpace(b.Environment), strings.TrimSpace(b.Kind)
+	if raw, ok := t["cost"]; ok {
+		if b.Cost, err = number(raw); err != nil || b.Cost <= 0 || b.Cost > 1e9 {
+			return b, fmt.Errorf("cost %v (US dollars, above 0)", raw)
+		}
+	}
+	if raw, ok := t["tokens"]; ok {
+		v, isInt := raw.(int64)
+		if !isInt || v <= 0 {
+			return b, fmt.Errorf("tokens %v (a whole number above 0)", raw)
+		}
+		b.Tokens = v
+	}
+	working, err := stringField(t, "working")
+	if err != nil {
+		return b, err
+	}
+	if working != "" {
+		if b.Working, err = time.ParseDuration(working); err != nil || b.Working < time.Minute || b.Working > 10*365*24*time.Hour {
+			return b, fmt.Errorf("working %q (a duration of at least 1m, like \"10h\")", working)
+		}
+	}
+	if b.Cost == 0 && b.Tokens == 0 && b.Working == 0 {
+		return b, errors.New("needs a limit: cost, tokens or working")
+	}
+	if raw, ok := t["warn_at"]; ok {
+		if b.WarnAt, err = number(raw); err != nil || b.WarnAt <= 0 || b.WarnAt > 1 {
+			return b, fmt.Errorf("warn_at %v (a share of the limit, above 0 and at most 1)", raw)
+		}
+	}
+	return b, nil
+}
+
+// number reads a TOML float or integer.
+func number(raw any) (float64, error) {
+	switch v := raw.(type) {
+	case float64:
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return 0, fmt.Errorf("%v is not a number", v)
+		}
+		return v, nil
+	case int64:
+		return float64(v), nil
+	}
+	return 0, typeError("a number", raw)
 }

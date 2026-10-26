@@ -3,10 +3,12 @@
 
 export {
     Agent,
+    Ask,
     Branch,
     BranchDiff,
     BranchGate,
     BranchOverlap,
+    BudgetStatus,
     Connection,
     CursorState,
     DiffFile,
@@ -14,6 +16,8 @@ export {
     Environment,
     IdentityCheck,
     ImageUpdate,
+    Insights,
+    InsightsRow,
     KeyBinding,
     Line,
     MachineStatus,

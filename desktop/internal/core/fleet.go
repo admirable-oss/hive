@@ -500,6 +500,26 @@ func (f *Fleet) CancelPlan(plan string) error {
 	return f.do(plan, func(h *Hub, raw string) error { return h.CancelPlan(raw) })
 }
 
+// Insights are read from the machine named ("" for this computer).
+func (f *Fleet) Insights(machine string) (Insights, error) {
+	h, err := f.hubOf(machine)
+	if err != nil {
+		return Insights{}, err
+	}
+	in, err := h.Insights()
+	in.Machine = machine
+	return in, err
+}
+
+// ResumeBudget resumes a budget of the machine named.
+func (f *Fleet) ResumeBudget(machine, name, key string) error {
+	h, err := f.hubOf(machine)
+	if err != nil {
+		return err
+	}
+	return h.ResumeBudget(name, key)
+}
+
 // Workflow runs' actions go to the machine the run's ID names.
 func (f *Fleet) CancelWorkflowRun(id string) error {
 	return f.do(id, func(h *Hub, raw string) error { return h.CancelWorkflowRun(raw) })

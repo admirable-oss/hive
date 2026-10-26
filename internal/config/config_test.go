@@ -531,3 +531,79 @@ type = "bitbucket"
 		t.Fatalf("bad patterns and policy: %q", warnings)
 	}
 }
+
+func TestInsights(t *testing.T) {
+	cfg, warnings, err := config.Parse([]byte(`
+[insights]
+enabled = false
+
+[retention]
+insights_days = 30
+
+[[insights.budget]]
+name = " daily "
+cost = 25
+tokens = 20000000
+working = "10h"
+action = "Pause"
+
+[[insights.budget]]
+name = "api plans"
+per = "plan"
+environment = "api"
+cost = 5.5
+warn_at = 0.5
+
+[[insights.budget]]
+name = "daily"
+per = "kind"
+tokens = 1
+
+[[insights.budget]]
+name = "no limit"
+
+[[insights.budget]]
+name = "weekly"
+per = "week"
+cost = 1.0
+
+[[insights.budget]]
+name = "free"
+cost = 0
+
+[[insights.budget]]
+name = "loud"
+cost = 1.0
+warn_at = 1.5
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("one warning for the broken budgets: %q", warnings)
+	}
+	for _, want := range []string{`name "daily" is taken`, "needs a limit", `per "week"`, "cost 0", "warn_at 1.5"} {
+		if !strings.Contains(warnings[0], want) {
+			t.Fatalf("warning %q lacks %q", warnings[0], want)
+		}
+	}
+	if cfg.Insights.Enabled || cfg.Retention.InsightsDays != 30 {
+		t.Fatalf("insights = %+v, days %d", cfg.Insights, cfg.Retention.InsightsDays)
+	}
+	want := []config.Budget{
+		{Name: "daily", Per: "day", Cost: 25, Tokens: 20000000, Working: 10 * time.Hour, WarnAt: 0.8, Action: "pause"},
+		{Name: "api plans", Per: "plan", Environment: "api", Cost: 5.5, WarnAt: 0.5, Action: "warn"},
+	}
+	if !reflect.DeepEqual(cfg.Insights.Budgets, want) {
+		t.Fatalf("budgets = %+v", cfg.Insights.Budgets)
+	}
+	again, w, err := config.Parse(config.Render(cfg))
+	if err != nil || len(w) != 0 || !reflect.DeepEqual(again, cfg) {
+		t.Fatalf("round trip: %v %v\n%+v", err, w, again.Insights)
+	}
+
+	_, warnings, _ = config.Parse([]byte("[insights]\nbudget = \"daily\"\n\n[retention]\ninsights_days = 0\n"))
+	if len(warnings) != 2 {
+		t.Fatalf("a budget is a table, and days are at least 1: %q", warnings)
+	}
+}

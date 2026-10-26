@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/insights"
 	"github.com/admirable-oss/hive/internal/observer"
 	"github.com/admirable-oss/hive/internal/task"
 )
@@ -31,7 +32,7 @@ type Activity struct {
 	Time        time.Time
 	Environment string
 	Pane        string
-	Kind        string // agent, pane, process, environment, tab, worktree
+	Kind        string // agent, pane, process, environment, tab, worktree, task, budget
 	Text        string
 }
 
@@ -398,6 +399,12 @@ func (m *Model) event(ev observer.Event) bool {
 		for _, id := range r.IDs {
 			delete(v.Plans, id)
 		}
+	case insights.EventAlert:
+		var a insights.Alert
+		if json.Unmarshal(ev.Data, &a) != nil {
+			return false
+		}
+		note(a.Target(), "", "budget", a.Message)
 	case "worktree.created", "worktree.removed":
 		var w observer.Worktree
 		if json.Unmarshal(ev.Data, &w) != nil {

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/insights"
 	"github.com/admirable-oss/hive/internal/observer"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/remote"
@@ -35,6 +36,11 @@ const (
 	// past it are polled.
 	maxWatches = 6
 	pollEvery  = 2 * time.Second
+	// insightsEvery is how long insights read for a page stand; the
+	// pages re-render at least this often.
+	insightsEvery = 15 * time.Second
+	// insightsWait bounds reading them while a page renders.
+	insightsWait = 3 * time.Second
 )
 
 // conn is the web observer's connection to one runtime. It connects only
@@ -58,12 +64,25 @@ type conn struct {
 	// listeners get every snapshot and event, in order (the notifier).
 	listeners map[int]func(observer.Update)
 	nextID    int
+
+	// insights are read for pages, by the scope they show, and kept for
+	// insightsEvery.
+	insightsMu sync.Mutex
+	insights   map[string]insightsRead
+}
+
+// insightsRead is insights as read at a time; nil when the runtime keeps
+// none (or did not answer).
+type insightsRead struct {
+	at time.Time
+	in *observer.Insights
 }
 
 func newConn(rt Runtime, log *slog.Logger) *conn {
 	c := &conn{
 		rt: rt, model: NewModel(), log: log.With("runtime", rt.Name), now: time.Now,
 		subs: map[chan struct{}]struct{}{}, watches: map[string]*paneWatch{}, listeners: map[int]func(observer.Update){},
+		insights: map[string]insightsRead{},
 	}
 	if rt.Host != "" {
 		c.dial = remote.Target{Host: rt.Host, Session: rt.Session, SSH: rt.SSH, HivePath: rt.HivePath}.DialObserver
@@ -182,6 +201,49 @@ func (c *conn) notify() {
 		default:
 		}
 	}
+}
+
+// Insights is today's time and usage of what within sees of the runtime
+// (nil: all the credential sees), read at most every insightsEvery; nil
+// while it is not connected or keeps no insights.
+func (c *conn) Insights(within *observer.Scope) *observer.Insights {
+	key := "all"
+	if within != nil {
+		key = within.String()
+	}
+	now := c.now()
+	c.insightsMu.Lock()
+	got, ok := c.insights[key]
+	c.insightsMu.Unlock()
+	if ok && now.Sub(got.at) < insightsEvery {
+		return got.in
+	}
+	cl := c.current()
+	if cl == nil {
+		return got.in // as last read, if ever
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), insightsWait)
+	defer cancel()
+	var in *observer.Insights
+	if res, err := cl.Insights(ctx, observer.InsightsRequest{Within: within, Asks: webAsks}); err == nil {
+		in = &res
+	} else {
+		c.log.Debug("no insights (a runtime older than M25?)", "err", err)
+	}
+	c.insightsMu.Lock()
+	c.insights[key] = insightsRead{at: now, in: in}
+	c.insightsMu.Unlock()
+	return in
+}
+
+// webAsks is how many of the latest asks a page shows.
+const webAsks = 5
+
+// staleInsights has the next page read insights again: a budget alerted.
+func (c *conn) staleInsights() {
+	c.insightsMu.Lock()
+	clear(c.insights)
+	c.insightsMu.Unlock()
 }
 
 // current is the live connection, or nil.
@@ -325,6 +387,9 @@ func (c *conn) session(ctx context.Context, epoch *string, since **uint64) (bool
 		}
 		seq := ev.Seq
 		*since = &seq
+		if ev.Type == insights.EventAlert {
+			c.staleInsights()
+		}
 		c.model.Apply(observer.Update{Event: &ev}, c.now())
 		c.emit(observer.Update{Event: &ev})
 		if ev.Type == "process.output" {

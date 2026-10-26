@@ -3,6 +3,7 @@ event environment.created
 event environment.git
 event environment.removed
 event environment.updated
+event insights.alert
 event layout.updated
 event metadata.changed
 event observer.resync
@@ -25,6 +26,7 @@ event worktree.created
 event worktree.removed
 method observe.auth
 method observe.history
+method observe.insights
 method observe.output
 method observe.pane
 method observe.schema
@@ -37,6 +39,8 @@ observe.events params: observer.EventsRequest
 observe.events result: observer.EventsResult
 observe.history params: observer.HistoryRequest
 observe.history result: observer.Page
+observe.insights params: observer.InsightsRequest
+observe.insights result: observer.Insights
 observe.output params: observer.OutputRequest
 observe.output result: observer.OutputResult
 observe.pane params: observer.PaneRequest
@@ -68,6 +72,66 @@ type git.Status.staged: integer
 type git.Status.untracked: integer
 type git.Status.upstream: string
 type git.Status: object
+type insights.Amounts.cost_known: boolean
+type insights.Amounts.cost_usd: number
+type insights.Amounts.tokens: integer
+type insights.Amounts.tokens_known: boolean
+type insights.Amounts.working_ms: integer
+type insights.Amounts: object
+type insights.Ask.agent: string
+type insights.Ask.end: string
+type insights.Ask.environment: string
+type insights.Ask.kind: string
+type insights.Ask.name: string
+type insights.Ask.open: boolean
+type insights.Ask.pane: string
+type insights.Ask.plan: string
+type insights.Ask.reason: string
+type insights.Ask.start: string
+type insights.Ask.state: string
+type insights.Ask.task: string
+type insights.Ask.waited_ms: integer
+type insights.Ask: object
+type insights.Budget.action: string
+type insights.Budget.cost_usd: number
+type insights.Budget.environment: string
+type insights.Budget.kind: string
+type insights.Budget.name: string
+type insights.Budget.per: string
+type insights.Budget.tokens: integer
+type insights.Budget.warn_at: number
+type insights.Budget.working_ms: integer
+type insights.Budget: object
+type insights.BudgetStatus.budget: insights.Budget
+type insights.BudgetStatus.fraction: number
+type insights.BudgetStatus.held: boolean
+type insights.BudgetStatus.key: string
+type insights.BudgetStatus.level: string
+type insights.BudgetStatus.resumed: boolean
+type insights.BudgetStatus.used: insights.Amounts
+type insights.BudgetStatus.window: string
+type insights.BudgetStatus: object
+type insights.Row.agents: integer
+type insights.Row.asks: integer
+type insights.Row.cost_usd: number
+type insights.Row.key: string
+type insights.Row.models: []string
+type insights.Row.sources: []string
+type insights.Row.states_ms: map[string]integer
+type insights.Row.tokens: insights.Tokens
+type insights.Row.waiting_ms: integer
+type insights.Row: object
+type insights.Summary.by: string
+type insights.Summary.from: string
+type insights.Summary.rows: []insights.Row
+type insights.Summary.to: string
+type insights.Summary.total: insights.Row
+type insights.Summary: object
+type insights.Tokens.cache_read: integer
+type insights.Tokens.cache_write: integer
+type insights.Tokens.input: integer
+type insights.Tokens.output: integer
+type insights.Tokens: object
 type metadata.Token.key: string
 type metadata.Token.source: string
 type metadata.Token.text: string
@@ -130,6 +194,16 @@ type observer.HistoryRequest.epoch: string
 type observer.HistoryRequest.limit: integer
 type observer.HistoryRequest.since: integer
 type observer.HistoryRequest: object
+type observer.Insights.asks: []insights.Ask
+type observer.Insights.budgets: []insights.BudgetStatus
+type observer.Insights.summary: insights.Summary
+type observer.Insights: object
+type observer.InsightsRequest.asks: integer
+type observer.InsightsRequest.by: string
+type observer.InsightsRequest.from: string
+type observer.InsightsRequest.to: string
+type observer.InsightsRequest.within: observer.Scope
+type observer.InsightsRequest: object
 type observer.Metadata.environment: string
 type observer.Metadata.pane: string
 type observer.Metadata.title: string

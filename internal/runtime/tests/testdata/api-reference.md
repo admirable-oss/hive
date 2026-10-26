@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 14. Clients speak newline-delimited JSON over the daemon's unix
+API level 15. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -377,6 +377,78 @@ Result: [environment.Environment](#environmentenvironment)
 | `types` | `[]string` |  |
 
 Result: [event.subscribeResult](#eventsubscriberesult)
+
+## insights
+
+### `insights.asks`
+
+| Param | Type | |
+|---|---|---|
+| `by` | `string` | group rows by kind (default), agent, environment, task, day or model |
+| `environment` | `string` | only this environment |
+| `from` | `string` | from this time (default: the start of today, local time) |
+| `kind` | `string` | only this agent kind |
+| `limit` | `integer` | at most this many (default and most 1000) |
+| `to` | `string` | until this time (default: now) |
+
+Result: [\[\]insights.Ask](#insightsask)
+
+### `insights.budgets`
+
+No params.
+
+Result: [\[\]insights.BudgetStatus](#insightsbudgetstatus)
+
+### `insights.export`
+
+| Param | Type | |
+|---|---|---|
+| `by` | `string` | group rows by kind (default), agent, environment, task, day or model |
+| `environment` | `string` | only this environment |
+| `from` | `string` | from this time (default: the start of today, local time) |
+| `kind` | `string` | only this agent kind |
+| `to` | `string` | until this time (default: now) |
+| `what` | `string` | spans, usage or alerts |
+
+Result: [\[\]insights.Record](#insightsrecord)
+
+### `insights.resume`
+
+| Param | Type | |
+|---|---|---|
+| `budget` | `string` | the budget's name |
+| `key` | `string` | one key of it (a plan, environment or kind; default: every held one) |
+
+Result: [\[\]insights.BudgetStatus](#insightsbudgetstatus)
+
+### `insights.summary`
+
+| Param | Type | |
+|---|---|---|
+| `by` | `string` | group rows by kind (default), agent, environment, task, day or model |
+| `environment` | `string` | only this environment |
+| `from` | `string` | from this time (default: the start of today, local time) |
+| `kind` | `string` | only this agent kind |
+| `to` | `string` | until this time (default: now) |
+
+Result: [insights.Summary](#insightssummary)
+
+### `insights.usage`
+
+| Param | Type | |
+|---|---|---|
+| `cache_read` | `integer` | input tokens read from a cache |
+| `cache_write` | `integer` | input tokens written to a cache |
+| `cost_usd` | `number` | cost in US dollars, as the agent or provider stated it |
+| `id` | `string` | the agent's pane or process ID |
+| `input` | `integer` | input tokens (not cached) |
+| `model` | `string` | the model the usage is for |
+| `output` | `integer` | output tokens |
+| `session` | `string` | the agent's session (default: the agent): totals are per session |
+| `source` | `string` | where the numbers come from: report (default), transcript, statusline, or a name of the reporter's |
+| `total` | `boolean` | the numbers are the session's totals so far (what grew is recorded), not an increment |
+
+Result: [insights.UsageResult](#insightsusageresult)
 
 ## layout
 
@@ -1760,6 +1832,236 @@ Result: [protocol.Empty](#protocolempty)
 | `staged` | `integer` |  |
 | `untracked` | `integer` |  |
 | `upstream` | `string` |  |
+
+### insights.Alert
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `budget` | `string` |  |
+| `environment` | `string` |  |
+| `held` | `boolean` |  |
+| `key` | `string` |  |
+| `level` | `string` |  |
+| `limit` | [insights.Limits](#insightslimits) |  |
+| `message` | `string` |  |
+| `per` | `string` |  |
+| `time` | `string` |  |
+| `used` | [insights.Amounts](#insightsamounts) |  |
+| `window` | `string` |  |
+
+### insights.Amounts
+
+| Field | Type | |
+|---|---|---|
+| `cost_known` | `boolean` |  |
+| `cost_usd` | `number` |  |
+| `tokens` | `integer` |  |
+| `tokens_known` | `boolean` |  |
+| `working_ms` | `integer` |  |
+
+### insights.Ask
+
+| Field | Type | |
+|---|---|---|
+| `agent` | `string` |  |
+| `end` | `string` |  |
+| `environment` | `string` |  |
+| `kind` | `string` |  |
+| `name` | `string` |  |
+| `open` | `boolean` |  |
+| `pane` | `string` |  |
+| `plan` | `string` |  |
+| `reason` | `string` |  |
+| `start` | `string` |  |
+| `state` | `string` |  |
+| `task` | `string` |  |
+| `waited_ms` | `integer` |  |
+
+### insights.AsksParams
+
+| Field | Type | |
+|---|---|---|
+| `by` | `string` | group rows by kind (default), agent, environment, task, day or model |
+| `environment` | `string` | only this environment |
+| `from` | `string` | from this time (default: the start of today, local time) |
+| `kind` | `string` | only this agent kind |
+| `limit` | `integer` | at most this many (default and most 1000) |
+| `to` | `string` | until this time (default: now) |
+
+### insights.Budget
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `cost_usd` | `number` |  |
+| `environment` | `string` |  |
+| `kind` | `string` |  |
+| `name` | `string` |  |
+| `per` | `string` |  |
+| `tokens` | `integer` |  |
+| `warn_at` | `number` |  |
+| `working_ms` | `integer` |  |
+
+### insights.BudgetStatus
+
+| Field | Type | |
+|---|---|---|
+| `budget` | [insights.Budget](#insightsbudget) |  |
+| `fraction` | `number` |  |
+| `held` | `boolean` |  |
+| `key` | `string` |  |
+| `level` | `string` |  |
+| `resumed` | `boolean` |  |
+| `used` | [insights.Amounts](#insightsamounts) |  |
+| `window` | `string` |  |
+
+### insights.ExportParams
+
+| Field | Type | |
+|---|---|---|
+| `by` | `string` | group rows by kind (default), agent, environment, task, day or model |
+| `environment` | `string` | only this environment |
+| `from` | `string` | from this time (default: the start of today, local time) |
+| `kind` | `string` | only this agent kind |
+| `to` | `string` | until this time (default: now) |
+| `what` | `string` | spans, usage or alerts |
+
+### insights.Limits
+
+| Field | Type | |
+|---|---|---|
+| `cost_usd` | `number` |  |
+| `tokens` | `integer` |  |
+| `working_ms` | `integer` |  |
+
+### insights.QueryParams
+
+| Field | Type | |
+|---|---|---|
+| `by` | `string` | group rows by kind (default), agent, environment, task, day or model |
+| `environment` | `string` | only this environment |
+| `from` | `string` | from this time (default: the start of today, local time) |
+| `kind` | `string` | only this agent kind |
+| `to` | `string` | until this time (default: now) |
+
+### insights.Record
+
+| Field | Type | |
+|---|---|---|
+| `alert` | [insights.Alert](#insightsalert) |  |
+| `span` | [insights.Span](#insightsspan) |  |
+| `type` | `string` |  |
+| `usage` | [insights.Usage](#insightsusage) |  |
+| `v` | `integer` |  |
+
+### insights.ResumeParams
+
+| Field | Type | |
+|---|---|---|
+| `budget` | `string` | the budget's name |
+| `key` | `string` | one key of it (a plan, environment or kind; default: every held one) |
+
+### insights.Row
+
+| Field | Type | |
+|---|---|---|
+| `agents` | `integer` |  |
+| `asks` | `integer` |  |
+| `cost_usd` | `number` |  |
+| `key` | `string` |  |
+| `models` | `[]string` |  |
+| `sources` | `[]string` |  |
+| `states_ms` | `map[string]integer` |  |
+| `tokens` | [insights.Tokens](#insightstokens) |  |
+| `waiting_ms` | `integer` |  |
+
+### insights.Span
+
+| Field | Type | |
+|---|---|---|
+| `agent` | `string` |  |
+| `end` | `string` |  |
+| `environment` | `string` |  |
+| `kind` | `string` |  |
+| `name` | `string` |  |
+| `pane` | `string` |  |
+| `plan` | `string` |  |
+| `reason` | `string` |  |
+| `start` | `string` |  |
+| `state` | `string` |  |
+| `task` | `string` |  |
+
+### insights.Summary
+
+| Field | Type | |
+|---|---|---|
+| `by` | `string` |  |
+| `from` | `string` |  |
+| `rows` | [\[\]insights.Row](#insightsrow) |  |
+| `to` | `string` |  |
+| `total` | [insights.Row](#insightsrow) |  |
+
+### insights.Tokens
+
+| Field | Type | |
+|---|---|---|
+| `cache_read` | `integer` |  |
+| `cache_write` | `integer` |  |
+| `input` | `integer` |  |
+| `output` | `integer` |  |
+
+### insights.Usage
+
+| Field | Type | |
+|---|---|---|
+| `agent` | `string` |  |
+| `cost_usd` | `number` |  |
+| `environment` | `string` |  |
+| `kind` | `string` |  |
+| `model` | `string` |  |
+| `name` | `string` |  |
+| `pane` | `string` |  |
+| `plan` | `string` |  |
+| `session` | `string` |  |
+| `source` | `string` |  |
+| `task` | `string` |  |
+| `time` | `string` |  |
+| `tokens` | [insights.Tokens](#insightstokens) |  |
+
+### insights.UsageParams
+
+| Field | Type | |
+|---|---|---|
+| `cache_read` | `integer` | input tokens read from a cache |
+| `cache_write` | `integer` | input tokens written to a cache |
+| `cost_usd` | `number` | cost in US dollars, as the agent or provider stated it |
+| `id` | `string` | the agent's pane or process ID |
+| `input` | `integer` | input tokens (not cached) |
+| `model` | `string` | the model the usage is for |
+| `output` | `integer` | output tokens |
+| `session` | `string` | the agent's session (default: the agent): totals are per session |
+| `source` | `string` | where the numbers come from: report (default), transcript, statusline, or a name of the reporter's |
+| `total` | `boolean` | the numbers are the session's totals so far (what grew is recorded), not an increment |
+
+### insights.UsageResult
+
+| Field | Type | |
+|---|---|---|
+| `agent` | [insights.Who](#insightswho) |  |
+| `recorded` | [insights.Usage](#insightsusage) |  |
+
+### insights.Who
+
+| Field | Type | |
+|---|---|---|
+| `agent` | `string` |  |
+| `environment` | `string` |  |
+| `kind` | `string` |  |
+| `name` | `string` |  |
+| `pane` | `string` |  |
+| `plan` | `string` |  |
+| `task` | `string` |  |
 
 ### layout.Node
 

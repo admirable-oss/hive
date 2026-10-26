@@ -11,6 +11,20 @@ vi.mock("./api", () => {
         patch: "diff --git a/login.go b/login.go\n--- a/login.go\n+++ b/login.go\n@@ -1,2 +1,2 @@\n package login\n-old\n+new\n",
       });
     }
+    if (name === "insights") {
+      const row = (key: string, tokens: number | null, cost: number | null, sources: string[]) => ({
+        key, agents: 1, working_ms: 4_800_000, blocked_ms: 720_000, idle_ms: 60_000, waiting_ms: 720_000, asks: 2, tokens, cost_usd: cost, sources,
+      });
+      return Promise.resolve({
+        from: "", to: "", total: row("", 1_250_000, 3.4, ["transcript"]),
+        rows: [row("claude", 1_250_000, 3.4, ["transcript", "statusline"]), row("codex", null, null, [])],
+        asks: [{ who: "Claude Code", kind: "claude", environment: "api", task: "p1/fix", reason: "run the tests?", start: "", waited_ms: 300_000, open: false }],
+        budgets: [
+          { name: "daily", per: "day", key: "today", window: "2026-10-25", used: "$3.40 of $3.00", fraction: 1.13, level: "exceeded", action: "pause", held: true, resumed: false },
+          { name: "api", per: "environment", key: "api", window: "2026-10-25", used: "$0.10 of $5.00", fraction: 0.02, level: "", action: "warn", held: false, resumed: false },
+        ],
+      });
+    }
     return Promise.resolve(name === "manifests" ? [{ id: "claude", name: "Claude Code" }] : "");
   };
   return {
@@ -221,5 +235,36 @@ describe("Workflows", () => {
     expect(calls).toContain("cancelWorkflowRun(77aa0011)");
     fireEvent.click(screen.getByRole("button", { name: "Run 3f2a1b0c again" }));
     expect(calls).toContain("rerunWorkflow(3f2a1b0c)");
+  });
+});
+
+describe("Insights", () => {
+  beforeEach(() => {
+    calls.length = 0;
+    act(() => {
+      store.set((s) => ({ ...s, connection: { state: "connected", session: "default", version: "1.6.0", api_level: 15 } }));
+      store.setUI({ dialog: undefined, sidebar: true });
+      store.setWorkspace(ws);
+    });
+  });
+
+  it("shows today by kind, unknown usage as unknown, and resumes a held budget", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Insights" }));
+    const kinds = await screen.findByRole("region", { name: "Today by kind" });
+    expect(kinds).toHaveTextContent("claude1h 20m12m1m12m (2)1.3M$3.40transcript, statusline");
+    expect(kinds).toHaveTextContent("codex1h 20m12m1m12m (2)unknownunknown-");
+    expect(screen.getByRole("region", { name: "Asks" })).toHaveTextContent("Claude Code · api · p1/fix · waited 5m“run the tests?”");
+    const budgets = screen.getByRole("region", { name: "Budgets" });
+    expect(budgets).toHaveTextContent("daily · $3.40 of $3.00113% exceeded");
+    expect(screen.getAllByRole("button", { name: /^Resume / })).toHaveLength(1); // only the held one
+    fireEvent.click(screen.getByRole("button", { name: "Resume daily" }));
+    expect(calls).toContain("resumeBudget(,daily,)");
+  });
+
+  it("is not offered by a daemon older than insights", () => {
+    act(() => store.set((s) => ({ ...s, connection: { ...s.connection, api_level: 14 } })));
+    render(<App />);
+    expect(screen.queryByRole("button", { name: "Insights" })).toBeNull();
   });
 });

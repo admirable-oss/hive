@@ -70,6 +70,15 @@ command hive environment set
 command hive environment unset
 command hive events
 command hive gc
+command hive insights
+command hive insights (alias insight)
+command hive insights asks
+command hive insights budgets
+command hive insights budgets (alias budget)
+command hive insights export
+command hive insights report
+command hive insights resume
+command hive insights statusline
 command hive integration
 command hive integration install
 command hive integration status
@@ -339,6 +348,32 @@ flag hive environment report-metadata --token stringArray
 flag hive environment report-metadata --ttl duration
 flag hive gc --dry-run bool -n
 flag hive gc --older-than duration
+flag hive insights --by string
+flag hive insights --since string
+flag hive insights --until string
+flag hive insights asks --env string
+flag hive insights asks --kind string
+flag hive insights asks --limit int -n
+flag hive insights asks --since string
+flag hive insights asks --until string
+flag hive insights export --by string
+flag hive insights export --env string
+flag hive insights export --format string
+flag hive insights export --kind string
+flag hive insights export --output string -o
+flag hive insights export --since string
+flag hive insights export --until string
+flag hive insights export --what string
+flag hive insights report --cache-read int64
+flag hive insights report --cache-write int64
+flag hive insights report --cost float64
+flag hive insights report --input int64
+flag hive insights report --model string
+flag hive insights report --output int64
+flag hive insights report --pane string
+flag hive insights report --session string
+flag hive insights report --source string
+flag hive insights report --total bool
 flag hive layout export --output string -o
 flag hive machine add --hive-path string
 flag hive machine add --no-check bool

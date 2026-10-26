@@ -90,6 +90,9 @@ type workspaceState struct {
 	finals   map[string]bool // exited agents whose last screen was asked for
 	claims   map[string]size // tab sizes this client asked for, by tab ID
 	claiming map[string]bool // tab.resize calls in flight
+	// insights is today's insights, as the Overview last read them; nil
+	// until read, and from a daemon without insights.
+	insights *insightsView
 }
 
 func (s *snapshot) env(id string) *environment.Environment {
@@ -440,7 +443,7 @@ type eventsMsg struct {
 }
 
 // eventTypes are the events the UI follows.
-var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", "metadata.", "plugin.", "task.", "branch.", "workflow.", event.Lost}
+var eventTypes = []string{"tab.", "pane.", "layout.", "process.", "environment.", "agent.", "metadata.", "plugin.", "task.", "branch.", "workflow.", "insights.", event.Lost}
 
 // subscribe opens the event stream and reads it until it ends.
 func (a *App) subscribe() {
@@ -525,6 +528,10 @@ func (a *App) apply(ev event.Event) {
 			a.applyWorkflowEvent(ev)
 		}
 		return // and workflow runs
+	}
+	if strings.HasPrefix(ev.Type, "insights.") {
+		a.applyInsightsEvent(ev)
+		return // insights are read, not patched
 	}
 	if s == nil {
 		a.refresh()

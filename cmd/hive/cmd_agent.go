@@ -459,15 +459,27 @@ Hive pane, never starts the daemon, and always exits 0.
 				}
 				return a.emit(x, func() error { return printAgent(a, x) })
 			}
+			in := readHookInput(os.Stdin)
 			if r.SessionID == "" {
-				r.SessionID = hookSessionID(os.Stdin)
+				r.SessionID = in.SessionID
 			}
 			id, err := a.paneArg(args)
 			if err != nil {
 				return nil // not in a Hive pane
 			}
-			if _, err := client.NewAgents(a.client).Report(ctx, id, r); err != nil && a.getenv("HIVE_DEBUG_HOOKS") != "" {
-				fmt.Fprintf(a.errOut, "hive: report-agent: %v\n", err)
+			debug := func(err error) {
+				if err != nil && a.getenv("HIVE_DEBUG_HOOKS") != "" {
+					fmt.Fprintf(a.errOut, "hive: report-agent: %v\n", err)
+				}
+			}
+			_, err = client.NewAgents(a.client).Report(ctx, id, r)
+			debug(err)
+			// A turn ended or a session started (the Stop and SessionStart
+			// hooks): what its transcript says it used so far.
+			if r.State == agent.StateIdle {
+				tctx, cancel := context.WithTimeout(cmd.Context(), hookTranscriptTimeout)
+				defer cancel()
+				debug(a.reportTranscript(tctx, id, in))
 			}
 			return nil
 		},
@@ -481,26 +493,39 @@ Hive pane, never starts the daemon, and always exits 0.
 	return cmd
 }
 
-// hookSessionID reads an agent hook's JSON input and returns its session
-// ID, "" when there is none. It never blocks on a terminal.
-func hookSessionID(in *os.File) string {
+// hookInput is what an agent's hook passes on standard input that Hive
+// reads: the session, and where its transcript is.
+type hookInput struct {
+	SessionID      string
+	TranscriptPath string
+}
+
+// readHookInput reads an agent hook's JSON input; fields it lacks are "".
+// It never blocks on a terminal.
+func readHookInput(in *os.File) hookInput {
+	var h hookInput
 	if fi, err := in.Stat(); err != nil || fi.Mode()&os.ModeCharDevice != 0 {
-		return ""
+		return h
 	}
 	data, err := io.ReadAll(io.LimitReader(in, 1<<20))
 	if err != nil {
-		return ""
+		return h
 	}
 	var v map[string]any
 	if json.Unmarshal(data, &v) != nil {
+		return h
+	}
+	str := func(keys ...string) string {
+		for _, k := range keys {
+			if s, ok := v[k].(string); ok && s != "" {
+				return s
+			}
+		}
 		return ""
 	}
-	for _, k := range []string{"session_id", "sessionId", "thread_id", "thread-id"} {
-		if s, ok := v[k].(string); ok && s != "" {
-			return s
-		}
-	}
-	return ""
+	h.SessionID = str("session_id", "sessionId", "thread_id", "thread-id")
+	h.TranscriptPath = str("transcript_path", "transcriptPath")
+	return h
 }
 
 func printAgent(a *app, x agent.Agent) error {
