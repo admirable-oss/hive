@@ -86,13 +86,14 @@ func lastLines(s string, n int) string {
 	return strings.Join(lines, "\n")
 }
 
-// Forges picks the forge for a remote: a host configured for one, else
-// the built-in hosts (github.com, gitlab.com, and hosts named after
-// GitLab).
+// Forges picks the forge for a remote: a host configured for one, else a
+// plugin's forge for the host, else the built-in hosts (github.com,
+// gitlab.com, and hosts named after GitLab).
 type Forges struct {
 	mu     sync.Mutex
 	byName map[string]Forge
 	hosts  map[string]string // host → forge name
+	lookup func(host string) (Forge, bool)
 }
 
 // DefaultForges returns GitHub and GitLab, running their tools with exec
@@ -113,6 +114,14 @@ func (f *Forges) Register(forge Forge) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.byName[forge.Name()] = forge
+}
+
+// Lookup sets where forges for hosts no configuration routes are found
+// before the built-in ones: plugins' forges, which come and go.
+func (f *Forges) Lookup(fn func(host string) (Forge, bool)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lookup = fn
 }
 
 // Route sends a host's pull requests to the named forge.
@@ -140,6 +149,11 @@ func (f *Forges) For(host string) (Forge, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	name, ok := f.hosts[host]
+	if !ok && f.lookup != nil {
+		if forge, found := f.lookup(host); found {
+			return forge, nil
+		}
+	}
 	if !ok {
 		switch {
 		case host == "github.com" || strings.HasPrefix(host, "github."):

@@ -1812,7 +1812,14 @@ the policy: [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md#publishers-tie
   typed inputs and outputs (`uses = "plugin/step"`); `[[contributes.triggers]]`
   fired with `workflow.trigger` (`[[on]] plugin`) (`TestViewPane`,
   `TestPluginSteps`, `TestPluginTriggers`, `TestM26PluginContributions`).
-- [ ] Plugin forges and issue trackers (delivery step 6, continued).
+- [x] Plugin forges and issue trackers (delivery step 6, continued):
+  `[[contributes.forges]]` behind configured hosts and before the built-in
+  ones, needing `network` for their hosts; `[[contributes.trackers]]`
+  and GitHub built in, `issue.get|search|comment` and `issue.close`
+  (closed to plugins), `hive issue`, `hive task run --from-issue`, a
+  task's `issue` in its pull request and `close_issue` on merge
+  (`TestForgesAndTrackers`, `TestForgesLookup`, `TestCloseMergedIssues`,
+  `TestM26PluginForgeAndTracker`).
 - [ ] RFC 0006 discussed and accepted; then tag `v1.7.0`.
 
 ---

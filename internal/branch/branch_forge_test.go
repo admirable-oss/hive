@@ -158,3 +158,26 @@ func TestBranchPatterns(t *testing.T) {
 		t.Fatalf("unknown placeholder: %v", err)
 	}
 }
+
+// TestForgesLookup: a plugin's forge serves a host no configuration
+// routes, before the built-in forges; a configured route still wins.
+func TestForgesLookup(t *testing.T) {
+	f := branch.DefaultForges(nil)
+	plugin := branch.CommandForge{ForgeName: "plugin:p/gitea", Command: []string{"true"}}
+	f.Lookup(func(host string) (branch.Forge, bool) {
+		if host == "git.example.org" || host == "github.com" {
+			return plugin, true
+		}
+		return nil, false
+	})
+	f.Route("github.com", "github")
+	for host, want := range map[string]string{"git.example.org": "plugin:p/gitea", "github.com": "github", "gitlab.com": "gitlab"} {
+		got, err := f.For(host)
+		if err != nil || got.Name() != want {
+			t.Errorf("%s: %v %v (want %s)", host, got, err, want)
+		}
+	}
+	if _, err := f.For("code.example.net"); !errors.Is(err, branch.ErrNoForge) {
+		t.Fatalf("no forge: %v", err)
+	}
+}

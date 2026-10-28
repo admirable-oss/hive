@@ -101,6 +101,11 @@ socket. Other machines are reached through the user's ssh.
   workflow step gets only the inputs the workflow gives it, and its
   outputs are checked against their declared types; a plugin fires only
   its own triggers, and shared workflows still run only once trusted.
+- **Plugin forges and trackers see what they serve.** A forge gets the
+  pull request it opens (branch, title, body, the worktree's path); a
+  tracker gets the issue operation asked of it. Both need `network` for
+  their hosts. A plugin cannot push, open a pull request or close an
+  issue itself.
 - **Plugin API 1 plugins run as you.** Their capabilities limit what they
   may ask *Hive* to do. They are not isolation unless strict isolation is
   on and available, and it is not available on Windows. A plugin without

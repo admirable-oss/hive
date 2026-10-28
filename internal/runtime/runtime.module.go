@@ -18,6 +18,7 @@ import (
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/insights"
+	"github.com/admirable-oss/hive/internal/issue"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/observer"
@@ -159,7 +160,9 @@ func NewModule(cfg Config) *Module {
 	server.Go(func(ctx context.Context) { forwardEvents(ctx, bus, plugins) })
 	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir(), events: bus, log: gitLog}
 	branchLog := log.With("module", "branch")
-	branches := newBranches(cfg, guardedEnvs, procs, agents, wts, bus, branchLog)
+	issues := newIssues(plugins, bus)
+	links := &issueLinks{issues: issues} // tasks are set once built
+	branches := newBranches(cfg, guardedEnvs, procs, agents, wts, plugins, links, bus, branchLog)
 	wts.branches = branches
 	server.Go(branches.Run)
 	server.Go(func(ctx context.Context) { feedBranches(ctx, branches, guardedEnvs, wts, bus, branchLog) })
@@ -170,6 +173,8 @@ func NewModule(cfg Config) *Module {
 	server.Go(func(ctx context.Context) { feedInsights(ctx, ins, agents, insightTasks, bus) })
 	tasks := newTasks(cfg, ops, agents, bus, ins.Hold, log.With("module", "task"))
 	insightTasks.svc = tasks.svc
+	links.tasks = tasks.svc
+	server.Go(func(ctx context.Context) { closeMergedIssues(ctx, bus, links, log.With("module", "issue")) })
 	server.Go(tasks.run)
 	workflows := newWorkflows(cfg, tasks.svc, guardedEnvs, agents, plugins, bus, log.With("module", "workflow"))
 	server.Go(workflows.Run)
@@ -209,6 +214,7 @@ func NewModule(cfg Config) *Module {
 	task.Register(router, tasks.svc)
 	branch.Register(router, branches)
 	workflow.Register(router, workflows)
+	issue.Register(router, issues)
 	registerWorkflowTriggers(router, plugins, workflows)
 	insights.Register(router, ins)
 	registerSession(router, keep)

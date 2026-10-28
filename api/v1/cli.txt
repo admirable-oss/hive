@@ -83,6 +83,12 @@ command hive integration
 command hive integration install
 command hive integration status
 command hive integration uninstall
+command hive issue
+command hive issue (alias issues)
+command hive issue close
+command hive issue comment
+command hive issue get
+command hive issue search
 command hive layout
 command hive layout apply
 command hive layout export
@@ -380,6 +386,9 @@ flag hive insights report --pane string
 flag hive insights report --session string
 flag hive insights report --source string
 flag hive insights report --total bool
+flag hive issue close --comment string
+flag hive issue search --limit int -n
+flag hive issue search --tracker string
 flag hive layout export --output string -o
 flag hive machine add --hive-path string
 flag hive machine add --no-check bool
@@ -530,7 +539,9 @@ flag hive task report --screen int
 flag hive task run --approve bool
 flag hive task run --base string
 flag hive task run --check stringArray
+flag hive task run --close-issue bool
 flag hive task run --env string -e
+flag hive task run --from-issue string
 flag hive task run --id string
 flag hive task run --isolate bool
 flag hive task run --kind string

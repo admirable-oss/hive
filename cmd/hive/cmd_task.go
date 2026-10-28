@@ -74,6 +74,8 @@ const planFileHelp = `A plan file is TOML:
   command = ["go", "test", "./..."]
   labels = ["linux"]        # on a machine with these labels (or machine = "…")
   retries = 1
+  issue = "linear:HIV-42"   # the issue it works on: its pull request names it
+  close_issue = true        # and closes it when the branch merges
 
 until = "done" ends a task when its agent finishes the turn the prompt began,
 "idle" when it is ready for another prompt, "match" when its screen matches
@@ -84,16 +86,19 @@ skips that); it is part of the task's result.`
 
 func newTaskRunCmd(a *app) *cobra.Command {
 	var (
-		s       task.Spec
-		name    string
-		timeout time.Duration
-		wait    bool
+		s         task.Spec
+		name      string
+		timeout   time.Duration
+		wait      bool
+		fromIssue string
 	)
 	cmd := needsDaemon(&cobra.Command{
 		Use:   "run [plan.toml | -]",
 		Short: "Run a plan file, or one task given by flags",
-		Long: `Run a plan, from a file (- reads standard input) or as one task given by
---prompt. It prints the plan's ID at once; --wait waits for it to finish and
+		Long: `Run a plan, from a file (- reads standard input), as one task given by
+--prompt, or as one task for an issue (--from-issue tracker:key: its title and
+text are the prompt, with --prompt added; --close-issue closes it when the
+task's branch merges). It prints the plan's ID at once; --wait waits for it to finish and
 prints its report, exiting 1 when a task did not succeed.
 
 ` + planFileHelp,
@@ -105,6 +110,17 @@ prints its report, exiting 1 when a task did not succeed.
 				plan task.Plan
 				err  error
 			)
+			if fromIssue != "" {
+				if len(args) == 1 {
+					return &usageError{errIssueAndFile}
+				}
+				i, err := client.NewIssues(a.client).Get(ctx, fromIssue)
+				if err != nil {
+					return err
+				}
+				s.Prompt, s.Title, s.Issue = issuePrompt(i, s.Prompt), i.Title, i.Ref
+				name = cmpStr(name, i.Ref)
+			}
 			switch {
 			case len(args) == 1 && cmd.Flags().Changed("prompt"):
 				return &usageError{errors.New("give a plan file or --prompt, not both")}
@@ -154,6 +170,8 @@ prints its report, exiting 1 when a task did not succeed.
 	f.StringVar(&s.Machine, "machine", "", "run on this saved machine (local: this one)")
 	f.StringArrayVar(&s.Labels, "label", nil, "run on a machine with this label (repeat for more)")
 	f.IntVar(&s.Retries, "retries", 0, "retry a failed attempt this many times")
+	f.StringVar(&fromIssue, "from-issue", "", "run one task for this issue (tracker:key): its title and text are the prompt")
+	f.BoolVar(&s.CloseIssue, "close-issue", false, "close the issue when the task's branch merges (with --isolate or --worktree)")
 	f.StringVar(&name, "name", "", "the plan's name")
 	f.BoolVar(&wait, "wait", false, "wait for the plan to finish and print its report")
 	return cmd

@@ -76,6 +76,19 @@ Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). 
   `plugin.view.click` (closed to plugins) and `workflow.trigger`;
   `pane.Spec` and `pane.Pane` gain `view`, workflows gain `problems`.
 
+### Forges and issue trackers
+
+- `[[contributes.forges]]` opens pull requests for the hosts a plugin
+  lists, through its command: `hive branch pr` uses a plugin forge for a
+  remote no `[[branches.forge]]` routes, before GitHub and GitLab.
+- `[[contributes.trackers]]` adds an issue tracker. Issues are named
+  `<tracker>:<key>`; GitHub's (`github:owner/repo#42`, through `gh`) are
+  built in. `hive issue get|search|comment|close` and the `issue.*` wire
+  methods read and update them; `issue.close` is closed to plugins.
+- `hive task run --from-issue <ref>` starts a task from an issue. A task's
+  `issue` is named in its pull request, and `close_issue = true` closes it
+  when the task's branch merges.
+
 ### Publishing
 
 - `hive plugin publish` tags, checksums, signs (`ssh-keygen -Y sign`, with

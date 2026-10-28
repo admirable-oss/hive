@@ -2125,6 +2125,123 @@
       ],
       "type": "object"
     },
+    "issue.CloseParams": {
+      "properties": {
+        "comment": {
+          "description": "a comment to add as it closes",
+          "type": "string"
+        },
+        "ref": {
+          "description": "tracker:key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "issue.CommentParams": {
+      "properties": {
+        "body": {
+          "description": "the comment, as the tracker formats it (Markdown on GitHub)",
+          "type": "string"
+        },
+        "ref": {
+          "description": "tracker:key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "body"
+      ],
+      "type": "object"
+    },
+    "issue.Issue": {
+      "properties": {
+        "assignees": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "body": {
+          "type": "string"
+        },
+        "key": {
+          "description": "the tracker's own name for it: HIV-42, owner/repo#42",
+          "type": "string"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ref": {
+          "description": "tracker:key, as Hive names it",
+          "type": "string"
+        },
+        "state": {
+          "description": "open or closed, as the tracker says",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "tracker": {
+          "description": "the tracker: github, or a plugin's",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "tracker",
+        "key",
+        "title"
+      ],
+      "type": "object"
+    },
+    "issue.RefParams": {
+      "properties": {
+        "ref": {
+          "description": "tracker:key (linear:HIV-42, github:owner/repo#42)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "issue.SearchParams": {
+      "properties": {
+        "limit": {
+          "description": "at most this many (default 20, at most 100)",
+          "type": "integer"
+        },
+        "query": {
+          "description": "what to search for, in the tracker's own syntax",
+          "type": "string"
+        },
+        "tracker": {
+          "description": "only this tracker (default: every one)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
     "layout.Node": {
       "properties": {
         "first": {
@@ -5628,6 +5745,10 @@
           "description": "where a new worktree branch starts (default HEAD)",
           "type": "string"
         },
+        "close_issue": {
+          "description": "close the issue when the task's branch merges",
+          "type": "boolean"
+        },
         "command": {
           "description": "with until=command: the command whose exit status decides",
           "items": {
@@ -5653,6 +5774,10 @@
         "isolate": {
           "description": "run in a new worktree on hive/\u003cplan\u003e/\u003ctask\u003e unless worktree names a branch",
           "type": "boolean"
+        },
+        "issue": {
+          "description": "the issue it works on, as tracker:key (linear:HIV-42, github:owner/repo#42)",
+          "type": "string"
         },
         "keep_agent": {
           "description": "leave the agent running when the task ends",
@@ -7465,6 +7590,46 @@
       },
       "result": {
         "$ref": "#/$defs/insights.UsageResult"
+      }
+    },
+    {
+      "name": "issue.close",
+      "params": {
+        "$ref": "#/$defs/issue.CloseParams"
+      },
+      "result": {
+        "$ref": "#/$defs/issue.Issue"
+      }
+    },
+    {
+      "name": "issue.comment",
+      "params": {
+        "$ref": "#/$defs/issue.CommentParams"
+      },
+      "result": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "issue.get",
+      "params": {
+        "$ref": "#/$defs/issue.RefParams"
+      },
+      "result": {
+        "$ref": "#/$defs/issue.Issue"
+      }
+    },
+    {
+      "name": "issue.search",
+      "params": {
+        "$ref": "#/$defs/issue.SearchParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/issue.Issue"
+        },
+        "type": "array"
       }
     },
     {

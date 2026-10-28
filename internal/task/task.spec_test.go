@@ -176,3 +176,25 @@ func FuzzParsePlan(f *testing.F) {
 		}
 	})
 }
+
+// TestPlanIssues: a task names its issue as tracker:key; close_issue
+// needs an issue and a branch, and holds for every task from [defaults].
+func TestPlanIssues(t *testing.T) {
+	head := "[defaults]\nkind = \"claude\"\nenvironment = \"api\"\n"
+	spec, err := task.ParsePlan([]byte(head+"isolate = true\nclose_issue = true\n[[task]]\nid = \"a\"\nprompt = \"fix\"\nissue = \"linear:HIV-42\"\n"), "plan.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan, err := task.Validate(spec); err != nil || plan[0].Issue != "linear:HIV-42" || !plan[0].CloseIssue {
+		t.Fatalf("the task: %+v %v", plan, err)
+	}
+	for name, body := range map[string]string{
+		"a bad ref":            "[[task]]\nid = \"a\"\nprompt = \"fix\"\nissue = \"HIV-42\"\n",
+		"close without issue":  "[[task]]\nid = \"a\"\nprompt = \"fix\"\nisolate = true\nclose_issue = true\n",
+		"close without branch": "[[task]]\nid = \"a\"\nprompt = \"fix\"\nissue = \"linear:HIV-42\"\nclose_issue = true\n",
+	} {
+		if _, err := task.ParsePlan([]byte(head+body), name); !errors.Is(err, task.ErrInvalid) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

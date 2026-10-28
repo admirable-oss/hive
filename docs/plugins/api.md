@@ -505,6 +505,59 @@ the runs it started. Workflows that name it in `[[on]]` with `plugin =
 "<plugin>/deploy-finished"` run when their `match` fits the payload; a
 shared workflow runs only once it is trusted, as for every trigger.
 
+### Forges
+
+A plugin can open pull requests on code hosting Hive does not know:
+
+```toml
+[permissions]
+required = ["network"]
+[permissions.network]
+hosts = ["git.example.org:443", "*.gitea.io:443"]
+
+[[contributes.forges]]
+name = "gitea"
+hosts = ["git.example.org", "*.gitea.io"]
+command = ["./bin/forge"]
+```
+
+- `hive branch pr` picks a repository's forge as before: a `[[branches.forge]]`
+  host first, then a plugin forge whose `hosts` match the remote (an exact
+  host before a `*.domain`), then GitHub and GitLab. It is named
+  `plugin:<plugin>/<name>`.
+- The command reads `{"op": "pr.create", "forge": …, "dir", "remote",
+  "remote_url", "host", "project", "head", "base", "title", "body",
+  "draft"}` on stdin and answers `{"url": "https://…", "number": 5}`.
+- A forge needs `network`, and each of its hosts among
+  `[permissions.network] hosts` (port 443) when the plugin lists them. A
+  WebAssembly plugin has no network, so it cannot be a forge. Plugins
+  still cannot push or open pull requests themselves: `branch.push` and
+  `branch.pr` stay closed to them.
+
+### Issue trackers
+
+```toml
+[[contributes.trackers]]
+name = "linear"
+command = ["./bin/linear"]
+```
+
+- Issues are named `<tracker>:<key>`: `linear:HIV-42`, or
+  `github:owner/repo#42` for GitHub's, which is built in (through `gh`), so
+  no plugin may call its tracker `github`. A tracker needs `network`.
+- The command reads `{"op", "tracker", "key", "query", "limit", "body",
+  "comment"}` on stdin. For `get` and `close` it answers an issue,
+  `{"key", "title", "body", "state", "url", "labels", "assignees"}`; for
+  `search`, `{"issues": […]}`; for `comment`, anything.
+- The wire methods are `issue.get {ref}` and `issue.search {tracker?,
+  query, limit?}` (`hive.read`), `issue.comment {ref, body}` (`hive.write`),
+  and `issue.close {ref, comment?}`, which no plugin may call. Each comment
+  and close publishes `issue.changed`.
+- `hive issue get|search|comment|close` call them, and `hive task run
+  --from-issue linear:HIV-42` starts a task from an issue. A task's
+  `issue` is named in the default body of its branch's pull request, and
+  `close_issue = true` closes the issue when the branch merges.
+
 ## Lifecycle and health
 
 | State | Meaning |

@@ -146,6 +146,7 @@ var methodCapabilities = map[string]string{
 	"process.logs": CapHiveRead, "runtime.status": CapHiveRead, "tab.get": CapHiveRead, "tab.list": CapHiveRead,
 	"terminal.snapshot": CapHiveRead, "terminal.frames": CapHiveRead, "terminal.graphics": CapHiveRead,
 	"worktree.list": CapHiveRead, "plugin.list": CapHiveRead, "plugin.contributions": CapHiveRead,
+	"issue.get": CapHiveRead, "issue.search": CapHiveRead, "issue.comment": CapHiveWrite,
 	"plugin.views": CapHiveRead, "plugin.view.set": CapHiveWrite, "plugin.view.clear": CapHiveWrite,
 	"observer.activity": CapHiveRead, "task.list": CapHiveRead, "task.get": CapHiveRead, "task.wait": CapHiveRead,
 	"branch.list": CapHiveRead, "branch.get": CapHiveRead, "branch.check": CapHiveRead, "branch.diff": CapHiveRead,
@@ -195,6 +196,9 @@ var closedMethods = []string{
 	"branch.push", "branch.pr", "workflow.trust", "insights.resume",
 	// A click is a person's: a plugin runs its own actions directly.
 	"plugin.view.click",
+	// A plugin closes no tracker's work: issues close when a task merges,
+	// or by a person.
+	"issue.close",
 }
 
 // Closed reports whether method is classified as callable by no plugin.

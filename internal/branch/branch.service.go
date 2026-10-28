@@ -68,6 +68,16 @@ type Ports struct {
 	// Forges open pull requests; nil uses DefaultForges with the git
 	// binary's environment.
 	Forges *Forges
+	// Issues names the issue a task's branch works on, for its pull
+	// request; nil names none.
+	Issues Issues
+}
+
+// Issues finds the issue a branch's task works on.
+type Issues interface {
+	// For returns how a pull request names the issue of a plan's task (a
+	// URL, or tracker:key), or "".
+	For(ctx context.Context, plan, task string) string
 }
 
 // Cleanup is what happens to a branch's worktree once it has merged.

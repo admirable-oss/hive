@@ -450,6 +450,44 @@ Result: [insights.Summary](#insightssummary)
 
 Result: [insights.UsageResult](#insightsusageresult)
 
+## issue
+
+### `issue.close`
+
+| Param | Type | |
+|---|---|---|
+| `comment` | `string` | a comment to add as it closes |
+| `ref` | `string` | tracker:key |
+
+Result: [issue.Issue](#issueissue)
+
+### `issue.comment`
+
+| Param | Type | |
+|---|---|---|
+| `body` | `string` | the comment, as the tracker formats it (Markdown on GitHub) |
+| `ref` | `string` | tracker:key |
+
+Result: `object`
+
+### `issue.get`
+
+| Param | Type | |
+|---|---|---|
+| `ref` | `string` | tracker:key (linear:HIV-42, github:owner/repo#42) |
+
+Result: [issue.Issue](#issueissue)
+
+### `issue.search`
+
+| Param | Type | |
+|---|---|---|
+| `limit` | `integer` | at most this many (default 20, at most 100) |
+| `query` | `string` | what to search for, in the tracker's own syntax |
+| `tracker` | `string` | only this tracker (default: every one) |
+
+Result: [\[\]issue.Issue](#issueissue)
+
 ## layout
 
 ### `layout.apply`
@@ -2112,6 +2150,49 @@ Result: [protocol.Empty](#protocolempty)
 | `plan` | `string` |  |
 | `task` | `string` |  |
 
+### issue.CloseParams
+
+| Field | Type | |
+|---|---|---|
+| `comment` | `string` | a comment to add as it closes |
+| `ref` | `string` | tracker:key |
+
+### issue.CommentParams
+
+| Field | Type | |
+|---|---|---|
+| `body` | `string` | the comment, as the tracker formats it (Markdown on GitHub) |
+| `ref` | `string` | tracker:key |
+
+### issue.Issue
+
+| Field | Type | |
+|---|---|---|
+| `assignees` | `[]string` |  |
+| `body` | `string` |  |
+| `key` | `string` | the tracker's own name for it: HIV-42, owner/repo#42 |
+| `labels` | `[]string` |  |
+| `ref` | `string` | tracker:key, as Hive names it |
+| `state` | `string` | open or closed, as the tracker says |
+| `title` | `string` |  |
+| `tracker` | `string` | the tracker: github, or a plugin's |
+| `updated_at` | `string` |  |
+| `url` | `string` |  |
+
+### issue.RefParams
+
+| Field | Type | |
+|---|---|---|
+| `ref` | `string` | tracker:key (linear:HIV-42, github:owner/repo#42) |
+
+### issue.SearchParams
+
+| Field | Type | |
+|---|---|---|
+| `limit` | `integer` | at most this many (default 20, at most 100) |
+| `query` | `string` | what to search for, in the tracker's own syntax |
+| `tracker` | `string` | only this tracker (default: every one) |
+
 ### layout.Node
 
 | Field | Type | |
@@ -3443,11 +3524,13 @@ An object.
 | `approve` | `boolean` | wait for a person's approval before starting |
 | `args` | `[]string` | extra command-line arguments for the agent |
 | `base` | `string` | where a new worktree branch starts (default HEAD) |
+| `close_issue` | `boolean` | close the issue when the task's branch merges |
 | `command` | `[]string` | with until=command: the command whose exit status decides |
 | `env` | `map[string]string` | extra environment variables for the agent |
 | `environment_id` | `string` | the environment to run in, or to make a worktree of |
 | `id` | `string` | the task's name within its plan (letters, digits, '.', '_', '-') |
 | `isolate` | `boolean` | run in a new worktree on hive/<plan>/<task> unless worktree names a branch |
+| `issue` | `string` | the issue it works on, as tracker:key (linear:HIV-42, github:owner/repo#42) |
 | `keep_agent` | `boolean` | leave the agent running when the task ends |
 | `kind` | `string` | the agent: claude, codex, … (see agent.manifests) |
 | `labels` | `[]string` | run on a machine that has all of these labels |

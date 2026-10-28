@@ -86,6 +86,14 @@ insights.summary params: insights.QueryParams
 insights.summary result: insights.Summary
 insights.usage params: insights.UsageParams
 insights.usage result: insights.UsageResult
+issue.close params: issue.CloseParams
+issue.close result: issue.Issue
+issue.comment params: issue.CommentParams
+issue.comment result: object
+issue.get params: issue.RefParams
+issue.get result: issue.Issue
+issue.search params: issue.SearchParams
+issue.search result: []issue.Issue
 layout.apply params: pane.LayoutSpec
 layout.apply result: pane.ApplyResult
 layout.export params: pane.exportParams
@@ -136,6 +144,10 @@ method insights.export
 method insights.resume
 method insights.summary
 method insights.usage
+method issue.close
+method issue.comment
+method issue.get
+method issue.search
 method layout.apply
 method layout.export
 method metadata.list
@@ -852,6 +864,29 @@ type insights.Who.pane: string
 type insights.Who.plan: string
 type insights.Who.task: string
 type insights.Who: object
+type issue.CloseParams.comment: string
+type issue.CloseParams.ref: string
+type issue.CloseParams: object
+type issue.CommentParams.body: string
+type issue.CommentParams.ref: string
+type issue.CommentParams: object
+type issue.Issue.assignees: []string
+type issue.Issue.body: string
+type issue.Issue.key: string
+type issue.Issue.labels: []string
+type issue.Issue.ref: string
+type issue.Issue.state: string
+type issue.Issue.title: string
+type issue.Issue.tracker: string
+type issue.Issue.updated_at: string
+type issue.Issue.url: string
+type issue.Issue: object
+type issue.RefParams.ref: string
+type issue.RefParams: object
+type issue.SearchParams.limit: integer
+type issue.SearchParams.query: string
+type issue.SearchParams.tracker: string
+type issue.SearchParams: object
 type layout.Node.first: layout.Node
 type layout.Node.pane: string
 type layout.Node.ratio: number
@@ -1620,11 +1655,13 @@ type task.RunParams: object
 type task.Spec.approve: boolean
 type task.Spec.args: []string
 type task.Spec.base: string
+type task.Spec.close_issue: boolean
 type task.Spec.command: []string
 type task.Spec.env: map[string]string
 type task.Spec.environment_id: string
 type task.Spec.id: string
 type task.Spec.isolate: boolean
+type task.Spec.issue: string
 type task.Spec.keep_agent: boolean
 type task.Spec.kind: string
 type task.Spec.labels: []string

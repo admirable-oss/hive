@@ -206,6 +206,9 @@ func (m *Manifest) checkV2Contributions(requested map[string]bool) error {
 		if err := needNetwork("forges", f.Name); err != nil {
 			return err
 		}
+		if err := m.checkForgeHosts(f); err != nil {
+			return err
+		}
 	}
 	for _, t := range c.Trackers {
 		if err := name("trackers", t.Name); err != nil {

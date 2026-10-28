@@ -143,3 +143,70 @@ count = { type = "integer" }
 		t.Fatalf("an unknown step: %v", err)
 	}
 }
+
+const forgeManifest = `api = 2
+id = "gitea"
+version = "1.0.0"
+
+[permissions]
+required = ["network"]
+[permissions.network]
+hosts = ["git.example.org:443", "*.gitea.io:443"]
+
+[[contributes.forges]]
+name = "gitea"
+hosts = ["git.example.org", "*.gitea.io"]
+command = ["sh", "-c", "read -r in; case \"$in\" in *'\"head\":\"feature\"'*'\"op\":\"pr.create\"'*) echo '{\"url\":\"https://git.example.org/o/r/pulls/9\",\"number\":9}';; *) echo \"$in\" >&2; exit 1;; esac"]
+
+[[contributes.trackers]]
+name = "linear"
+command = ["sh", "-c", "read -r in; case \"$in\" in *'\"op\":\"get\"'*) echo '{\"title\":\"Fix it\",\"state\":\"open\"}';; *'\"op\":\"search\"'*) echo '{\"issues\":[{\"key\":\"HIV-1\",\"title\":\"One\"}]}';; *) echo '{}';; esac"]
+`
+
+// TestForgesAndTrackers: a plugin's forge serves the hosts it lists (an
+// exact host before a wildcard) through its command, and its tracker
+// answers operations; their declarations need the network for them.
+func TestForgesAndTrackers(t *testing.T) {
+	h, _, _ := startHost(t, forgeManifest, map[string]string{}, HostConfig{Isolation: IsolationStandard})
+	for host, want := range map[string]bool{"git.example.org": true, "code.gitea.io": true, "gitea.io": false, "github.com": false} {
+		if _, ok := h.ForgeFor(host); ok != want {
+			t.Errorf("forge for %s: %v", host, ok)
+		}
+	}
+	f, _ := h.ForgeFor("GIT.example.org")
+	if f.Name() != "plugin:gitea/gitea" {
+		t.Fatalf("name: %s", f.Name())
+	}
+	raw, err := h.CallForge(context.Background(), f, ForgeOpCreate, map[string]any{"head": "feature", "base": "main"})
+	var res ForgeResult
+	if err != nil || json.Unmarshal(raw, &res) != nil || res.Number != 9 {
+		t.Fatalf("pr.create: %s %v", raw, err)
+	}
+	if _, err := h.CallForge(context.Background(), f, ForgeOpCreate, map[string]any{"head": "other"}); !errors.Is(err, ErrCall) || !strings.Contains(err.Error(), "pr.create") {
+		t.Fatalf("a failing forge says what it got: %v", err)
+	}
+	tr, ok := h.TrackerFor("linear")
+	if !ok || strings.Join(h.TrackerNames(), ",") != "linear" {
+		t.Fatalf("tracker: %v %v", ok, h.TrackerNames())
+	}
+	if raw, err := h.CallTracker(context.Background(), tr, TrackerRequest{Op: TrackerOpGet, Key: "HIV-1"}); err != nil || !strings.Contains(string(raw), "Fix it") {
+		t.Fatalf("get: %s %v", raw, err)
+	}
+
+	for name, edit := range map[string][2]string{
+		"no network":         {`required = ["network"]`, `required = ["hive.read"]`},
+		"host not reachable": {`hosts = ["git.example.org:443", "*.gitea.io:443"]`, `hosts = ["git.example.org:443"]`},
+		"a port in hosts":    {`hosts = ["git.example.org", "*.gitea.io"]`, `hosts = ["git.example.org:8443"]`},
+		"github is built in": {`name = "linear"`, `name = "github"`},
+		"api 1":              {`api = 2`, `api = 1`},
+	} {
+		if _, err := ParseManifest([]byte(strings.Replace(forgeManifest, edit[0], edit[1], 1))); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	// A wildcard for a parent domain covers the forge's wildcard.
+	parent := strings.Replace(forgeManifest, `"*.gitea.io:443"`, `"*.io:443"`, 1)
+	if _, err := ParseManifest([]byte(parent)); err != nil {
+		t.Fatalf("a parent wildcard: %v", err)
+	}
+}
