@@ -204,7 +204,7 @@ func newPluginValidateCmd(a *app) *cobra.Command {
 				}
 			}
 			switch {
-			case manifest.API >= 2 && manifest.Isolation != plugin.IsolationNone && !plugin.SandboxAvailable():
+			case manifest.API >= 2 && !manifest.Wasm() && manifest.Isolation != plugin.IsolationNone && !plugin.SandboxAvailable():
 				fmt.Fprintf(a.errOut, "warning: this system has no sandbox for plugins (sandbox-exec on macOS, bwrap on Linux): the plugin runs here only once granted %s\n", plugin.CapUnconfined)
 			case manifest.Isolation == "strict" && !plugin.SandboxAvailable():
 				fmt.Fprintln(a.errOut, "warning: isolation = \"strict\" needs sandbox-exec (macOS) or bwrap (Linux), which this system lacks")

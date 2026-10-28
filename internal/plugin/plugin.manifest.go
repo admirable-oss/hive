@@ -180,6 +180,9 @@ var ActionContexts = []string{"pane", "agent", "environment", "session"}
 // Runtime is an executable requirement checked before installation and when
 // loading an installed plugin.
 type Runtime struct {
+	// Kind "wasm" (plugin API 2) says its commands are WebAssembly modules
+	// in its package, run by Hive itself; Command is then empty.
+	Kind       string `toml:"kind" json:"kind,omitempty"`
 	Command    string `toml:"command" json:"command"`
 	MinVersion string `toml:"min_version" json:"min_version,omitempty"`
 }
@@ -417,7 +420,16 @@ func (m *Manifest) check() error {
 			return fmt.Errorf("platforms: %q (want darwin, linux or windows)", p)
 		}
 	}
+	if err := m.checkWasm(); err != nil {
+		return err
+	}
 	for i, r := range m.Runtimes {
+		if r.Kind == RuntimeWasm {
+			continue
+		}
+		if r.Kind != "" {
+			return fmt.Errorf("runtime[%d]: kind %q (want wasm, or none for a program)", i, r.Kind)
+		}
 		if !runtimeCommand.MatchString(r.Command) {
 			return fmt.Errorf("runtime[%d]: invalid command %q", i, r.Command)
 		}
@@ -501,6 +513,9 @@ func (m *Manifest) Supported(ctx context.Context, hiveVersion string) error {
 		return fmt.Errorf("plugin %s supports hive through %s (this is %s)", m.ID, m.MaxHiveVersion, hiveVersion)
 	}
 	for _, r := range m.Runtimes {
+		if r.Kind == RuntimeWasm {
+			continue // Hive runs it
+		}
 		path, err := exec.LookPath(r.Command)
 		if err != nil {
 			return fmt.Errorf("plugin %s needs %s%s on PATH", m.ID, r.Command, minVersionLabel(r.MinVersion))
@@ -673,6 +688,8 @@ func (m *Manifest) Preview(source string) string {
 		}
 	}
 	switch {
+	case m.Wasm():
+		b.WriteString("  runs as WebAssembly inside Hive: no network, no programs, only its own data and settings\n")
 	case m.API >= 2 && m.Isolation == IsolationNone:
 		fmt.Fprintf(&b, "  runs UNCONFINED, outside the sandbox: %s\n", m.IsolationReason)
 	case m.API >= 2:

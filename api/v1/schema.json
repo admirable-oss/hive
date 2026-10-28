@@ -3948,6 +3948,9 @@
         "command": {
           "type": "string"
         },
+        "kind": {
+          "type": "string"
+        },
         "min_version": {
           "type": "string"
         }

@@ -140,6 +140,9 @@ type HostConfig struct {
 	// Launcher is the hive binary, which sets up a plugin API 2 sandbox
 	// from the inside on Linux.
 	Launcher string
+	// Call performs a daemon method for a Wasm plugin, with its
+	// capabilities checked as on its socket.
+	Call HiveCall
 	// Workspaces lists the directories of the environments, for
 	// filesystem.read:workspace and filesystem.write:workspace.
 	Workspaces func(ctx context.Context) []string
@@ -177,6 +180,7 @@ type Host struct {
 	running sync.WaitGroup
 	runSeq  uint64
 	content contentStore
+	wasm    wasmHost
 }
 
 type loaded struct {
@@ -185,8 +189,10 @@ type loaded struct {
 	strict bool
 	// confined is a plugin API 2 plugin in its sandbox: reads, programs
 	// and hosts limited. exec are the programs it may run, resolved when
-	// it loaded; proxy reaches the hosts it lists.
+	// it loaded; proxy reaches the hosts it lists. wasm is a plugin whose
+	// commands are WebAssembly modules Hive runs itself.
 	confined bool
+	wasm     bool
 	exec     []string
 	proxy    *netProxy
 	problem  string // a load-time problem: it runs nothing
@@ -247,6 +253,7 @@ func (h *Host) Run(ctx context.Context) {
 				h.unload(id)
 			}
 			h.running.Wait()
+			h.wasm.close(context.WithoutCancel(ctx))
 			return
 		case <-t.C:
 			h.tick()
@@ -440,6 +447,9 @@ func (h *Host) unload(id string) {
 	if l.proxy != nil {
 		l.proxy.Close()
 	}
+	if l.wasm {
+		h.wasm.forget(l.Dir)
+	}
 	if l.closer != nil {
 		l.logMu.Lock()
 		_ = l.closer.Close()
@@ -484,7 +494,10 @@ func (h *Host) statusOfLocked(l *loaded) Status {
 		st.API = l.Manifest.EffectiveAPI()
 	}
 	st.Sandbox = SandboxNone
-	if l.strict {
+	switch {
+	case l.wasm:
+		st.Isolation, st.Sandbox = IsolationStrict, SandboxWasm
+	case l.strict:
 		st.Isolation, st.Sandbox = IsolationStrict, sandboxName()
 	}
 	st.Health.Warnings = slices.Clone(l.health.Warnings)

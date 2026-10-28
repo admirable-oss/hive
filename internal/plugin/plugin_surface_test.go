@@ -13,7 +13,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -205,71 +204,6 @@ func TestEveryMethodIsClassified(t *testing.T) {
 }
 
 // ─── host ────────────────────────────────────────────────────────────────
-
-type published struct {
-	mu     sync.Mutex
-	events []string
-}
-
-func (p *published) publish(typ string, _ any) {
-	p.mu.Lock()
-	p.events = append(p.events, typ)
-	p.mu.Unlock()
-}
-
-func (p *published) count(typ string) int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	n := 0
-	for _, e := range p.events {
-		if e == typ {
-			n++
-		}
-	}
-	return n
-}
-
-// startHost links manifest (with files) and runs a host over it.
-func startHost(t *testing.T, manifest string, files map[string]string, cfg HostConfig) (*Host, *Store, *published) {
-	t.Helper()
-	dir := writePlugin(t, manifest, files, false)
-	s := NewStore(filepath.Join(t.TempDir(), "plugins"))
-	if _, _, err := s.Link(context.Background(), dir, "dev"); err != nil {
-		t.Fatal(err)
-	}
-	pub := &published{}
-	if cfg.Version == "" {
-		cfg.Version = "dev"
-	}
-	cfg.Store, cfg.Publish = s, pub.publish
-	h := NewHost(cfg)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { h.Run(ctx); close(done) }()
-	t.Cleanup(func() { cancel(); <-done })
-	waitFor(t, "the host to load", func() bool { return len(h.Status()) > 0 })
-	return h, s, pub
-}
-
-func waitFor(t *testing.T, what string, ok func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for !ok() {
-		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for %s", what)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-func statusOf(h *Host, id string) Status {
-	for _, s := range h.Status() {
-		if s.ID == id {
-			return s
-		}
-	}
-	return Status{}
-}
 
 func TestHostHealthReadinessAndCrashLoop(t *testing.T) {
 	m := "api = 1\nid = \"crashy\"\nversion = \"1.0.0\"\n[[startup]]\ncommand = [\"sh\", \"-c\", \"exit 4\"]\nrestart = true\n"
@@ -612,4 +546,16 @@ command = ["./probe.sh"]
 	if _, err := os.Stat(outside); err == nil {
 		t.Fatal("a strict plugin wrote outside its directories")
 	}
+}
+
+func (p *published) count(typ string) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := 0
+	for _, e := range p.events {
+		if e == typ {
+			n++
+		}
+	}
+	return n
 }

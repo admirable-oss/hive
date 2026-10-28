@@ -1236,6 +1236,7 @@ type plugin.RunInfo.id: string
 type plugin.RunInfo.started: string
 type plugin.RunInfo: object
 type plugin.Runtime.command: string
+type plugin.Runtime.kind: string
 type plugin.Runtime.min_version: string
 type plugin.Runtime: object
 type plugin.Setting.default: any

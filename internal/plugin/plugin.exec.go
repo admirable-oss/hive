@@ -97,6 +97,15 @@ func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string,
 	for key, value := range extra {
 		vars[key] = value
 	}
+	if l.wasm {
+		var w io.Writer = pluginLog{l}
+		if also != nil {
+			w = io.MultiWriter(w, also)
+		}
+		h.running.Add(1)
+		defer h.running.Done()
+		return h.runWasm(ctx, l, argv, ctxJSON, vars, w, data)
+	}
 	env := h.cfg.Env(vars)
 	full := append([]string{path}, argv[1:]...)
 	if l.strict {

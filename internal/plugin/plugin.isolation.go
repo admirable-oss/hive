@@ -29,6 +29,11 @@ func (h *Host) isolate(l *loaded, m *Manifest) string {
 		}
 		return ""
 	}
+	if m.Wasm() {
+		// Confined by the runtime itself, on every system.
+		l.wasm = true
+		return ""
+	}
 	unconfined := slices.Contains(l.grant.Effective, CapUnconfined)
 	switch {
 	case cfg == IsolationStrict && !SandboxAvailable():

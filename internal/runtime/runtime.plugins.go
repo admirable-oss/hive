@@ -81,8 +81,17 @@ func newPluginHost(cfg Config, log *slog.Logger, router *protocol.Router, bus *e
 		Serve:         sockets.serve,
 		SocketPath:    cfg.SocketPath,
 		Launcher:      launcher,
-		Workspaces:    workspaces,
-		Publish:       bus.Publish,
+		// A Wasm plugin's calls are checked as its socket's are.
+		Call: func(ctx context.Context, id, method string, params json.RawMessage) (json.RawMessage, error) {
+			h := scopedHandler{id: id, router: router, granted: func(id string) []string { return host.Granted(id) }}
+			resp := h.Handle(ctx, protocol.Request{Version: protocol.Version2, Type: protocol.MessageTypeRequest, ID: "wasm", Method: method, Params: params})
+			if resp.Error != nil {
+				return nil, &plugin.CallError{Code: resp.Error.Code, Message: resp.Error.Message}
+			}
+			return resp.Result, nil
+		},
+		Workspaces: workspaces,
+		Publish:    bus.Publish,
 	})
 	return host
 }

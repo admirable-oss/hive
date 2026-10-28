@@ -43,6 +43,15 @@ Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). 
   Rust SDKs know the new capabilities. Plugin API 2 fixtures are in
   `sdk/protocol/fixtures/v2/`.
 
+### WebAssembly plugins
+
+- A plugin API 2 plugin declaring `[[runtime]] kind = "wasm"` runs its
+  `.wasm` modules (WASI) inside the daemon through wazero, on every system
+  including Windows: it sees only its data (`/data`) and settings
+  (`/config`), has no network and no programs, memory is bounded, and
+  timeouts stop it. It calls Hive through the `hive.call` host function,
+  checked as its socket would be.
+
 ### Publishing
 
 - `hive plugin publish` tags, checksums, signs (`ssh-keygen -Y sign`, with

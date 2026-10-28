@@ -1799,7 +1799,12 @@ the policy: [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md#publishers-tie
   isolation = "api2"`; v2 contract fixtures and SDK constants. A hostile
   plugin is held to its grants on macOS and on Linux, as root and as a
   user (`TestAPI2SandboxConfinesByDefault`).
-- [ ] The WebAssembly runtime (delivery step 5).
+- [x] The WebAssembly runtime (delivery step 5): `[[runtime]] kind =
+  "wasm"` plugins run WASI modules in the daemon through wazero, on every
+  system; `/data` and `/config` only, no network or programs, 64 MiB of
+  memory, timeouts; `hive.call` and `hive.response` call Hive with the
+  socket's capability checks (`TestWasmPlugin`, `TestM26WasmPlugin`
+  through the real daemon, on macOS, Linux and Windows).
 - [ ] Pane views, forges, issue trackers, workflow steps and triggers
   (delivery step 6).
 - [ ] RFC 0006 discussed and accepted; then tag `v1.7.0`.

@@ -357,6 +357,54 @@ The sandbox does not limit CPU or memory. With Landlock missing (Linux
 before 5.13), bubblewrap still confines files, the network and sockets, but
 not programs; the plugin's log says so.
 
+### WebAssembly plugins
+
+A plugin that needs no process at all can be WebAssembly: Hive runs its
+modules itself, through [wazero](https://wazero.io), the same on every
+system, Windows included, with no sandbox tool and no `unconfined`.
+
+```toml
+api = 2
+id = "counter"
+version = "1.0.0"
+min_hive_version = "1.7.0"
+
+[permissions]
+required = ["hive.write"]
+
+[[runtime]]
+kind = "wasm"
+
+[[actions]]
+id = "bump"
+command = ["./counter.wasm", "bump"]
+```
+
+- Every command's program is a `.wasm` module (WASI preview 1) in the
+  plugin's package; its arguments follow. Build one with `GOOS=wasip1
+  GOARCH=wasm go build`, `cargo build --target wasm32-wasip1`, or any WASI
+  toolchain, and publish the built module in the release.
+- The module sees its data directory as `/data` and its settings as
+  `/config` (`HIVE_PLUGIN_DATA`, `HIVE_PLUGIN_CONFIG`), and nothing else. It
+  gets its context on stdin, as every command does; its output goes to the
+  plugin's log. It has no network and cannot start programs. Memory is
+  bounded (64 MiB), and a command's timeout stops it.
+- It calls Hive through the host module `hive`, with the same capability
+  checks as a plugin's socket:
+
+  ```go
+  //go:wasmimport hive call
+  func hiveCall(ptr unsafe.Pointer, size uint32) uint32 // request JSON in; the response's length out
+  //go:wasmimport hive response
+  func hiveResponse(ptr unsafe.Pointer)                  // copies that response to ptr
+  ```
+
+  The request is `{"method": "pane.list", "params": {…}}`; the response is
+  `{"result": …}` or `{"error": {"code": "permission_denied", "message":
+  …}}`. Call `response` once after each `call`, into a buffer of the
+  length `call` returned.
+- `hive plugin info` shows `sandbox: wasm`.
+
 ## Lifecycle and health
 
 | State | Meaning |

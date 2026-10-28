@@ -2760,6 +2760,7 @@ Result: [protocol.Empty](#protocolempty)
 | Field | Type | |
 |---|---|---|
 | `command` | `string` |  |
+| `kind` | `string` |  |
 | `min_version` | `string` |  |
 
 ### plugin.Setting
