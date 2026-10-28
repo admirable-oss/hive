@@ -92,6 +92,13 @@ separate document (`revocations.json`, beside the catalog) for the same
 reason: earlier releases never read it, and the catalog they read is
 unchanged. See [docs/plugins/ecosystem.md](plugins/ecosystem.md#revoking-a-release).
 
+Schema 2 (`registry-2.json`, from `v1.7.0`) is another document beside them:
+earlier releases never read it, and `v1.7.0` and later read it first and
+fall back to `registry.json` only when it is missing (404). Every plugin API 1
+release stays published in `registry.json` with schema 1 fields only.
+`revocations.json` gains `keys` (publisher key revocations), which `v1.0.10`
+and later ignore.
+
 ## On-disk state
 
 Every state file below is schema 1 in every 1.0.x release, so a rollback
@@ -103,7 +110,7 @@ checks this both ways.
 | `session.json`, `snapshots/` | 1 | skipped (an older snapshot is used) | moved to `*.corrupt-<time>`; the newest readable snapshot is used |
 | `environments/<env>/environment.json` | 1 (schema 0 migrated on read) | — | that environment is skipped |
 | `environments/<env>/layout.json` | 1 | — | moved aside and rebuilt from the snapshot |
-| `plugins/registry.json` | 1 | refused, file left as is (`v1.0.10`) | refused with its path |
+| `plugins/registry.json` | 1 (`tier`, `publisher`, `signed_by`, `provenance`, `revoked`, `checked_at` and `previous_trust` added in `v1.7.0`; older releases ignore them, and drop them if they save the file) | refused, file left as is (`v1.0.10`) | refused with its path |
 | `plugins/.transaction.json` | 1 | refused | refused: "manual repair required" |
 | `plugins/.config/<id>/settings.json` | the plugin's `configuration.version` | migrated by the plugin's declared steps | reported by `hive plugin doctor` |
 | `observers/credentials.json` | 1 | refused, file left as is (`v1.0.10`) | refused with its path |

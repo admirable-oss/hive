@@ -4,6 +4,43 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.7.0 (unreleased): Plugin ecosystem 2 (M26)
+
+Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). In progress.
+
+### Trust in every client
+
+- Every installed plugin carries its tier (official, verified, community, or
+  unlisted for Git and linked installs), its publisher, the key that signed
+  its release, its build provenance and any revocation, in the installed
+  record and in `plugin.list`, with `sandbox` (none, sandbox-exec or bwrap).
+- `hive plugin list` has a TIER column and marks revoked releases; `info`,
+  `install` and `update` show the tier, publisher, signer and provenance.
+- The TUI's palette always offers **Plugins…**, a view with each plugin's
+  tier, sandbox and revocations, and its details.
+- The desktop app has a **Plugins** window (File menu and palette).
+- The web observer shows a runtime's plugins to links that see all of it,
+  through the new `observe.plugins` observer method.
+- `pkg/hiveapi` gains `Plugins` and the tier constants. API level 16.
+
+### Registry schema 2 and signatures
+
+- Hive reads `registry-2.json` beside the catalog first, and the schema 1
+  catalog only when the registry serves no schema 2 (404).
+- Schema 2 lists publishers with their tier and ed25519 SSH keys, and per
+  release a publisher signature (`ssh-keygen -Y sign -n
+  hive-plugin-release` over the release statement), build provenance, the
+  Hive releases it was tested against, its plugin API and minimum Hive
+  version, and per-plugin refs (`pr-status/v1.2.0`).
+- `[plugins] require_signature`: `official-verified` (default), `all` or
+  `none`. A release whose signature does not verify is never installed; an
+  update keeps the publisher, and never goes from signed to unsigned.
+- `revocations.json` gains `keys`: a revoked publisher key revokes every
+  release it signed from the time it is distrusted.
+- `hive plugin install` and `update` pick the newest release this hive can
+  run (its plugin API and minimum Hive version), and `hive plugin doctor`
+  checks each release's signature and records what the registry says of it.
+
 ## v1.5.0 (unreleased): Workflow automation (M24)
 
 Reusable workflows from agents, scripts and events ([docs/workflows.md](docs/workflows.md), [RFC 0004](rfcs/0004-workflow-automation.md)).

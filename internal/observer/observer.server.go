@@ -68,6 +68,8 @@ type Sources struct {
 	Plans interface {
 		All(ctx context.Context) []task.Plan
 	}
+	// Plugins lists the installed plugins; nil means none.
+	Plugins func(ctx context.Context) []Plugin
 	// Insights reads time and usage; nil means none are kept.
 	Insights interface {
 		Summary(ctx context.Context, q insights.Query) (insights.Summary, error)

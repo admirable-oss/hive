@@ -32,7 +32,7 @@ socket. Other machines are reached through the user's ssh.
 | **Another local user** on a shared machine | Yes. They cannot connect to the sockets or read state. |
 | **Someone on the local network** | Yes. Discovery grants nothing; announcements carry no secrets; a spoofed announcement cannot redirect a paired machine. |
 | **A network attacker between you and GitHub or the registry** | Yes. Releases are signed; plugin releases are pinned by commit and checksum; registry links must be HTTPS. |
-| **A compromised registry listing or plugin maintainer** | Partly. Releases are immutable and pinned, permission changes are shown before an update, and releases can be revoked. A malicious release you choose to install runs as you. |
+| **A compromised registry listing or plugin maintainer** | Partly. Releases are immutable and pinned, permission changes are shown before an update, and releases can be revoked. From 1.7, schema 2 releases carry their publisher's SSH signature: a stolen repository token alone cannot publish an official or verified release, an update cannot change publisher, and a stolen signing key is revoked from the time it was distrusted. A malicious release you choose to install runs as you. |
 | **An observer (a dashboard, a person with a share link)** | Yes. It reads only what its credential allows and cannot control anything. |
 | **A malicious website open in your browser** | Yes, for the web observer: CSP, SameSite=Strict cookies, no framing, codes in URL fragments. |
 | **The agents themselves** | No. Agents run as you, unsandboxed, by design. See non-goals. |

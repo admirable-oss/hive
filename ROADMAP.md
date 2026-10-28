@@ -1716,7 +1716,7 @@ data. Nothing leaves the machine unless it is exported.
 
 ---
 
-## M26 · Plugin Ecosystem 2 — `v1.7.0` — **PROPOSED**
+## M26 · Plugin Ecosystem 2 — `v1.7.0` — **IN PROGRESS**
 
 Richer plugins, safer by default.
 
@@ -1757,6 +1757,39 @@ grows what plugins can do and narrows what a bad one could do.
 installs sandboxed by default on macOS and Linux, contributes a pane view
 and a workflow step, and is tested against the next Hive release before it
 ships. Plugin API 1 plugins keep working.
+
+### M26 progress
+
+The design: [RFC 0006](rfcs/0006-plugin-ecosystem-2.md). The registry
+format: [internal/plugin/REGISTRY.md](internal/plugin/REGISTRY.md#schema-2-hive-17);
+the policy: [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md#publishers-tiers-and-signatures).
+
+- [x] Trust data (delivery step 1): the installed record and `plugin.list`
+  carry tier, publisher, signer, provenance, revocation and sandbox;
+  `hive plugin list`/`info`/`install`/`update` show them, revoked releases
+  stand out, and `hive plugin doctor` refreshes them. The TUI's palette has
+  a Plugins view, the desktop app a Plugins window, and the web observer a
+  Plugins section through `observe.plugins` (credentials that see the whole
+  runtime). `pkg/hiveapi` `Plugins`. API level 16.
+- [x] Registry schema 2 (delivery step 2): `registry-2.json` beside schema
+  1, read first with a fallback only on 404; publishers with tiers and
+  ed25519 SSH keys; per-release signatures over the release statement
+  (verified in Go, interoperable with `ssh-keygen -Y sign`), provenance,
+  test results, plugin API and minimum Hive per release, per-plugin refs;
+  key revocations in `revocations.json`; `[plugins] require_signature`;
+  publisher continuity on update (`TestM26SignedPluginReleases`).
+- [ ] Official plugins signed and `registry-2.json` published by the store
+  sync, once the official publisher key is decided (RFC 0006, open
+  question 4). Until then the public registry serves schema 1 only, and
+  official plugins install as today.
+- [ ] `hive plugin publish` and `hive plugin test`, the publish action and
+  the registry's `plugin-compat` workflow (delivery step 3).
+- [ ] Plugin API 2 manifests, scoped capabilities, the sandbox by default,
+  Landlock and the network proxy (delivery step 4).
+- [ ] The WebAssembly runtime (delivery step 5).
+- [ ] Pane views, forges, issue trackers, workflow steps and triggers
+  (delivery step 6).
+- [ ] RFC 0006 discussed and accepted; then tag `v1.7.0`.
 
 ---
 

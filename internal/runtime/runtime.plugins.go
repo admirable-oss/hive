@@ -19,6 +19,7 @@ import (
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/metadata"
+	"github.com/admirable-oss/hive/internal/observer"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/plugin"
@@ -253,6 +254,25 @@ func pluginError(err error) error {
 		return protocol.NewError(protocol.ErrorCodeInvalidParams, err)
 	}
 	return err
+}
+
+// observedPlugins are the plugins as observers see them (observe.plugins).
+func observedPlugins(list []plugin.Status) []observer.Plugin {
+	out := make([]observer.Plugin, 0, len(list))
+	for _, p := range list {
+		o := observer.Plugin{ID: p.ID, Name: p.ID, Version: p.Version, Tier: p.Tier, Publisher: p.Publisher, SignedBy: p.SignedBy, Sandbox: p.Sandbox, Enabled: p.Enabled, State: p.Health.State}
+		if p.Manifest != nil {
+			o.Version = p.Manifest.Version
+			if p.Manifest.Name != "" {
+				o.Name = p.Manifest.Name
+			}
+		}
+		if p.Revoked != nil {
+			o.Revoked = &observer.PluginRevocation{Reason: p.Revoked.Reason, Advisory: p.Revoked.Advisory}
+		}
+		out = append(out, o)
+	}
+	return out
 }
 
 func registerPlugins(r *protocol.Router, host *plugin.Host, store *plugin.Store) {

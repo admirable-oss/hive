@@ -3815,6 +3815,29 @@
       },
       "type": "object"
     },
+    "plugin.Provenance": {
+      "properties": {
+        "attestation": {
+          "type": "string"
+        },
+        "builder": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "run": {
+          "type": "string"
+        },
+        "workflow": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "builder"
+      ],
+      "type": "object"
+    },
     "plugin.Result": {
       "properties": {
         "async": {
@@ -3833,6 +3856,33 @@
       "required": [
         "exit_code",
         "output"
+      ],
+      "type": "object"
+    },
+    "plugin.Revocation": {
+      "properties": {
+        "advisory": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "revoked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "reason",
+        "revoked_at"
       ],
       "type": "object"
     },
@@ -3917,6 +3967,10 @@
         "api": {
           "type": "integer"
         },
+        "checked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
         "checksum": {
           "type": "string"
         },
@@ -3969,10 +4023,19 @@
         "previous_ref": {
           "type": "string"
         },
+        "previous_trust": {
+          "$ref": "#/$defs/plugin.Trust"
+        },
         "previous_version": {
           "type": "string"
         },
         "problem": {
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/plugin.Provenance"
+        },
+        "publisher": {
           "type": "string"
         },
         "ref": {
@@ -3980,6 +4043,9 @@
         },
         "registry": {
           "type": "boolean"
+        },
+        "revoked": {
+          "$ref": "#/$defs/plugin.Revocation"
         },
         "running": {
           "type": "integer"
@@ -3990,7 +4056,16 @@
           },
           "type": "array"
         },
+        "sandbox": {
+          "type": "string"
+        },
+        "signed_by": {
+          "type": "string"
+        },
         "source": {
+          "type": "string"
+        },
+        "tier": {
           "type": "string"
         },
         "version": {
@@ -4007,6 +4082,7 @@
         "health",
         "grant",
         "isolation",
+        "sandbox",
         "api"
       ],
       "type": "object"
@@ -4075,6 +4151,30 @@
       "required": [
         "indicator"
       ],
+      "type": "object"
+    },
+    "plugin.Trust": {
+      "properties": {
+        "checked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/plugin.Provenance"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "revoked": {
+          "$ref": "#/$defs/plugin.Revocation"
+        },
+        "signed_by": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "string"
+        }
+      },
       "type": "object"
     },
     "process.LogsRequest": {
@@ -6516,7 +6616,7 @@
       "type": "object"
     }
   },
-  "api_level": 15,
+  "api_level": 16,
   "methods": [
     {
       "name": "agent.explain",

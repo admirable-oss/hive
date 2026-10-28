@@ -431,6 +431,7 @@ func runtimeFragments(p *page, r *shown) []g.Node {
 			),
 		),
 		fragment("insights", r.v.Version, insightsSection(p, r)),
+		fragment("plugins", r.v.Version, pluginsSection(p, r)),
 		fragment("plans", r.v.Version, plansSection(p, r)),
 		fragment("activity", r.v.Version, activityList(p, r, "", "")),
 	}

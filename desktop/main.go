@@ -460,6 +460,7 @@ func (d *desktop) menu() *application.Menu {
 	file.Add("New Tab").SetAccelerator(accel("T")).OnClick(d.command("new-tab"))
 	file.Add("New Environment…").OnClick(d.command("new-environment"))
 	file.Add("Machines…").OnClick(d.command("machines"))
+	file.Add("Plugins…").OnClick(d.command("plugins"))
 	file.AddSeparator()
 	file.Add("Close Pane").SetAccelerator(accel("W")).OnClick(d.command("close-pane"))
 	if runtime.GOOS != "darwin" {

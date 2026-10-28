@@ -511,6 +511,15 @@ func (f *Fleet) Insights(machine string) (Insights, error) {
 	return in, err
 }
 
+// Plugins lists the plugins of the machine named ("" for this computer).
+func (f *Fleet) Plugins(machine string) ([]Plugin, error) {
+	h, err := f.hubOf(machine)
+	if err != nil {
+		return nil, err
+	}
+	return h.Plugins()
+}
+
 // ResumeBudget resumes a budget of the machine named.
 func (f *Fleet) ResumeBudget(machine, name, key string) error {
 	h, err := f.hubOf(machine)

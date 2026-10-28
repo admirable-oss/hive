@@ -104,6 +104,10 @@ table.agents th { font-size: .8rem; text-transform: uppercase; letter-spacing: .
 .budgets li, .asks li { padding: .15rem 0; }
 .budget-warning { color: var(--warn); }
 .budget-exceeded { color: var(--bad); }
+.badge.tier-official { color: var(--accent); border-color: var(--accent); }
+.badge.tier-verified { color: var(--live); border-color: var(--live); }
+.badge.tier-community, .badge.tier-unlisted, .badge.tier-unchecked { color: var(--muted); border-color: var(--line); }
+.plugins tr.revoked th, .plugins .revoked-why { color: var(--bad); }
 @media (max-width: 700px) {
   table.agents thead { display: none; }
   table.agents tr { display: block; border-bottom: 1px solid var(--line); padding: .4rem 0; }

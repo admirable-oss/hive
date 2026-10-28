@@ -89,7 +89,9 @@ type Status struct {
 	// strict).
 	Grant     Grant  `json:"grant"`
 	Isolation string `json:"isolation"`
-	API       int    `json:"api"`
+	// Sandbox is what confines it: none, sandbox-exec or bwrap.
+	Sandbox string `json:"sandbox"`
+	API     int    `json:"api"`
 	// Runs are its action runs in progress.
 	Runs []RunInfo `json:"runs,omitempty"`
 }
@@ -421,12 +423,26 @@ func (h *Host) unload(id string) {
 
 // Status lists the plugins the host runs.
 func (h *Host) Status() []Status {
+	// Trust changes without a reload (`hive plugin doctor` checks it
+	// again): read it from the installed records as they are now.
+	trust := map[string]Trust{}
+	if h.cfg.Store != nil {
+		if list, err := h.cfg.Store.Records(); err == nil {
+			for _, in := range list {
+				trust[in.ID] = in.trust()
+			}
+		}
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	out := []Status{}
 	for _, l := range h.plugins {
 		h.refreshLocked(l)
-		out = append(out, h.statusOfLocked(l))
+		st := h.statusOfLocked(l)
+		if t, ok := trust[st.ID]; ok {
+			st.Trust = t
+		}
+		out = append(out, st)
 	}
 	slices.SortFunc(out, func(a, b Status) int { return strings.Compare(a.ID, b.ID) })
 	return out
@@ -437,8 +453,9 @@ func (h *Host) statusOfLocked(l *loaded) Status {
 	if l.Manifest != nil {
 		st.API = l.Manifest.EffectiveAPI()
 	}
+	st.Sandbox = SandboxNone
 	if l.strict {
-		st.Isolation = IsolationStrict
+		st.Isolation, st.Sandbox = IsolationStrict, sandboxName()
 	}
 	st.Health.Warnings = slices.Clone(l.health.Warnings)
 	st.Health.Requests = slices.Clone(l.health.Requests)

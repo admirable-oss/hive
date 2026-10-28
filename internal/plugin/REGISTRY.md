@@ -91,6 +91,87 @@ an arbitrary downloaded archive. Registry responses are capped at 4 MiB and
 the generated source archive is capped at 64 MiB. These caps apply before
 install approval; incomplete fetches are discarded and never become active.
 
+## Schema 2 (Hive 1.7)
+
+Schema 2 is a document of its own, `registry-2.json`, beside `registry.json`.
+Hive 1.7 and later read it first and fall back to `registry.json` only when
+the registry answers 404 (or 410) for it; any other failure is an error, so
+nothing between Hive and the registry can make it read the catalog without
+signatures. Earlier releases never read `registry-2.json`, and
+`registry.json` gains no fields. A self-hosted registry can stay on schema 1.
+`HIVE_PLUGIN_REGISTRY_URL` may also point at a `registry-2.json` directly.
+
+Schema 2 adds:
+
+- **`publishers`**: who publishes, with an `id`, a `name`, an optional HTTPS
+  `url`, a `tier` (`official`, `verified` or `community`) and the ed25519
+  SSH `keys` their releases are signed with (`key`, an authorized_keys
+  line; `fingerprint`, checked against the key when present; `added_at`).
+- **`publisher`** on each listing, naming one of them. A listing's tier is
+  its publisher's; `official` and `verified` are derived from it.
+- Per release: **`plugin_api`** and **`min_hive_version`** (a release this
+  hive cannot run is never picked), **`signature`**, **`provenance`**
+  (`builder`, and HTTPS `repository`, `run` and `attestation` links, with
+  the `workflow` path) and **`tested`** (`hive`, `result` pass or fail, `at`,
+  an optional HTTPS `report`).
+- **Per-plugin release refs**: a ref may end in the version
+  (`pr-status/v1.4.0`), so plugins sharing a repository tag their releases
+  apart.
+
+```json
+{
+  "schema": 2,
+  "publishers": [{
+    "id": "acme", "name": "Acme Inc.", "url": "https://acme.example", "tier": "verified",
+    "keys": [{"key": "ssh-ed25519 AAAAC3Nza...", "fingerprint": "SHA256:3b6...", "added_at": "2026-11-02T00:00:00Z"}]
+  }],
+  "plugins": [{
+    "id": "acme-deploy", "publisher": "acme", "name": "Acme deploy",
+    "repository": "https://github.com/acme/hive-deploy", "license": "MIT",
+    "maintainers": [{"name": "Acme"}],
+    "releases": [{
+      "version": "1.4.0", "ref": "acme-deploy/v1.4.0",
+      "commit": "0123456789abcdef0123456789abcdef01234567",
+      "checksum": "sha256:aaaa...", "plugin_api": 1, "min_hive_version": "1.7.0",
+      "published_at": "2026-11-10T09:00:00Z",
+      "signature": "-----BEGIN SSH SIGNATURE-----\n...\n-----END SSH SIGNATURE-----\n",
+      "provenance": {"builder": "github-actions", "repository": "https://github.com/acme/hive-deploy", "workflow": ".github/workflows/release.yml", "run": "https://github.com/acme/hive-deploy/actions/runs/123"},
+      "tested": [{"hive": "1.7.0", "result": "pass", "at": "2026-11-10T10:00:00Z"}]
+    }]
+  }]
+}
+```
+
+**Signatures.** A release's signature is an SSH signature in the
+`hive-plugin-release` namespace over its *release statement*: the JSON of
+`{checksum, commit, id, plugin_api, published_at, ref, version}` with keys in
+that (sorted) order, no spaces, the checksum and commit in lower case and
+`published_at` in UTC to the second (RFC 3339):
+
+```sh
+printf '%s' '{"checksum":"sha256:…","commit":"0123…","id":"acme-deploy","plugin_api":1,"published_at":"2026-11-10T09:00:00Z","ref":"acme-deploy/v1.4.0","version":"1.4.0"}' |
+  ssh-keygen -Y sign -n hive-plugin-release -f ~/.ssh/id_ed25519
+```
+
+Hive checks it against the listing's publisher's keys when it reads the
+catalog. A release with no signature is listed as unsigned; one whose
+signature does not verify is never installed (unless `[plugins]
+require_signature = "none"`). `[plugins] require_signature` decides what
+installs: `official-verified` (the default) needs official and verified
+plugins signed and warns about unsigned community ones, `all` needs every
+release signed (and refuses a schema 1 catalog, which has no signatures), and
+`none` checks nothing. An update must keep the installed plugin's publisher,
+and a signed release is never followed by an unsigned one.
+
+**Key revocations.** `revocations.json` gains `keys`: `fingerprint`,
+`reason`, an optional HTTPS `advisory`, and `since`. Every listed release
+signed by that key and published at or after `since` is revoked; earlier
+ones are not. Hive before 1.7 ignores the field.
+
+```json
+{"schema": 1, "releases": [], "keys": [{"fingerprint": "SHA256:3b6...", "reason": "the key leaked", "since": "2026-11-15T00:00:00Z"}]}
+```
+
 ## Manifest configuration and migration contract
 
 Manifests may bound compatibility with both `min_hive_version` and

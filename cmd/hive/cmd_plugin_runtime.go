@@ -339,6 +339,9 @@ func newPluginDoctorCmd(a *app) *cobra.Command {
 				checks = append(checks, a.doctorPlugin(ctx, store, p, live, daemon)...)
 				if p.Registry {
 					checks = append(checks, doctorRegistry(p, catalog, catalogErr))
+					if catalogErr == nil {
+						checks = append(checks, a.doctorTrust(store, p, *catalog)...)
+					}
 				}
 			}
 			failed := slices.ContainsFunc(checks, func(c doctorCheck) bool { return c.Level == "error" })
@@ -391,6 +394,46 @@ func doctorRegistry(p plugin.Plugin, catalog *plugin.Registry, catalogErr error)
 		return check("ok", "listed; %s installed, %s available (`hive plugin update %s`)", p.Version, latest.Version, p.ID)
 	}
 	return check("ok", "listed; %s is current", p.Version)
+}
+
+// doctorTrust checks a registry-installed release's signature and records
+// what the registry now says of it (tier, publisher, signer, revocation), so
+// every client shows it.
+func (a *app) doctorTrust(store *plugin.Store, p plugin.Plugin, catalog plugin.Registry) []doctorCheck {
+	check := func(level, format string, args ...any) doctorCheck {
+		return doctorCheck{Plugin: p.ID, Level: level, Check: "signature", Detail: fmt.Sprintf(format, args...)}
+	}
+	trust := p.Trust
+	trust.CheckedAt = time.Now().UTC()
+	trust.Revoked = nil
+	if r, ok := catalog.Revocation(p.ID, p.Version); ok {
+		trust.Revoked = &r
+	}
+	var out []doctorCheck
+	listing, listed := catalog.Get(p.ID)
+	i := slices.IndexFunc(listing.Releases, func(r plugin.Release) bool {
+		return r.Version == p.Version && strings.EqualFold(r.Commit, p.Commit)
+	})
+	if listed && i >= 0 {
+		release := listing.Releases[i]
+		trust = plugin.TrustOf(listing, release)
+		if catalog.Schema >= 2 {
+			switch _, err := plugin.CheckSignature(a.cfg.Plugins.RequireSignature, catalog.Schema, listing, release); {
+			case release.SignatureError != "":
+				out = append(out, check("error", "%s", release.SignatureError))
+			case release.SignedBy != "":
+				out = append(out, check("ok", "%s signed by %s (%s publisher %s)", p.Version, release.SignedBy, listing.Tier, listing.Publisher))
+			case err != nil:
+				out = append(out, check("error", "%v", err))
+			default:
+				out = append(out, check("warn", "%s is not signed by its publisher", p.Version))
+			}
+		}
+	}
+	if _, err := store.SetTrust(p.ID, trust); err != nil {
+		out = append(out, check("warn", "cannot record the registry's view of %s: %v", p.ID, err))
+	}
+	return out
 }
 
 func (a *app) doctorPlugin(ctx context.Context, store *plugin.Store, p plugin.Plugin, live map[string]plugin.Status, daemon bool) []doctorCheck {

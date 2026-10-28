@@ -167,6 +167,10 @@ deny = {{list .Plugins.Deny}}
 # auto (sandbox plugins that declare isolation = "strict") | standard (never)
 # | strict (every plugin; needs sandbox-exec on macOS, bwrap on Linux)
 isolation = {{q .Plugins.Isolation}}
+# Which registry releases must be signed by their publisher: official-verified
+# (official and verified plugins; unsigned community ones install with a
+# warning) | all | none (development registries)
+require_signature = {{q .Plugins.RequireSignature}}
 # A plugin command that fails more than restart_limit times within
 # restart_window is no longer restarted (` + "`hive plugin reload <id>`" + ` resets it).
 restart_limit = {{.Plugins.RestartLimit}}

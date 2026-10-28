@@ -45,6 +45,7 @@ plugins.allow
 plugins.deny
 plugins.hidden
 plugins.isolation
+plugins.require_signature
 plugins.restart_limit
 plugins.restart_window
 process.stop_grace

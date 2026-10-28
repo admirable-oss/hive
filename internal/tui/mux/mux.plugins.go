@@ -257,11 +257,10 @@ func (a *App) paletteItems() []paletteItem {
 }
 
 func (a *App) openPalette() {
-	p := &palette{items: a.paletteItems()}
-	if len(p.items) == 0 {
-		a.toast(compositor.ToastInfo, "no plugin offers anything here (hive plugin contributions)")
-		return
-	}
+	// The palette always offers the Plugins view: what is installed, who
+	// stands behind it, and what confines it.
+	items := append([]paletteItem{{plugin: "hive", kind: paletteKindPlugins, title: "Plugins…", detail: "installed plugins, their tier, sandbox and revocations"}}, a.paletteItems()...)
+	p := &palette{items: items}
 	p.rank()
 	a.ui.overlay = p
 }
@@ -317,6 +316,8 @@ func (p *palette) choose(a *App) {
 		}
 	case plugin.ContribConfig:
 		a.openPluginConfig(it.plugin)
+	case paletteKindPlugins:
+		a.openPluginList()
 	default:
 		a.runPluginAction(it.plugin, it.action, it.title)
 	}

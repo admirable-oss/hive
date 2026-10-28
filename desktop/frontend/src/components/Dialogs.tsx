@@ -9,6 +9,7 @@ import { api, type Manifest } from "../api";
 import { currentEnv, store, useStore, type Dialog as DialogState } from "../store";
 import { Field, NativeSelect } from "./Field";
 import { InsightsDialog } from "./Insights";
+import { PluginsDialog } from "./Plugins";
 import { IdentitySheet, Machines } from "./Machines";
 import { close, Modal } from "./Modal";
 import { ObserveDialog } from "./ObserveDialog";
@@ -267,5 +268,7 @@ export function Dialogs() {
       return <Review branch={d.branch} />;
     case "insights":
       return <InsightsDialog machine={d.machine} />;
+    case "plugins":
+      return <PluginsDialog />;
   }
 }

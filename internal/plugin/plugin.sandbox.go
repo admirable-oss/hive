@@ -42,6 +42,24 @@ var sandboxProbe = sync.OnceValue(func() bool {
 // SandboxAvailable reports whether strict isolation can run here.
 func SandboxAvailable() bool { return sandboxProbe() }
 
+// Sandboxes, as plugin.list reports them.
+const (
+	SandboxNone       = "none"
+	SandboxExec       = "sandbox-exec"
+	SandboxBubblewrap = "bwrap"
+)
+
+// sandboxName is the sandbox strict isolation uses here.
+func sandboxName() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return SandboxExec
+	case "linux":
+		return SandboxBubblewrap
+	}
+	return SandboxNone
+}
+
 // sandboxTool names what strict isolation needs on this system.
 func sandboxTool() string {
 	switch runtime.GOOS {

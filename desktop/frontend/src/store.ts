@@ -11,6 +11,8 @@ export type Dialog =
   | { kind: "observe" }
   // insights shows a machine's time and usage today, and its budgets.
   | { kind: "insights"; machine?: string }
+  // plugins lists a machine's plugins: tier, signer, sandbox, revocations.
+  | { kind: "plugins" }
   // review shows a branch's diff, its overlaps and gates, and takes
   // comments for its agent.
   | { kind: "review"; branch: string }

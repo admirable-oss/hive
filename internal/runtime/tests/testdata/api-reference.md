@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 15. Clients speak newline-delimited JSON over the daemon's unix
+API level 16. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -2701,6 +2701,16 @@ Result: [protocol.Empty](#protocolempty)
 | `reasons` | `map[string]string` |  |
 | `required` | `[]string` |  |
 
+### plugin.Provenance
+
+| Field | Type | |
+|---|---|---|
+| `attestation` | `string` |  |
+| `builder` | `string` |  |
+| `repository` | `string` |  |
+| `run` | `string` |  |
+| `workflow` | `string` |  |
+
 ### plugin.Result
 
 | Field | Type | |
@@ -2709,6 +2719,16 @@ Result: [protocol.Empty](#protocolempty)
 | `exit_code` | `integer` |  |
 | `output` | `string` |  |
 | `run` | `string` |  |
+
+### plugin.Revocation
+
+| Field | Type | |
+|---|---|---|
+| `advisory` | `string` |  |
+| `id` | `string` |  |
+| `reason` | `string` |  |
+| `revoked_at` | `string` |  |
+| `version` | `string` |  |
 
 ### plugin.RunInfo
 
@@ -2748,6 +2768,7 @@ Result: [protocol.Empty](#protocolempty)
 | Field | Type | |
 |---|---|---|
 | `api` | `integer` |  |
+| `checked_at` | `string` |  |
 | `checksum` | `string` |  |
 | `commit` | `string` |  |
 | `dir` | `string` |  |
@@ -2764,13 +2785,20 @@ Result: [protocol.Empty](#protocolempty)
 | `previous_checksum` | `string` |  |
 | `previous_commit` | `string` |  |
 | `previous_ref` | `string` |  |
+| `previous_trust` | [plugin.Trust](#plugintrust) |  |
 | `previous_version` | `string` |  |
 | `problem` | `string` |  |
+| `provenance` | [plugin.Provenance](#pluginprovenance) |  |
+| `publisher` | `string` |  |
 | `ref` | `string` |  |
 | `registry` | `boolean` |  |
+| `revoked` | [plugin.Revocation](#pluginrevocation) |  |
 | `running` | `integer` |  |
 | `runs` | [\[\]plugin.RunInfo](#pluginruninfo) |  |
+| `sandbox` | `string` |  |
+| `signed_by` | `string` |  |
 | `source` | `string` |  |
+| `tier` | `string` |  |
 | `version` | `string` |  |
 
 ### plugin.StatusContent
@@ -2799,6 +2827,17 @@ Result: [protocol.Empty](#protocolempty)
 | `text` | `string` |  |
 | `tone` | `string` |  |
 | `ttl` | `integer` | nanoseconds |
+
+### plugin.Trust
+
+| Field | Type | |
+|---|---|---|
+| `checked_at` | `string` |  |
+| `provenance` | [plugin.Provenance](#pluginprovenance) |  |
+| `publisher` | `string` |  |
+| `revoked` | [plugin.Revocation](#pluginrevocation) |  |
+| `signed_by` | `string` |  |
+| `tier` | `string` |  |
 
 ### process.LogsRequest
 

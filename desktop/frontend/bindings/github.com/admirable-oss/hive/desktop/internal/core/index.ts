@@ -32,6 +32,7 @@ export {
     Pane,
     Plan,
     PlanTask,
+    Plugin,
     Rect,
     Run,
     ScreenUpdate,

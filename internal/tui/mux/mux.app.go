@@ -251,6 +251,8 @@ func (a *App) Handle(m Msg) {
 		a.contributionsLoaded(m)
 	case configMsg:
 		a.configLoaded(m)
+	case pluginListMsg:
+		a.pluginListLoaded(m)
 	case imagePasteMsg:
 		switch {
 		case m.err != nil:

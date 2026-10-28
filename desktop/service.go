@@ -357,6 +357,15 @@ func (s *HiveService) Insights(ctx context.Context, machine string) (core.Insigh
 	return s.hub.Insights(machine)
 }
 
+// Plugins lists a machine's installed plugins ("" for this computer):
+// their tier, publisher, signer, sandbox and revocations.
+func (s *HiveService) Plugins(ctx context.Context, machine string) ([]core.Plugin, error) {
+	if err := guard(ctx); err != nil {
+		return nil, err
+	}
+	return s.hub.Plugins(machine)
+}
+
 // ResumeBudget lets new tasks start again under a budget that holds them,
 // until its window ends: for one key, or every held one when key is "".
 func (s *HiveService) ResumeBudget(ctx context.Context, machine, name, key string) error {

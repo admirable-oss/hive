@@ -69,6 +69,9 @@ type conn struct {
 	// insightsEvery.
 	insightsMu sync.Mutex
 	insights   map[string]insightsRead
+	// plugins are read for pages that see the whole runtime, and kept for
+	// pluginsEvery (under insightsMu).
+	plugins pluginsRead
 }
 
 // insightsRead is insights as read at a time; nil when the runtime keeps

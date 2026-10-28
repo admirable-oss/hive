@@ -151,6 +151,7 @@ func NewModule(cfg Config) *Module {
 	server.Go(func(ctx context.Context) { feedWorkflows(ctx, workflows, bus) })
 	obs := newObservers(cfg, log.With("module", "observer"), bus, guardedEnvs, panes, observer.Sources{
 		Agents: agents, Terminals: terms, Metadata: meta.List, Plans: tasks.svc, Insights: ins,
+		Plugins: func(context.Context) []observer.Plugin { return observedPlugins(plugins.Status()) },
 		Info: func() observer.Info {
 			snap := server.Snapshot()
 			return observer.Info{Version: snap.Version, Session: snap.Session, StartedAt: snap.StartedAt, AgentsSurviveRestart: snap.AgentsSurviveRestart}
