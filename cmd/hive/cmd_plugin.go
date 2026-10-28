@@ -115,20 +115,30 @@ func newPluginInitCmd(a *app) *cobra.Command {
 				body string
 				mode os.FileMode
 			}{
-				plugin.ManifestFile: {body: fmt.Sprintf(`api = %d
+				plugin.ManifestFile: {body: fmt.Sprintf(`api = 2
 id = %q
 name = %q
 version = "0.1.0"
 description = "A Hive plugin."
-min_hive_version = "1.0.2"
-# This plugin needs no network and writes only its own directories, so it
-# can run sandboxed.
-isolation = "strict"
+min_hive_version = "1.7.0"
+# Plugin API 2 runs sandboxed: the plugin reads its own files and the
+# system's, writes its own directories, and reaches the network or runs
+# other programs only as [permissions] say.
 
 [permissions]
-# What it may do through Hive (see `+"`hive plugin capabilities`"+`).
+# What it may do (see `+"`hive plugin capabilities`"+`).
 required = ["hive.read"]
 optional = []
+# To reach the network or run programs, request "network" or
+# "process.exec" and list exactly what:
+# [permissions.network]
+# hosts = ["api.example.com:443"]
+# [permissions.process]
+# exec = ["git"]
+
+# What `+"`hive plugin test`"+` and `+"`hive plugin publish`"+` run.
+[test]
+command = ["sh", "./hello.sh"]
 
 [[actions]]
 id = "hello"
@@ -138,9 +148,9 @@ command = ["sh", "./hello.sh"]
 # Offer the action in the command palette.
 [[contributes.palette]]
 action = "hello"
-`, plugin.APIVersion, id, id, id), mode: 0o644},
+`, id, id, id), mode: 0o644},
 				"hello.sh":  {body: "#!/bin/sh\nprintf '%s\\n' 'Hello from Hive plugin'\n", mode: 0o755},
-				"README.md": {body: fmt.Sprintf("# %s\n\nA Hive plugin scaffold.\n\n## Validate\n\n```sh\nhive plugin validate .\n```\n\n## Try it\n\n```sh\nhive plugin link .\nhive plugin run %s hello\n```\n\nEdit `hello.sh` and `hive-plugin.toml` to customize this plugin. Plugins run with your user permissions; review every command before installing them from a registry.\n", id, id), mode: 0o644},
+				"README.md": {body: fmt.Sprintf("# %s\n\nA Hive plugin scaffold.\n\n## Validate\n\n```sh\nhive plugin validate .\n```\n\n## Try it\n\n```sh\nhive plugin link .\nhive plugin run %s hello\n```\n\nEdit `hello.sh` and `hive-plugin.toml` to customize this plugin. It runs sandboxed (plugin API 2): it reaches the network and runs other programs only as `[permissions]` say.\n\n## Test and publish\n\n```sh\nhive plugin test\nhive plugin publish --dry-run\n```\n", id, id), mode: 0o644},
 			}
 			created := make([]string, 0, len(files))
 			for name, file := range files {
@@ -193,7 +203,10 @@ func newPluginValidateCmd(a *app) *cobra.Command {
 					fmt.Fprintf(a.errOut, "warning: [[events]] on %q never fires in plugin API %d (see `hive plugin capabilities`)\n", e.On, plugin.APIVersion)
 				}
 			}
-			if manifest.Isolation == "strict" && !plugin.SandboxAvailable() {
+			switch {
+			case manifest.API >= 2 && manifest.Isolation != plugin.IsolationNone && !plugin.SandboxAvailable():
+				fmt.Fprintf(a.errOut, "warning: this system has no sandbox for plugins (sandbox-exec on macOS, bwrap on Linux): the plugin runs here only once granted %s\n", plugin.CapUnconfined)
+			case manifest.Isolation == "strict" && !plugin.SandboxAvailable():
 				fmt.Fprintln(a.errOut, "warning: isolation = \"strict\" needs sandbox-exec (macOS) or bwrap (Linux), which this system lacks")
 			}
 			return a.emit(map[string]any{"valid": true, "manifest": manifest}, func() error {

@@ -85,11 +85,20 @@ socket. Other machines are reached through the user's ssh.
 - **Agents are not sandboxed.** An agent can do anything you can. Hive keeps
   others from driving your agents; it does not keep your agents from your
   files. Use a dedicated account or a VM for agents you do not trust.
-- **Plugins run as you.** Plugin API capabilities limit what a plugin may
-  ask *Hive* to do. They are not isolation unless strict isolation is on and
-  available, and it is not available on Windows. A plugin without `api`
-  (API 0) holds every capability. Install plugins you trust, from a release
-  you have read.
+- **Plugin API 2 plugins are confined to what you approved, on macOS and
+  Linux.** From 1.7 an API 2 plugin runs sandboxed by default: it reads
+  only its own files and the system's, writes only its own directories,
+  reaches only the hosts it lists (through a proxy that sees host names,
+  not content), runs only the programs it lists, and reaches only its own
+  Hive socket, unless you grant more. Reads are wider than writes: the
+  system's files and its package are readable. It runs unconfined only
+  when you approve `unconfined`, per release (`isolation = "none"`, or a
+  system with no sandbox such as Windows).
+- **Plugin API 1 plugins run as you.** Their capabilities limit what they
+  may ask *Hive* to do. They are not isolation unless strict isolation is
+  on and available, and it is not available on Windows. A plugin without
+  `api` (API 0) holds every capability. Install plugins you trust, from a
+  release you have read.
 - **Screens are shown as they are.** An observer allowed to read screens sees
   whatever is on them, secrets included. There is no redaction of terminal
   contents.

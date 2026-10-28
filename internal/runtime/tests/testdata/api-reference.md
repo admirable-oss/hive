@@ -2659,6 +2659,7 @@ Result: [protocol.Empty](#protocolempty)
 | `events` | [\[\]plugin.Event](#pluginevent) |  |
 | `id` | `string` |  |
 | `isolation` | `string` |  |
+| `isolation_reason` | `string` |  |
 | `max_hive_version` | `string` |  |
 | `migrations` | [\[\]plugin.Migration](#pluginmigration) |  |
 | `min_hive_version` | `string` |  |
@@ -2677,6 +2678,12 @@ Result: [protocol.Empty](#protocolempty)
 | `command` | `[]string` |  |
 | `from` | `integer` |  |
 | `to` | `integer` |  |
+
+### plugin.NetworkScope
+
+| Field | Type | |
+|---|---|---|
+| `hosts` | `[]string` |  |
 
 ### plugin.PaletteEntry
 
@@ -2698,9 +2705,17 @@ Result: [protocol.Empty](#protocolempty)
 
 | Field | Type | |
 |---|---|---|
+| `network` | [plugin.NetworkScope](#pluginnetworkscope) |  |
 | `optional` | `[]string` |  |
+| `process` | [plugin.ProcessScope](#pluginprocessscope) |  |
 | `reasons` | `map[string]string` |  |
 | `required` | `[]string` |  |
+
+### plugin.ProcessScope
+
+| Field | Type | |
+|---|---|---|
+| `exec` | `[]string` |  |
 
 ### plugin.Provenance
 

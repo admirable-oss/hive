@@ -72,7 +72,10 @@ type Manifest struct {
 	Contributes Contributes `toml:"contributes" json:"contributes,omitzero"`
 	// Isolation "strict" says it can run sandboxed: no network or writes
 	// outside its own directories unless granted, and only its own socket.
-	Isolation string `toml:"isolation" json:"isolation,omitempty"`
+	// Plugin API 2 runs sandboxed by default; "none" asks to run outside
+	// the sandbox, with IsolationReason shown to whoever installs it.
+	Isolation       string `toml:"isolation" json:"isolation,omitempty"`
+	IsolationReason string `toml:"isolation_reason" json:"isolation_reason,omitempty"`
 	// EventConcurrency bounds its event commands running at once (default
 	// 4); 1 runs them strictly one after another, in event order.
 	EventConcurrency int `toml:"event_concurrency" json:"event_concurrency,omitempty"`
@@ -90,6 +93,24 @@ type Permissions struct {
 	Optional []string `toml:"optional" json:"optional,omitempty"`
 	// Reasons say why, per capability; shown when installing.
 	Reasons map[string]string `toml:"reasons" json:"reasons,omitempty"`
+	// Network and Process narrow network and process.exec (plugin API 2):
+	// the hosts it may reach, the programs it may run.
+	Network NetworkScope `toml:"network" json:"network,omitzero"`
+	Process ProcessScope `toml:"process" json:"process,omitzero"`
+}
+
+// NetworkScope lists the hosts a plugin API 2 plugin may reach, as
+// host:port ("api.linear.app:443", "*.example.org:443"). None listed, a
+// plugin granted network reaches any host.
+type NetworkScope struct {
+	Hosts []string `toml:"hosts" json:"hosts,omitempty"`
+}
+
+// ProcessScope lists the programs a plugin API 2 plugin may run: names
+// found on PATH when it starts, or absolute paths. None listed, a plugin
+// granted process.exec runs any program.
+type ProcessScope struct {
+	Exec []string `toml:"exec" json:"exec,omitempty"`
 }
 
 // Contributes is a plugin's restricted UI contribution: declared here, so
@@ -651,8 +672,19 @@ func (m *Manifest) Preview(source string) string {
 			fmt.Fprintf(&b, "  may ask for %s: %s%s\n", c, describeCapability(c), reasonSuffix(m.Permissions.Reasons[c]))
 		}
 	}
-	if m.Isolation == "strict" {
+	switch {
+	case m.API >= 2 && m.Isolation == IsolationNone:
+		fmt.Fprintf(&b, "  runs UNCONFINED, outside the sandbox: %s\n", m.IsolationReason)
+	case m.API >= 2:
+		b.WriteString("  runs sandboxed: it reads only its own files and the system's, and writes, connects and runs programs only as granted\n")
+	case m.Isolation == "strict":
 		b.WriteString("  can run isolated (strict): no network or outside writes unless granted\n")
+	}
+	if hosts := m.Permissions.Network.Hosts; len(hosts) > 0 {
+		fmt.Fprintf(&b, "  network limited to: %s\n", strings.Join(hosts, ", "))
+	}
+	if exec := m.Permissions.Process.Exec; len(exec) > 0 {
+		fmt.Fprintf(&b, "  programs limited to: %s\n", strings.Join(exec, ", "))
 	}
 	c := m.Contributes
 	for _, card := range c.Cards {

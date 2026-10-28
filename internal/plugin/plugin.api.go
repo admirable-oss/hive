@@ -6,17 +6,19 @@ import (
 	"strings"
 )
 
-// APIVersion is the plugin API this hive implements. SupportedAPIs lists
-// every version it runs; a manifest asking for another is refused with a
-// clear problem instead of being half-understood.
-const APIVersion = 1
+// APIVersion is the newest plugin API this hive implements. SupportedAPIs
+// lists every version it runs; a manifest asking for another is refused
+// with a clear problem instead of being half-understood.
+const APIVersion = 2
 
 // SupportedAPIs are the plugin API versions this hive runs.
-var SupportedAPIs = []int{1}
+var SupportedAPIs = []int{1, 2}
 
 // Capabilities a plugin may hold. hive.* are enforced by the daemon on the
-// plugin's own socket. filesystem.write and network are enforced only under
-// strict isolation; process.exec is declared, never enforced.
+// plugin's own socket. Under plugin API 1, filesystem.write and network are
+// enforced only under strict isolation, and process.exec is declared, never
+// enforced. Under plugin API 2 a plugin runs sandboxed by default, and the
+// sandbox enforces the filesystem, network and program capabilities.
 const (
 	CapHiveRead        = "hive.read"
 	CapHiveWrite       = "hive.write"
@@ -26,6 +28,15 @@ const (
 	CapFilesystemWrite = "filesystem.write"
 	CapNetwork         = "network"
 	CapProcessExec     = "process.exec"
+
+	// Plugin API 2 only.
+	CapFilesystemRead           = "filesystem.read"
+	CapFilesystemReadWorkspace  = "filesystem.read:workspace"
+	CapFilesystemWriteWorkspace = "filesystem.write:workspace"
+	// CapUnconfined runs it outside the sandbox: what a manifest's
+	// isolation = "none" requires, and what a plugin needs where this
+	// system has no sandbox. Approved once per release.
+	CapUnconfined = "unconfined"
 )
 
 // Enforcement says who keeps a plugin to a capability it lacks.
@@ -42,7 +53,8 @@ type CapabilityInfo struct {
 	Enforced    string `json:"enforced"`
 }
 
-// CapabilityList is every capability, in the order they are shown.
+// CapabilityList is every plugin API 1 capability, in the order they are
+// shown. It never changes: plugin API 1 and its fixtures depend on it.
 var CapabilityList = []CapabilityInfo{
 	{CapHiveRead, "read the workspace: environments, tabs, panes, agents, screens, events", EnforcedDaemon},
 	{CapHiveWrite, "change the workspace: tabs, panes, layouts, names, metadata, worktrees", EnforcedDaemon},
@@ -54,15 +66,58 @@ var CapabilityList = []CapabilityInfo{
 	{CapProcessExec, "run other programs", EnforcedDeclared},
 }
 
-// KnownCapability reports whether name is a capability.
-func KnownCapability(name string) bool {
-	return slices.ContainsFunc(CapabilityList, func(c CapabilityInfo) bool { return c.Name == name })
+// CapabilityListV2 is every plugin API 2 capability: the sandbox enforces
+// files, network and programs.
+var CapabilityListV2 = []CapabilityInfo{
+	{CapHiveRead, "read the workspace: environments, tabs, panes, agents, screens, events", EnforcedDaemon},
+	{CapHiveWrite, "change the workspace: tabs, panes, layouts, names, metadata, worktrees", EnforcedDaemon},
+	{CapHiveInput, "type into terminals and prompt agents", EnforcedDaemon},
+	{CapHiveProcess, "start and stop processes and agents through Hive", EnforcedDaemon},
+	{CapHiveAdmin, "run other plugins, restore sessions, debug the daemon", EnforcedDaemon},
+	{CapFilesystemRead, "read files outside the plugin's own directories and the system's", EnforcedSandbox},
+	{CapFilesystemReadWorkspace, "read the directories of your environments", EnforcedSandbox},
+	{CapFilesystemWrite, "write files outside the plugin's own directories", EnforcedSandbox},
+	{CapFilesystemWriteWorkspace, "write in the directories of your environments", EnforcedSandbox},
+	{CapNetwork, "use the network (only the hosts it lists, when it lists any)", EnforcedSandbox},
+	{CapProcessExec, "run other programs (only those it lists, when it lists any)", EnforcedSandbox},
+	{CapUnconfined, "run outside the sandbox, with everything you can reach", EnforcedSandbox},
 }
 
-// AllCapabilities lists every capability's name.
+// CapabilitiesFor is the capability list of a plugin API version.
+func CapabilitiesFor(api int) []CapabilityInfo {
+	if api >= 2 {
+		return CapabilityListV2
+	}
+	return CapabilityList
+}
+
+// KnownCapability reports whether name is a capability of any plugin API.
+func KnownCapability(name string) bool {
+	return knownIn(CapabilityList, name) || knownIn(CapabilityListV2, name)
+}
+
+// KnownCapabilityFor reports whether name is a capability of plugin API
+// api.
+func KnownCapabilityFor(api int, name string) bool { return knownIn(CapabilitiesFor(api), name) }
+
+func knownIn(list []CapabilityInfo, name string) bool {
+	return slices.ContainsFunc(list, func(c CapabilityInfo) bool { return c.Name == name })
+}
+
+// AllCapabilities lists every capability's name, of every plugin API.
 func AllCapabilities() []string {
-	out := make([]string, len(CapabilityList))
-	for i, c := range CapabilityList {
+	out := capabilityNames(CapabilityList)
+	for _, c := range CapabilityListV2 {
+		if !slices.Contains(out, c.Name) {
+			out = append(out, c.Name)
+		}
+	}
+	return out
+}
+
+func capabilityNames(list []CapabilityInfo) []string {
+	out := make([]string, len(list))
+	for i, c := range list {
 		out[i] = c.Name
 	}
 	return out

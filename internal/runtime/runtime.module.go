@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"path/filepath"
+	"time"
 
 	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/branch"
@@ -129,7 +130,21 @@ func NewModule(cfg Config) *Module {
 
 	meta := metadata.NewStore(nil)
 	server.Go(func(ctx context.Context) { expireMetadata(ctx, meta, bus, log) })
-	plugins := newPluginHost(cfg, log.With("module", "plugin"), router, bus)
+	plugins := newPluginHost(cfg, log.With("module", "plugin"), router, bus, func(ctx context.Context) []string {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		envs, err := guardedEnvs.List(ctx)
+		if err != nil {
+			return nil
+		}
+		dirs := make([]string, 0, len(envs))
+		for _, e := range envs {
+			if e.Path != "" {
+				dirs = append(dirs, e.Path)
+			}
+		}
+		return dirs
+	})
 	server.Go(plugins.Run)
 	server.Go(func(ctx context.Context) { forwardEvents(ctx, bus, plugins) })
 	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir(), events: bus, log: gitLog}

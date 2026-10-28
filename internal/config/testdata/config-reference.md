@@ -109,7 +109,7 @@ the defaults, so a typo never stops the daemon.
 |---|---|---|
 | `allow` | `[]` | Capabilities granted, without asking, to plugins that list them as optional (hive.read, hive.write, hive.input, hive.process, hive.admin, filesystem.write, network, process.exec). |
 | `deny` | `[]` | Capabilities no plugin gets; one that requires a denied capability does not run. |
-| `isolation` | `"auto"` | auto (sandbox plugins that declare isolation = "strict") \| standard (never) \| strict (every plugin; needs sandbox-exec on macOS, bwrap on Linux) |
+| `isolation` | `"auto"` | auto (sandbox plugins that declare isolation = "strict") \| standard (never) \| strict (every plugin; needs sandbox-exec on macOS, bwrap on Linux) \| api2 (run only plugin API 2 plugins). Plugin API 2 plugins run sandboxed wherever a sandbox exists, whatever this says short of strict. |
 | `require_signature` | `"official-verified"` | Which registry releases must be signed by their publisher: official-verified (official and verified plugins; unsigned community ones install with a warning) \| all \| none (development registries) |
 | `restart_limit` | `5` | A plugin command that fails more than restart_limit times within restart_window is no longer restarted (`hive plugin reload <id>` resets it). |
 | `restart_window` | `"10m0s"` | A plugin command that fails more than restart_limit times within restart_window is no longer restarted (`hive plugin reload <id>` resets it). |

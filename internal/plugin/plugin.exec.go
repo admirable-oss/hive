@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -100,13 +101,11 @@ func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string,
 	full := append([]string{path}, argv[1:]...)
 	if l.strict {
 		env = strictEnv(env, cache)
-		full, err = sandboxArgv(full, sandboxSpec{
-			Writable:        []string{data, configDir, cache},
-			Network:         slices.Contains(c.Capabilities, CapNetwork),
-			FilesystemWrite: slices.Contains(c.Capabilities, CapFilesystemWrite),
-			Socket:          l.socket,
-			DaemonSocket:    h.cfg.SocketPath,
-		})
+		spec := h.sandboxFor(ctx, l, c.Capabilities, data, configDir, cache)
+		if spec.ProxyPort != 0 {
+			env = append(env, ProxyEnv(l.proxy.URL(fmt.Sprintf("127.0.0.1:%d", spec.ProxyPort)))...)
+		}
+		full, err = sandboxArgv(full, spec)
 		if err != nil {
 			return 0, err
 		}

@@ -1179,6 +1179,7 @@ type plugin.Manifest.event_concurrency: integer
 type plugin.Manifest.events: []plugin.Event
 type plugin.Manifest.id: string
 type plugin.Manifest.isolation: string
+type plugin.Manifest.isolation_reason: string
 type plugin.Manifest.max_hive_version: string
 type plugin.Manifest.migrations: []plugin.Migration
 type plugin.Manifest.min_hive_version: string
@@ -1194,6 +1195,8 @@ type plugin.Migration.command: []string
 type plugin.Migration.from: integer
 type plugin.Migration.to: integer
 type plugin.Migration: object
+type plugin.NetworkScope.hosts: []string
+type plugin.NetworkScope: object
 type plugin.PaletteEntry.action: string
 type plugin.PaletteEntry.title: string
 type plugin.PaletteEntry: object
@@ -1202,10 +1205,14 @@ type plugin.PermissionRequest.capability: string
 type plugin.PermissionRequest.plugin: string
 type plugin.PermissionRequest.reason: string
 type plugin.PermissionRequest: object
+type plugin.Permissions.network: plugin.NetworkScope
 type plugin.Permissions.optional: []string
+type plugin.Permissions.process: plugin.ProcessScope
 type plugin.Permissions.reasons: map[string]string
 type plugin.Permissions.required: []string
 type plugin.Permissions: object
+type plugin.ProcessScope.exec: []string
+type plugin.ProcessScope: object
 type plugin.Provenance.attestation: string
 type plugin.Provenance.builder: string
 type plugin.Provenance.repository: string

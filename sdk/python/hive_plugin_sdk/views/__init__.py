@@ -18,6 +18,11 @@ HIVE_ADMIN = "hive.admin"
 FILESYSTEM_WRITE = "filesystem.write"
 NETWORK = "network"
 PROCESS_EXEC = "process.exec"
+# Plugin API 2 (Hive 1.7 and later).
+FILESYSTEM_READ = "filesystem.read"
+FILESYSTEM_READ_WORKSPACE = "filesystem.read:workspace"
+FILESYSTEM_WRITE_WORKSPACE = "filesystem.write:workspace"
+UNCONFINED = "unconfined"
 
 
 @dataclass(slots=True)
@@ -101,4 +106,5 @@ class ExtensionContribution:
 __all__ = [
     "Card", "CardRow", "ExtensionContribution", "Link", "Status", "ttl_nanos",
     "HIVE_READ", "HIVE_WRITE", "HIVE_INPUT", "HIVE_PROCESS", "HIVE_ADMIN", "FILESYSTEM_WRITE", "NETWORK", "PROCESS_EXEC",
+    "FILESYSTEM_READ", "FILESYSTEM_READ_WORKSPACE", "FILESYSTEM_WRITE_WORKSPACE", "UNCONFINED",
 ]

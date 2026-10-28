@@ -165,7 +165,9 @@ allow = {{list .Plugins.Allow}}
 # run.
 deny = {{list .Plugins.Deny}}
 # auto (sandbox plugins that declare isolation = "strict") | standard (never)
-# | strict (every plugin; needs sandbox-exec on macOS, bwrap on Linux)
+# | strict (every plugin; needs sandbox-exec on macOS, bwrap on Linux) | api2
+# (run only plugin API 2 plugins). Plugin API 2 plugins run sandboxed
+# wherever a sandbox exists, whatever this says short of strict.
 isolation = {{q .Plugins.Isolation}}
 # Which registry releases must be signed by their publisher: official-verified
 # (official and verified plugins; unsigned community ones install with a

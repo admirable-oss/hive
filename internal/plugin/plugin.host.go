@@ -101,6 +101,8 @@ const (
 	IsolationAuto     = "auto"     // strict for plugins that support it
 	IsolationStandard = "standard" // never strict
 	IsolationStrict   = "strict"   // strict for every plugin
+	// IsolationAPI2 runs only plugin API 2 plugins, sandboxed by default.
+	IsolationAPI2 = "api2"
 )
 
 // HostConfig sets up a Host.
@@ -135,6 +137,12 @@ type HostConfig struct {
 	Serve func(id string, granted []string) (path string, stop func(), err error)
 	// SocketPath is the daemon's own socket, which strict isolation hides.
 	SocketPath string
+	// Launcher is the hive binary, which sets up a plugin API 2 sandbox
+	// from the inside on Linux.
+	Launcher string
+	// Workspaces lists the directories of the environments, for
+	// filesystem.read:workspace and filesystem.write:workspace.
+	Workspaces func(ctx context.Context) []string
 	// Publish announces plugin events on the daemon's bus.
 	Publish func(typ string, data any)
 }
@@ -173,9 +181,15 @@ type Host struct {
 
 type loaded struct {
 	Plugin
-	grant   Grant
-	strict  bool
-	problem string // a load-time problem: it runs nothing
+	grant  Grant
+	strict bool
+	// confined is a plugin API 2 plugin in its sandbox: reads, programs
+	// and hosts limited. exec are the programs it may run, resolved when
+	// it loaded; proxy reaches the hosts it lists.
+	confined bool
+	exec     []string
+	proxy    *netProxy
+	problem  string // a load-time problem: it runs nothing
 
 	ctx    context.Context // its life: until unloaded
 	cancel context.CancelFunc
@@ -338,11 +352,8 @@ func (h *Host) load(ctx context.Context, p Plugin) {
 		fail(problem)
 		return
 	}
-	// auto sandboxes a plugin that can run sandboxed, where a sandbox
-	// exists; strict, chosen by the user, never runs a plugin without one.
-	l.strict = h.cfg.Isolation == IsolationStrict || (h.cfg.Isolation == IsolationAuto && m.Isolation == "strict" && SandboxAvailable())
-	if l.strict && !SandboxAvailable() {
-		fail("[plugins] isolation is strict, which needs " + sandboxTool() + ", not available here")
+	if problem := h.isolate(l, m); problem != "" {
+		fail(problem)
 		return
 	}
 	if m.Legacy() {
@@ -372,6 +383,22 @@ func (h *Host) load(ctx context.Context, p Plugin) {
 		}
 		l.socket, l.stopSocket = path, stop
 	}
+	if l.confined {
+		l.health.Warnings = append(l.health.Warnings, h.confine(l, m)...)
+		if hosts := m.Permissions.Network.Hosts; len(hosts) > 0 && slices.Contains(l.grant.Effective, CapNetwork) {
+			proxy, err := startProxy(lctx, hosts, func(format string, args ...any) {
+				fmt.Fprintf(pluginLog{l}, "hive: "+format+"\n", args...)
+			})
+			if err != nil {
+				if l.stopSocket != nil {
+					l.stopSocket()
+				}
+				fail("start its network proxy: " + err.Error())
+				return
+			}
+			l.proxy = proxy
+		}
+	}
 	workers := m.EventConcurrency
 	if workers <= 0 {
 		workers = defaultEventConcurrency
@@ -391,7 +418,7 @@ func (h *Host) load(ctx context.Context, p Plugin) {
 	}
 	st := h.statusOfLocked(l)
 	h.mu.Unlock()
-	h.log.Info("plugin loaded", "plugin", p.ID, "version", m.Version, "api", m.EffectiveAPI(), "strict", l.strict, "capabilities", l.grant.Effective)
+	h.log.Info("plugin loaded", "plugin", p.ID, "version", m.Version, "api", m.EffectiveAPI(), "strict", l.strict, "confined", l.confined, "capabilities", l.grant.Effective)
 	h.cfg.Publish(EventChanged, st)
 }
 
@@ -409,6 +436,9 @@ func (h *Host) unload(id string) {
 	l.wg.Wait()
 	if l.stopSocket != nil {
 		l.stopSocket()
+	}
+	if l.proxy != nil {
+		l.proxy.Close()
 	}
 	if l.closer != nil {
 		l.logMu.Lock()
@@ -478,11 +508,16 @@ func (h *Host) Granted(id string) []string {
 }
 
 // Discovery describes this hive to plugins; with id, also what that
-// plugin holds and may call.
+// plugin holds and may call. A plugin sees its own plugin API: the
+// capabilities of that version.
 func (h *Host) Discovery(id string) Discovery {
+	api := APIVersion
+	if id != "" {
+		api = h.apiOf(id)
+	}
 	d := Discovery{
-		API: APIVersion, SupportedAPIs: slices.Clone(SupportedAPIs), HiveVersion: h.cfg.Version,
-		Capabilities: slices.Clone(CapabilityList), Events: slices.Clone(Events),
+		API: api, SupportedAPIs: slices.Clone(SupportedAPIs), HiveVersion: h.cfg.Version,
+		Capabilities: slices.Clone(CapabilitiesFor(api)), Events: slices.Clone(Events),
 		Contributions: slices.Clone(ContributionKinds), Isolation: []string{IsolationStandard},
 	}
 	if SandboxAvailable() {
@@ -498,6 +533,17 @@ func (h *Host) Discovery(id string) Discovery {
 		}
 	}
 	return d
+}
+
+// apiOf is a loaded plugin's plugin API (the newest when it is not
+// loaded).
+func (h *Host) apiOf(id string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if l := h.plugins[id]; l != nil && l.Manifest != nil {
+		return l.Manifest.EffectiveAPI()
+	}
+	return APIVersion
 }
 
 func cmpStr(a, b string) string {

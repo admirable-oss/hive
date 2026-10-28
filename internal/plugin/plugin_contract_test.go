@@ -19,6 +19,85 @@ func fixtureDir(v int) string {
 	return filepath.Join("..", "..", "sdk", "protocol", "fixtures", fmt.Sprintf("v%d", v))
 }
 
+// contractManifests exercise every manifest section of each plugin API.
+// Each is also written to the fixtures as the reference manifest.
+var contractManifests = map[int]string{1: contractManifest, 2: contractManifestV2}
+
+// contractManifestV2 is plugin API 2's: scoped capabilities, and isolation
+// "none" so the contexts it records are the same on every system.
+const contractManifestV2 = `api = 2
+id = "contract"
+name = "Contract"
+version = "2.0.0"
+description = "Exercises every plugin API 2 surface."
+min_hive_version = "1.7.0"
+isolation = "none"
+isolation_reason = "the contract fixtures record the same contexts on every system"
+event_concurrency = 1
+
+[permissions]
+required = ["hive.read", "hive.write", "filesystem.read:workspace"]
+optional = ["network", "process.exec"]
+[permissions.reasons]
+network = "fetch build results"
+[permissions.network]
+hosts = ["ci.example.com:443", "*.githubusercontent.com:443"]
+[permissions.process]
+exec = ["git"]
+
+[test]
+command = ["sh", "-c", "true"]
+timeout = "1m"
+
+[[startup]]
+command = ["sh", "-c", "exec sleep 600"]
+restart = true
+
+[[actions]]
+id = "show"
+title = "Show the context"
+command = ["sh", "-c", "cat \"$HIVE_PLUGIN_CONTEXT\""]
+
+[[actions]]
+id = "background"
+command = ["sleep", "1"]
+async = true
+
+[[events]]
+on = "worktree.created"
+command = ["sh", "-c", "cat \"$HIVE_PLUGIN_CONTEXT\" > \"$HIVE_PLUGIN_DATA/event.json\""]
+timeout = "30s"
+
+[configuration]
+version = 1
+[[configuration.settings]]
+name = "branch"
+type = "string"
+default = "main"
+description = "the branch to follow"
+
+[[contributes.cards]]
+id = "build"
+title = "Build"
+scope = "environment"
+
+[[contributes.status]]
+id = "builds"
+title = "Builds"
+
+[[contributes.actions]]
+action = "show"
+contexts = ["pane", "environment"]
+
+[[contributes.palette]]
+action = "show"
+
+[[contributes.links]]
+id = "docs"
+title = "Docs"
+url = "https://example.com/docs"
+`
+
 // contractManifest exercises every API 1 manifest section. It is also
 // written to the fixtures as the reference manifest.
 const contractManifest = `api = 1
@@ -126,12 +205,13 @@ func TestAPIContract(t *testing.T) {
 	for _, v := range SupportedAPIs {
 		t.Run(fmt.Sprintf("v%d", v), func(t *testing.T) {
 			dir := fixtureDir(v)
-			checkFixture(t, filepath.Join(dir, "manifest.toml"), []byte(contractManifest))
-			m, err := ParseManifest([]byte(contractManifest))
+			manifest := contractManifests[v]
+			checkFixture(t, filepath.Join(dir, "manifest.toml"), []byte(manifest))
+			m, err := ParseManifest([]byte(manifest))
 			if err != nil || m.EffectiveAPI() != v {
 				t.Fatalf("reference manifest: %v", err)
 			}
-			h, s, _ := startHost(t, contractManifest, map[string]string{}, HostConfig{Session: "work", Isolation: IsolationStandard})
+			h, s, _ := startHost(t, manifest, map[string]string{}, HostConfig{Session: "work", Isolation: IsolationStandard})
 			res, err := h.Action(context.Background(), "contract", "show", Context{Environment: "api", Tab: "t1", Pane: "p1"})
 			if err != nil {
 				t.Fatal(err)

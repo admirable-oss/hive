@@ -18,6 +18,11 @@ export const Capability = {
   FilesystemWrite: "filesystem.write",
   Network: "network",
   ProcessExec: "process.exec",
+  // Plugin API 2 (Hive 1.7 and later).
+  FilesystemRead: "filesystem.read",
+  FilesystemReadWorkspace: "filesystem.read:workspace",
+  FilesystemWriteWorkspace: "filesystem.write:workspace",
+  Unconfined: "unconfined",
 } as const;
 export type Capability = (typeof Capability)[keyof typeof Capability];
 

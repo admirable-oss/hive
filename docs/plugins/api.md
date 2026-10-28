@@ -297,6 +297,66 @@ cannot promise follows from that:
   `auto` runs plugins standard; with `[plugins] isolation = "strict"` they do
   not run at all (never silently unsandboxed).
 
+## Plugin API 2: sandboxed by default (Hive 1.7)
+
+A manifest with `api = 2` gets everything plugin API 1 has, and runs in the
+system sandbox wherever one exists, whatever `[plugins] isolation` says
+short of `strict` (a setting never silently loosens API 2). Plugin API 1
+plugins run exactly as before. Hive 1.7 runs both (`supported_apis` is
+`[1, 2]`); earlier releases refuse API 2 (`unsupported plugin API`).
+
+**What a sandboxed API 2 plugin may touch**, enforced on macOS by
+`sandbox-exec` and on Linux by bubblewrap with Landlock (5.13 and later):
+
+| | Without a grant | With it |
+|---|---|---|
+| Read files | its package, data, config and cache, and the system (`/usr`, `/etc`, `/System`, `/Library`, Homebrew, Nix, …); your home directory and everything else are not there | `filesystem.read`: everything; `filesystem.read:workspace`: also your environments' directories |
+| Write files | its data, config and cache | `filesystem.write`: everything; `filesystem.write:workspace`: also your environments' directories |
+| Network | none | `network`: the hosts in `[permissions.network] hosts` through its own proxy, or any host when it lists none |
+| Programs | its own package, shells, its `[[runtime]]` commands, and `hive` | `process.exec`: the programs in `[permissions.process] exec`, or any program when it lists none |
+| Hive's sockets | its own socket only | — |
+
+```toml
+api = 2
+id = "linear"
+version = "1.0.0"
+min_hive_version = "1.7.0"
+
+[permissions]
+required = ["hive.read", "network", "process.exec"]
+optional = ["filesystem.read:workspace"]
+[permissions.network]
+hosts = ["api.linear.app:443", "*.linear.app:443"]
+[permissions.process]
+exec = ["git", "gh"]
+```
+
+- **Hosts** are `host:port`, a host name or address, or `*.domain` for its
+  subdomains; at most 32. The plugin's programs get `HTTPS_PROXY`,
+  `HTTP_PROXY` and `ALL_PROXY` pointing at a proxy the daemon runs for this
+  plugin alone, with credentials only it has. The proxy allows `CONNECT`
+  (and plain `http://` requests) to the listed hosts and nothing else, and
+  logs each refusal in the plugin's log. It sees host names, never the
+  traffic inside TLS. Programs that ignore proxy variables cannot reach the
+  network at all.
+- **Programs** are names found on `PATH` when the plugin loads, or absolute
+  paths; at most 32. A program that is not found is a warning in `hive
+  plugin info`, and cannot run. Scripts may use any shell.
+- **`isolation = "none"`** with `isolation_reason` asks to run outside the
+  sandbox. It needs the `unconfined` capability, which you approve when you
+  install the plugin, with the reason shown, and again for every release.
+- **A system without a sandbox** (Windows, or Linux without `bwrap`) runs
+  an API 2 plugin only once you grant `unconfined` (`hive plugin grant <id>
+  unconfined`), for that release.
+- **`[plugins] isolation = "api2"`** runs only API 2 plugins: API 1 plugins
+  do not run.
+- **`hive plugin capabilities`** describes API 2; on its own socket a plugin
+  discovers the capabilities of its own API.
+
+The sandbox does not limit CPU or memory. With Landlock missing (Linux
+before 5.13), bubblewrap still confines files, the network and sockets, but
+not programs; the plugin's log says so.
+
 ## Lifecycle and health
 
 | State | Meaning |

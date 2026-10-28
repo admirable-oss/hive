@@ -300,7 +300,9 @@ type Plugins struct {
 	Allow []string
 	Deny  []string
 	// Isolation is auto (strict for plugins that support it), standard
-	// or strict (every plugin, sandboxed).
+	// or strict (every plugin, sandboxed), or api2 (only plugin API 2
+	// plugins). Plugin API 2 plugins run sandboxed wherever a sandbox
+	// exists, short of an approved isolation = "none".
 	Isolation string
 	// RequireSignature is which registry releases must be signed by their
 	// publisher: official-verified (default), all or none.
@@ -350,7 +352,7 @@ type Web struct {
 }
 
 // Plugin isolation modes.
-var pluginIsolations = []string{"auto", "standard", "strict"}
+var pluginIsolations = []string{"auto", "standard", "strict", "api2"}
 
 // Plugin signature policies.
 var pluginSignaturePolicies = []string{"official-verified", "all", "none"}

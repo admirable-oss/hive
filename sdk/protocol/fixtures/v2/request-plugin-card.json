@@ -1,0 +1,1 @@
+{"id":"7","method":"plugin.card","params":{"card":"build","environment":"api","rows":[{"label":"main","text":"passing","tone":"success"}],"links":[{"title":"Run","url":"https://ci.example.com/run/1"}],"ttl":600000000000},"type":"request","version":"2"}

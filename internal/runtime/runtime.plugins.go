@@ -38,8 +38,12 @@ func (c Config) pluginDir() string {
 
 // newPluginHost builds the host that runs the enabled plugins: each on its
 // own socket, scoped to its capabilities, with plugin events on the bus.
-func newPluginHost(cfg Config, log *slog.Logger, router *protocol.Router, bus *event.Bus) *plugin.Host {
+func newPluginHost(cfg Config, log *slog.Logger, router *protocol.Router, bus *event.Bus, workspaces func(context.Context) []string) *plugin.Host {
 	env := cfg.launchEnv()
+	launcher := cfg.bin()
+	if launcher == "" {
+		launcher, _ = os.Executable()
+	}
 	var host *plugin.Host
 	sockets := &pluginSockets{dir: filepath.Join(cfg.root(), "p"), router: router, log: log, granted: func(id string) []string { return host.Granted(id) }}
 	pc := cfg.Plugins
@@ -76,6 +80,8 @@ func newPluginHost(cfg Config, log *slog.Logger, router *protocol.Router, bus *e
 		Hidden:        pc.Hidden,
 		Serve:         sockets.serve,
 		SocketPath:    cfg.SocketPath,
+		Launcher:      launcher,
+		Workspaces:    workspaces,
 		Publish:       bus.Publish,
 	})
 	return host

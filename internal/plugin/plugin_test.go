@@ -18,7 +18,14 @@ import (
 	"github.com/admirable-oss/hive/internal/jsonfile"
 )
 
-func TestMain(m *testing.M) { goleak.VerifyTestMain(m) }
+// TestMain is also the plugin sandbox's launcher in these tests, as the
+// hive binary is for the daemon.
+func TestMain(m *testing.M) {
+	if len(os.Args) > 1 && os.Args[1] == SandboxCommand {
+		os.Exit(SandboxMain(os.Args[2:]))
+	}
+	goleak.VerifyTestMain(m)
+}
 
 func TestManifest(t *testing.T) {
 	m, err := ParseManifest([]byte(sample))

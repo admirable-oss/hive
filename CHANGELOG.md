@@ -23,6 +23,26 @@ Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). 
   through the new `observe.plugins` observer method.
 - `pkg/hiveapi` gains `Plugins` and the tier constants. API level 16.
 
+### Plugin API 2: sandboxed by default
+
+- `api = 2` plugins run in the system sandbox wherever one exists
+  (`sandbox-exec` on macOS; bubblewrap with Landlock on Linux): they read
+  only their own files and the system's, write only their own directories,
+  reach only the hosts they list and run only the programs they list,
+  unless granted more. Plugin API 1 plugins run as before.
+- New capabilities: `filesystem.read`, `filesystem.read:workspace`,
+  `filesystem.write:workspace` and `unconfined`; `[permissions.network]
+  hosts` and `[permissions.process] exec` narrow `network` and
+  `process.exec`.
+- Listed hosts are reached through a per-plugin proxy with its own
+  credentials, which logs what it refuses.
+- `isolation = "none"` (with `isolation_reason`) and systems without a
+  sandbox need `unconfined`, approved once per release.
+- `[plugins] isolation = "api2"` runs only API 2 plugins.
+- `hive plugin init` scaffolds an API 2 plugin; the TypeScript, Python and
+  Rust SDKs know the new capabilities. Plugin API 2 fixtures are in
+  `sdk/protocol/fixtures/v2/`.
+
 ### Publishing
 
 - `hive plugin publish` tags, checksums, signs (`ssh-keygen -Y sign`, with

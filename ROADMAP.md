@@ -1790,8 +1790,15 @@ the policy: [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md#publishers-tie
   the `hive` publisher's key, docs/plugins/ecosystem.md). The pipeline
   signs the official releases and publishes `registry-2.json` as soon as it
   is; until then the public registry serves schema 1 alone.
-- [ ] Plugin API 2 manifests, scoped capabilities, the sandbox by default,
-  Landlock and the network proxy (delivery step 4).
+- [x] Plugin API 2 (delivery step 4): `api = 2` beside API 1, sandboxed by
+  default on macOS and Linux; `filesystem.read`, `:workspace` scopes and
+  `unconfined`; `[permissions.network] hosts` through a per-plugin proxy
+  and `[permissions.process] exec` (SBPL on macOS, bwrap plus Landlock on
+  Linux, set up by `hive __plugin-sandbox`); `isolation = "none"` and
+  sandbox-less systems need `unconfined`, per release; `[plugins]
+  isolation = "api2"`; v2 contract fixtures and SDK constants. A hostile
+  plugin is held to its grants on macOS and on Linux, as root and as a
+  user (`TestAPI2SandboxConfinesByDefault`).
 - [ ] The WebAssembly runtime (delivery step 5).
 - [ ] Pane views, forges, issue trackers, workflow steps and triggers
   (delivery step 6).

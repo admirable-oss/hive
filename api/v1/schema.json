@@ -3687,6 +3687,9 @@
         "isolation": {
           "type": "string"
         },
+        "isolation_reason": {
+          "type": "string"
+        },
         "max_hive_version": {
           "type": "string"
         },
@@ -3758,6 +3761,17 @@
       ],
       "type": "object"
     },
+    "plugin.NetworkScope": {
+      "properties": {
+        "hosts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "plugin.PaletteEntry": {
       "properties": {
         "action": {
@@ -3797,11 +3811,17 @@
     },
     "plugin.Permissions": {
       "properties": {
+        "network": {
+          "$ref": "#/$defs/plugin.NetworkScope"
+        },
         "optional": {
           "items": {
             "type": "string"
           },
           "type": "array"
+        },
+        "process": {
+          "$ref": "#/$defs/plugin.ProcessScope"
         },
         "reasons": {
           "additionalProperties": {
@@ -3810,6 +3830,17 @@
           "type": "object"
         },
         "required": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "plugin.ProcessScope": {
+      "properties": {
+        "exec": {
           "items": {
             "type": "string"
           },
