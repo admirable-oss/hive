@@ -79,6 +79,7 @@ one shows everything it will run and asks first. See https://hive.admir-saheta.c
 	cmd.AddCommand(newPluginSearchCmd(a), newPluginInstallCmd(a), newPluginLinkCmd(a), newPluginListCmd(a), newPluginInfoCmd(a),
 		newPluginToggleCmd(a, true), newPluginToggleCmd(a, false), newPluginUninstallCmd(a),
 		newPluginRunCmd(a), newPluginLogsCmd(a), newPluginValidateCmd(a), newPluginInitCmd(a), newPluginUpdateCmd(a), newPluginRollbackCmd(a),
+		newPluginPublishCmd(a), newPluginTestCmd(a),
 		newPluginReloadCmd(a), newPluginGrantCmd(a, true), newPluginGrantCmd(a, false), newPluginDoctorCmd(a), newPluginConfigCmd(a),
 		newPluginContributionsCmd(a), newPluginCapabilitiesCmd(a), newPluginCancelCmd(a), newPluginExportCmd(a), newPluginImportCmd(a),
 		newPluginCardCmd(a), newPluginStatusCmd(a), newPluginReadyCmd(a), newPluginRequestCmd(a))

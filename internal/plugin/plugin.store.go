@@ -485,6 +485,9 @@ func (f *Fetched) Preview() string {
 	return preview
 }
 
+// Dir is the fetched plugin package's directory, until Discard.
+func (f *Fetched) Dir() string { return f.dir }
+
 // Discard removes the clone.
 func (f *Fetched) Discard() {
 	if f.tmpDir != "" {

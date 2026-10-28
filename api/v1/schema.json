@@ -3723,6 +3723,9 @@
           },
           "type": "array"
         },
+        "test": {
+          "$ref": "#/$defs/plugin.TestSpec"
+        },
         "version": {
           "type": "string"
         }
@@ -4150,6 +4153,23 @@
       },
       "required": [
         "indicator"
+      ],
+      "type": "object"
+    },
+    "plugin.TestSpec": {
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timeout": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command"
       ],
       "type": "object"
     },

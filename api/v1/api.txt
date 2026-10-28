@@ -1187,6 +1187,7 @@ type plugin.Manifest.permissions: plugin.Permissions
 type plugin.Manifest.platforms: []string
 type plugin.Manifest.runtime: []plugin.Runtime
 type plugin.Manifest.startup: []plugin.Startup
+type plugin.Manifest.test: plugin.TestSpec
 type plugin.Manifest.version: string
 type plugin.Manifest: object
 type plugin.Migration.command: []string
@@ -1288,6 +1289,9 @@ type plugin.StatusUpdate.text: string
 type plugin.StatusUpdate.tone: string
 type plugin.StatusUpdate.ttl: integer
 type plugin.StatusUpdate: object
+type plugin.TestSpec.command: []string
+type plugin.TestSpec.timeout: string
+type plugin.TestSpec: object
 type plugin.Trust.checked_at: string
 type plugin.Trust.provenance: plugin.Provenance
 type plugin.Trust.publisher: string

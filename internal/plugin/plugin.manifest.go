@@ -61,6 +61,10 @@ type Manifest struct {
 	// Plugin releases should include built output so installation never has to
 	// download packages or invoke a compiler.
 	Runtimes []Runtime `toml:"runtime" json:"runtime,omitempty"`
+	// Test is how `hive plugin test` and `publish` check the plugin (Hive
+	// 1.7 and later; earlier releases reject the key, so a manifest with it
+	// needs min_hive_version 1.7.0).
+	Test *TestSpec `toml:"test" json:"test,omitempty"`
 
 	// Permissions are the capabilities it asks for (API 1).
 	Permissions Permissions `toml:"permissions" json:"permissions,omitzero"`
@@ -157,6 +161,23 @@ var ActionContexts = []string{"pane", "agent", "environment", "session"}
 type Runtime struct {
 	Command    string `toml:"command" json:"command"`
 	MinVersion string `toml:"min_version" json:"min_version,omitempty"`
+}
+
+// TestSpec is a plugin's own tests: a command run in its directory, with
+// HIVE_BIN and HIVE_HOME pointing at the Hive under test.
+type TestSpec struct {
+	Command []string `toml:"command" json:"command"`
+	// Timeout bounds it (default 10m).
+	Timeout string `toml:"timeout" json:"timeout,omitempty"`
+}
+
+// TestTimeout is the test's timeout.
+func (t *TestSpec) TestTimeout() time.Duration {
+	if t == nil || t.Timeout == "" {
+		return 10 * time.Minute
+	}
+	d, _ := time.ParseDuration(t.Timeout)
+	return d
 }
 
 // Configuration defines a versioned settings file stored in Hive's
@@ -303,6 +324,16 @@ func (m *Manifest) check() error {
 	}
 	if m.Name == "" {
 		m.Name = m.ID
+	}
+	if m.Test != nil {
+		if len(m.Test.Command) == 0 || m.Test.Command[0] == "" {
+			return errors.New("test.command: name the program to run")
+		}
+		if m.Test.Timeout != "" {
+			if d, err := time.ParseDuration(m.Test.Timeout); err != nil || d <= 0 || d > 2*time.Hour {
+				return fmt.Errorf("test.timeout %q: want a duration up to 2h", m.Test.Timeout)
+			}
+		}
 	}
 	if err := m.checkSurfaces(); err != nil {
 		return err

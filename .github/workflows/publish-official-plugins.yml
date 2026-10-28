@@ -9,6 +9,7 @@ on:
       - ".github/workflows/publish-official-plugins.yml"
       - ".github/workflows/ci.yml"
       - ".github/workflows/plugin-submissions.yml"
+      - "registry/publishers.json"
   workflow_dispatch:
 
 permissions:
@@ -36,6 +37,18 @@ jobs:
           done
       - name: Tag releases and record archive checksums
         run: .github/scripts/publish-official-plugins.sh
+      # Schema 2: the official publisher signs each release once
+      # (registry/official-signatures.json). Without the key the releases
+      # stay unsigned, and the store keeps serving schema 1 alone.
+      - name: Sign the official releases
+        env:
+          HIVE_PLUGIN_SIGNING_KEY: ${{ secrets.HIVE_PLUGIN_SIGNING_KEY }}
+        run: |
+          if [ -z "$HIVE_PLUGIN_SIGNING_KEY" ]; then
+            echo "::warning::HIVE_PLUGIN_SIGNING_KEY is not set: official releases stay unsigned and registry-2.json is not published (docs/plugins/ecosystem.md)"
+            exit 0
+          fi
+          go run ./tools/plugin-registry sign
       - name: Create Pullive installation token
         id: pullive-token
         uses: actions/create-github-app-token@v3
@@ -51,7 +64,9 @@ jobs:
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.pullive-token.outputs.token }}
-          add-paths: registry/official-releases.json
+          add-paths: |
+            registry/official-releases.json
+            registry/official-signatures.json
           branch: automation/official-plugin-release-records
           base: main
           delete-branch: true

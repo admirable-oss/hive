@@ -23,6 +23,25 @@ Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). 
   through the new `observe.plugins` observer method.
 - `pkg/hiveapi` gains `Plugins` and the tier constants. API level 16.
 
+### Publishing
+
+- `hive plugin publish` tags, checksums, signs (`ssh-keygen -Y sign`, with
+  `--key`, git's `user.signingkey` or ssh-agent) and records a release, with
+  build provenance from GitHub Actions; `--push`, `--dry-run`, and
+  `--submit` to append it to the registry submission and open the pull
+  request. Moved tags and uncommitted changes are refused.
+- `hive plugin test` checks a plugin, or a catalog plugin's newest release,
+  against this Hive, a binary or a downloaded release (`--hive 1.7.0-rc.1`):
+  validate, install, doctor and the manifest's new `[test]` command, in a
+  scratch `HIVE_HOME`.
+- A reusable GitHub Action, `admirable-oss/hive/.github/actions/plugin-publish`.
+- The registry's `plugin-compat` workflow tests every listed plugin against
+  each release candidate; the release workflow refuses to publish a Hive
+  that fails an official plugin.
+- `tools/plugin-registry` builds and verifies `registry-2.json`, signs the
+  official releases with the official publisher key, and records
+  compatibility results.
+
 ### Registry schema 2 and signatures
 
 - Hive reads `registry-2.json` beside the catalog first, and the schema 1

@@ -2667,6 +2667,7 @@ Result: [protocol.Empty](#protocolempty)
 | `platforms` | `[]string` |  |
 | `runtime` | [\[\]plugin.Runtime](#pluginruntime) |  |
 | `startup` | [\[\]plugin.Startup](#pluginstartup) |  |
+| `test` | [plugin.TestSpec](#plugintestspec) |  |
 | `version` | `string` |  |
 
 ### plugin.Migration
@@ -2827,6 +2828,13 @@ Result: [protocol.Empty](#protocolempty)
 | `text` | `string` |  |
 | `tone` | `string` |  |
 | `ttl` | `integer` | nanoseconds |
+
+### plugin.TestSpec
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `timeout` | `string` |  |
 
 ### plugin.Trust
 

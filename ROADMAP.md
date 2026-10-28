@@ -1778,12 +1778,18 @@ the policy: [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md#publishers-tie
   test results, plugin API and minimum Hive per release, per-plugin refs;
   key revocations in `revocations.json`; `[plugins] require_signature`;
   publisher continuity on update (`TestM26SignedPluginReleases`).
-- [ ] Official plugins signed and `registry-2.json` published by the store
-  sync, once the official publisher key is decided (RFC 0006, open
-  question 4). Until then the public registry serves schema 1 only, and
-  official plugins install as today.
-- [ ] `hive plugin publish` and `hive plugin test`, the publish action and
-  the registry's `plugin-compat` workflow (delivery step 3).
+- [x] Publishing (delivery step 3): `hive plugin publish` (tag, checksum,
+  sign, provenance, `--submit`), `hive plugin test` (against this Hive, a
+  binary or a downloaded release) and the manifest's `[test]`; the
+  `plugin-publish` action; the `plugin-compat` workflow and an official
+  plugin gate in the release workflow; `tools/plugin-registry` (verify,
+  sign, build, record-tests) wired into the submission, official publishing
+  and store sync workflows (`TestM26PublishSignedRelease`,
+  `TestM26PluginTest`).
+- [ ] The official signing key provisioned (`HIVE_PLUGIN_SIGNING_KEY` and
+  the `hive` publisher's key, docs/plugins/ecosystem.md). The pipeline
+  signs the official releases and publishes `registry-2.json` as soon as it
+  is; until then the public registry serves schema 1 alone.
 - [ ] Plugin API 2 manifests, scoped capabilities, the sandbox by default,
   Landlock and the network proxy (delivery step 4).
 - [ ] The WebAssembly runtime (delivery step 5).

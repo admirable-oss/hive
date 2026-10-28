@@ -172,6 +172,15 @@ ones are not. Hive before 1.7 ignores the field.
 {"schema": 1, "releases": [], "keys": [{"fingerprint": "SHA256:3b6...", "reason": "the key leaked", "since": "2026-11-15T00:00:00Z"}]}
 ```
 
+**Tooling.** `tools/plugin-registry` builds `registry-2.json` from the
+registry directory (`official-listings.json`, `official-releases.json`,
+`official-signatures.json`, `publishers.json`, `compat-results.json` and the
+approved submissions that name a publisher), checks it with the same parser
+Hive uses (`plugin.ParseCatalog`), signs official releases, and records
+compatibility results. `verify` runs on every registry pull request.
+Publishing a release is `hive plugin publish`
+([docs/plugins/publishing.md](../../docs/plugins/publishing.md)).
+
 ## Manifest configuration and migration contract
 
 Manifests may bound compatibility with both `min_hive_version` and

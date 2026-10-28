@@ -162,6 +162,7 @@ command hive plugin link
 command hive plugin list
 command hive plugin list (alias ls)
 command hive plugin logs
+command hive plugin publish
 command hive plugin ready
 command hive plugin reload
 command hive plugin request
@@ -170,6 +171,7 @@ command hive plugin rollback
 command hive plugin run
 command hive plugin search
 command hive plugin status
+command hive plugin test
 command hive plugin uninstall
 command hive plugin uninstall (alias remove)
 command hive plugin uninstall (alias rm)
@@ -476,6 +478,16 @@ flag hive plugin install --ref string
 flag hive plugin install --subdir string
 flag hive plugin logs --follow bool -f
 flag hive plugin logs --lines int -n
+flag hive plugin publish --dry-run bool
+flag hive plugin publish --git-remote string
+flag hive plugin publish --key string
+flag hive plugin publish --out string
+flag hive plugin publish --push bool
+flag hive plugin publish --ref string
+flag hive plugin publish --registry string
+flag hive plugin publish --skip-tests bool
+flag hive plugin publish --submit bool
+flag hive plugin publish --unsigned bool
 flag hive plugin ready --plugin string
 flag hive plugin request --plugin string
 flag hive plugin run --env string
@@ -484,6 +496,7 @@ flag hive plugin search --category string
 flag hive plugin status --plugin string
 flag hive plugin status --tone string
 flag hive plugin status --ttl duration
+flag hive plugin test --hive string
 flag hive plugin uninstall --delete-data bool
 flag hive process logs --follow bool -f
 flag hive process logs --lines int -n

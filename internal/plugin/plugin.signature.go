@@ -65,6 +65,42 @@ func ReleaseStatement(id string, r Release) []byte {
 	return b
 }
 
+// SignStatement signs a release statement with an ed25519 key, as
+// `ssh-keygen -Y sign -n hive-plugin-release` does: what the registry's
+// tooling signs official releases with.
+func SignStatement(priv ed25519.PrivateKey, message []byte) string {
+	digest := sha512.Sum512(message)
+	var signed bytes.Buffer
+	signed.WriteString(sshsigMagic)
+	sshString(&signed, []byte(SignatureNamespace))
+	sshString(&signed, nil)
+	sshString(&signed, []byte("sha512"))
+	sshString(&signed, digest[:])
+	var sig bytes.Buffer
+	sshString(&sig, []byte(sshEd25519))
+	sshString(&sig, ed25519.Sign(priv, signed.Bytes()))
+	var blob bytes.Buffer
+	blob.WriteString(sshsigMagic)
+	_ = binary.Write(&blob, binary.BigEndian, uint32(1))
+	sshString(&blob, PublicKey{key: priv.Public().(ed25519.PublicKey)}.wire())
+	sshString(&blob, []byte(SignatureNamespace))
+	sshString(&blob, nil)
+	sshString(&blob, []byte("sha512"))
+	sshString(&blob, sig.Bytes())
+	enc := base64.StdEncoding.EncodeToString(blob.Bytes())
+	var out strings.Builder
+	out.WriteString(sshsigArmorIn + "\n")
+	for len(enc) > 70 {
+		out.WriteString(enc[:70] + "\n")
+		enc = enc[70:]
+	}
+	out.WriteString(enc + "\n" + sshsigArmorEn + "\n")
+	return out.String()
+}
+
+// PublicKeyOf is an ed25519 key's public half as a publisher key.
+func PublicKeyOf(pub ed25519.PublicKey) PublicKey { return PublicKey{key: pub} }
+
 // PublicKey is a publisher's ed25519 key, from an authorized_keys line
 // ("ssh-ed25519 AAAA… [comment]").
 type PublicKey struct {

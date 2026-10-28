@@ -49,6 +49,27 @@ signature and build provenance.
 - **A stolen key** is answered by revoking it in `revocations.json`
   (`keys`, with the time from which it is distrusted): every release it
   signed from then on is revoked, everywhere the plugin appears.
+- **Official signatures.** The official plugins are published by the
+  `hive` publisher (`registry/publishers.json`), with one key held like
+  Hive's release key: the `HIVE_PLUGIN_SIGNING_KEY` secret of this
+  repository. The official publishing workflow signs each release once
+  (`registry/official-signatures.json`, never rewritten), and the store
+  sync publishes `registry-2.json` only when `go run ./tools/plugin-registry
+  verify` finds every official and verified release signed. To set it up:
+
+  ```sh
+  go run ./tools/release-sign keygen plugin-signing.key   # keep it out of the repository
+  HIVE_PLUGIN_SIGNING_KEY=$(cat plugin-signing.key) go run ./tools/plugin-registry public-key
+  ```
+
+  Add the printed key to the `hive` publisher's `keys`, set the file's
+  contents as the `HIVE_PLUGIN_SIGNING_KEY` secret, and run the "Publish
+  official plugin releases" workflow. A lost or leaked key is revoked in
+  `revocations.json` and replaced the same way.
+- **Compatibility results.** Each Hive release candidate is tested with
+  every listed plugin's newest release (the `plugin-compat` workflow,
+  [publishing.md](publishing.md#testing-against-hive-releases)); results
+  are kept in `registry/compat-results.json` and listed as `tested`.
 - **Keeping it current.** The installed record keeps what the registry said
   of the release at install or update. `hive plugin doctor` checks it again
   (signature, tier, revocation) and records the result, so a revocation

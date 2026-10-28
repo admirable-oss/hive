@@ -192,6 +192,25 @@ func (c *RegistryClient) Fetch(ctx context.Context) (Registry, error) {
 	if err != nil {
 		return Registry{}, err
 	}
+	catalog, err := ParseCatalog(body)
+	if err != nil {
+		return Registry{}, err
+	}
+	revoked, keys, err := c.revocations(ctx, u)
+	if err != nil {
+		return Registry{}, err
+	}
+	if err := catalog.ApplyRevocations(revoked, keys); err != nil {
+		return Registry{}, err
+	}
+	return catalog, nil
+}
+
+// ParseCatalog decodes and checks a catalog document (schema 1 or 2) as
+// Fetch does, verifying schema 2 signatures, without revocations: what the
+// registry's own checks and tools use, so they accept exactly what clients
+// do.
+func ParseCatalog(body []byte) (Registry, error) {
 	var catalog Registry
 	if err := decodeOne(body, &catalog); err != nil {
 		return Registry{}, fmt.Errorf("decode plugin registry: %w", err)
@@ -302,48 +321,51 @@ func (c *RegistryClient) Fetch(ctx context.Context) (Registry, error) {
 		})
 	}
 	slices.SortFunc(catalog.Plugins, func(a, b Listing) int { return strings.Compare(a.ID, b.ID) })
-	revoked, keys, err := c.revocations(ctx, u)
-	if err != nil {
-		return Registry{}, err
-	}
-	catalog.Revocations, catalog.RevokedKeys = revoked, keys
-	for i := range catalog.Revocations {
-		if err := catalog.Revocations[i].validate(); err != nil {
-			return Registry{}, err
+	return catalog, nil
+}
+
+// ApplyRevocations checks the registry's revocations and marks the
+// releases they withdraw: those listed, and those signed by a revoked key
+// from the time it is distrusted.
+func (r *Registry) ApplyRevocations(revoked []Revocation, keys []KeyRevocation) error {
+	r.Revocations, r.RevokedKeys = revoked, keys
+	for i := range r.Revocations {
+		if err := r.Revocations[i].validate(); err != nil {
+			return err
 		}
 	}
-	for _, k := range catalog.RevokedKeys {
+	for _, k := range r.RevokedKeys {
 		if err := k.validate(); err != nil {
-			return Registry{}, err
+			return err
 		}
 	}
 	// A revoked key revokes the listed releases it signed from the time it
 	// is distrusted.
-	for _, p := range catalog.Plugins {
-		for _, r := range p.Releases {
-			if r.SignedBy == "" {
+	for _, p := range r.Plugins {
+		for _, rel := range p.Releases {
+			if rel.SignedBy == "" {
 				continue
 			}
-			if _, ok := catalog.Revocation(p.ID, r.Version); ok {
+			if _, ok := r.Revocation(p.ID, rel.Version); ok {
 				continue
 			}
-			for _, k := range catalog.RevokedKeys {
-				if k.Fingerprint == r.SignedBy && !r.PublishedAt.Before(k.Since) {
-					catalog.Revocations = append(catalog.Revocations, Revocation{ID: p.ID, Version: r.Version, Reason: "signed with a revoked publisher key (" + k.Fingerprint + "): " + k.Reason, Advisory: k.Advisory, RevokedAt: k.Since})
+			for _, k := range r.RevokedKeys {
+				if k.Fingerprint == rel.SignedBy && !rel.PublishedAt.Before(k.Since) {
+					r.Revocations = append(r.Revocations, Revocation{ID: p.ID, Version: rel.Version, Reason: "signed with a revoked publisher key (" + k.Fingerprint + "): " + k.Reason, Advisory: k.Advisory, RevokedAt: k.Since})
 					break
 				}
 			}
 		}
 	}
-	for i := range catalog.Plugins {
-		p := &catalog.Plugins[i]
+	for i := range r.Plugins {
+		p := &r.Plugins[i]
 		for j := range p.Releases {
-			if r, ok := catalog.Revocation(p.ID, p.Releases[j].Version); ok {
-				p.Releases[j].Revoked = &r
+			if rev, ok := r.Revocation(p.ID, p.Releases[j].Version); ok {
+				p.Releases[j].Revoked = &rev
 			}
 		}
 	}
-	return catalog, nil
+	return nil
 }
 
 // catalog reads the schema 2 catalog beside u, or u when the registry has
@@ -393,6 +415,10 @@ func (c *RegistryClient) revocations(ctx context.Context, catalog *url.URL) ([]R
 	}
 	return doc.Releases, doc.Keys, nil
 }
+
+// RefMatchesVersion checks that a release tag names its version, as schema
+// 2 allows: "v1.2.0", "1.2.0", or a per-plugin ref ending in one.
+func RefMatchesVersion(ref, version string) bool { return refMatchesVersion(ref, version, true) }
 
 // refMatchesVersion checks that a release's git ref names its version:
 // "v1.2.0" or "1.2.0" for version 1.2.0, and in schema 2 also a per-plugin
