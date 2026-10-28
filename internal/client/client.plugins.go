@@ -66,6 +66,34 @@ func (p Plugins) Contributions(ctx context.Context) (plugin.Contributions, error
 	return r, err
 }
 
+// Views lists every plugin view, with what it shows.
+func (p Plugins) Views(ctx context.Context) ([]plugin.ViewContent, error) {
+	var r []plugin.ViewContent
+	err := p.c.Call(ctx, "plugin.views", struct{}{}, &r)
+	return r, err
+}
+
+// SetView sets a plugin's view (a plugin, on its own socket).
+func (p Plugins) SetView(ctx context.Context, u plugin.ViewUpdate) (plugin.ViewContent, error) {
+	var r plugin.ViewContent
+	err := p.c.Call(ctx, "plugin.view.set", u, &r)
+	return r, err
+}
+
+// ClearView clears a plugin's view (a plugin, on its own socket).
+func (p Plugins) ClearView(ctx context.Context, pluginID, view string) (plugin.ViewContent, error) {
+	var r plugin.ViewContent
+	err := p.c.Call(ctx, "plugin.view.clear", plugin.ViewUpdate{Plugin: pluginID, View: view}, &r)
+	return r, err
+}
+
+// ClickView runs the action of a view's button.
+func (p Plugins) ClickView(ctx context.Context, k plugin.ViewClick) (plugin.Result, error) {
+	var r plugin.Result
+	err := p.c.Call(ctx, "plugin.view.click", k, &r)
+	return r, err
+}
+
 // SetCard shows or clears a plugin's card.
 func (p Plugins) SetCard(ctx context.Context, u plugin.CardUpdate) (plugin.CardContent, error) {
 	var r plugin.CardContent

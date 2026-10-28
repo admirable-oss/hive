@@ -341,3 +341,53 @@ func TestTrustArmsEventTriggers(t *testing.T) {
 		t.Fatalf("revoked, it stops: %d", n)
 	}
 }
+
+// TestPluginTriggers: a plugin's trigger runs the workflows that name it
+// whose match fits the payload, which their inputs read; a shared
+// workflow runs only once trusted.
+func TestPluginTriggers(t *testing.T) {
+	e := newEnv(t, workflow.Config{})
+	ctx := context.Background()
+	e.write(e.own, "deployed.toml", `
+version = 1
+environment = "api"
+[inputs.url]
+[[on]]
+plugin = "vercel/deploy-finished"
+match = { state = "err*" }
+[on.inputs]
+url = "${{ trigger.data.url }}"
+[[step]]
+id = "s"
+run = ["ok"]
+`)
+	e.write(e.shared, "shared.toml", "version = 1\nenvironment = \"api\"\n[[on]]\nplugin = \"vercel/deploy-finished\"\n[[step]]\nid = \"s\"\nrun = [\"ok\"]\n")
+	if runs, err := e.svc.FirePlugin(ctx, "vercel", "deploy-finished", map[string]any{"state": "ready"}); err != nil || len(runs) != 0 {
+		t.Fatalf("a payload the match does not fit, and an untrusted shared workflow: %+v %v", runs, err)
+	}
+	runs, err := e.svc.FirePlugin(ctx, "vercel", "deploy-finished", map[string]any{"state": "error", "url": "https://x.example.org"})
+	if err != nil || len(runs) != 1 || runs[0].Workflow != "deployed" {
+		t.Fatalf("fired: %+v %v", runs, err)
+	}
+	r := e.wait(runs[0].ID)
+	if r.Inputs["url"] != "https://x.example.org" || r.Trigger.Type != workflow.TriggerPlugin || r.Trigger.Data["plugin"] != "vercel" {
+		t.Fatalf("the run: inputs %v trigger %+v", r.Inputs, r.Trigger)
+	}
+	if none, _ := e.svc.FirePlugin(ctx, "other", "deploy-finished", map[string]any{"state": "error"}); len(none) != 0 {
+		t.Fatal("another plugin's trigger of the same name fired it")
+	}
+	if _, err := e.svc.Trust(ctx, "shared", false); err != nil {
+		t.Fatal(err)
+	}
+	if runs, _ := e.svc.FirePlugin(ctx, "vercel", "deploy-finished", nil); len(runs) != 1 || runs[0].Workflow != "shared" {
+		t.Fatalf("the trusted shared workflow: %+v", runs)
+	}
+	for name, text := range map[string]string{
+		"no plugin":      `plugin = "deploy-finished"`,
+		"repo on plugin": "plugin = \"a/b\"\nrepo = \"/x\"",
+	} {
+		if _, err := e.svc.Validate("version = 1\n[[on]]\n"+text+"\n[[step]]\nid = \"s\"\nrun = [\"ok\"]\n", name); !errors.Is(err, workflow.ErrInvalid) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

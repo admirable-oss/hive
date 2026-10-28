@@ -33,13 +33,15 @@ type Popup struct {
 	HeightPct int    `json:"height_pct"`
 }
 
-// Pane is a place in a tab showing one terminal process.
+// Pane is a place in a tab showing one terminal process, or a plugin's
+// view (View set, no process).
 type Pane struct {
 	ID            string    `json:"id"`
 	TabID         string    `json:"tab_id"`
 	EnvironmentID string    `json:"environment_id"`
 	ProcessID     string    `json:"process_id"`
 	Name          string    `json:"name,omitempty"`
+	View          string    `json:"view,omitempty"` // plugin/view
 	CreatedAt     time.Time `json:"created_at"`
 
 	// Filled in on reads, not stored.
@@ -57,6 +59,9 @@ type Spec struct {
 	Command []string          `json:"command,omitempty"`
 	Cwd     string            `json:"cwd,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
+	// View, plugin/view, shows a plugin's view instead of a terminal: the
+	// pane runs nothing.
+	View string `json:"view,omitempty"`
 	// Replay is shown on the new terminal before its program's output
 	// (see Respawn). Only the daemon sets it.
 	Replay []byte `json:"-"`

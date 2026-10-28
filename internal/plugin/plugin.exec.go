@@ -52,6 +52,22 @@ func (h *Host) pluginDirs(l *loaded) (data, config, cache string, err error) {
 }
 
 func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string, c Context, also io.Writer, extra map[string]string) (int, error) {
+	return h.runCommand(ctx, l, argv, c, runOptions{also: also, extra: extra})
+}
+
+// runOptions shape one command run. By default its stdin is its context,
+// and its stdout and stderr go to the plugin's log (and also).
+type runOptions struct {
+	also  io.Writer
+	extra map[string]string
+	// stdin replaces the context on stdin (typed calls); stdout takes the
+	// command's stdout apart from the log.
+	stdin  []byte
+	stdout io.Writer
+}
+
+func (h *Host) runCommand(ctx context.Context, l *loaded, argv []string, c Context, o runOptions) (int, error) {
+	also, extra := o.also, o.extra
 	c.API, c.Plugin, c.Session = APIVersion, l.ID, h.cfg.Session
 	if l.Manifest != nil {
 		c.API = l.Manifest.EffectiveAPI()
@@ -104,7 +120,14 @@ func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string,
 		}
 		h.running.Add(1)
 		defer h.running.Done()
-		return h.runWasm(ctx, l, argv, ctxJSON, vars, w, data)
+		stdin, stdout := ctxJSON, w
+		if o.stdin != nil {
+			stdin = o.stdin
+		}
+		if o.stdout != nil {
+			stdout = o.stdout
+		}
+		return h.runWasm(ctx, l, argv, stdin, vars, stdout, w, data)
 	}
 	env := h.cfg.Env(vars)
 	full := append([]string{path}, argv[1:]...)
@@ -123,11 +146,17 @@ func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string,
 	cmd.Dir = l.Dir
 	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(ctxJSON)
+	if o.stdin != nil {
+		cmd.Stdin = bytes.NewReader(o.stdin)
+	}
 	var w io.Writer = pluginLog{l}
 	if also != nil {
 		w = io.MultiWriter(w, also)
 	}
 	cmd.Stdout, cmd.Stderr = w, w
+	if o.stdout != nil {
+		cmd.Stdout = o.stdout
+	}
 	// Its own group, so stopping it stops what it started.
 	pgroup.Configure(cmd)
 	cmd.Cancel = func() error { return pgroup.TerminateAfter(cmd.Process.Pid, 3*time.Second) }

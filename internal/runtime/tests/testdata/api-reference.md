@@ -828,6 +828,45 @@ Result: [plugin.Result](#pluginresult)
 
 Result: [plugin.StatusContent](#pluginstatuscontent)
 
+### `plugin.view.clear`
+
+| Param | Type | |
+|---|---|---|
+| `doc` | [plugin.ViewDoc](#pluginviewdoc) |  |
+| `plugin` | `string` |  |
+| `view` | `string` |  |
+
+Result: [plugin.ViewContent](#pluginviewcontent)
+
+### `plugin.view.click`
+
+| Param | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `node` | `string` |  |
+| `pane` | `string` |  |
+| `plugin` | `string` |  |
+| `tab` | `string` |  |
+| `view` | `string` |  |
+
+Result: [plugin.Result](#pluginresult)
+
+### `plugin.view.set`
+
+| Param | Type | |
+|---|---|---|
+| `doc` | [plugin.ViewDoc](#pluginviewdoc) |  |
+| `plugin` | `string` |  |
+| `view` | `string` |  |
+
+Result: [plugin.ViewContent](#pluginviewcontent)
+
+### `plugin.views`
+
+No params.
+
+Result: [\[\]plugin.ViewContent](#pluginviewcontent)
+
 ## process
 
 ### `process.get`
@@ -1217,6 +1256,16 @@ Result: [\[\]workflow.RunSummary](#workflowrunsummary)
 | `id` | `string` | the run's ID, or a unique prefix of it |
 
 Result: [workflow.Run](#workflowrun)
+
+### `workflow.trigger`
+
+| Param | Type | |
+|---|---|---|
+| `name` | `string` | the trigger's name, as the plugin's [[contributes.triggers]] says |
+| `payload` | `map[string]any` | what the workflows' match filters, and expressions read as trigger.data |
+| `plugin` | `string` | the plugin whose trigger fires (a plugin's own call says it) |
+
+Result: [runtime.workflowTriggerResult](#runtimeworkflowtriggerresult)
 
 ### `workflow.trust`
 
@@ -2227,6 +2276,7 @@ Result: [protocol.Empty](#protocolempty)
 | `process_id` | `string` |  |
 | `rect` | [layout.Rect](#layoutrect) |  |
 | `tab_id` | `string` |  |
+| `view` | `string` |  |
 | `zoomed` | `boolean` |  |
 
 ### pane.Popup
@@ -2254,6 +2304,7 @@ Result: [protocol.Empty](#protocolempty)
 | `cwd` | `string` |  |
 | `env` | `map[string]string` |  |
 | `name` | `string` |  |
+| `view` | `string` |  |
 
 ### pane.SplitRequest
 
@@ -2551,9 +2602,14 @@ Result: [protocol.Empty](#protocolempty)
 |---|---|---|
 | `actions` | [\[\]plugin.ContextAction](#plugincontextaction) |  |
 | `cards` | [\[\]plugin.Card](#plugincard) |  |
+| `forges` | [\[\]plugin.ForgeDecl](#pluginforgedecl) |  |
 | `links` | [\[\]plugin.Link](#pluginlink) |  |
 | `palette` | [\[\]plugin.PaletteEntry](#pluginpaletteentry) |  |
 | `status` | [\[\]plugin.StatusIndicator](#pluginstatusindicator) |  |
+| `steps` | [\[\]plugin.StepDecl](#pluginstepdecl) |  |
+| `trackers` | [\[\]plugin.TrackerDecl](#plugintrackerdecl) |  |
+| `triggers` | [\[\]plugin.TriggerDecl](#plugintriggerdecl) |  |
+| `views` | [\[\]plugin.ViewDecl](#pluginviewdecl) |  |
 
 ### plugin.Contribution
 
@@ -2610,6 +2666,14 @@ Result: [protocol.Empty](#protocolempty)
 | `dropped` | `integer` |  |
 | `failed` | `integer` |  |
 | `queued` | `integer` |  |
+
+### plugin.ForgeDecl
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `hosts` | `[]string` |  |
+| `name` | `string` |  |
 
 ### plugin.Grant
 
@@ -2691,6 +2755,15 @@ Result: [protocol.Empty](#protocolempty)
 |---|---|---|
 | `action` | `string` |  |
 | `title` | `string` |  |
+
+### plugin.ParamSpec
+
+| Field | Type | |
+|---|---|---|
+| `default` | `any` |  |
+| `description` | `string` |  |
+| `required` | `boolean` |  |
+| `type` | `string` |  |
 
 ### plugin.PermissionRequest
 
@@ -2845,12 +2918,37 @@ Result: [protocol.Empty](#protocolempty)
 | `tone` | `string` |  |
 | `ttl` | `integer` | nanoseconds |
 
+### plugin.StepDecl
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `description` | `string` |  |
+| `inputs` | [map[string]plugin.ParamSpec](#pluginparamspec) |  |
+| `name` | `string` |  |
+| `outputs` | [map[string]plugin.ParamSpec](#pluginparamspec) |  |
+| `timeout` | `string` |  |
+
 ### plugin.TestSpec
 
 | Field | Type | |
 |---|---|---|
 | `command` | `[]string` |  |
 | `timeout` | `string` |  |
+
+### plugin.TrackerDecl
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `name` | `string` |  |
+
+### plugin.TriggerDecl
+
+| Field | Type | |
+|---|---|---|
+| `description` | `string` |  |
+| `name` | `string` |  |
 
 ### plugin.Trust
 
@@ -2862,6 +2960,65 @@ Result: [protocol.Empty](#protocolempty)
 | `revoked` | [plugin.Revocation](#pluginrevocation) |  |
 | `signed_by` | `string` |  |
 | `tier` | `string` |  |
+
+### plugin.ViewClick
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `node` | `string` |  |
+| `pane` | `string` |  |
+| `plugin` | `string` |  |
+| `tab` | `string` |  |
+| `view` | `string` |  |
+
+### plugin.ViewContent
+
+| Field | Type | |
+|---|---|---|
+| `available` | `boolean` |  |
+| `doc` | [plugin.ViewDoc](#pluginviewdoc) |  |
+| `plugin` | `string` |  |
+| `title` | `string` |  |
+| `updated` | `string` |  |
+| `view` | `string` |  |
+
+### plugin.ViewDecl
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `id` | `string` |  |
+| `title` | `string` |  |
+
+### plugin.ViewDoc
+
+| Field | Type | |
+|---|---|---|
+| `root` | [plugin.ViewNode](#pluginviewnode) |  |
+
+### plugin.ViewNode
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `children` | [\[\]plugin.ViewNode](#pluginviewnode) |  |
+| `columns` | `[]string` |  |
+| `id` | `string` |  |
+| `kind` | `string` |  |
+| `rows` | `[][]string` |  |
+| `style` | `string` |  |
+| `text` | `string` |  |
+| `url` | `string` |  |
+| `value` | `number` |  |
+
+### plugin.ViewUpdate
+
+| Field | Type | |
+|---|---|---|
+| `doc` | [plugin.ViewDoc](#pluginviewdoc) |  |
+| `plugin` | `string` |  |
+| `view` | `string` |  |
 
 ### process.LogsRequest
 
@@ -3175,6 +3332,20 @@ An object.
 |---|---|---|
 | `plugin` | `string` |  |
 | `run` | `string` |  |
+
+### runtime.workflowTriggerParams
+
+| Field | Type | |
+|---|---|---|
+| `name` | `string` | the trigger's name, as the plugin's [[contributes.triggers]] says |
+| `payload` | `map[string]any` | what the workflows' match filters, and expressions read as trigger.data |
+| `plugin` | `string` | the plugin whose trigger fires (a plugin's own call says it) |
+
+### runtime.workflowTriggerResult
+
+| Field | Type | |
+|---|---|---|
+| `runs` | `[]string` |  |
 
 ### runtime.worktreeListParams
 
@@ -3498,6 +3669,7 @@ An object.
 | `prompt` | `string` |  |
 | `run` | `[]string` |  |
 | `shell` | `string` |  |
+| `uses` | `string` |  |
 | `with` | `map[string]string` |  |
 | `worktree` | `string` |  |
 
@@ -3655,6 +3827,7 @@ An object.
 | `shell` | `string` |  |
 | `timeout_ms` | `integer` |  |
 | `until` | `string` |  |
+| `uses` | `string` |  |
 | `with` | `map[string]string` |  |
 | `worktree` | `string` |  |
 
@@ -3686,6 +3859,7 @@ An object.
 | `git` | `string` |  |
 | `inputs` | `map[string]string` |  |
 | `match` | `map[string]string` |  |
+| `plugin` | `string` |  |
 | `remote` | `string` |  |
 | `repo` | `string` |  |
 | `schedule` | `string` |  |
@@ -3732,6 +3906,7 @@ An object.
 | `next` | `string` |  |
 | `own` | `boolean` |  |
 | `path` | `string` |  |
+| `problems` | `[]string` |  |
 | `spec` | [workflow.Spec](#workflowspec) |  |
 | `steps` | `integer` |  |
 | `text` | `string` |  |

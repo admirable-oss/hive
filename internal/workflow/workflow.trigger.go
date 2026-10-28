@@ -361,6 +361,57 @@ func (s *Service) Fire(ctx context.Context, name string, data any) ([]RunSummary
 	return out, nil
 }
 
+// FirePlugin fires the workflows with a trigger of plugin's named name
+// (plugin/name) whose match the payload fits. It returns the runs it
+// started.
+func (s *Service) FirePlugin(ctx context.Context, plugin, name string, payload map[string]any) ([]RunSummary, error) {
+	if err := s.ready(ctx); err != nil {
+		return nil, err
+	}
+	if !idPattern.MatchString(plugin) || !idPattern.MatchString(name) {
+		return nil, invalid("trigger %s/%s: use letters, digits, '.', '_' and '-'", plugin, name)
+	}
+	// What expressions read: JSON's shapes only.
+	var data map[string]any
+	if payload != nil {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return nil, invalid("trigger payload: %v", err)
+		}
+		_ = json.Unmarshal(raw, &data)
+	}
+	full := plugin + "/" + name
+	type hit struct {
+		workflow string
+		index    int
+	}
+	var hits []hit
+	s.mu.Lock()
+	for _, wname := range sortedKeys(s.defs) {
+		w := s.defs[wname]
+		if !s.firesLocked(w) {
+			continue
+		}
+		for i, tr := range w.Spec.Triggers {
+			if tr.Plugin == full && fieldsMatch(tr.Match, data) {
+				hits = append(hits, hit{wname, i})
+			}
+		}
+	}
+	s.mu.Unlock()
+	out := []RunSummary{}
+	for _, h := range hits {
+		r, ok := s.fire(ctx, h.workflow, h.index, Trigger{
+			Type: TriggerPlugin, Index: h.index, Time: s.cfg.Now(),
+			Data: map[string]any{"plugin": plugin, "name": name, "data": data},
+		}, "")
+		if ok {
+			out = append(out, r.Summary())
+		}
+	}
+	return out, nil
+}
+
 // --- Firing ---
 
 // fire starts a run of a workflow for its trigger index, unless its

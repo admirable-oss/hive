@@ -127,6 +127,14 @@ type Contributes struct {
 	Palette []PaletteEntry `toml:"palette" json:"palette,omitempty"`
 	// Links are fixed URLs offered in the palette.
 	Links []Link `toml:"links" json:"links,omitempty"`
+
+	// Plugin API 2: pane views, forges, issue trackers, workflow steps
+	// and workflow triggers.
+	Views    []ViewDecl    `toml:"views" json:"views,omitempty"`
+	Forges   []ForgeDecl   `toml:"forges" json:"forges,omitempty"`
+	Trackers []TrackerDecl `toml:"trackers" json:"trackers,omitempty"`
+	Steps    []StepDecl    `toml:"steps" json:"steps,omitempty"`
+	Triggers []TriggerDecl `toml:"triggers" json:"triggers,omitempty"`
 }
 
 // Card is a sidebar card, about the focused environment or agent.
@@ -343,7 +351,7 @@ func (m *Manifest) check() error {
 		return fmt.Errorf("max_hive_version %q: want MAJOR.MINOR.PATCH", m.MaxHiveVersion)
 	case m.MinHiveVersion != "" && m.MaxHiveVersion != "" && newer(m.MinHiveVersion, m.MaxHiveVersion):
 		return errors.New("min_hive_version must not be newer than max_hive_version")
-	case len(m.Startup)+len(m.Actions)+len(m.Events) == 0:
+	case len(m.Startup)+len(m.Actions)+len(m.Events) == 0 && !m.Contributes.runsCommands():
 		return errors.New("nothing to run: add [[startup]], [[actions]] or [[events]]")
 	}
 	if m.Name == "" {

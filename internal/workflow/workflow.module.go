@@ -58,6 +58,31 @@ type ActionResult struct {
 	Output   string
 }
 
+// Steps runs plugins' steps (plugin API 2): typed inputs in, typed
+// outputs back.
+type Steps interface {
+	Step(ctx context.Context, req StepRequest) (StepResult, error)
+	// Check checks a workflow's use of a step before it runs: the step
+	// exists and its inputs that are not templates fit their types.
+	Check(plugin, step string, with map[string]string) error
+}
+
+// StepRequest is a plugin step's attempt: With are its inputs as the
+// workflow resolved them (text, read back by the step's types).
+type StepRequest struct {
+	Plugin, Step      string
+	With              map[string]string
+	Workflow, Run, ID string
+	Environment       string
+}
+
+// StepResult is what a plugin step answered: its outputs (as text) and a
+// summary.
+type StepResult struct {
+	Outputs map[string]string
+	Output  string
+}
+
 // Workspace is what steps and triggers read of the machine's
 // environments and repositories.
 type Workspace interface {
@@ -93,6 +118,7 @@ type Ports struct {
 	Tasks     Tasks
 	Commands  Commands
 	Actions   Actions
+	Steps     Steps
 	Workspace Workspace
 	Agents    Agents
 	Events    Events

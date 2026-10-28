@@ -37,6 +37,10 @@ type Context struct {
 	Environment string `json:"environment,omitempty"`
 	Tab         string `json:"tab,omitempty"`
 	Pane        string `json:"pane,omitempty"`
+	// View and Node are a view's button that ran the action, or the view a
+	// pane opened (plugin API 2).
+	View string `json:"view,omitempty"`
+	Node string `json:"node,omitempty"`
 	// Capabilities are the capabilities the plugin holds now.
 	Capabilities []string `json:"capabilities"`
 	// Workflow is set when a workflow's step runs the action: the run, the
@@ -180,6 +184,7 @@ type Host struct {
 	running sync.WaitGroup
 	runSeq  uint64
 	content contentStore
+	views   viewStore
 	wasm    wasmHost
 }
 
@@ -459,6 +464,9 @@ func (h *Host) unload(id string) {
 	if h.content.forget(id) {
 		h.cfg.Publish(EventContributions, map[string]string{"plugin": id})
 	}
+	if h.forgetViews(id) {
+		h.cfg.Publish(EventView, map[string]string{"plugin": id})
+	}
 }
 
 // Status lists the plugins the host runs.
@@ -531,7 +539,7 @@ func (h *Host) Discovery(id string) Discovery {
 	d := Discovery{
 		API: api, SupportedAPIs: slices.Clone(SupportedAPIs), HiveVersion: h.cfg.Version,
 		Capabilities: slices.Clone(CapabilitiesFor(api)), Events: slices.Clone(Events),
-		Contributions: slices.Clone(ContributionKinds), Isolation: []string{IsolationStandard},
+		Contributions: slices.Clone(ContributionKindsFor(api)), Isolation: []string{IsolationStandard},
 	}
 	if SandboxAvailable() {
 		d.Isolation = append(d.Isolation, IsolationStrict)

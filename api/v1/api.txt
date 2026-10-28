@@ -176,6 +176,10 @@ method plugin.reload
 method plugin.request
 method plugin.run
 method plugin.status
+method plugin.view.clear
+method plugin.view.click
+method plugin.view.set
+method plugin.views
 method process.get
 method process.list
 method process.logs
@@ -214,6 +218,7 @@ method workflow.rerun
 method workflow.run
 method workflow.runs
 method workflow.status
+method workflow.trigger
 method workflow.trust
 method workflow.validate
 method workflow.wait
@@ -299,6 +304,14 @@ plugin.run params: runtime.PluginRunRequest
 plugin.run result: plugin.Result
 plugin.status params: plugin.StatusUpdate
 plugin.status result: plugin.StatusContent
+plugin.view.clear params: plugin.ViewUpdate
+plugin.view.clear result: plugin.ViewContent
+plugin.view.click params: plugin.ViewClick
+plugin.view.click result: plugin.Result
+plugin.view.set params: plugin.ViewUpdate
+plugin.view.set result: plugin.ViewContent
+plugin.views params: object
+plugin.views result: []plugin.ViewContent
 process.get params: process.idParams
 process.get result: process.Process
 process.list params: process.listParams
@@ -935,6 +948,7 @@ type pane.Pane.process: process.Process
 type pane.Pane.process_id: string
 type pane.Pane.rect: layout.Rect
 type pane.Pane.tab_id: string
+type pane.Pane.view: string
 type pane.Pane.zoomed: boolean
 type pane.Pane: object
 type pane.Popup.height_pct: integer
@@ -950,6 +964,7 @@ type pane.Spec.command: []string
 type pane.Spec.cwd: string
 type pane.Spec.env: map[string]string
 type pane.Spec.name: string
+type pane.Spec.view: string
 type pane.Spec: object
 type pane.SplitRequest.direction: string
 type pane.SplitRequest.focus: boolean
@@ -1107,9 +1122,14 @@ type plugin.ContextAction.title: string
 type plugin.ContextAction: object
 type plugin.Contributes.actions: []plugin.ContextAction
 type plugin.Contributes.cards: []plugin.Card
+type plugin.Contributes.forges: []plugin.ForgeDecl
 type plugin.Contributes.links: []plugin.Link
 type plugin.Contributes.palette: []plugin.PaletteEntry
 type plugin.Contributes.status: []plugin.StatusIndicator
+type plugin.Contributes.steps: []plugin.StepDecl
+type plugin.Contributes.trackers: []plugin.TrackerDecl
+type plugin.Contributes.triggers: []plugin.TriggerDecl
+type plugin.Contributes.views: []plugin.ViewDecl
 type plugin.Contributes: object
 type plugin.Contribution.action: string
 type plugin.Contribution.available: boolean
@@ -1147,6 +1167,10 @@ type plugin.EventStats.dropped: integer
 type plugin.EventStats.failed: integer
 type plugin.EventStats.queued: integer
 type plugin.EventStats: object
+type plugin.ForgeDecl.command: []string
+type plugin.ForgeDecl.hosts: []string
+type plugin.ForgeDecl.name: string
+type plugin.ForgeDecl: object
 type plugin.Grant.denied: []string
 type plugin.Grant.effective: []string
 type plugin.Grant.missing: []string
@@ -1200,6 +1224,11 @@ type plugin.NetworkScope: object
 type plugin.PaletteEntry.action: string
 type plugin.PaletteEntry.title: string
 type plugin.PaletteEntry: object
+type plugin.ParamSpec.default: any
+type plugin.ParamSpec.description: string
+type plugin.ParamSpec.required: boolean
+type plugin.ParamSpec.type: string
+type plugin.ParamSpec: object
 type plugin.PermissionRequest.at: string
 type plugin.PermissionRequest.capability: string
 type plugin.PermissionRequest.plugin: string
@@ -1297,9 +1326,22 @@ type plugin.StatusUpdate.text: string
 type plugin.StatusUpdate.tone: string
 type plugin.StatusUpdate.ttl: integer
 type plugin.StatusUpdate: object
+type plugin.StepDecl.command: []string
+type plugin.StepDecl.description: string
+type plugin.StepDecl.inputs: map[string]plugin.ParamSpec
+type plugin.StepDecl.name: string
+type plugin.StepDecl.outputs: map[string]plugin.ParamSpec
+type plugin.StepDecl.timeout: string
+type plugin.StepDecl: object
 type plugin.TestSpec.command: []string
 type plugin.TestSpec.timeout: string
 type plugin.TestSpec: object
+type plugin.TrackerDecl.command: []string
+type plugin.TrackerDecl.name: string
+type plugin.TrackerDecl: object
+type plugin.TriggerDecl.description: string
+type plugin.TriggerDecl.name: string
+type plugin.TriggerDecl: object
 type plugin.Trust.checked_at: string
 type plugin.Trust.provenance: plugin.Provenance
 type plugin.Trust.publisher: string
@@ -1307,6 +1349,41 @@ type plugin.Trust.revoked: plugin.Revocation
 type plugin.Trust.signed_by: string
 type plugin.Trust.tier: string
 type plugin.Trust: object
+type plugin.ViewClick.environment: string
+type plugin.ViewClick.node: string
+type plugin.ViewClick.pane: string
+type plugin.ViewClick.plugin: string
+type plugin.ViewClick.tab: string
+type plugin.ViewClick.view: string
+type plugin.ViewClick: object
+type plugin.ViewContent.available: boolean
+type plugin.ViewContent.doc: plugin.ViewDoc
+type plugin.ViewContent.plugin: string
+type plugin.ViewContent.title: string
+type plugin.ViewContent.updated: string
+type plugin.ViewContent.view: string
+type plugin.ViewContent: object
+type plugin.ViewDecl.command: []string
+type plugin.ViewDecl.id: string
+type plugin.ViewDecl.title: string
+type plugin.ViewDecl: object
+type plugin.ViewDoc.root: plugin.ViewNode
+type plugin.ViewDoc: object
+type plugin.ViewNode.action: string
+type plugin.ViewNode.children: []plugin.ViewNode
+type plugin.ViewNode.columns: []string
+type plugin.ViewNode.id: string
+type plugin.ViewNode.kind: string
+type plugin.ViewNode.rows: [][]string
+type plugin.ViewNode.style: string
+type plugin.ViewNode.text: string
+type plugin.ViewNode.url: string
+type plugin.ViewNode.value: number
+type plugin.ViewNode: object
+type plugin.ViewUpdate.doc: plugin.ViewDoc
+type plugin.ViewUpdate.plugin: string
+type plugin.ViewUpdate.view: string
+type plugin.ViewUpdate: object
 type process.LogsRequest.follow: boolean
 type process.LogsRequest.id: string
 type process.LogsRequest.stream: string
@@ -1481,6 +1558,12 @@ type runtime.pluginRequestParams: object
 type runtime.pluginRunRef.plugin: string
 type runtime.pluginRunRef.run: string
 type runtime.pluginRunRef: object
+type runtime.workflowTriggerParams.name: string
+type runtime.workflowTriggerParams.payload: map[string]any
+type runtime.workflowTriggerParams.plugin: string
+type runtime.workflowTriggerParams: object
+type runtime.workflowTriggerResult.runs: []string
+type runtime.workflowTriggerResult: object
 type runtime.worktreeListParams.repo: string
 type runtime.worktreeListParams: object
 type task.Approval.approved: boolean
@@ -1683,6 +1766,7 @@ type workflow.Resolved.kind: string
 type workflow.Resolved.prompt: string
 type workflow.Resolved.run: []string
 type workflow.Resolved.shell: string
+type workflow.Resolved.uses: string
 type workflow.Resolved.with: map[string]string
 type workflow.Resolved.worktree: string
 type workflow.Resolved: object
@@ -1804,6 +1888,7 @@ type workflow.StepSpec.run: []string
 type workflow.StepSpec.shell: string
 type workflow.StepSpec.timeout_ms: integer
 type workflow.StepSpec.until: string
+type workflow.StepSpec.uses: string
 type workflow.StepSpec.with: map[string]string
 type workflow.StepSpec.worktree: string
 type workflow.StepSpec: object
@@ -1823,6 +1908,7 @@ type workflow.TriggerSpec.every_ms: integer
 type workflow.TriggerSpec.git: string
 type workflow.TriggerSpec.inputs: map[string]string
 type workflow.TriggerSpec.match: map[string]string
+type workflow.TriggerSpec.plugin: string
 type workflow.TriggerSpec.remote: string
 type workflow.TriggerSpec.repo: string
 type workflow.TriggerSpec.schedule: string
@@ -1849,6 +1935,7 @@ type workflow.Workflow.name: string
 type workflow.Workflow.next: string
 type workflow.Workflow.own: boolean
 type workflow.Workflow.path: string
+type workflow.Workflow.problems: []string
 type workflow.Workflow.spec: workflow.Spec
 type workflow.Workflow.steps: integer
 type workflow.Workflow.text: string
@@ -1873,6 +1960,8 @@ workflow.runs params: workflow.RunsParams
 workflow.runs result: []workflow.RunSummary
 workflow.status params: workflow.RunRef
 workflow.status result: workflow.Run
+workflow.trigger params: runtime.workflowTriggerParams
+workflow.trigger result: runtime.workflowTriggerResult
 workflow.trust params: workflow.TrustParams
 workflow.trust result: workflow.Workflow
 workflow.validate params: workflow.ValidateParams

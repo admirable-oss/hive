@@ -146,7 +146,7 @@ func (k *keeper) layoutFor(envID string) (pane.State, bool) {
 		st.Tabs[i].Active = false
 	}
 	for _, p := range e.Panes {
-		st.Panes = append(st.Panes, pane.Pane{ID: p.ID, TabID: p.TabID, EnvironmentID: envID, ProcessID: p.ProcessID, Name: p.Name})
+		st.Panes = append(st.Panes, pane.Pane{ID: p.ID, TabID: p.TabID, EnvironmentID: envID, ProcessID: p.ProcessID, Name: p.Name, View: p.View})
 	}
 	return st, true
 }
@@ -257,7 +257,7 @@ func (k *keeper) collect(ctx context.Context) (persist.Snapshot, error) {
 // describe is one pane's entry in a snapshot. prev is its entry in the
 // last snapshot: a pane that no longer runs keeps what it had.
 func (k *keeper) describe(ctx context.Context, p pane.Pane, agents map[string]agent.Agent, prev *persist.Pane) persist.Pane {
-	out := persist.Pane{ID: p.ID, TabID: p.TabID, Name: p.Name, ProcessID: p.ProcessID}
+	out := persist.Pane{ID: p.ID, TabID: p.TabID, Name: p.Name, ProcessID: p.ProcessID, View: p.View}
 	proc := p.Process
 	if proc == nil {
 		return out

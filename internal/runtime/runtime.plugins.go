@@ -317,6 +317,34 @@ func registerPlugins(r *protocol.Router, host *plugin.Host, store *plugin.Store)
 	r.MustRegister("plugin.contributions", protocol.Method(func(context.Context, struct{}) (plugin.Contributions, error) {
 		return host.Contributions(), nil
 	}))
+	r.MustRegister("plugin.views", protocol.Method(func(context.Context, struct{}) ([]plugin.ViewContent, error) {
+		return host.Views(), nil
+	}))
+	r.MustRegister("plugin.view.set", protocol.Method(func(ctx context.Context, u plugin.ViewUpdate) (plugin.ViewContent, error) {
+		id, err := callerPlugin(ctx, u.Plugin)
+		if err != nil {
+			return plugin.ViewContent{}, err
+		}
+		if u.Doc == nil {
+			return plugin.ViewContent{}, protocol.NewError(protocol.ErrorCodeInvalidParams, errors.New("doc is required (plugin.view.clear clears a view)"))
+		}
+		u.Plugin = id
+		c, err := host.SetView(u)
+		return c, pluginError(err)
+	}))
+	r.MustRegister("plugin.view.clear", protocol.Method(func(ctx context.Context, u plugin.ViewUpdate) (plugin.ViewContent, error) {
+		id, err := callerPlugin(ctx, u.Plugin)
+		if err != nil {
+			return plugin.ViewContent{}, err
+		}
+		u.Plugin, u.Doc = id, nil
+		c, err := host.SetView(u)
+		return c, pluginError(err)
+	}))
+	r.MustRegister("plugin.view.click", protocol.Method(func(ctx context.Context, k plugin.ViewClick) (plugin.Result, error) {
+		res, err := host.Click(ctx, k)
+		return res, pluginError(err)
+	}))
 	r.MustRegister("plugin.card", protocol.Method(func(ctx context.Context, u plugin.CardUpdate) (plugin.CardContent, error) {
 		id, err := callerPlugin(ctx, u.Plugin)
 		if err != nil {

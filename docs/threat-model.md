@@ -94,6 +94,13 @@ socket. Other machines are reached through the user's ssh.
   system's files and its package are readable. It runs unconfined only
   when you approve `unconfined`, per release (`isolation = "none"`, or a
   system with no sandbox such as Windows).
+- **Plugin views are data.** A view document is checked by the daemon and
+  drawn by clients as text: no markup, scripts or images. A link must be
+  `https:` and opens only on a person's click; a button runs only one of
+  the plugin's own declared actions, and plugins cannot click. A plugin's
+  workflow step gets only the inputs the workflow gives it, and its
+  outputs are checked against their declared types; a plugin fires only
+  its own triggers, and shared workflows still run only once trusted.
 - **Plugin API 1 plugins run as you.** Their capabilities limit what they
   may ask *Hive* to do. They are not isolation unless strict isolation is
   on and available, and it is not available on Windows. A plugin without

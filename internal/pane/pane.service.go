@@ -287,6 +287,30 @@ func (s *Service) workingDirLocked(ctx context.Context, st *State, paneID string
 
 // --- process start ---
 
+// startPaneLocked gives pane p what its spec says: a process started at
+// the given size, or a plugin's view opened (no process).
+func (s *Service) startPaneLocked(ctx context.Context, env environment.Environment, p *Pane, spec Spec, r layout.Rect) error {
+	if spec.View != "" {
+		if err := checkViewSpec(spec); err != nil {
+			return err
+		}
+		if s.cfg.OpenView == nil {
+			return fmt.Errorf("%w: plugin views are not served here", ErrInvalid)
+		}
+		if err := s.cfg.OpenView(spec.View, ViewTarget{Environment: env.ID, Tab: p.TabID, Pane: p.ID}); err != nil {
+			return err
+		}
+		p.ProcessID, p.View = "", spec.View
+		return nil
+	}
+	proc, err := s.startLocked(ctx, env, p.TabID, p.ID, spec, r)
+	if err != nil {
+		return err
+	}
+	p.ProcessID, p.View = proc.ID, ""
+	return nil
+}
+
 // startLocked starts the process of a new pane at the given size.
 func (s *Service) startLocked(ctx context.Context, env environment.Environment, tabID, paneID string, spec Spec, r layout.Rect) (process.Process, error) {
 	argv := spec.Command
@@ -327,11 +351,9 @@ func (s *Service) createTabLocked(ctx context.Context, envID, name string, spec 
 		tab.Name = fmt.Sprintf("tab %d", len(st.Tabs)+1)
 	}
 	pane := Pane{ID: s.idSource("p"), TabID: tab.ID, EnvironmentID: envID, Name: spec.Name, CreatedAt: s.nowFn()}
-	proc, err := s.startLocked(ctx, env, tab.ID, pane.ID, spec, area(&tab))
-	if err != nil {
+	if err := s.startPaneLocked(ctx, env, &pane, spec, area(&tab)); err != nil {
 		return Tab{}, Pane{}, err
 	}
-	pane.ProcessID = proc.ID
 	tab.Layout, tab.Focused = layout.Leaf(pane.ID), pane.ID
 	st.Tabs = append(st.Tabs, tab)
 	st.Panes = append(st.Panes, pane)
@@ -595,11 +617,9 @@ func (s *Service) Split(ctx context.Context, req SplitRequest) (Pane, error) {
 		return Pane{}, err
 	}
 	r := layout.Geometry(next, area(t), "")[pane.ID]
-	proc, err := s.startLocked(ctx, env, t.ID, pane.ID, req.Spec, r)
-	if err != nil {
+	if err := s.startPaneLocked(ctx, env, &pane, req.Spec, r); err != nil {
 		return Pane{}, err
 	}
-	pane.ProcessID = proc.ID
 	t.Layout, t.Zoomed = next, ""
 	if req.Focus == nil || *req.Focus {
 		t.Focused = pane.ID
@@ -624,6 +644,9 @@ func (s *Service) Popup(ctx context.Context, req PopupRequest) (Pane, error) {
 	}
 	if req.WidthPct < 10 || req.WidthPct > 100 || req.HeightPct < 10 || req.HeightPct > 100 {
 		return Pane{}, fmt.Errorf("%w: popup size must be 10..100%%", ErrInvalid)
+	}
+	if req.Spec.View != "" {
+		return Pane{}, fmt.Errorf("%w: a popup lives as long as its command; a view goes in a pane", ErrInvalid)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -803,11 +826,9 @@ func (s *Service) Respawn(ctx context.Context, paneID string, spec Spec) (Pane, 
 	if !ok || r.W <= 0 || r.H <= 0 {
 		r = area(t) // hidden behind a zoomed pane: it is resized when shown
 	}
-	proc, err := s.startLocked(ctx, env, t.ID, p.ID, spec, r)
-	if err != nil {
+	if err := s.startPaneLocked(ctx, env, p, spec, r); err != nil {
 		return Pane{}, err
 	}
-	p.ProcessID = proc.ID
 	if err := s.saveLocked(ctx, t.EnvironmentID); err != nil {
 		return Pane{}, err
 	}
@@ -1005,13 +1026,16 @@ func uniq(a, b string) []string {
 func (s *Service) session(ctx context.Context, paneID string) (terminal.Session, error) {
 	s.mu.Lock()
 	_, _, p, err := s.paneLocked(ctx, paneID)
-	var processID string
+	var processID, view string
 	if p != nil {
-		processID = p.ProcessID
+		processID, view = p.ProcessID, p.View
 	}
 	s.mu.Unlock()
 	if err != nil {
 		return nil, err
+	}
+	if view != "" {
+		return nil, fmt.Errorf("%w: pane %s shows the view %s, not a terminal", ErrNotRunning, paneID, view)
 	}
 	sess, err := s.terms.Get(processID)
 	if err != nil {
@@ -1122,7 +1146,7 @@ func (s *Service) ReapPopups(ctx context.Context) {
 	var done []string
 	for _, st := range s.states {
 		for _, p := range st.Panes {
-			if !popups[p.ID] {
+			if !popups[p.ID] || p.View != "" {
 				continue
 			}
 			if proc, err := s.procs.Get(ctx, p.ProcessID); err != nil || !proc.Active() {

@@ -544,3 +544,55 @@ run = ["fail"]
 		}
 	}
 }
+
+// TestPluginSteps: a plugin step gets its inputs, typed literals and
+// templates, and its outputs feed later steps; its failure fails the
+// step; a workflow whose plugin step does not fit says so before it runs.
+func TestPluginSteps(t *testing.T) {
+	e := newEnv(t, workflow.Config{})
+	r := e.run(`
+version = 1
+[[step]]
+id = "env"
+run = ["out", "name=preview-7"]
+[[step]]
+id = "deploy"
+uses = "deploy/preview"
+with = { environment = "${{ steps.env.outputs.name }}", wait = true }
+[[step]]
+id = "say"
+run = ["echo", "at ${{ steps.deploy.outputs.url }}"]
+`, nil)
+	if r.State != workflow.StateSucceeded {
+		t.Fatalf("%s %s (%s)", r.State, states(r), r.Reason)
+	}
+	if got := r.Step("say").Last().Output; len(got) != 1 || got[0] != "at https://preview-7.example.org" {
+		t.Fatalf("the step's output in a later step: %v", got)
+	}
+	if len(e.steps.reqs) != 1 || e.steps.reqs[0].With["wait"] != "true" || e.steps.reqs[0].Run != r.ID || e.steps.reqs[0].ID != "deploy" {
+		t.Fatalf("the step's request: %+v", e.steps.reqs)
+	}
+
+	r = e.run("version = 1\n[[step]]\nid = \"d\"\nuses = \"deploy/preview\"\nwith = { environment = \"broken\" }\n", nil)
+	if r.State != workflow.StateFailed || !strings.Contains(r.Step("d").Last().Reason, "the deploy failed") {
+		t.Fatalf("a failing plugin step: %s %+v", r.State, r.Step("d").Last())
+	}
+
+	for name, step := range map[string]string{
+		"unknown step":    `uses = "deploy/prod"`,
+		"missing input":   `uses = "deploy/preview"`,
+		"wrong type":      "uses = \"deploy/preview\"\nwith = { environment = \"x\", wait = \"often\" }",
+		"not plugin/step": `uses = "preview"`,
+		"two kinds":       "uses = \"deploy/preview\"\nrun = [\"ok\"]",
+	} {
+		if _, err := e.svc.Validate("version = 1\n[[step]]\nid = \"d\"\n"+step+"\n", name); !errors.Is(err, workflow.ErrInvalid) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	e.write(e.own, "stale.toml", "version = 1\n[[step]]\nid = \"d\"\nuses = \"deploy/prod\"\n")
+	ws := e.svc.Workflows(context.Background())
+	i := slices.IndexFunc(ws, func(w workflow.Workflow) bool { return w.Name == "stale" })
+	if i < 0 || len(ws[i].Problems) != 1 || !strings.Contains(ws[i].Problems[0], "deploy/prod") {
+		t.Fatalf("a workflow's problem with a plugin step: %+v", ws)
+	}
+}

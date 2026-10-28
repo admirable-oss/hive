@@ -343,6 +343,21 @@ func (h *Host) Contributions() Contributions {
 		if len(m.Configuration.Settings) > 0 {
 			add(Contribution{Kind: ContribConfig, ID: "settings", Title: "Configure " + m.Name})
 		}
+		for _, v := range m.Contributes.Views {
+			add(Contribution{Kind: ContribView, ID: v.ID, Title: v.Title})
+		}
+		for _, f := range m.Contributes.Forges {
+			add(Contribution{Kind: ContribForge, ID: f.Name, Title: f.Name + " (" + strings.Join(f.Hosts, ", ") + ")"})
+		}
+		for _, t := range m.Contributes.Trackers {
+			add(Contribution{Kind: ContribTracker, ID: t.Name, Title: t.Name})
+		}
+		for _, s := range m.Contributes.Steps {
+			add(Contribution{Kind: ContribStep, ID: s.Name, Title: cmpStr(s.Description, s.Name)})
+		}
+		for _, t := range m.Contributes.Triggers {
+			add(Contribution{Kind: ContribTrigger, ID: t.Name, Title: cmpStr(t.Description, t.Name)})
+		}
 	}
 	h.mu.Unlock()
 	cards, status := h.content.snapshot()

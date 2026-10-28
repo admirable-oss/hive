@@ -134,7 +134,8 @@ func newPaneSplitCmd(a *app) *cobra.Command {
 		Use:   "split [pane] [-- command [args...]]",
 		Short: "Split a pane and start a process in the new one (prints its ID)",
 		Example: `  hive pane split                           # split my pane, run a shell to the right
-  hive pane split p1a2b3 -d down -r 0.3 -- npm test --watch`,
+  hive pane split p1a2b3 -d down -r 0.3 -- npm test --watch
+  hive pane split --view review/queue       # a plugin's view, no process`,
 		Args:              argsBeforeDash(0, 1),
 		ValidArgsFunction: completePanes(a),
 		RunE: withTimeout(paneTimeout, func(ctx context.Context, cmd *cobra.Command, args []string) error {
@@ -167,6 +168,7 @@ func newPaneSplitCmd(a *app) *cobra.Command {
 	cmd.Flags().Float64VarP(&ratio, "ratio", "r", 0.5, "the new pane's share of the space (0-1)")
 	cmd.Flags().BoolVar(&noFocus, "no-focus", false, "keep the focus on the split pane")
 	spec.register(cmd, "name")
+	spec.registerView(cmd)
 	return cmd
 }
 
@@ -498,8 +500,8 @@ status 4 when --timeout passes first.`,
 
 // paneSpecFlags are the flags describing what a new pane runs.
 type paneSpecFlags struct {
-	name, cwd string
-	env       []string
+	name, cwd, view string
+	env             []string
 }
 
 // register adds the flags; nameFlag is the pane name's flag.
@@ -509,12 +511,20 @@ func (f *paneSpecFlags) register(cmd *cobra.Command, nameFlag string) {
 	cmd.Flags().StringArrayVarP(&f.env, "env", "e", nil, "a variable for its process, as KEY=VALUE (repeatable)")
 }
 
+// registerView adds --view, for panes that show a plugin's view.
+func (f *paneSpecFlags) registerView(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&f.view, "view", "", "show a plugin's view instead of a terminal, as plugin/view (hive plugin views)")
+}
+
 func (f *paneSpecFlags) spec(command []string) (pane.Spec, error) {
 	env, err := parseVars(f.env)
 	if err != nil {
 		return pane.Spec{}, err
 	}
-	return pane.Spec{Name: f.name, Command: command, Cwd: f.cwd, Env: env}, nil
+	if f.view != "" && len(command) > 0 {
+		return pane.Spec{}, &usageError{errors.New("--view shows a plugin's view: give no command")}
+	}
+	return pane.Spec{Name: f.name, Command: command, Cwd: f.cwd, Env: env, View: f.view}, nil
 }
 
 // argsBeforeDash accepts lo..hi arguments before "--" and any after.
@@ -552,6 +562,10 @@ func printPane(a *app, p pane.Pane) error {
 	fmt.Fprintf(w, "Environment\t%s\n", p.EnvironmentID)
 	fmt.Fprintf(w, "Tab\t%s\n", p.TabID)
 	fmt.Fprintf(w, "Size\t%s\n", paneSize(p))
+	if p.View != "" {
+		fmt.Fprintf(w, "View\t%s\n", p.View)
+		return w.Flush()
+	}
 	fmt.Fprintf(w, "Process\t%s (%s)\n", p.ProcessID, paneStatus(p))
 	fmt.Fprintf(w, "Command\t%s\n", paneCommand(p))
 	return w.Flush()
@@ -583,6 +597,9 @@ func paneSize(p pane.Pane) string {
 }
 
 func paneStatus(p pane.Pane) string {
+	if p.View != "" {
+		return "view"
+	}
 	if p.Process == nil {
 		return "-"
 	}
@@ -590,6 +607,9 @@ func paneStatus(p pane.Pane) string {
 }
 
 func paneCommand(p pane.Pane) string {
+	if p.View != "" {
+		return "view " + p.View
+	}
 	if p.Process == nil {
 		return "-"
 	}

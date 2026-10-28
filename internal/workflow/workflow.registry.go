@@ -184,7 +184,27 @@ func (s *Service) viewLocked(w *Workflow, full bool) Workflow {
 		}
 	}
 	v.Next = s.triggers.nextLocked(w.Name)
+	v.Problems = s.stepProblems(w.Spec)
 	return v
+}
+
+// stepProblems checks a workflow's plugin steps against the plugins
+// installed now.
+func (s *Service) stepProblems(spec *Spec) []string {
+	if spec == nil || s.ports.Steps == nil {
+		return nil
+	}
+	var out []string
+	for _, st := range spec.Steps {
+		if st.Kind() != KindStep {
+			continue
+		}
+		plugin, step, _ := strings.Cut(st.Uses, "/")
+		if err := s.ports.Steps.Check(plugin, step, st.With); err != nil {
+			out = append(out, st.ID+": "+err.Error())
+		}
+	}
+	return out
 }
 
 // Workflows lists the workflow files, by name.
@@ -272,7 +292,14 @@ func (s *Service) firesLocked(w *Workflow) bool {
 
 // Validate parses the text of a workflow file.
 func (s *Service) Validate(text, source string) (Spec, error) {
-	return Parse([]byte(text), cmpStr(source, "workflow"))
+	spec, err := Parse([]byte(text), cmpStr(source, "workflow"))
+	if err != nil {
+		return spec, err
+	}
+	if p := s.stepProblems(&spec); len(p) > 0 {
+		return Spec{}, invalid("%s: %s", cmpStr(source, "workflow"), strings.Join(p, "; "))
+	}
+	return spec, nil
 }
 
 // defaultDir is where a run of a workflow file runs when nothing else

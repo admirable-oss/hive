@@ -1805,8 +1805,14 @@ the policy: [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md#publishers-tie
   memory, timeouts; `hive.call` and `hive.response` call Hive with the
   socket's capability checks (`TestWasmPlugin`, `TestM26WasmPlugin`
   through the real daemon, on macOS, Linux and Windows).
-- [ ] Pane views, forges, issue trackers, workflow steps and triggers
-  (delivery step 6).
+- [x] Pane views, workflow steps and triggers (delivery step 6):
+  `[[contributes.views]]` with `plugin.view.set`, drawn as data in panes
+  with no process (`--view`, layouts, the TUI, `hive plugin views`), whose
+  buttons run the plugin's declared actions; `[[contributes.steps]]` with
+  typed inputs and outputs (`uses = "plugin/step"`); `[[contributes.triggers]]`
+  fired with `workflow.trigger` (`[[on]] plugin`) (`TestViewPane`,
+  `TestPluginSteps`, `TestPluginTriggers`, `TestM26PluginContributions`).
+- [ ] Plugin forges and issue trackers (delivery step 6, continued).
 - [ ] RFC 0006 discussed and accepted; then tag `v1.7.0`.
 
 ---

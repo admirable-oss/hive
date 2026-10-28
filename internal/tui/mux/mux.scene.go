@@ -466,6 +466,8 @@ func (a *App) drawPane(t *pane.Tab, p *pane.Pane, w, h int) compositor.Pane {
 		}
 	}
 	switch {
+	case p.View != "":
+		a.drawViewPane(&cp, p, w, h)
 	case proc == nil:
 		cp.Placeholder = "no process"
 	case !proc.Active():

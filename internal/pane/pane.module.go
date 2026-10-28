@@ -34,6 +34,14 @@ type Config struct {
 	// start where the pane they come from is. Nil means
 	// platform.ProcessCwd; tests replace it.
 	WorkingDir func(pid int) (string, error)
+	// OpenView opens a plugin's view (plugin/view) in a pane: it fails
+	// when no installed plugin declares it. Nil serves no views.
+	OpenView func(view string, at ViewTarget) error
+}
+
+// ViewTarget is where a view opens.
+type ViewTarget struct {
+	Environment, Tab, Pane string
 }
 
 type Module struct {

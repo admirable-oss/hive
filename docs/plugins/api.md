@@ -405,6 +405,106 @@ command = ["./counter.wasm", "bump"]
   length `call` returned.
 - `hive plugin info` shows `sandbox: wasm`.
 
+### Pane views
+
+A plugin API 2 plugin can draw a pane from data. Clients draw it; they
+never run plugin code to do so.
+
+```toml
+[[contributes.views]]
+id = "queue"
+title = "Review queue"
+command = ["./bin/queue", "draw"]   # optional: run when a pane opens the view
+```
+
+- The plugin sets what a view shows with `plugin.view.set {view, doc}`
+  (`hive plugin view queue --doc -`) and empties it with
+  `plugin.view.clear {view}`. Both need `hive.write`. A view keeps its
+  document until it is set again, cleared, or the plugin stops.
+- A document is a tree of nodes, at most 2,000 of them, 32 deep and 256
+  KiB:
+
+  ```json
+  {"root": {"kind": "column", "children": [
+    {"kind": "text", "text": "3 waiting", "style": "bold"},
+    {"kind": "table", "columns": ["PR", "State"], "rows": [["#12", "open"]]},
+    {"kind": "progress", "text": "CI", "value": 0.6},
+    {"kind": "row", "children": [
+      {"kind": "button", "id": "approve-12", "text": "Approve", "action": "approve"},
+      {"kind": "badge", "text": "2 failing", "style": "error"},
+      {"kind": "link", "text": "Open", "url": "https://example.org/12"}]},
+    {"kind": "divider"}]}}
+  ```
+
+  | Kind | Fields |
+  |---|---|
+  | `text` | `text`, `style`: plain, muted, bold, code, ok, warn, error |
+  | `row`, `column`, `list` | `children` |
+  | `table` | `columns`, `rows` (strings) |
+  | `progress` | `value` from 0 to 1, `text` |
+  | `badge` | `text`, `style`: info, success, warning, error |
+  | `divider` | |
+  | `button` | `id`, `text`, `action`: one of the plugin's `[[actions]]` |
+  | `link` | `text`, `url`: `https://` only |
+
+  Every string is text: no markup, no scripts, no images.
+- A pane shows a view with `hive pane split --view <plugin>/<view>` or
+  `hive tab create <env> --view <plugin>/<view>`, and a layout's pane with
+  `"view": "<plugin>/<view>"`. Such a pane has no process. It is saved and
+  restored like any pane, and `hive plugin views <plugin>/<view>` draws the
+  view as text.
+- Clicking a button (in the TUI, or tab to it and press enter; `hive
+  plugin click <plugin>/<view> <button>`) runs the action it names, with
+  `view` and `node` in its context. A plugin cannot click: a click is a
+  person's.
+
+### Workflow steps
+
+```toml
+[[contributes.steps]]
+name = "deploy-preview"
+command = ["./bin/deploy"]
+timeout = "10m"                      # default 10m, at most 24h
+
+[contributes.steps.inputs]
+environment = { type = "string", required = true }
+wait = { type = "boolean", default = true }
+
+[contributes.steps.outputs]
+url = { type = "string" }
+```
+
+A workflow uses it as `uses = "<plugin>/deploy-preview"`, with `with = {
+… }` (see [workflows](../workflows.md)). Types are `string`, `boolean`,
+`integer` and `number`. The command reads one JSON document on stdin:
+
+```json
+{"step": "deploy-preview", "inputs": {"environment": "pr-7", "wait": true},
+ "workflow": {"workflow": "preview", "run": "3f2a…", "step": "deploy"},
+ "environment": "api"}
+```
+
+and answers one on stdout, `{"outputs": {"url": "https://…"}, "summary":
+"deployed"}`; what it writes to stderr goes to its log. Hive checks the
+inputs before it runs the command and the outputs after; a failing
+command, an answer that is not JSON, an undeclared output or one of the
+wrong type fails the step. `hive workflow show` and `hive workflow
+validate` name a workflow's steps that do not fit what is installed.
+WebAssembly plugins can contribute steps too.
+
+### Workflow triggers
+
+```toml
+[[contributes.triggers]]
+name = "deploy-finished"
+```
+
+The plugin fires it with `workflow.trigger {name, payload}` (`hive.write`;
+`hive plugin trigger deploy-finished --field state=error`), and gets back
+the runs it started. Workflows that name it in `[[on]]` with `plugin =
+"<plugin>/deploy-finished"` run when their `match` fits the payload; a
+shared workflow runs only once it is trusted, as for every trigger.
+
 ## Lifecycle and health
 
 | State | Meaning |

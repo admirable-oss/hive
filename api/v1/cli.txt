@@ -147,6 +147,7 @@ command hive plugin (alias plugins)
 command hive plugin cancel
 command hive plugin capabilities
 command hive plugin card
+command hive plugin click
 command hive plugin config
 command hive plugin contributions
 command hive plugin disable
@@ -172,11 +173,14 @@ command hive plugin run
 command hive plugin search
 command hive plugin status
 command hive plugin test
+command hive plugin trigger
 command hive plugin uninstall
 command hive plugin uninstall (alias remove)
 command hive plugin uninstall (alias rm)
 command hive plugin update
 command hive plugin validate
+command hive plugin view
+command hive plugin views
 command hive process
 command hive process (alias ps)
 command hive process get
@@ -455,6 +459,7 @@ flag hive pane split --env stringArray -e
 flag hive pane split --name string
 flag hive pane split --no-focus bool
 flag hive pane split --ratio float64 -r
+flag hive pane split --view string
 flag hive pane wait-output --anywhere bool
 flag hive pane wait-output --regex string
 flag hive pane wait-output --text string
@@ -497,7 +502,14 @@ flag hive plugin status --plugin string
 flag hive plugin status --tone string
 flag hive plugin status --ttl duration
 flag hive plugin test --hive string
+flag hive plugin trigger --field stringArray
+flag hive plugin trigger --payload string
+flag hive plugin trigger --plugin string
 flag hive plugin uninstall --delete-data bool
+flag hive plugin view --clear bool
+flag hive plugin view --doc string
+flag hive plugin view --plugin string
+flag hive plugin views --width int
 flag hive process logs --follow bool -f
 flag hive process logs --lines int -n
 flag hive process logs --stderr bool
@@ -511,6 +523,7 @@ flag hive tab create --cwd string
 flag hive tab create --env stringArray -e
 flag hive tab create --name string
 flag hive tab create --pane-name string
+flag hive tab create --view string
 flag hive task approve --deny bool
 flag hive task approve --note string
 flag hive task report --screen int

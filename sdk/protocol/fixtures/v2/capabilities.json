@@ -68,7 +68,12 @@
     "action",
     "palette",
     "link",
-    "config"
+    "config",
+    "view",
+    "forge",
+    "tracker",
+    "step",
+    "trigger"
   ],
   "events": [
     "agent.state",
@@ -164,6 +169,9 @@
     "plugin.ready",
     "plugin.request",
     "plugin.status",
+    "plugin.view.clear",
+    "plugin.view.set",
+    "plugin.views",
     "process.get",
     "process.list",
     "process.logs",
@@ -188,6 +196,7 @@
     "workflow.list",
     "workflow.runs",
     "workflow.status",
+    "workflow.trigger",
     "workflow.validate",
     "workflow.wait",
     "worktree.create",

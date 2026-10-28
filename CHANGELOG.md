@@ -52,6 +52,30 @@ Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). 
   timeouts stop it. It calls Hive through the `hive.call` host function,
   checked as its socket would be.
 
+### Pane views, workflow steps and triggers
+
+- A plugin API 2 plugin can declare `[[contributes.views]]` and set what
+  one shows with `plugin.view.set` (`hive plugin view`): a document of
+  text, rows, columns, lists, tables, progress, badges, dividers, buttons
+  and https links, checked by the daemon and drawn by clients, never
+  plugin code. `hive pane split --view` and `hive tab create --view` open
+  one in a pane with no process, which saves, exports and restores like
+  any pane; the TUI draws it in cells, and clicking a button (or tab and
+  enter) runs the plugin's action it names. `hive plugin views` lists
+  views and draws one as text; `hive plugin click` presses a button.
+- `[[contributes.steps]]` declares a workflow step with typed inputs and
+  outputs: a workflow writes `uses = "<plugin>/<step>"` with `with = {…}`,
+  and its outputs become `steps.<id>.outputs.*`. The command reads its
+  inputs as JSON on stdin and answers its outputs on stdout; both are
+  checked against their types. `hive workflow show` and `validate` name a
+  plugin step that does not fit what is installed.
+- `[[contributes.triggers]]` declares a workflow trigger the plugin fires
+  with `workflow.trigger` (`hive plugin trigger`); workflows name it with
+  `[[on]] plugin = "<plugin>/<trigger>"` and a `match` over its payload.
+- New wire methods `plugin.views`, `plugin.view.set`, `plugin.view.clear`,
+  `plugin.view.click` (closed to plugins) and `workflow.trigger`;
+  `pane.Spec` and `pane.Pane` gain `view`, workflows gain `problems`.
+
 ### Publishing
 
 - `hive plugin publish` tags, checksums, signs (`ssh-keygen -Y sign`, with

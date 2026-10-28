@@ -146,6 +146,7 @@ var methodCapabilities = map[string]string{
 	"process.logs": CapHiveRead, "runtime.status": CapHiveRead, "tab.get": CapHiveRead, "tab.list": CapHiveRead,
 	"terminal.snapshot": CapHiveRead, "terminal.frames": CapHiveRead, "terminal.graphics": CapHiveRead,
 	"worktree.list": CapHiveRead, "plugin.list": CapHiveRead, "plugin.contributions": CapHiveRead,
+	"plugin.views": CapHiveRead, "plugin.view.set": CapHiveWrite, "plugin.view.clear": CapHiveWrite,
 	"observer.activity": CapHiveRead, "task.list": CapHiveRead, "task.get": CapHiveRead, "task.wait": CapHiveRead,
 	"branch.list": CapHiveRead, "branch.get": CapHiveRead, "branch.check": CapHiveRead, "branch.diff": CapHiveRead,
 	"branch.conflicts": CapHiveRead, "workflow.list": CapHiveRead, "workflow.get": CapHiveRead,
@@ -176,6 +177,7 @@ var methodCapabilities = map[string]string{
 	"task.retry": CapHiveProcess, "task.approve": CapHiveProcess, "branch.ready": CapHiveProcess,
 	"branch.update": CapHiveProcess, "branch.clean": CapHiveProcess, "workflow.run": CapHiveProcess,
 	"workflow.rerun": CapHiveProcess, "workflow.cancel": CapHiveProcess, "workflow.fire": CapHiveProcess,
+	"workflow.trigger": CapHiveWrite,
 
 	// Administration.
 	"debug.pprof": CapHiveAdmin, "debug.stats": CapHiveAdmin, "runtime.gc": CapHiveAdmin,
@@ -191,6 +193,8 @@ var methodCapabilities = map[string]string{
 var closedMethods = []string{
 	"observer.audit", "observer.create", "observer.get", "observer.list", "observer.revoke", "observer.validate",
 	"branch.push", "branch.pr", "workflow.trust", "insights.resume",
+	// A click is a person's: a plugin runs its own actions directly.
+	"plugin.view.click",
 }
 
 // Closed reports whether method is classified as callable by no plugin.

@@ -97,6 +97,9 @@ func (m *Manifest) checkSurfaces() error {
 	if err := m.checkScopes(seen); err != nil {
 		return err
 	}
+	if err := m.checkV2Contributions(seen); err != nil {
+		return err
+	}
 	for c, reason := range m.Permissions.Reasons {
 		if !seen[c] {
 			return fmt.Errorf("permissions.reasons: %s is not requested", c)
@@ -216,7 +219,7 @@ func (m *Manifest) checkSurfaces() error {
 
 func (m *Manifest) hasContributions() bool {
 	c := m.Contributes
-	return len(c.Cards)+len(c.Status)+len(c.Actions)+len(c.Palette)+len(c.Links) > 0
+	return len(c.Cards)+len(c.Status)+len(c.Actions)+len(c.Palette)+len(c.Links) > 0 || c.hasV2Contributions()
 }
 
 // SafeURL reports an absolute http(s) URL of sensible length: the only

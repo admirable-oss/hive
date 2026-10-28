@@ -199,7 +199,7 @@ func wasmModulePath(dir, program string) (string, error) {
 
 // runWasm runs one command of a Wasm plugin to its end and returns its
 // exit code.
-func (h *Host) runWasm(ctx context.Context, l *loaded, argv []string, ctxJSON []byte, vars map[string]string, out io.Writer, data string) (int, error) {
+func (h *Host) runWasm(ctx context.Context, l *loaded, argv []string, stdin []byte, vars map[string]string, stdout, stderr io.Writer, data string) (int, error) {
 	if err := h.wasm.init(ctx); err != nil {
 		return 0, fmt.Errorf("start the wasm runtime: %w", err)
 	}
@@ -214,8 +214,8 @@ func (h *Host) runWasm(ctx context.Context, l *loaded, argv []string, ctxJSON []
 	cfg := wazero.NewModuleConfig().
 		WithName("").
 		WithArgs(append([]string{filepath.Base(path)}, argv[1:]...)...).
-		WithStdin(bytes.NewReader(ctxJSON)).
-		WithStdout(out).WithStderr(out).
+		WithStdin(bytes.NewReader(stdin)).
+		WithStdout(stdout).WithStderr(stderr).
 		WithFSConfig(wazero.NewFSConfig().WithDirMount(data, "/data").WithDirMount(vars["HIVE_PLUGIN_CONFIG_DIR"], "/config")).
 		WithSysWalltime().WithSysNanotime().WithRandSource(rand.Reader)
 	for _, k := range []string{"HIVE_PLUGIN_ID", "HIVE_PLUGIN_VERSION", "HIVE_PLUGIN_API", "HIVE_PLUGIN_CAPABILITIES", "HIVE_SESSION", "HIVE_PLUGIN_CONFIG_FROM_VERSION", "HIVE_PLUGIN_CONFIG_TO_VERSION"} {

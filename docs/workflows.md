@@ -1,13 +1,14 @@
 # Workflows: the same steps, every time
 
-A **workflow** is a TOML file of steps: agents' tasks, commands and plugin
-actions, with inputs, outputs, conditions and loops. It runs when one of
+A **workflow** is a TOML file of steps: agents' tasks, commands, plugin
+actions and plugin steps, with inputs, outputs, conditions and loops. It runs when one of
 its **triggers** fires or when you run it:
 
 - a Hive event, such as an agent done or blocked, or a worktree created;
 - a schedule;
 - a git push or a new branch;
-- a webhook a plugin received.
+- a webhook a plugin received;
+- a plugin's own trigger.
 
 Each **run** is recorded with the workflow's text, its inputs and what
 started it. Steps retry with backoff, have timeouts and can be cancelled.
@@ -102,6 +103,7 @@ starts a step at once. Steps whose needs have finished run in parallel.
 | agent | `agent = "claude"`, a list, or `"any"` | a task (as `hive task run` runs one): the prompt, in an environment or a fresh worktree (`isolate`, `worktree`, `base`), until its condition (`until`, `match`, `check`); `machine` and `labels` place it |
 | command | `run = ["argv", …]`, or `run = "a shell line"` | the command in the step's directory: its `environment`'s (or the run's), then `dir` under it, with `env` added |
 | action | `action = "plugin/action"`, with `with = { … }` | a plugin's action, with `with` in its context |
+| plugin step | `uses = "plugin/step"`, with `with = { … }` | a step a plugin API 2 plugin declares: `with` are its typed inputs (`true`, `3` and templates), its answer is `steps.<id>.outputs.*` ([plugin API](plugins/api.md#workflow-steps)) |
 
 **Where steps run.** The run's directory (`run.dir`) is where commands run,
 and where agent steps get an environment, unless a step or the workflow
@@ -218,6 +220,7 @@ Each `[[on]]` table is one trigger.
 | `git = "push"` (`repo`, `branches`, `remote`) | a remote-tracking branch moves to the commit its local branch has: this repository pushed it | `repo`, `remote`, `branch`, `commit`, `before` |
 | `git = "branch"` (`repo`, `branches`) | a local branch appears | `repo`, `branch`, `commit` |
 | `webhook = "github"` | `hive workflow fire github --data '{…}'`, or a plugin that received a webhook calls `workflow.fire` | `name`, `data` |
+| `plugin = "vercel/deploy-finished"` with `[on.match]` | that plugin fires its trigger (`workflow.trigger`, [plugin API](plugins/api.md#workflow-triggers)) with a payload every `match` key fits | `plugin`, `name`, `data` (the payload) |
 
 ```toml
 [[on]]
@@ -356,7 +359,9 @@ jobs:
 The wire API is at level 14:
 
 - **Methods:** `workflow.list`, `get`, `validate`, `run`, `runs`, `status`,
-  `wait`, `cancel`, `rerun`, `fire`, `trust` and `reload`.
+  `wait`, `cancel`, `rerun`, `fire`, `trust` and `reload`; at level 16,
+  `workflow.trigger {name, payload}`, which a plugin calls to fire one of
+  its triggers (`{runs}`).
 - **Events:** `workflow.run` (a run's summary, on every change),
   `workflow.step`, `workflow.removed` and `workflow.changed`.
 
@@ -366,6 +371,7 @@ Plugins need these capabilities:
 |---|---|
 | `workflow.list`, `get`, `validate`, `runs`, `status`, `wait` | `hive.read` |
 | `workflow.run`, `rerun`, `cancel`, `fire` | `hive.process` |
+| `workflow.trigger` | `hive.write` (its own triggers only) |
 | `workflow.reload` | `hive.admin` |
 | `workflow.trust` | none: closed to plugins |
 

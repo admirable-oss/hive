@@ -75,6 +75,7 @@ const (
 	KindAgent   StepKind = "agent"   // a task for an agent
 	KindCommand StepKind = "command" // a command
 	KindAction  StepKind = "action"  // a plugin's action
+	KindStep    StepKind = "step"    // a plugin's step, with typed inputs and outputs
 )
 
 // AnyAgent, as a step's agent, is every installed kind.
@@ -155,6 +156,9 @@ type TriggerSpec struct {
 	Remote   string   `json:"remote,omitempty"`
 	// Webhook is the name workflow.fire is called with.
 	Webhook string `json:"webhook,omitempty"`
+	// Plugin is a plugin's trigger, plugin/trigger, which the plugin
+	// fires with workflow.trigger; Match filters its payload.
+	Plugin string `json:"plugin,omitempty"`
 	// Inputs are the runs' inputs, as templates over trigger.
 	Inputs map[string]string `json:"inputs,omitempty"`
 }
@@ -168,6 +172,7 @@ const (
 	TriggerEvery    = "every"
 	TriggerGit      = "git"
 	TriggerWebhook  = "webhook"
+	TriggerPlugin   = "plugin"
 )
 
 // Git trigger kinds.
@@ -189,6 +194,8 @@ func (t TriggerSpec) Type() string {
 		return TriggerGit
 	case t.Webhook != "":
 		return TriggerWebhook
+	case t.Plugin != "":
+		return TriggerPlugin
 	}
 	return ""
 }
@@ -231,6 +238,9 @@ type StepSpec struct {
 	// An action: plugin/action, and what it is given.
 	Action string            `json:"action,omitempty"`
 	With   map[string]string `json:"with,omitempty"`
+	// Uses is a plugin's step, plugin/step (plugin API 2), given With as
+	// its typed inputs.
+	Uses string `json:"uses,omitempty"`
 
 	TimeoutMS int64  `json:"timeout_ms,omitempty"`
 	Retries   int    `json:"retries,omitempty"`
@@ -255,6 +265,8 @@ func (s StepSpec) Kind() StepKind {
 	switch {
 	case len(s.Agent) > 0:
 		return KindAgent
+	case s.Uses != "":
+		return KindStep
 	case s.Action != "":
 		return KindAction
 	}
@@ -470,6 +482,7 @@ type Resolved struct {
 	Dir           string            `json:"dir,omitempty"`
 	Env           map[string]string `json:"env,omitempty"`
 	Action        string            `json:"action,omitempty"`
+	Uses          string            `json:"uses,omitempty"`
 	With          map[string]string `json:"with,omitempty"`
 }
 
@@ -493,7 +506,10 @@ type Workflow struct {
 	Own     bool `json:"own,omitempty"`
 	Trusted bool `json:"trusted"`
 	// Error is why the file does not parse; it never runs then.
-	Error    string        `json:"error,omitempty"`
+	Error string `json:"error,omitempty"`
+	// Problems are its plugin steps that do not fit what the installed
+	// plugins declare; such a step fails when it runs.
+	Problems []string      `json:"problems,omitempty"`
 	Triggers []TriggerInfo `json:"triggers,omitempty"`
 	Inputs   []InputSpec   `json:"inputs,omitempty"`
 	Steps    int           `json:"steps,omitempty"`

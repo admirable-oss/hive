@@ -6,8 +6,10 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/admirable-oss/hive/internal/agent"
@@ -98,13 +100,21 @@ func NewModule(cfg Config) *Module {
 	gitLog := log.With("module", "git")
 	tracker := newGitTracker(git.New(), envs, bus, cfg.GitInterval, gitLog)
 	guardedEnvs := &envGuard{Service: envs, procs: procs, events: bus, git: tracker}
-	var keep *keeper // built after the panes, which it reads; it supplies their recovery
+	var keep *keeper         // built after the panes, which it reads; it supplies their recovery
+	var plugins *plugin.Host // set below; panes open views through it
 	panes := pane.NewModule(pane.Config{
 		BaseDir:       root,
 		Size:          termCfg.DefaultSize,
 		Shell:         cfg.Shell,
 		Logger:        log.With("module", "pane"),
 		RecoverLayout: func(envID string) (pane.State, bool) { return keep.layoutFor(envID) },
+		OpenView: func(view string, at pane.ViewTarget) error {
+			if plugins == nil {
+				return errors.New("plugins do not run in this daemon")
+			}
+			id, name, _ := strings.Cut(view, "/")
+			return plugins.OpenView(id, name, plugin.Context{Environment: at.Environment, Tab: at.Tab, Pane: at.Pane})
+		},
 	}, procs, terms, guardedEnvs, bus).Service
 	guardedEnvs.panes = panes
 	procsRef.Service, termsRef.Service, locator.panes = procs, terms, panes
@@ -130,7 +140,7 @@ func NewModule(cfg Config) *Module {
 
 	meta := metadata.NewStore(nil)
 	server.Go(func(ctx context.Context) { expireMetadata(ctx, meta, bus, log) })
-	plugins := newPluginHost(cfg, log.With("module", "plugin"), router, bus, func(ctx context.Context) []string {
+	plugins = newPluginHost(cfg, log.With("module", "plugin"), router, bus, func(ctx context.Context) []string {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		envs, err := guardedEnvs.List(ctx)
@@ -199,6 +209,7 @@ func NewModule(cfg Config) *Module {
 	task.Register(router, tasks.svc)
 	branch.Register(router, branches)
 	workflow.Register(router, workflows)
+	registerWorkflowTriggers(router, plugins, workflows)
 	insights.Register(router, ins)
 	registerSession(router, keep)
 	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)

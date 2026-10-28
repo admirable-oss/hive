@@ -158,6 +158,12 @@ func (a *App) paneDown(id string, m uv.Mouse) {
 	}
 
 	p := a.ws.snap.pane(id)
+	if p != nil && p.View != "" {
+		if m.Button == uv.MouseLeft {
+			a.viewClick(p, pos)
+		}
+		return
+	}
 	v := (*view)(nil)
 	if p != nil {
 		v = a.views[p.ProcessID]
