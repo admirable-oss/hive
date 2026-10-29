@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,9 +79,11 @@ one shows everything it will run and asks first. See https://hive.admir-saheta.c
 	cmd.AddCommand(newPluginSearchCmd(a), newPluginInstallCmd(a), newPluginLinkCmd(a), newPluginListCmd(a), newPluginInfoCmd(a),
 		newPluginToggleCmd(a, true), newPluginToggleCmd(a, false), newPluginUninstallCmd(a),
 		newPluginRunCmd(a), newPluginLogsCmd(a), newPluginValidateCmd(a), newPluginInitCmd(a), newPluginUpdateCmd(a), newPluginRollbackCmd(a),
+		newPluginPublishCmd(a), newPluginTestCmd(a),
 		newPluginReloadCmd(a), newPluginGrantCmd(a, true), newPluginGrantCmd(a, false), newPluginDoctorCmd(a), newPluginConfigCmd(a),
 		newPluginContributionsCmd(a), newPluginCapabilitiesCmd(a), newPluginCancelCmd(a), newPluginExportCmd(a), newPluginImportCmd(a),
-		newPluginCardCmd(a), newPluginStatusCmd(a), newPluginReadyCmd(a), newPluginRequestCmd(a))
+		newPluginCardCmd(a), newPluginStatusCmd(a), newPluginReadyCmd(a), newPluginRequestCmd(a),
+		newPluginViewsCmd(a), newPluginViewCmd(a), newPluginClickCmd(a), newPluginTriggerCmd(a))
 	return cmd
 }
 
@@ -112,20 +116,30 @@ func newPluginInitCmd(a *app) *cobra.Command {
 				body string
 				mode os.FileMode
 			}{
-				plugin.ManifestFile: {body: fmt.Sprintf(`api = %d
+				plugin.ManifestFile: {body: fmt.Sprintf(`api = 2
 id = %q
 name = %q
 version = "0.1.0"
 description = "A Hive plugin."
-min_hive_version = "1.0.2"
-# This plugin needs no network and writes only its own directories, so it
-# can run sandboxed.
-isolation = "strict"
+min_hive_version = "1.7.0"
+# Plugin API 2 runs sandboxed: the plugin reads its own files and the
+# system's, writes its own directories, and reaches the network or runs
+# other programs only as [permissions] say.
 
 [permissions]
-# What it may do through Hive (see `+"`hive plugin capabilities`"+`).
+# What it may do (see `+"`hive plugin capabilities`"+`).
 required = ["hive.read"]
 optional = []
+# To reach the network or run programs, request "network" or
+# "process.exec" and list exactly what:
+# [permissions.network]
+# hosts = ["api.example.com:443"]
+# [permissions.process]
+# exec = ["git"]
+
+# What `+"`hive plugin test`"+` and `+"`hive plugin publish`"+` run.
+[test]
+command = ["sh", "./hello.sh"]
 
 [[actions]]
 id = "hello"
@@ -135,9 +149,9 @@ command = ["sh", "./hello.sh"]
 # Offer the action in the command palette.
 [[contributes.palette]]
 action = "hello"
-`, plugin.APIVersion, id, id, id), mode: 0o644},
+`, id, id, id), mode: 0o644},
 				"hello.sh":  {body: "#!/bin/sh\nprintf '%s\\n' 'Hello from Hive plugin'\n", mode: 0o755},
-				"README.md": {body: fmt.Sprintf("# %s\n\nA Hive plugin scaffold.\n\n## Validate\n\n```sh\nhive plugin validate .\n```\n\n## Try it\n\n```sh\nhive plugin link .\nhive plugin run %s hello\n```\n\nEdit `hello.sh` and `hive-plugin.toml` to customize this plugin. Plugins run with your user permissions; review every command before installing them from a registry.\n", id, id), mode: 0o644},
+				"README.md": {body: fmt.Sprintf("# %s\n\nA Hive plugin scaffold.\n\n## Validate\n\n```sh\nhive plugin validate .\n```\n\n## Try it\n\n```sh\nhive plugin link .\nhive plugin run %s hello\n```\n\nEdit `hello.sh` and `hive-plugin.toml` to customize this plugin. It runs sandboxed (plugin API 2): it reaches the network and runs other programs only as `[permissions]` say.\n\n## Test and publish\n\n```sh\nhive plugin test\nhive plugin publish --dry-run\n```\n", id, id), mode: 0o644},
 			}
 			created := make([]string, 0, len(files))
 			for name, file := range files {
@@ -190,7 +204,10 @@ func newPluginValidateCmd(a *app) *cobra.Command {
 					fmt.Fprintf(a.errOut, "warning: [[events]] on %q never fires in plugin API %d (see `hive plugin capabilities`)\n", e.On, plugin.APIVersion)
 				}
 			}
-			if manifest.Isolation == "strict" && !plugin.SandboxAvailable() {
+			switch {
+			case manifest.API >= 2 && !manifest.Wasm() && manifest.Isolation != plugin.IsolationNone && !plugin.SandboxAvailable():
+				fmt.Fprintf(a.errOut, "warning: this system has no sandbox for plugins (sandbox-exec on macOS, bwrap on Linux): the plugin runs here only once granted %s\n", plugin.CapUnconfined)
+			case manifest.Isolation == "strict" && !plugin.SandboxAvailable():
 				fmt.Fprintln(a.errOut, "warning: isolation = \"strict\" needs sandbox-exec (macOS) or bwrap (Linux), which this system lacks")
 			}
 			return a.emit(map[string]any{"valid": true, "manifest": manifest}, func() error {
@@ -231,9 +248,15 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 					if err := entry.SupportsHive(buildinfo.Get().Version); err != nil {
 						return err
 					}
-					release, ok := entry.Latest()
-					if !ok {
+					release, ok := entry.LatestFor(buildinfo.Get().Version)
+					switch {
+					case !ok && entry.Releases[0].Revoked != nil && !slices.ContainsFunc(entry.Releases, func(r plugin.Release) bool { return r.Revoked == nil }):
 						return fmt.Errorf("every release of %s is revoked (%s); it cannot be installed", entry.ID, revocationText(*entry.Releases[0].Revoked))
+					case !ok:
+						return fmt.Errorf("no release of %s runs on this hive %s (plugin API %s); update hive (`hive update`)", entry.ID, buildinfo.Get().Version, pluginAPIs())
+					}
+					if err := a.checkReleaseSignature(catalog, entry, release); err != nil {
+						return err
 					}
 					a.warnListing(entry)
 					listing = &entry
@@ -251,7 +274,7 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 						f.Discard()
 						return fmt.Errorf("registry release %s@%s does not match its manifest or pinned source revision", entry.ID, release.Version)
 					}
-					f.Version, f.Checksum, f.Registry = release.Version, release.Checksum, true
+					f.Version, f.Checksum, f.Registry, f.Trust = release.Version, release.Checksum, true, plugin.TrustOf(entry, release)
 					return a.installFetchedPlugin(ctx, store, f, listing)
 				}
 			}
@@ -334,14 +357,24 @@ func newPluginUpdateCmd(a *app) *cobra.Command {
 			} else if err := verifyInstalledRelease(p.Installed, entry); err != nil {
 				return err
 			}
-			release, ok := entry.Latest()
+			release, ok := entry.LatestFor(buildinfo.Get().Version)
 			if !ok {
-				return fmt.Errorf("every release of %s is revoked; disable or uninstall it (`hive plugin uninstall %s`)", p.ID, p.ID)
+				if _, installable := entry.Latest(); !installable {
+					return fmt.Errorf("every release of %s is revoked; disable or uninstall it (`hive plugin uninstall %s`)", p.ID, p.ID)
+				}
+				fmt.Fprintf(a.errOut, "%s: no newer release runs on this hive %s\n", p.ID, buildinfo.Get().Version)
+				continue
 			}
 			a.warnListing(entry)
 			if release.Version == p.Version || strings.EqualFold(release.Commit, p.Commit) {
 				fmt.Fprintf(a.errOut, "%s is already current (%s)\n", p.ID, p.Version)
 				continue
+			}
+			if err := a.checkReleaseSignature(catalog, entry, release); err != nil {
+				return err
+			}
+			if err := plugin.CheckContinuity(a.cfg.Plugins.RequireSignature, p.Installed, entry, release); err != nil {
+				return err
 			}
 			fmt.Fprintf(a.errOut, "Fetching %s %s…\n", p.ID, release.Version)
 			f, err := store.FetchSubdir(ctx, entry.Repository, release.Ref, release.Subdir)
@@ -356,8 +389,8 @@ func newPluginUpdateCmd(a *app) *cobra.Command {
 				f.Discard()
 				return fmt.Errorf("registry release %s@%s does not match its manifest or pinned source revision", p.ID, release.Version)
 			}
-			f.Version, f.Checksum, f.Registry = release.Version, release.Checksum, true
-			fmt.Fprintf(a.errOut, "Update %s %s → %s\n%s", p.ID, p.Version, release.Version, f.Preview())
+			f.Version, f.Checksum, f.Registry, f.Trust = release.Version, release.Checksum, true, plugin.TrustOf(entry, release)
+			fmt.Fprintf(a.errOut, "Update %s %s → %s\n%s%s", p.ID, p.Version, release.Version, f.Preview(), trustPreview(f.Trust))
 			if p.Manifest != nil {
 				if change := plugin.ComparePermissions(p.Manifest, f.Manifest); !change.Empty() {
 					fmt.Fprintf(a.errOut, "\nPermission changes:\n%s", change)
@@ -417,7 +450,7 @@ func newPluginRollbackCmd(a *app) *cobra.Command {
 
 func (a *app) installFetchedPlugin(ctx context.Context, store *plugin.Store, f *plugin.Fetched, listing *plugin.Listing) error {
 	if listing != nil {
-		fmt.Fprintf(a.errOut, "Catalog listing: %s (%s)\n  license: %s\n  repository: %s\n  pinned commit: %s\n", listing.Name, listing.ID, cmpStr(listing.License, "unspecified"), listing.Repository, f.Commit)
+		fmt.Fprintf(a.errOut, "Catalog listing: %s (%s)\n  license: %s\n  repository: %s\n  pinned commit: %s\n%s", listing.Name, listing.ID, cmpStr(listing.License, "unspecified"), listing.Repository, f.Commit, trustPreview(f.Trust))
 	}
 	fmt.Fprint(a.errOut, f.Preview())
 	if problem := plugin.Decide(f.Manifest, plugin.Approve(f.Manifest, nil), a.pluginPolicy()).Problem(f.Manifest.ID); strings.Contains(problem, "denied") {
@@ -498,6 +531,7 @@ type pluginRow struct {
 	Health    *plugin.Health   `json:"health,omitempty"`
 	Grant     plugin.Grant     `json:"grant"`
 	Isolation string           `json:"isolation,omitempty"`
+	Sandbox   string           `json:"sandbox,omitempty"`
 	Runs      []plugin.RunInfo `json:"runs,omitempty"`
 	Live      bool             `json:"live"`
 }
@@ -518,7 +552,7 @@ func (a *app) pluginRows(ctx context.Context) ([]pluginRow, error) {
 	rows := make([]pluginRow, 0, len(list))
 	for _, p := range list {
 		s, ok := live[p.ID]
-		row := pluginRow{Plugin: p, Running: s.Running, LastError: s.LastError, Live: ok, Isolation: s.Isolation, Runs: s.Runs}
+		row := pluginRow{Plugin: p, Running: s.Running, LastError: s.LastError, Live: ok, Isolation: s.Isolation, Sandbox: s.Sandbox, Runs: s.Runs}
 		if ok {
 			row.Health, row.Grant = &s.Health, s.Grant
 		} else if p.Manifest != nil {
@@ -546,7 +580,7 @@ func newPluginListCmd(a *app) *cobra.Command {
 					return err
 				}
 				w := a.table()
-				fmt.Fprintln(w, "ID\tVERSION\tSTATE\tSOURCE")
+				fmt.Fprintln(w, "ID\tVERSION\tTIER\tSTATE\tSOURCE")
 				for _, r := range rows {
 					version, state := "-", "enabled"
 					if r.Manifest != nil {
@@ -568,7 +602,10 @@ func newPluginListCmd(a *app) *cobra.Command {
 					if r.Linked {
 						src += " (linked)"
 					}
-					fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", r.ID, version, state, src)
+					if r.Revoked != nil {
+						state = "REVOKED (" + r.Revoked.Reason + "); " + state
+					}
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", r.ID, version, cmpStr(r.Tier, "unchecked"), state, src)
 				}
 				return w.Flush()
 			})
@@ -595,6 +632,7 @@ func newPluginInfoCmd(a *app) *cobra.Command {
 						fmt.Fprint(a.out, r.Manifest.Preview(r.Source))
 					}
 					fmt.Fprintf(a.out, "  enabled: %v; running commands: %d\n", r.Enabled, r.Running)
+					fmt.Fprint(a.out, a.trustLines(r.Trust, r.Sandbox))
 					if r.Manifest != nil && !r.Manifest.Legacy() {
 						fmt.Fprintf(a.out, "  holds: %s\n", cmpStr(strings.Join(r.Grant.Effective, ", "), "nothing"))
 						if len(r.Grant.Ungranted) > 0 {
@@ -660,11 +698,29 @@ func newPluginInfoCmd(a *app) *cobra.Command {
 				}
 				fmt.Fprintf(a.out, "  maintainers: %s\n", maintainerNames(listing.Maintainers))
 				fmt.Fprintf(a.out, "  status: %s\n", listingStatus(listing))
+				if listing.Publisher != "" {
+					fmt.Fprintf(a.out, "  publisher: %s\n", listing.Publisher)
+				}
+				fmt.Fprintf(a.out, "  tier: %s (%s)\n", listing.Tier, plugin.TierMeaning(listing.Tier))
 				fmt.Fprintln(a.out, "  releases:")
 				for _, release := range listing.Releases {
 					fmt.Fprintf(a.out, "    %s  %s  %s\n", release.Version, release.PublishedAt.Format(time.DateOnly), release.Commit[:12])
 					if release.Revoked != nil {
-						fmt.Fprintf(a.out, "      revoked: %s\n", revocationText(*release.Revoked))
+						fmt.Fprintf(a.out, "      %s\n", a.red("revoked: "+revocationText(*release.Revoked)))
+					}
+					switch {
+					case release.SignatureError != "":
+						fmt.Fprintf(a.out, "      %s\n", a.red("signature: "+release.SignatureError))
+					case release.SignedBy != "":
+						fmt.Fprintf(a.out, "      signed by: %s\n", release.SignedBy)
+					case catalog.Schema >= 2:
+						fmt.Fprintln(a.out, "      not signed")
+					}
+					if release.Provenance != nil {
+						fmt.Fprintf(a.out, "      built by: %s\n", release.Provenance)
+					}
+					for _, t := range release.Tested {
+						fmt.Fprintf(a.out, "      tested with Hive %s: %s (%s)\n", t.Hive, t.Result, t.At.Format(time.DateOnly))
 					}
 					if release.Changelog != "" {
 						fmt.Fprintf(a.out, "      %s\n", release.Changelog)
@@ -722,18 +778,91 @@ func (a *app) warnListing(p plugin.Listing) {
 	}
 }
 
+// checkReleaseSignature applies [plugins] require_signature to the release
+// about to be installed, and says so when it installs unsigned.
+func (a *app) checkReleaseSignature(catalog plugin.Registry, entry plugin.Listing, release plugin.Release) error {
+	warning, err := plugin.CheckSignature(a.cfg.Plugins.RequireSignature, catalog.Schema, entry, release)
+	if err != nil {
+		return err
+	}
+	if warning != "" {
+		fmt.Fprintf(a.errOut, "hive: warning: %s\n", warning)
+	}
+	return nil
+}
+
+// trustPreview is a release's trust, for the install and update previews.
+func trustPreview(t plugin.Trust) string {
+	if t.Tier == "" {
+		return ""
+	}
+	s := fmt.Sprintf("  tier: %s (%s)\n", t.Tier, plugin.TierMeaning(t.Tier))
+	if t.Publisher != "" {
+		s += fmt.Sprintf("  publisher: %s\n", t.Publisher)
+	}
+	s += fmt.Sprintf("  signed by: %s\n", cmpStr(t.SignedBy, "nobody (not signed)"))
+	if t.Provenance != nil {
+		s += fmt.Sprintf("  built by: %s\n", t.Provenance)
+	}
+	return s
+}
+
+// trustLines is an installed plugin's trust, for `plugin info`.
+func (a *app) trustLines(t plugin.Trust, sandbox string) string {
+	s := fmt.Sprintf("  tier: %s (%s)\n", cmpStr(t.Tier, "unchecked"), plugin.TierMeaning(t.Tier))
+	if t.Publisher != "" {
+		s += fmt.Sprintf("  publisher: %s\n", t.Publisher)
+	}
+	if t.Tier != plugin.TierUnlisted && t.Tier != "" {
+		s += fmt.Sprintf("  signed by: %s\n", cmpStr(t.SignedBy, "nobody (not signed)"))
+	}
+	if t.Provenance != nil {
+		s += fmt.Sprintf("  built by: %s\n", t.Provenance)
+	}
+	if sandbox != "" {
+		s += fmt.Sprintf("  sandbox: %s\n", sandbox)
+	}
+	if t.Revoked != nil {
+		s += "  " + a.red("revoked: "+revocationText(*t.Revoked)) + "\n"
+	}
+	if !t.CheckedAt.IsZero() {
+		s += fmt.Sprintf("  checked against the registry: %s\n", t.CheckedAt.Local().Format(time.DateTime))
+	}
+	return s
+}
+
+// red marks what must not be missed, a revocation, when the output is a
+// terminal that takes color.
+func (a *app) red(s string) string {
+	if !useColor(a.out, "auto") {
+		return s
+	}
+	return "\x1b[31m" + s + "\x1b[0m"
+}
+
+// pluginAPIs lists the plugin APIs this hive runs.
+func pluginAPIs() string {
+	apis := make([]string, 0, len(plugin.SupportedAPIs))
+	for _, v := range plugin.SupportedAPIs {
+		apis = append(apis, strconv.Itoa(v))
+	}
+	return strings.Join(apis, ", ")
+}
+
 func listingStatus(p plugin.Listing) string {
 	switch {
 	case p.Archived:
 		return "archived"
 	case p.Deprecated:
 		return "deprecated"
+	case p.Tier != "":
+		return p.Tier
 	case p.Official:
-		return "official"
+		return plugin.TierOfficial
 	case p.Verified:
-		return "verified"
+		return plugin.TierVerified
 	default:
-		return "community"
+		return plugin.TierCommunity
 	}
 }
 

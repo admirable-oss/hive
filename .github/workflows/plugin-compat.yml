@@ -1,0 +1,115 @@
+name: Plugin compatibility
+
+# Every listed plugin's newest release is tested against each Hive release
+# candidate before the release ships (RFC 0006): `hive plugin test <id>`
+# installs it in a scratch HIVE_HOME of the candidate and runs validate,
+# doctor and the plugin's own [test] command. Results go to
+# registry/compat-results.json, and so into the catalog's `tested`. A
+# failing official plugin fails this workflow (and the release's own
+# `plugins` job blocks publishing); a failing community plugin is reported,
+# and gets an issue on its repository when PLUGIN_COMPAT_ISSUES_TOKEN is set.
+
+on:
+  push:
+    tags: ['v*-rc.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build the candidate
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          case "$GITHUB_REF_TYPE" in tag) ;; *) version="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')-dev" ;; esac
+          go build -o "$RUNNER_TEMP/hive" -ldflags "-X github.com/admirable-oss/hive/internal/buildinfo.version=$version" ./cmd/hive
+          echo "HIVE=$RUNNER_TEMP/hive" >> "$GITHUB_ENV"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Test every listed plugin
+        id: test
+        run: |
+          set -uo pipefail
+          mkdir -p results
+          "$HIVE" --json plugin search > listings.json
+          official_failed=""
+          : > community-failures.tsv
+          while IFS=$'\t' read -r id tier repository; do
+            out="results/$id.json"
+            if ! "$HIVE" --json plugin test "$id" --hive "$HIVE" > "$out" 2> "results/$id.log"; then
+              # A plugin that could not even be fetched has no JSON: record a failure.
+              if ! jq -e .result "$out" >/dev/null 2>&1; then
+                version="$(jq -r --arg id "$id" '.[] | select(.id == $id) | .releases[0].version' listings.json)"
+                jq -n --arg p "$id" --arg v "$version" --arg h "$VERSION" '{plugin: $p, version: $v, hive: $h, result: "fail", at: (now | todate)}' > "$out"
+              fi
+              if [ "$tier" = official ]; then
+                official_failed="$official_failed $id"
+              else
+                printf '%s\t%s\n' "$id" "$repository" >> community-failures.tsv
+              fi
+              echo "::error::$id ($tier) fails with Hive $VERSION: $(tail -n 5 "results/$id.log" | tr '\n' ' ')"
+            fi
+          done < <(jq -r '.[] | [.id, .tier, .repository] | @tsv' listings.json)
+          jq -s '.' results/*.json > results.json
+          {
+            echo "## Plugins with Hive $VERSION"
+            echo
+            echo "| Plugin | Version | Result |"
+            echo "|---|---|---|"
+            jq -r '.[] | "| \(.plugin) | \(.version) | \(.result) |"' results.json
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "official_failed=$official_failed" >> "$GITHUB_OUTPUT"
+      - name: Record the results
+        run: go run ./tools/plugin-registry record-tests results.json
+      - name: Open issues for failing community plugins
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.PLUGIN_COMPAT_ISSUES_TOKEN }}
+        run: |
+          [ -s community-failures.tsv ] || exit 0
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::PLUGIN_COMPAT_ISSUES_TOKEN is not set: failing community plugins are recorded, not reported on their repositories"
+            exit 0
+          fi
+          while IFS=$'\t' read -r id repository; do
+            case "$repository" in https://github.com/*) ;; *) continue ;; esac
+            repo="${repository#https://github.com/}"; repo="${repo%.git}"
+            gh issue create -R "$repo" --title "Hive $VERSION: $id fails hive plugin test" \
+              --body "The Hive registry's compatibility run tested the newest release of \`$id\` against Hive $VERSION and it failed. Reproduce with \`hive plugin test $id --hive $VERSION\`. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" || true
+          done < community-failures.tsv
+      - name: Create Pullive installation token
+        id: pullive-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.PULLIVE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PULLIVE_APP_PRIVATE_KEY }}
+          owner: admirable-oss
+          repositories: hive
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Open a pull request for the results
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.pullive-token.outputs.token }}
+          add-paths: registry/compat-results.json
+          branch: automation/plugin-compat-${{ env.VERSION }}
+          base: main
+          delete-branch: true
+          commit-message: "chore(plugin): record plugin compatibility with Hive ${{ env.VERSION }}"
+          title: "chore(plugin): record plugin compatibility with Hive ${{ env.VERSION }}"
+          body: Results of the plugin-compat workflow for Hive ${{ env.VERSION }}.
+      - name: Official plugins must pass
+        if: steps.test.outputs.official_failed != ''
+        run: |
+          echo "::error::official plugins fail with Hive $VERSION:${{ steps.test.outputs.official_failed }}"
+          exit 1

@@ -302,6 +302,16 @@ export function PasteClipboard(paneID: string): $CancellablePromise<void> {
 }
 
 /**
+ * Plugins lists a machine's installed plugins ("" for this computer):
+ * their tier, publisher, signer, sandbox and revocations.
+ */
+export function Plugins(machine: string): $CancellablePromise<core$0.Plugin[]> {
+    return $Call.ByID(1349188057, machine).then(($result: any) => {
+        return $$createType12($result);
+    });
+}
+
+/**
  * PopOut opens a pane in a window of its own.
  */
 export function PopOut(paneID: string): $CancellablePromise<void> {
@@ -413,7 +423,7 @@ export function SetUpdateChecks(on: boolean): $CancellablePromise<void> {
  */
 export function Settings(): $CancellablePromise<core$0.Settings> {
     return $Call.ByID(1996682342).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType13($result);
     });
 }
 
@@ -475,7 +485,7 @@ export function UpdateStatus(): $CancellablePromise<$models.UpdateStatus> {
  */
 export function Workspace(): $CancellablePromise<core$0.Workspace> {
     return $Call.ByID(2298421584).then(($result: any) => {
-        return $$createType12($result);
+        return $$createType14($result);
     });
 }
 
@@ -498,5 +508,7 @@ const $$createType7 = core$0.MachineStatus.createFrom;
 const $$createType8 = $Create.Array($$createType7);
 const $$createType9 = core$0.Manifest.createFrom;
 const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = core$0.Settings.createFrom;
-const $$createType12 = core$0.Workspace.createFrom;
+const $$createType11 = core$0.Plugin.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = core$0.Settings.createFrom;
+const $$createType14 = core$0.Workspace.createFrom;

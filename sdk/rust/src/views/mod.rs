@@ -16,6 +16,11 @@ pub mod capability {
     pub const FILESYSTEM_WRITE: &str = "filesystem.write";
     pub const NETWORK: &str = "network";
     pub const PROCESS_EXEC: &str = "process.exec";
+    // Plugin API 2 (Hive 1.7 and later).
+    pub const FILESYSTEM_READ: &str = "filesystem.read";
+    pub const FILESYSTEM_READ_WORKSPACE: &str = "filesystem.read:workspace";
+    pub const FILESYSTEM_WRITE_WORKSPACE: &str = "filesystem.write:workspace";
+    pub const UNCONFINED: &str = "unconfined";
 }
 
 /// One line of a card. Tone is "", info, success, warning or error.

@@ -104,10 +104,16 @@ func newEnv(t *testing.T, cfg branch.Config) *env {
 	e.store = branch.NewFilesystemStore(t.TempDir())
 	e.svc = branch.NewService(cfg, e.store, branch.Ports{
 		Git: e.git, Workspace: e.ws, Agents: e.agents, Commands: commands{}, Events: e.events, Forges: forges,
+		Issues: fakeIssues{"p1/fix": "https://linear.app/acme/issue/HIV-42"},
 	})
 	e.ws.svc = e.svc
 	return e
 }
+
+// fakeIssues names the issues of plan/task.
+type fakeIssues map[string]string
+
+func (f fakeIssues) For(_ context.Context, plan, task string) string { return f[plan+"/"+task] }
 
 // worktree makes a worktree on a new branch and tracks it, as the
 // runtime does for an agent.

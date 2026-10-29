@@ -52,6 +52,9 @@ type Pane struct {
 	TabID     string `json:"tab_id"`
 	Name      string `json:"name,omitempty"`
 	ProcessID string `json:"process_id"`
+	// View is the plugin view the pane shows (plugin/view), instead of a
+	// program.
+	View string `json:"view,omitempty"`
 	// Command is the pane's program and arguments.
 	Command []string `json:"command"`
 	// Cwd is where the program was working (a shell's directory after

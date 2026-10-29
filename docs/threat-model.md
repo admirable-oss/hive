@@ -32,7 +32,7 @@ socket. Other machines are reached through the user's ssh.
 | **Another local user** on a shared machine | Yes. They cannot connect to the sockets or read state. |
 | **Someone on the local network** | Yes. Discovery grants nothing; announcements carry no secrets; a spoofed announcement cannot redirect a paired machine. |
 | **A network attacker between you and GitHub or the registry** | Yes. Releases are signed; plugin releases are pinned by commit and checksum; registry links must be HTTPS. |
-| **A compromised registry listing or plugin maintainer** | Partly. Releases are immutable and pinned, permission changes are shown before an update, and releases can be revoked. A malicious release you choose to install runs as you. |
+| **A compromised registry listing or plugin maintainer** | Partly. Releases are immutable and pinned, permission changes are shown before an update, and releases can be revoked. From 1.7, schema 2 releases carry their publisher's SSH signature: a stolen repository token alone cannot publish an official or verified release, an update cannot change publisher, and a stolen signing key is revoked from the time it was distrusted. A malicious release you choose to install runs as you. |
 | **An observer (a dashboard, a person with a share link)** | Yes. It reads only what its credential allows and cannot control anything. |
 | **A malicious website open in your browser** | Yes, for the web observer: CSP, SameSite=Strict cookies, no framing, codes in URL fragments. |
 | **The agents themselves** | No. Agents run as you, unsandboxed, by design. See non-goals. |
@@ -85,11 +85,32 @@ socket. Other machines are reached through the user's ssh.
 - **Agents are not sandboxed.** An agent can do anything you can. Hive keeps
   others from driving your agents; it does not keep your agents from your
   files. Use a dedicated account or a VM for agents you do not trust.
-- **Plugins run as you.** Plugin API capabilities limit what a plugin may
-  ask *Hive* to do. They are not isolation unless strict isolation is on and
-  available, and it is not available on Windows. A plugin without `api`
-  (API 0) holds every capability. Install plugins you trust, from a release
-  you have read.
+- **Plugin API 2 plugins are confined to what you approved, on macOS and
+  Linux.** From 1.7 an API 2 plugin runs sandboxed by default: it reads
+  only its own files and the system's, writes only its own directories,
+  reaches only the hosts it lists (through a proxy that sees host names,
+  not content), runs only the programs it lists, and reaches only its own
+  Hive socket, unless you grant more. Reads are wider than writes: the
+  system's files and its package are readable. It runs unconfined only
+  when you approve `unconfined`, per release (`isolation = "none"`, or a
+  system with no sandbox such as Windows).
+- **Plugin views are data.** A view document is checked by the daemon and
+  drawn by clients as text: no markup, scripts or images. A link must be
+  `https:` and opens only on a person's click; a button runs only one of
+  the plugin's own declared actions, and plugins cannot click. A plugin's
+  workflow step gets only the inputs the workflow gives it, and its
+  outputs are checked against their declared types; a plugin fires only
+  its own triggers, and shared workflows still run only once trusted.
+- **Plugin forges and trackers see what they serve.** A forge gets the
+  pull request it opens (branch, title, body, the worktree's path); a
+  tracker gets the issue operation asked of it. Both need `network` for
+  their hosts. A plugin cannot push, open a pull request or close an
+  issue itself.
+- **Plugin API 1 plugins run as you.** Their capabilities limit what they
+  may ask *Hive* to do. They are not isolation unless strict isolation is
+  on and available, and it is not available on Windows. A plugin without
+  `api` (API 0) holds every capability. Install plugins you trust, from a
+  release you have read.
 - **Screens are shown as they are.** An observer allowed to read screens sees
   whatever is on them, secrets included. There is no redaction of terminal
   contents.

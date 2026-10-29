@@ -109,6 +109,10 @@ func (a *App) key(k uv.Key) {
 
 // typeKey sends a key to the focused pane, encoded for its program.
 func (a *App) typeKey(k uv.Key) {
+	if p := a.focusedPane(); p != nil && p.View != "" {
+		a.viewKey(p, k)
+		return
+	}
 	v := a.focusedView()
 	if v == nil {
 		return

@@ -6,8 +6,11 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/branch"
@@ -15,6 +18,7 @@ import (
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/insights"
+	"github.com/admirable-oss/hive/internal/issue"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/observer"
@@ -97,13 +101,21 @@ func NewModule(cfg Config) *Module {
 	gitLog := log.With("module", "git")
 	tracker := newGitTracker(git.New(), envs, bus, cfg.GitInterval, gitLog)
 	guardedEnvs := &envGuard{Service: envs, procs: procs, events: bus, git: tracker}
-	var keep *keeper // built after the panes, which it reads; it supplies their recovery
+	var keep *keeper         // built after the panes, which it reads; it supplies their recovery
+	var plugins *plugin.Host // set below; panes open views through it
 	panes := pane.NewModule(pane.Config{
 		BaseDir:       root,
 		Size:          termCfg.DefaultSize,
 		Shell:         cfg.Shell,
 		Logger:        log.With("module", "pane"),
 		RecoverLayout: func(envID string) (pane.State, bool) { return keep.layoutFor(envID) },
+		OpenView: func(view string, at pane.ViewTarget) error {
+			if plugins == nil {
+				return errors.New("plugins do not run in this daemon")
+			}
+			id, name, _ := strings.Cut(view, "/")
+			return plugins.OpenView(id, name, plugin.Context{Environment: at.Environment, Tab: at.Tab, Pane: at.Pane})
+		},
 	}, procs, terms, guardedEnvs, bus).Service
 	guardedEnvs.panes = panes
 	procsRef.Service, termsRef.Service, locator.panes = procs, terms, panes
@@ -129,12 +141,28 @@ func NewModule(cfg Config) *Module {
 
 	meta := metadata.NewStore(nil)
 	server.Go(func(ctx context.Context) { expireMetadata(ctx, meta, bus, log) })
-	plugins := newPluginHost(cfg, log.With("module", "plugin"), router, bus)
+	plugins = newPluginHost(cfg, log.With("module", "plugin"), router, bus, func(ctx context.Context) []string {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		envs, err := guardedEnvs.List(ctx)
+		if err != nil {
+			return nil
+		}
+		dirs := make([]string, 0, len(envs))
+		for _, e := range envs {
+			if e.Path != "" {
+				dirs = append(dirs, e.Path)
+			}
+		}
+		return dirs
+	})
 	server.Go(plugins.Run)
 	server.Go(func(ctx context.Context) { forwardEvents(ctx, bus, plugins) })
 	wts := &worktrees{git: git.New(), envs: guardedEnvs, dir: cfg.worktreeDir(), events: bus, log: gitLog}
 	branchLog := log.With("module", "branch")
-	branches := newBranches(cfg, guardedEnvs, procs, agents, wts, bus, branchLog)
+	issues := newIssues(plugins, bus)
+	links := &issueLinks{issues: issues} // tasks are set once built
+	branches := newBranches(cfg, guardedEnvs, procs, agents, wts, plugins, links, bus, branchLog)
 	wts.branches = branches
 	server.Go(branches.Run)
 	server.Go(func(ctx context.Context) { feedBranches(ctx, branches, guardedEnvs, wts, bus, branchLog) })
@@ -145,12 +173,15 @@ func NewModule(cfg Config) *Module {
 	server.Go(func(ctx context.Context) { feedInsights(ctx, ins, agents, insightTasks, bus) })
 	tasks := newTasks(cfg, ops, agents, bus, ins.Hold, log.With("module", "task"))
 	insightTasks.svc = tasks.svc
+	links.tasks = tasks.svc
+	server.Go(func(ctx context.Context) { closeMergedIssues(ctx, bus, links, log.With("module", "issue")) })
 	server.Go(tasks.run)
 	workflows := newWorkflows(cfg, tasks.svc, guardedEnvs, agents, plugins, bus, log.With("module", "workflow"))
 	server.Go(workflows.Run)
 	server.Go(func(ctx context.Context) { feedWorkflows(ctx, workflows, bus) })
 	obs := newObservers(cfg, log.With("module", "observer"), bus, guardedEnvs, panes, observer.Sources{
 		Agents: agents, Terminals: terms, Metadata: meta.List, Plans: tasks.svc, Insights: ins,
+		Plugins: func(context.Context) []observer.Plugin { return observedPlugins(plugins.Status()) },
 		Info: func() observer.Info {
 			snap := server.Snapshot()
 			return observer.Info{Version: snap.Version, Session: snap.Session, StartedAt: snap.StartedAt, AgentsSurviveRestart: snap.AgentsSurviveRestart}
@@ -183,6 +214,8 @@ func NewModule(cfg Config) *Module {
 	task.Register(router, tasks.svc)
 	branch.Register(router, branches)
 	workflow.Register(router, workflows)
+	issue.Register(router, issues)
+	registerWorkflowTriggers(router, plugins, workflows)
 	insights.Register(router, ins)
 	registerSession(router, keep)
 	registerMetadata(router, meta, metadataTargets{panes: panes, envs: guardedEnvs}, bus)

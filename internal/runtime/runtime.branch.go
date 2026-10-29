@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
+	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/task"
 )
@@ -75,10 +77,46 @@ func (c BranchesConfig) forges() *branch.Forges {
 	return f
 }
 
+// pluginForge opens pull requests through a plugin's forge command.
+type pluginForge struct {
+	host  *plugin.Host
+	forge plugin.PluginForge
+}
+
+func (f pluginForge) Name() string { return f.forge.Name() }
+
+func (f pluginForge) Open(ctx context.Context, req branch.ForgeRequest) (branch.PullRequest, error) {
+	raw, err := f.host.CallForge(ctx, f.forge, plugin.ForgeOpCreate, req)
+	if err != nil {
+		return branch.PullRequest{}, err
+	}
+	var res plugin.ForgeResult
+	if err := json.Unmarshal(raw, &res); err != nil || !strings.HasPrefix(res.URL, "https://") {
+		return branch.PullRequest{}, fmt.Errorf("%w: forge %s answered no https pull request URL ({\"url\": …, \"number\": …})", plugin.ErrCall, f.Name())
+	}
+	return branch.PullRequest{Forge: f.Name(), URL: res.URL, Number: res.Number, Draft: req.Draft}, nil
+}
+
+// pluginForges finds the plugin forge for a host.
+func pluginForges(host *plugin.Host) func(string) (branch.Forge, bool) {
+	return func(h string) (branch.Forge, bool) {
+		if host == nil {
+			return nil, false
+		}
+		f, ok := host.ForgeFor(h)
+		if !ok {
+			return nil, false
+		}
+		return pluginForge{host: host, forge: f}, true
+	}
+}
+
 // newBranches builds the branch service over this daemon's worktrees,
-// environments, processes and agents.
-func newBranches(cfg Config, envs environment.Service, procs process.Service, agents *agent.Service, wts *worktrees, bus event.Publisher, log *slog.Logger) *branch.Service {
+// environments, processes and agents; plugins add forges.
+func newBranches(cfg Config, envs environment.Service, procs process.Service, agents *agent.Service, wts *worktrees, plugins *plugin.Host, issues branch.Issues, bus event.Publisher, log *slog.Logger) *branch.Service {
 	bc := cfg.Branches
+	forges := bc.forges()
+	forges.Lookup(pluginForges(plugins))
 	svc := branch.NewModule(branch.ModuleConfig{
 		BaseDir: cfg.root(),
 		Service: branch.Config{
@@ -91,7 +129,8 @@ func newBranches(cfg Config, envs environment.Service, procs process.Service, ag
 		Agents:    branchAgents{agents: agents},
 		Commands:  branchCommands{},
 		Events:    bus,
-		Forges:    bc.forges(),
+		Forges:    forges,
+		Issues:    issues,
 	}).Service
 	if err := svc.Load(); err != nil {
 		log.Warn("reading the branches a previous daemon followed", "err", err)

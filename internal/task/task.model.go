@@ -136,6 +136,10 @@ type Spec struct {
 	// KeepAgent leaves the agent running after the task ends; by default
 	// it is stopped, and its pane keeps its last screen.
 	KeepAgent bool `toml:"keep_agent" json:"keep_agent,omitempty" desc:"leave the agent running when the task ends"`
+	// Issue is the issue the task works on (tracker:key): its pull
+	// request names it, and CloseIssue closes it when its branch merges.
+	Issue      string `toml:"issue" json:"issue,omitempty" desc:"the issue it works on, as tracker:key (linear:HIV-42, github:owner/repo#42)"`
+	CloseIssue bool   `toml:"close_issue" json:"close_issue,omitempty" desc:"close the issue when the task's branch merges"`
 }
 
 // Timeout is the task's time budget; 0 is none.

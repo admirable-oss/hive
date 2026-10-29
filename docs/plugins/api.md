@@ -297,6 +297,267 @@ cannot promise follows from that:
   `auto` runs plugins standard; with `[plugins] isolation = "strict"` they do
   not run at all (never silently unsandboxed).
 
+## Plugin API 2: sandboxed by default (Hive 1.7)
+
+A manifest with `api = 2` gets everything plugin API 1 has, and runs in the
+system sandbox wherever one exists, whatever `[plugins] isolation` says
+short of `strict` (a setting never silently loosens API 2). Plugin API 1
+plugins run exactly as before. Hive 1.7 runs both (`supported_apis` is
+`[1, 2]`); earlier releases refuse API 2 (`unsupported plugin API`).
+
+**What a sandboxed API 2 plugin may touch**, enforced on macOS by
+`sandbox-exec` and on Linux by bubblewrap with Landlock (5.13 and later):
+
+| | Without a grant | With it |
+|---|---|---|
+| Read files | its package, data, config and cache, and the system (`/usr`, `/etc`, `/System`, `/Library`, Homebrew, Nix, …); your home directory and everything else are not there | `filesystem.read`: everything; `filesystem.read:workspace`: also your environments' directories |
+| Write files | its data, config and cache | `filesystem.write`: everything; `filesystem.write:workspace`: also your environments' directories |
+| Network | none | `network`: the hosts in `[permissions.network] hosts` through its own proxy, or any host when it lists none |
+| Programs | its own package, shells, its `[[runtime]]` commands, and `hive` | `process.exec`: the programs in `[permissions.process] exec`, or any program when it lists none |
+| Hive's sockets | its own socket only | — |
+
+```toml
+api = 2
+id = "linear"
+version = "1.0.0"
+min_hive_version = "1.7.0"
+
+[permissions]
+required = ["hive.read", "network", "process.exec"]
+optional = ["filesystem.read:workspace"]
+[permissions.network]
+hosts = ["api.linear.app:443", "*.linear.app:443"]
+[permissions.process]
+exec = ["git", "gh"]
+```
+
+- **Hosts** are `host:port`, a host name or address, or `*.domain` for its
+  subdomains; at most 32. The plugin's programs get `HTTPS_PROXY`,
+  `HTTP_PROXY` and `ALL_PROXY` pointing at a proxy the daemon runs for this
+  plugin alone, with credentials only it has. The proxy allows `CONNECT`
+  (and plain `http://` requests) to the listed hosts and nothing else, and
+  logs each refusal in the plugin's log. It sees host names, never the
+  traffic inside TLS. Programs that ignore proxy variables cannot reach the
+  network at all.
+- **Programs** are names found on `PATH` when the plugin loads, or absolute
+  paths; at most 32. A program that is not found is a warning in `hive
+  plugin info`, and cannot run. Scripts may use any shell.
+- **`isolation = "none"`** with `isolation_reason` asks to run outside the
+  sandbox. It needs the `unconfined` capability, which you approve when you
+  install the plugin, with the reason shown, and again for every release.
+- **A system without a sandbox** (Windows, or Linux without `bwrap`) runs
+  an API 2 plugin only once you grant `unconfined` (`hive plugin grant <id>
+  unconfined`), for that release.
+- **`[plugins] isolation = "api2"`** runs only API 2 plugins: API 1 plugins
+  do not run.
+- **`hive plugin capabilities`** describes API 2; on its own socket a plugin
+  discovers the capabilities of its own API.
+
+The sandbox does not limit CPU or memory. With Landlock missing (Linux
+before 5.13), bubblewrap still confines files, the network and sockets, but
+not programs; the plugin's log says so.
+
+### WebAssembly plugins
+
+A plugin that needs no process at all can be WebAssembly: Hive runs its
+modules itself, through [wazero](https://wazero.io), the same on every
+system, Windows included, with no sandbox tool and no `unconfined`.
+
+```toml
+api = 2
+id = "counter"
+version = "1.0.0"
+min_hive_version = "1.7.0"
+
+[permissions]
+required = ["hive.write"]
+
+[[runtime]]
+kind = "wasm"
+
+[[actions]]
+id = "bump"
+command = ["./counter.wasm", "bump"]
+```
+
+- Every command's program is a `.wasm` module (WASI preview 1) in the
+  plugin's package; its arguments follow. Build one with `GOOS=wasip1
+  GOARCH=wasm go build`, `cargo build --target wasm32-wasip1`, or any WASI
+  toolchain, and publish the built module in the release.
+- The module sees its data directory as `/data` and its settings as
+  `/config` (`HIVE_PLUGIN_DATA`, `HIVE_PLUGIN_CONFIG`), and nothing else. It
+  gets its context on stdin, as every command does; its output goes to the
+  plugin's log. It has no network and cannot start programs. Memory is
+  bounded (64 MiB), and a command's timeout stops it.
+- It calls Hive through the host module `hive`, with the same capability
+  checks as a plugin's socket:
+
+  ```go
+  //go:wasmimport hive call
+  func hiveCall(ptr unsafe.Pointer, size uint32) uint32 // request JSON in; the response's length out
+  //go:wasmimport hive response
+  func hiveResponse(ptr unsafe.Pointer)                  // copies that response to ptr
+  ```
+
+  The request is `{"method": "pane.list", "params": {…}}`; the response is
+  `{"result": …}` or `{"error": {"code": "permission_denied", "message":
+  …}}`. Call `response` once after each `call`, into a buffer of the
+  length `call` returned.
+- `hive plugin info` shows `sandbox: wasm`.
+
+### Pane views
+
+A plugin API 2 plugin can draw a pane from data. Clients draw it; they
+never run plugin code to do so.
+
+```toml
+[[contributes.views]]
+id = "queue"
+title = "Review queue"
+command = ["./bin/queue", "draw"]   # optional: run when a pane opens the view
+```
+
+- The plugin sets what a view shows with `plugin.view.set {view, doc}`
+  (`hive plugin view queue --doc -`) and empties it with
+  `plugin.view.clear {view}`. Both need `hive.write`. A view keeps its
+  document until it is set again, cleared, or the plugin stops.
+- A document is a tree of nodes, at most 2,000 of them, 32 deep and 256
+  KiB:
+
+  ```json
+  {"root": {"kind": "column", "children": [
+    {"kind": "text", "text": "3 waiting", "style": "bold"},
+    {"kind": "table", "columns": ["PR", "State"], "rows": [["#12", "open"]]},
+    {"kind": "progress", "text": "CI", "value": 0.6},
+    {"kind": "row", "children": [
+      {"kind": "button", "id": "approve-12", "text": "Approve", "action": "approve"},
+      {"kind": "badge", "text": "2 failing", "style": "error"},
+      {"kind": "link", "text": "Open", "url": "https://example.org/12"}]},
+    {"kind": "divider"}]}}
+  ```
+
+  | Kind | Fields |
+  |---|---|
+  | `text` | `text`, `style`: plain, muted, bold, code, ok, warn, error |
+  | `row`, `column`, `list` | `children` |
+  | `table` | `columns`, `rows` (strings) |
+  | `progress` | `value` from 0 to 1, `text` |
+  | `badge` | `text`, `style`: info, success, warning, error |
+  | `divider` | |
+  | `button` | `id`, `text`, `action`: one of the plugin's `[[actions]]` |
+  | `link` | `text`, `url`: `https://` only |
+
+  Every string is text: no markup, no scripts, no images.
+- A pane shows a view with `hive pane split --view <plugin>/<view>` or
+  `hive tab create <env> --view <plugin>/<view>`, and a layout's pane with
+  `"view": "<plugin>/<view>"`. Such a pane has no process. It is saved and
+  restored like any pane, and `hive plugin views <plugin>/<view>` draws the
+  view as text.
+- Clicking a button (in the TUI, or tab to it and press enter; `hive
+  plugin click <plugin>/<view> <button>`) runs the action it names, with
+  `view` and `node` in its context. A plugin cannot click: a click is a
+  person's.
+
+### Workflow steps
+
+```toml
+[[contributes.steps]]
+name = "deploy-preview"
+command = ["./bin/deploy"]
+timeout = "10m"                      # default 10m, at most 24h
+
+[contributes.steps.inputs]
+environment = { type = "string", required = true }
+wait = { type = "boolean", default = true }
+
+[contributes.steps.outputs]
+url = { type = "string" }
+```
+
+A workflow uses it as `uses = "<plugin>/deploy-preview"`, with `with = {
+… }` (see [workflows](../workflows.md)). Types are `string`, `boolean`,
+`integer` and `number`. The command reads one JSON document on stdin:
+
+```json
+{"step": "deploy-preview", "inputs": {"environment": "pr-7", "wait": true},
+ "workflow": {"workflow": "preview", "run": "3f2a…", "step": "deploy"},
+ "environment": "api"}
+```
+
+and answers one on stdout, `{"outputs": {"url": "https://…"}, "summary":
+"deployed"}`; what it writes to stderr goes to its log. Hive checks the
+inputs before it runs the command and the outputs after; a failing
+command, an answer that is not JSON, an undeclared output or one of the
+wrong type fails the step. `hive workflow show` and `hive workflow
+validate` name a workflow's steps that do not fit what is installed.
+WebAssembly plugins can contribute steps too.
+
+### Workflow triggers
+
+```toml
+[[contributes.triggers]]
+name = "deploy-finished"
+```
+
+The plugin fires it with `workflow.trigger {name, payload}` (`hive.write`;
+`hive plugin trigger deploy-finished --field state=error`), and gets back
+the runs it started. Workflows that name it in `[[on]]` with `plugin =
+"<plugin>/deploy-finished"` run when their `match` fits the payload; a
+shared workflow runs only once it is trusted, as for every trigger.
+
+### Forges
+
+A plugin can open pull requests on code hosting Hive does not know:
+
+```toml
+[permissions]
+required = ["network"]
+[permissions.network]
+hosts = ["git.example.org:443", "*.gitea.io:443"]
+
+[[contributes.forges]]
+name = "gitea"
+hosts = ["git.example.org", "*.gitea.io"]
+command = ["./bin/forge"]
+```
+
+- `hive branch pr` picks a repository's forge as before: a `[[branches.forge]]`
+  host first, then a plugin forge whose `hosts` match the remote (an exact
+  host before a `*.domain`), then GitHub and GitLab. It is named
+  `plugin:<plugin>/<name>`.
+- The command reads `{"op": "pr.create", "forge": …, "dir", "remote",
+  "remote_url", "host", "project", "head", "base", "title", "body",
+  "draft"}` on stdin and answers `{"url": "https://…", "number": 5}`.
+- A forge needs `network`, and each of its hosts among
+  `[permissions.network] hosts` (port 443) when the plugin lists them. A
+  WebAssembly plugin has no network, so it cannot be a forge. Plugins
+  still cannot push or open pull requests themselves: `branch.push` and
+  `branch.pr` stay closed to them.
+
+### Issue trackers
+
+```toml
+[[contributes.trackers]]
+name = "linear"
+command = ["./bin/linear"]
+```
+
+- Issues are named `<tracker>:<key>`: `linear:HIV-42`, or
+  `github:owner/repo#42` for GitHub's, which is built in (through `gh`), so
+  no plugin may call its tracker `github`. A tracker needs `network`.
+- The command reads `{"op", "tracker", "key", "query", "limit", "body",
+  "comment"}` on stdin. For `get` and `close` it answers an issue,
+  `{"key", "title", "body", "state", "url", "labels", "assignees"}`; for
+  `search`, `{"issues": […]}`; for `comment`, anything.
+- The wire methods are `issue.get {ref}` and `issue.search {tracker?,
+  query, limit?}` (`hive.read`), `issue.comment {ref, body}` (`hive.write`),
+  and `issue.close {ref, comment?}`, which no plugin may call. Each comment
+  and close publishes `issue.changed`.
+- `hive issue get|search|comment|close` call them, and `hive task run
+  --from-issue linear:HIV-42` starts a task from an issue. A task's
+  `issue` is named in the default body of its branch's pull request, and
+  `close_issue = true` closes the issue when the branch merges.
+
 ## Lifecycle and health
 
 | State | Meaning |

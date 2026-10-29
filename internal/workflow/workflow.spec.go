@@ -71,6 +71,7 @@ type fileTrigger struct {
 	Branches []string          `toml:"branches"`
 	Remote   string            `toml:"remote"`
 	Webhook  string            `toml:"webhook"`
+	Plugin   string            `toml:"plugin"`
 	Inputs   map[string]string `toml:"inputs"`
 }
 
@@ -98,8 +99,9 @@ type fileStep struct {
 	Dir string            `toml:"dir"`
 	Env map[string]string `toml:"env"`
 
-	Action string            `toml:"action"`
-	With   map[string]string `toml:"with"`
+	Action string         `toml:"action"`
+	Uses   string         `toml:"uses"`
+	With   map[string]any `toml:"with"`
 
 	Timeout   string `toml:"timeout"`
 	Retries   int    `toml:"retries"`
@@ -223,7 +225,7 @@ func (f fileWorkflow) spec(source string) (Spec, error) {
 func (t fileTrigger) spec() (TriggerSpec, error) {
 	ts := TriggerSpec{
 		Event: t.Event, Match: t.Match, Schedule: t.Schedule, Git: t.Git, Repo: t.Repo,
-		Branches: t.Branches, Remote: t.Remote, Webhook: t.Webhook, Inputs: t.Inputs,
+		Branches: t.Branches, Remote: t.Remote, Webhook: t.Webhook, Plugin: t.Plugin, Inputs: t.Inputs,
 	}
 	if t.Every != "" {
 		d, err := time.ParseDuration(t.Every)
@@ -253,8 +255,23 @@ func (st fileStep) spec() (StepSpec, error) {
 		Prompt: st.Prompt, Environment: st.Environment, Worktree: st.Worktree, Isolate: st.Isolate, Base: st.Base,
 		Until: st.Until, Match: st.Match, Check: st.Check, Machine: st.Machine, Labels: st.Labels,
 		KeepAgent: st.KeepAgent, NoSummary: st.NoSummary,
-		Dir: st.Dir, Env: st.Env, Action: st.Action, With: st.With,
+		Dir: st.Dir, Env: st.Env, Action: st.Action, Uses: st.Uses,
 		Retries: st.Retries, OnFailure: st.OnFailure,
+	}
+	// With values are templates: text. A plugin step's typed inputs
+	// (true, 3) are written as they are and read back by its types.
+	if st.With != nil {
+		s.With = make(map[string]string, len(st.With))
+		for k, v := range st.With {
+			switch v := v.(type) {
+			case string:
+				s.With[k] = v
+			case bool, int64, float64:
+				s.With[k] = fmt.Sprint(v)
+			default:
+				return StepSpec{}, invalid("with %s: a string, a boolean or a number", k)
+			}
+		}
 	}
 	if st.Needs != nil {
 		s.Needs = slices.Clone(*st.Needs)
@@ -419,13 +436,13 @@ func Validate(s *Spec) error {
 
 func validateTrigger(t *TriggerSpec, check *refChecker) error {
 	set := 0
-	for _, v := range []bool{t.Event != "", t.Schedule != "", t.EveryMS > 0, t.Git != "", t.Webhook != ""} {
+	for _, v := range []bool{t.Event != "", t.Schedule != "", t.EveryMS > 0, t.Git != "", t.Webhook != "", t.Plugin != ""} {
 		if v {
 			set++
 		}
 	}
 	if set != 1 {
-		return invalid("say exactly one of event, schedule, every, git and webhook")
+		return invalid("say exactly one of event, schedule, every, git, webhook and plugin")
 	}
 	switch t.Type() {
 	case TriggerEvent:
@@ -460,9 +477,24 @@ func validateTrigger(t *TriggerSpec, check *refChecker) error {
 		if !idPattern.MatchString(t.Webhook) {
 			return invalid("webhook %q: use letters, digits, '.', '_' and '-'", t.Webhook)
 		}
+	case TriggerPlugin:
+		p, name, ok := strings.Cut(t.Plugin, "/")
+		if !ok || !idPattern.MatchString(p) || !idPattern.MatchString(name) {
+			return invalid("plugin %q: write plugin/trigger", t.Plugin)
+		}
 	}
-	if t.Type() != TriggerEvent && len(t.Match) > 0 {
-		return invalid("match is for event triggers")
+	if t.Type() != TriggerEvent && t.Type() != TriggerPlugin && len(t.Match) > 0 {
+		return invalid("match is for event and plugin triggers")
+	}
+	if t.Type() == TriggerPlugin {
+		for k, v := range t.Match {
+			if k == "" || strings.Contains(k, "..") {
+				return invalid("match key %q", k)
+			}
+			if _, err := path.Match(v, ""); err != nil {
+				return invalid("match %s: %q is not a pattern", k, v)
+			}
+		}
 	}
 	if t.Type() != TriggerGit && (t.Repo != "" || len(t.Branches) > 0) {
 		return invalid("repo and branches are for git triggers")
@@ -480,13 +512,13 @@ func validateTrigger(t *TriggerSpec, check *refChecker) error {
 
 func validateStep(st *StepSpec, check *refChecker) error {
 	kinds := 0
-	for _, v := range []bool{len(st.Agent) > 0, len(st.Run) > 0 || st.Shell != "", st.Action != ""} {
+	for _, v := range []bool{len(st.Agent) > 0, len(st.Run) > 0 || st.Shell != "", st.Action != "", st.Uses != ""} {
 		if v {
 			kinds++
 		}
 	}
 	if kinds != 1 {
-		return invalid("say exactly one of agent, run and action")
+		return invalid("say exactly one of agent, run, action and uses")
 	}
 	switch {
 	case st.Retries < 0 || st.Retries > MaxRetries:
@@ -546,6 +578,14 @@ func validateStep(st *StepSpec, check *refChecker) error {
 		}
 		if agentOnly || st.Dir != "" || len(st.Env) > 0 {
 			return invalid("an agent's settings, dir and env are not for actions")
+		}
+	case KindStep:
+		plugin, step, ok := strings.Cut(st.Uses, "/")
+		if !ok || !idPattern.MatchString(plugin) || !idPattern.MatchString(step) {
+			return invalid("uses %q: write plugin/step", st.Uses)
+		}
+		if agentOnly || st.Dir != "" || len(st.Env) > 0 {
+			return invalid("an agent's settings, dir and env are not for plugin steps")
 		}
 	}
 	if st.If != "" {
@@ -721,6 +761,8 @@ func describe(t TriggerSpec) TriggerInfo {
 		info.Description = d
 	case TriggerWebhook:
 		info.Description = "webhook " + t.Webhook
+	case TriggerPlugin:
+		info.Description = "plugin trigger " + t.Plugin
 	}
 	return info
 }

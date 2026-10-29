@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "publishers": [
+    {
+      "id": "hive",
+      "name": "Hive maintainers",
+      "url": "https://github.com/admirable-oss",
+      "tier": "official",
+      "keys": []
+    }
+  ]
+}

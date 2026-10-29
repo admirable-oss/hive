@@ -19,6 +19,7 @@ import (
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/metadata"
+	"github.com/admirable-oss/hive/internal/observer"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/plugin"
@@ -37,8 +38,12 @@ func (c Config) pluginDir() string {
 
 // newPluginHost builds the host that runs the enabled plugins: each on its
 // own socket, scoped to its capabilities, with plugin events on the bus.
-func newPluginHost(cfg Config, log *slog.Logger, router *protocol.Router, bus *event.Bus) *plugin.Host {
+func newPluginHost(cfg Config, log *slog.Logger, router *protocol.Router, bus *event.Bus, workspaces func(context.Context) []string) *plugin.Host {
 	env := cfg.launchEnv()
+	launcher := cfg.bin()
+	if launcher == "" {
+		launcher, _ = os.Executable()
+	}
 	var host *plugin.Host
 	sockets := &pluginSockets{dir: filepath.Join(cfg.root(), "p"), router: router, log: log, granted: func(id string) []string { return host.Granted(id) }}
 	pc := cfg.Plugins
@@ -75,7 +80,18 @@ func newPluginHost(cfg Config, log *slog.Logger, router *protocol.Router, bus *e
 		Hidden:        pc.Hidden,
 		Serve:         sockets.serve,
 		SocketPath:    cfg.SocketPath,
-		Publish:       bus.Publish,
+		Launcher:      launcher,
+		// A Wasm plugin's calls are checked as its socket's are.
+		Call: func(ctx context.Context, id, method string, params json.RawMessage) (json.RawMessage, error) {
+			h := scopedHandler{id: id, router: router, granted: func(id string) []string { return host.Granted(id) }}
+			resp := h.Handle(ctx, protocol.Request{Version: protocol.Version2, Type: protocol.MessageTypeRequest, ID: "wasm", Method: method, Params: params})
+			if resp.Error != nil {
+				return nil, &plugin.CallError{Code: resp.Error.Code, Message: resp.Error.Message}
+			}
+			return resp.Result, nil
+		},
+		Workspaces: workspaces,
+		Publish:    bus.Publish,
 	})
 	return host
 }
@@ -255,6 +271,25 @@ func pluginError(err error) error {
 	return err
 }
 
+// observedPlugins are the plugins as observers see them (observe.plugins).
+func observedPlugins(list []plugin.Status) []observer.Plugin {
+	out := make([]observer.Plugin, 0, len(list))
+	for _, p := range list {
+		o := observer.Plugin{ID: p.ID, Name: p.ID, Version: p.Version, Tier: p.Tier, Publisher: p.Publisher, SignedBy: p.SignedBy, Sandbox: p.Sandbox, Enabled: p.Enabled, State: p.Health.State}
+		if p.Manifest != nil {
+			o.Version = p.Manifest.Version
+			if p.Manifest.Name != "" {
+				o.Name = p.Manifest.Name
+			}
+		}
+		if p.Revoked != nil {
+			o.Revoked = &observer.PluginRevocation{Reason: p.Revoked.Reason, Advisory: p.Revoked.Advisory}
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
 func registerPlugins(r *protocol.Router, host *plugin.Host, store *plugin.Store) {
 	r.MustRegister("plugin.list", protocol.Method(func(context.Context, struct{}) ([]plugin.Status, error) {
 		return host.Status(), nil
@@ -281,6 +316,34 @@ func registerPlugins(r *protocol.Router, host *plugin.Host, store *plugin.Store)
 	}))
 	r.MustRegister("plugin.contributions", protocol.Method(func(context.Context, struct{}) (plugin.Contributions, error) {
 		return host.Contributions(), nil
+	}))
+	r.MustRegister("plugin.views", protocol.Method(func(context.Context, struct{}) ([]plugin.ViewContent, error) {
+		return host.Views(), nil
+	}))
+	r.MustRegister("plugin.view.set", protocol.Method(func(ctx context.Context, u plugin.ViewUpdate) (plugin.ViewContent, error) {
+		id, err := callerPlugin(ctx, u.Plugin)
+		if err != nil {
+			return plugin.ViewContent{}, err
+		}
+		if u.Doc == nil {
+			return plugin.ViewContent{}, protocol.NewError(protocol.ErrorCodeInvalidParams, errors.New("doc is required (plugin.view.clear clears a view)"))
+		}
+		u.Plugin = id
+		c, err := host.SetView(u)
+		return c, pluginError(err)
+	}))
+	r.MustRegister("plugin.view.clear", protocol.Method(func(ctx context.Context, u plugin.ViewUpdate) (plugin.ViewContent, error) {
+		id, err := callerPlugin(ctx, u.Plugin)
+		if err != nil {
+			return plugin.ViewContent{}, err
+		}
+		u.Plugin, u.Doc = id, nil
+		c, err := host.SetView(u)
+		return c, pluginError(err)
+	}))
+	r.MustRegister("plugin.view.click", protocol.Method(func(ctx context.Context, k plugin.ViewClick) (plugin.Result, error) {
+		res, err := host.Click(ctx, k)
+		return res, pluginError(err)
 	}))
 	r.MustRegister("plugin.card", protocol.Method(func(ctx context.Context, u plugin.CardUpdate) (plugin.CardContent, error) {
 		id, err := callerPlugin(ctx, u.Plugin)

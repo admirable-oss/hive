@@ -1,5 +1,5 @@
 {
-  "api_level": 15,
+  "api_level": 16,
   "methods": [
     {
       "name": "observe.auth",
@@ -54,6 +54,18 @@
       },
       "result": {
         "$ref": "#/$defs/observer.PaneResult"
+      }
+    },
+    {
+      "name": "observe.plugins",
+      "params": {
+        "$ref": "#/$defs/protocol.Empty"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/observer.Plugin"
+        },
+        "type": "array"
       }
     },
     {
@@ -1003,6 +1015,62 @@
         "kind",
         "state",
         "environment_id"
+      ],
+      "type": "object"
+    },
+    "observer.Plugin": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "revoked": {
+          "$ref": "#/$defs/observer.PluginRevocation"
+        },
+        "sandbox": {
+          "type": "string"
+        },
+        "signed_by": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "tier",
+        "sandbox",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "observer.PluginRevocation": {
+      "properties": {
+        "advisory": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
       ],
       "type": "object"
     },

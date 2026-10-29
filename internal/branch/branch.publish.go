@@ -207,6 +207,11 @@ func (s *Service) describe(ctx context.Context, b Branch) (title, body string) {
 		}
 		sb.WriteString("\n")
 	}
+	if b.Owner != nil && b.Owner.Task != "" && s.ports.Issues != nil {
+		if ref := s.ports.Issues.For(ctx, b.Owner.Plan, b.Owner.Task); ref != "" {
+			fmt.Fprintf(&sb, "Issue: %s\n\n", ref)
+		}
+	}
 	if b.Owner != nil && b.Owner.Kind != "" {
 		fmt.Fprintf(&sb, "Written by a %s agent in Hive.\n", b.Owner.Kind)
 	}

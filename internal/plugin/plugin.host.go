@@ -37,6 +37,10 @@ type Context struct {
 	Environment string `json:"environment,omitempty"`
 	Tab         string `json:"tab,omitempty"`
 	Pane        string `json:"pane,omitempty"`
+	// View and Node are a view's button that ran the action, or the view a
+	// pane opened (plugin API 2).
+	View string `json:"view,omitempty"`
+	Node string `json:"node,omitempty"`
 	// Capabilities are the capabilities the plugin holds now.
 	Capabilities []string `json:"capabilities"`
 	// Workflow is set when a workflow's step runs the action: the run, the
@@ -89,7 +93,9 @@ type Status struct {
 	// strict).
 	Grant     Grant  `json:"grant"`
 	Isolation string `json:"isolation"`
-	API       int    `json:"api"`
+	// Sandbox is what confines it: none, sandbox-exec or bwrap.
+	Sandbox string `json:"sandbox"`
+	API     int    `json:"api"`
 	// Runs are its action runs in progress.
 	Runs []RunInfo `json:"runs,omitempty"`
 }
@@ -99,6 +105,8 @@ const (
 	IsolationAuto     = "auto"     // strict for plugins that support it
 	IsolationStandard = "standard" // never strict
 	IsolationStrict   = "strict"   // strict for every plugin
+	// IsolationAPI2 runs only plugin API 2 plugins, sandboxed by default.
+	IsolationAPI2 = "api2"
 )
 
 // HostConfig sets up a Host.
@@ -133,6 +141,15 @@ type HostConfig struct {
 	Serve func(id string, granted []string) (path string, stop func(), err error)
 	// SocketPath is the daemon's own socket, which strict isolation hides.
 	SocketPath string
+	// Launcher is the hive binary, which sets up a plugin API 2 sandbox
+	// from the inside on Linux.
+	Launcher string
+	// Call performs a daemon method for a Wasm plugin, with its
+	// capabilities checked as on its socket.
+	Call HiveCall
+	// Workspaces lists the directories of the environments, for
+	// filesystem.read:workspace and filesystem.write:workspace.
+	Workspaces func(ctx context.Context) []string
 	// Publish announces plugin events on the daemon's bus.
 	Publish func(typ string, data any)
 }
@@ -167,13 +184,23 @@ type Host struct {
 	running sync.WaitGroup
 	runSeq  uint64
 	content contentStore
+	views   viewStore
+	wasm    wasmHost
 }
 
 type loaded struct {
 	Plugin
-	grant   Grant
-	strict  bool
-	problem string // a load-time problem: it runs nothing
+	grant  Grant
+	strict bool
+	// confined is a plugin API 2 plugin in its sandbox: reads, programs
+	// and hosts limited. exec are the programs it may run, resolved when
+	// it loaded; proxy reaches the hosts it lists. wasm is a plugin whose
+	// commands are WebAssembly modules Hive runs itself.
+	confined bool
+	wasm     bool
+	exec     []string
+	proxy    *netProxy
+	problem  string // a load-time problem: it runs nothing
 
 	ctx    context.Context // its life: until unloaded
 	cancel context.CancelFunc
@@ -231,6 +258,7 @@ func (h *Host) Run(ctx context.Context) {
 				h.unload(id)
 			}
 			h.running.Wait()
+			h.wasm.close(context.WithoutCancel(ctx))
 			return
 		case <-t.C:
 			h.tick()
@@ -336,11 +364,8 @@ func (h *Host) load(ctx context.Context, p Plugin) {
 		fail(problem)
 		return
 	}
-	// auto sandboxes a plugin that can run sandboxed, where a sandbox
-	// exists; strict, chosen by the user, never runs a plugin without one.
-	l.strict = h.cfg.Isolation == IsolationStrict || (h.cfg.Isolation == IsolationAuto && m.Isolation == "strict" && SandboxAvailable())
-	if l.strict && !SandboxAvailable() {
-		fail("[plugins] isolation is strict, which needs " + sandboxTool() + ", not available here")
+	if problem := h.isolate(l, m); problem != "" {
+		fail(problem)
 		return
 	}
 	if m.Legacy() {
@@ -370,6 +395,22 @@ func (h *Host) load(ctx context.Context, p Plugin) {
 		}
 		l.socket, l.stopSocket = path, stop
 	}
+	if l.confined {
+		l.health.Warnings = append(l.health.Warnings, h.confine(l, m)...)
+		if hosts := m.Permissions.Network.Hosts; len(hosts) > 0 && slices.Contains(l.grant.Effective, CapNetwork) {
+			proxy, err := startProxy(lctx, hosts, func(format string, args ...any) {
+				fmt.Fprintf(pluginLog{l}, "hive: "+format+"\n", args...)
+			})
+			if err != nil {
+				if l.stopSocket != nil {
+					l.stopSocket()
+				}
+				fail("start its network proxy: " + err.Error())
+				return
+			}
+			l.proxy = proxy
+		}
+	}
 	workers := m.EventConcurrency
 	if workers <= 0 {
 		workers = defaultEventConcurrency
@@ -389,7 +430,7 @@ func (h *Host) load(ctx context.Context, p Plugin) {
 	}
 	st := h.statusOfLocked(l)
 	h.mu.Unlock()
-	h.log.Info("plugin loaded", "plugin", p.ID, "version", m.Version, "api", m.EffectiveAPI(), "strict", l.strict, "capabilities", l.grant.Effective)
+	h.log.Info("plugin loaded", "plugin", p.ID, "version", m.Version, "api", m.EffectiveAPI(), "strict", l.strict, "confined", l.confined, "capabilities", l.grant.Effective)
 	h.cfg.Publish(EventChanged, st)
 }
 
@@ -408,6 +449,12 @@ func (h *Host) unload(id string) {
 	if l.stopSocket != nil {
 		l.stopSocket()
 	}
+	if l.proxy != nil {
+		l.proxy.Close()
+	}
+	if l.wasm {
+		h.wasm.forget(l.Dir)
+	}
 	if l.closer != nil {
 		l.logMu.Lock()
 		_ = l.closer.Close()
@@ -417,16 +464,33 @@ func (h *Host) unload(id string) {
 	if h.content.forget(id) {
 		h.cfg.Publish(EventContributions, map[string]string{"plugin": id})
 	}
+	if h.forgetViews(id) {
+		h.cfg.Publish(EventView, map[string]string{"plugin": id})
+	}
 }
 
 // Status lists the plugins the host runs.
 func (h *Host) Status() []Status {
+	// Trust changes without a reload (`hive plugin doctor` checks it
+	// again): read it from the installed records as they are now.
+	trust := map[string]Trust{}
+	if h.cfg.Store != nil {
+		if list, err := h.cfg.Store.Records(); err == nil {
+			for _, in := range list {
+				trust[in.ID] = in.trust()
+			}
+		}
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	out := []Status{}
 	for _, l := range h.plugins {
 		h.refreshLocked(l)
-		out = append(out, h.statusOfLocked(l))
+		st := h.statusOfLocked(l)
+		if t, ok := trust[st.ID]; ok {
+			st.Trust = t
+		}
+		out = append(out, st)
 	}
 	slices.SortFunc(out, func(a, b Status) int { return strings.Compare(a.ID, b.ID) })
 	return out
@@ -437,8 +501,12 @@ func (h *Host) statusOfLocked(l *loaded) Status {
 	if l.Manifest != nil {
 		st.API = l.Manifest.EffectiveAPI()
 	}
-	if l.strict {
-		st.Isolation = IsolationStrict
+	st.Sandbox = SandboxNone
+	switch {
+	case l.wasm:
+		st.Isolation, st.Sandbox = IsolationStrict, SandboxWasm
+	case l.strict:
+		st.Isolation, st.Sandbox = IsolationStrict, sandboxName()
 	}
 	st.Health.Warnings = slices.Clone(l.health.Warnings)
 	st.Health.Requests = slices.Clone(l.health.Requests)
@@ -461,12 +529,17 @@ func (h *Host) Granted(id string) []string {
 }
 
 // Discovery describes this hive to plugins; with id, also what that
-// plugin holds and may call.
+// plugin holds and may call. A plugin sees its own plugin API: the
+// capabilities of that version.
 func (h *Host) Discovery(id string) Discovery {
+	api := APIVersion
+	if id != "" {
+		api = h.apiOf(id)
+	}
 	d := Discovery{
-		API: APIVersion, SupportedAPIs: slices.Clone(SupportedAPIs), HiveVersion: h.cfg.Version,
-		Capabilities: slices.Clone(CapabilityList), Events: slices.Clone(Events),
-		Contributions: slices.Clone(ContributionKinds), Isolation: []string{IsolationStandard},
+		API: api, SupportedAPIs: slices.Clone(SupportedAPIs), HiveVersion: h.cfg.Version,
+		Capabilities: slices.Clone(CapabilitiesFor(api)), Events: slices.Clone(Events),
+		Contributions: slices.Clone(ContributionKindsFor(api)), Isolation: []string{IsolationStandard},
 	}
 	if SandboxAvailable() {
 		d.Isolation = append(d.Isolation, IsolationStrict)
@@ -481,6 +554,17 @@ func (h *Host) Discovery(id string) Discovery {
 		}
 	}
 	return d
+}
+
+// apiOf is a loaded plugin's plugin API (the newest when it is not
+// loaded).
+func (h *Host) apiOf(id string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if l := h.plugins[id]; l != nil && l.Manifest != nil {
+		return l.Manifest.EffectiveAPI()
+	}
+	return APIVersion
 }
 
 func cmpStr(a, b string) string {

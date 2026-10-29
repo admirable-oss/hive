@@ -1,0 +1,104 @@
+# Publishes a Hive plugin release from a workflow: `hive plugin publish`
+# tags the commit, computes the archive checksum the registry pins, signs
+# the release with the publisher's SSH key and records how it was built
+# (this run). With registry-token, it also opens the registry pull request.
+#
+#   on:
+#     push:
+#       branches: [main]
+#   jobs:
+#     publish:
+#       runs-on: ubuntu-latest
+#       permissions:
+#         contents: write   # push the release tag
+#       steps:
+#         - uses: actions/checkout@v7
+#           with:
+#             fetch-depth: 0
+#         - uses: admirable-oss/hive/.github/actions/plugin-publish@v1.7.0
+#           with:
+#             signing-key: ${{ secrets.HIVE_PLUGIN_SIGNING_KEY }}
+#
+# signing-key is an OpenSSH ed25519 private key (ssh-keygen -t ed25519),
+# whose public half is one of your publisher keys in the registry.
+name: Publish a Hive plugin release
+description: Tag, checksum, sign and record a Hive plugin release (hive plugin publish), and optionally submit it to the registry.
+inputs:
+  path:
+    description: The plugin's directory in the repository.
+    default: "."
+  signing-key:
+    description: The publisher's OpenSSH ed25519 private key. Leave empty only with unsigned.
+    default: ""
+  unsigned:
+    description: Publish without a signature (community plugins only).
+    default: "false"
+  hive-version:
+    description: The Hive release to publish and test with (default the newest; plugin publishing needs 1.7.0 or later).
+    default: ""
+  test:
+    description: Run hive plugin test first.
+    default: "true"
+  registry-token:
+    description: A token that can push a branch to, and open pull requests on, the registry repository; set it to submit the release.
+    default: ""
+  registry-repository:
+    description: The registry repository.
+    default: admirable-oss/hive
+outputs:
+  record:
+    description: The release record file (JSON).
+    value: ${{ steps.publish.outputs.record }}
+  version:
+    description: The released version.
+    value: ${{ steps.publish.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - name: Install Hive
+      shell: bash
+      env:
+        HIVE_VERSION: ${{ inputs.hive-version && format('v{0}', inputs.hive-version) || '' }}
+        HIVE_INSTALL_DIR: ${{ runner.temp }}/hive-bin
+      run: |
+        curl -fsSL https://hive.admir-saheta.com/install.sh | sh
+        echo "$HIVE_INSTALL_DIR" >> "$GITHUB_PATH"
+    - name: Check out the registry
+      if: inputs.registry-token != ''
+      uses: actions/checkout@v7
+      with:
+        repository: ${{ inputs.registry-repository }}
+        token: ${{ inputs.registry-token }}
+        path: .hive-registry
+    - name: Publish
+      id: publish
+      shell: bash
+      env:
+        SIGNING_KEY: ${{ inputs.signing-key }}
+        UNSIGNED: ${{ inputs.unsigned }}
+        RUN_TESTS: ${{ inputs.test }}
+        PLUGIN_PATH: ${{ inputs.path }}
+        SUBMIT: ${{ inputs.registry-token != '' }}
+        GH_TOKEN: ${{ inputs.registry-token }}
+      run: |
+        set -euo pipefail
+        args=(plugin publish "$PLUGIN_PATH" --push --out "$RUNNER_TEMP/hive-release.json")
+        if [ "$UNSIGNED" = "true" ]; then
+          args+=(--unsigned)
+        else
+          [ -n "$SIGNING_KEY" ] || { echo "::error::set signing-key (or unsigned: true for a community plugin)"; exit 1; }
+          umask 077
+          key="$RUNNER_TEMP/hive-plugin-signing-key"
+          printf '%s\n' "$SIGNING_KEY" > "$key"
+          trap 'rm -f "$key"' EXIT
+          args+=(--key "$key")
+        fi
+        [ "$RUN_TESTS" = "true" ] || args+=(--skip-tests)
+        if [ "$SUBMIT" = "true" ]; then
+          git -C .hive-registry config user.name "github-actions[bot]"
+          git -C .hive-registry config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          args+=(--submit --registry .hive-registry)
+        fi
+        hive "${args[@]}"
+        echo "record=$RUNNER_TEMP/hive-release.json" >> "$GITHUB_OUTPUT"
+        echo "version=$(jq -r .release.version "$RUNNER_TEMP/hive-release.json")" >> "$GITHUB_OUTPUT"

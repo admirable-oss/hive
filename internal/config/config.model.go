@@ -300,8 +300,13 @@ type Plugins struct {
 	Allow []string
 	Deny  []string
 	// Isolation is auto (strict for plugins that support it), standard
-	// or strict (every plugin, sandboxed).
+	// or strict (every plugin, sandboxed), or api2 (only plugin API 2
+	// plugins). Plugin API 2 plugins run sandboxed wherever a sandbox
+	// exists, short of an approved isolation = "none".
 	Isolation string
+	// RequireSignature is which registry releases must be signed by their
+	// publisher: official-verified (default), all or none.
+	RequireSignature string
 	// RestartLimit and RestartWindow stop restarting a plugin command
 	// that fails more than RestartLimit times within RestartWindow.
 	RestartLimit  int
@@ -347,7 +352,10 @@ type Web struct {
 }
 
 // Plugin isolation modes.
-var pluginIsolations = []string{"auto", "standard", "strict"}
+var pluginIsolations = []string{"auto", "standard", "strict", "api2"}
+
+// Plugin signature policies.
+var pluginSignaturePolicies = []string{"official-verified", "all", "none"}
 
 // Image render modes.
 var imageRenderModes = []string{"auto", "cells", "text", "off"}
@@ -461,7 +469,7 @@ func Defaults() Config {
 		Remote:    Remote{SSH: "ssh", FrameBudgetKB: 48, ImageBudgetKB: 1024},
 		Discovery: Discovery{SSHPort: 22, Interfaces: []string{}, Browse: true},
 		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},
-		Plugins:   Plugins{Allow: []string{}, Deny: []string{}, Isolation: "auto", RestartLimit: 5, RestartWindow: 10 * time.Minute, Hidden: []string{}},
+		Plugins:   Plugins{Allow: []string{}, Deny: []string{}, Isolation: "auto", RequireSignature: "official-verified", RestartLimit: 5, RestartWindow: 10 * time.Minute, Hidden: []string{}},
 		Observers: Observers{Enabled: true, HistoryEvents: 2048, MaxConnections: 32},
 		Web:       Web{Listen: "127.0.0.1:8484", Push: true},
 		Update:    Update{Channel: "stable"},

@@ -49,6 +49,11 @@ type Installed struct {
 	// when installing or updating, optional ones with `hive plugin grant`.
 	Granted     []string  `json:"granted,omitempty"`
 	InstalledAt time.Time `json:"installed_at"`
+	// Trust is what the registry said of the installed release (registry
+	// installs): its tier, publisher, signer, provenance and revocation.
+	// PreviousTrust is the previous release's, for a rollback.
+	Trust
+	PreviousTrust *Trust `json:"previous_trust,omitempty"`
 }
 
 // Plugin is an installed plugin with its manifest, as found on disk.
@@ -254,6 +259,25 @@ func (s *Store) saveLocked(list []Installed) error {
 	return jsonfile.Write(s.registry(), registryFile{Schema: 1, Plugins: list})
 }
 
+// Records returns the installed plugins' records, without their manifests.
+func (s *Store) Records() ([]Installed, error) {
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	return s.loadLocked()
+}
+
+// trust is the record's trust as clients see it: plugins installed from
+// source are unlisted.
+func (in Installed) trust() Trust {
+	if !in.Registry {
+		return Trust{Tier: TierUnlisted}
+	}
+	return in.Trust
+}
+
 // List returns every installed plugin with its manifest.
 func (s *Store) List(ctx context.Context, hiveVersion string) ([]Plugin, error) {
 	unlock, err := s.lock()
@@ -271,6 +295,7 @@ func (s *Store) List(ctx context.Context, hiveVersion string) ([]Plugin, error) 
 	out := make([]Plugin, 0, len(list))
 	for _, in := range list {
 		p := Plugin{Installed: in, Dir: s.Dir(in.ID)}
+		p.Trust = in.trust()
 		m, err := LoadManifest(p.Dir)
 		switch {
 		case err != nil:
@@ -304,13 +329,15 @@ func (s *Store) Get(ctx context.Context, id, hiveVersion string) (Plugin, error)
 
 // Fetched is a plugin cloned for installing, not yet installed.
 type Fetched struct {
-	Manifest         *Manifest
-	Source           string
-	Ref              string
-	Commit           string
-	Version          string
-	Checksum         string
-	Registry         bool
+	Manifest *Manifest
+	Source   string
+	Ref      string
+	Commit   string
+	Version  string
+	Checksum string
+	Registry bool
+	// Trust is the registry's word on the release (registry fetches).
+	Trust            Trust
 	checksumVerified bool
 	Subdir           string
 	dir              string // the clone
@@ -458,6 +485,9 @@ func (f *Fetched) Preview() string {
 	return preview
 }
 
+// Dir is the fetched plugin package's directory, until Discard.
+func (f *Fetched) Dir() string { return f.dir }
+
 // Discard removes the clone.
 func (f *Fetched) Discard() {
 	if f.tmpDir != "" {
@@ -496,7 +526,7 @@ func (s *Store) Install(ctx context.Context, f *Fetched, hiveVersion string) (In
 		return Installed{}, err
 	}
 	// Installing approves what the preview showed: its required capabilities.
-	in := Installed{ID: id, Source: f.Source, Ref: f.Ref, Commit: f.Commit, Version: f.Version, Checksum: f.Checksum, Registry: f.Registry, Enabled: true, InstalledAt: time.Now(), Granted: Approve(f.Manifest, nil)}
+	in := Installed{ID: id, Source: f.Source, Ref: f.Ref, Commit: f.Commit, Version: f.Version, Checksum: f.Checksum, Registry: f.Registry, Enabled: true, InstalledAt: time.Now(), Granted: Approve(f.Manifest, nil), Trust: f.Trust}
 	if err := s.saveLocked(append(list, in)); err != nil {
 		if rollbackErr := os.Rename(s.Dir(id), f.dir); rollbackErr != nil {
 			return Installed{}, fmt.Errorf("record plugin install: %w (also failed to roll back installed files: %w)", err, rollbackErr)
@@ -557,6 +587,8 @@ func (s *Store) Update(ctx context.Context, f *Fetched, hiveVersion string) (Ins
 	next := old
 	next.Source, next.Ref, next.Commit, next.Version, next.Checksum, next.Registry = f.Source, f.Ref, f.Commit, f.Version, f.Checksum, true
 	next.PreviousVersion, next.PreviousRef, next.PreviousCommit, next.PreviousChecksum = old.Version, old.Ref, old.Commit, old.Checksum
+	previous := old.Trust
+	next.Trust, next.PreviousTrust = f.Trust, &previous
 	// Updating approves the release's required capabilities (the CLI showed
 	// what changed) and keeps optional grants it still asks for.
 	next.Granted = Approve(f.Manifest, old.Granted)
@@ -589,7 +621,7 @@ func (s *Store) Update(ctx context.Context, f *Fetched, hiveVersion string) (Ins
 func validReleaseMetadata(f *Fetched) bool {
 	return f.Manifest != nil && f.Manifest.ID != "" && f.Version != "" &&
 		strings.TrimPrefix(f.Manifest.Version, "v") == strings.TrimPrefix(f.Version, "v") &&
-		strings.TrimPrefix(f.Ref, "v") == strings.TrimPrefix(f.Version, "v") &&
+		refMatchesVersion(f.Ref, f.Version, true) &&
 		len(f.Commit) == 40 && isHex(f.Commit) && len(f.Checksum) == len("sha256:")+64 &&
 		strings.HasPrefix(strings.ToLower(f.Checksum), "sha256:") && isHex(strings.TrimPrefix(strings.ToLower(f.Checksum), "sha256:"))
 }
@@ -623,30 +655,35 @@ func (s *Store) Rollback(id string) (Installed, error) {
 	if _, err := os.Stat(backup); err != nil {
 		return Installed{}, fmt.Errorf("retained release %s is unavailable: %w", cur.PreviousVersion, err)
 	}
-	current := filepath.Join(s.VersionsDir(id), safeReleaseDir(cur.Version, cur.Commit))
+	currentDir := filepath.Join(s.VersionsDir(id), safeReleaseDir(cur.Version, cur.Commit))
 	if err := os.MkdirAll(s.VersionsDir(id), 0o700); err != nil {
 		return Installed{}, err
 	}
 	next := cur
 	next.Version, next.Ref, next.Commit, next.Checksum = cur.PreviousVersion, cur.PreviousRef, cur.PreviousCommit, cur.PreviousChecksum
 	next.PreviousVersion, next.PreviousRef, next.PreviousCommit, next.PreviousChecksum = cur.Version, cur.Ref, cur.Commit, cur.Checksum
-	tx := storeTransaction{Schema: 1, PluginID: id, Operation: "rollback", Backup: backup, Stage: current, KeepStage: true, Next: next}
+	current := cur.Trust
+	next.Trust, next.PreviousTrust = Trust{}, &current
+	if cur.PreviousTrust != nil {
+		next.Trust = *cur.PreviousTrust
+	}
+	tx := storeTransaction{Schema: 1, PluginID: id, Operation: "rollback", Backup: backup, Stage: currentDir, KeepStage: true, Next: next}
 	if err := jsonfile.Write(filepath.Join(s.dir, ".transaction.json"), tx); err != nil {
 		return Installed{}, err
 	}
-	if err := os.Rename(s.Dir(id), current); err != nil {
+	if err := os.Rename(s.Dir(id), currentDir); err != nil {
 		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
 		return Installed{}, err
 	}
 	if err := os.Rename(backup, s.Dir(id)); err != nil {
-		_ = os.Rename(current, s.Dir(id))
+		_ = os.Rename(currentDir, s.Dir(id))
 		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
 		return Installed{}, err
 	}
 	list[i] = next
 	if err := s.saveLocked(list); err != nil {
 		_ = os.Rename(s.Dir(id), backup)
-		_ = os.Rename(current, s.Dir(id))
+		_ = os.Rename(currentDir, s.Dir(id))
 		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
 		return Installed{}, err
 	}
@@ -719,6 +756,29 @@ func (s *Store) SetGranted(id string, granted []string) (Installed, error) {
 		return Installed{}, fmt.Errorf("%w %q", ErrNotFound, id)
 	}
 	list[i].Granted = sortedUnique(granted)
+	return list[i], s.saveLocked(list)
+}
+
+// SetTrust records what the registry now says of an installed release
+// (`hive plugin doctor` checks it again).
+func (s *Store) SetTrust(id string, t Trust) (Installed, error) {
+	unlock, err := s.lock()
+	if err != nil {
+		return Installed{}, err
+	}
+	defer unlock()
+	if err := s.recoverLocked(); err != nil {
+		return Installed{}, err
+	}
+	list, err := s.loadLocked()
+	if err != nil {
+		return Installed{}, err
+	}
+	i := slices.IndexFunc(list, func(in Installed) bool { return in.ID == id })
+	if i < 0 {
+		return Installed{}, fmt.Errorf("%w %q", ErrNotFound, id)
+	}
+	list[i].Trust = t
 	return list[i], s.saveLocked(list)
 }
 

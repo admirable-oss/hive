@@ -22,6 +22,59 @@ The plugin API is in [api.md](api.md).
 - **A revoked release is never installed or updated to**, and an installed
   one is reported (below).
 
+## Publishers, tiers and signatures
+
+From Hive 1.7 the registry also serves catalog schema 2
+([REGISTRY.md](../../internal/plugin/REGISTRY.md#schema-2-hive-17)), which
+says who publishes each plugin and carries each release's publisher
+signature and build provenance.
+
+- **Tiers.** Every client (`hive plugin list` and `info`, the TUI's Plugins
+  view in the palette, the desktop app's Plugins window, and the web
+  observer for links that see the whole runtime) shows a plugin's tier:
+  *official* (maintained by Hive's maintainers), *verified* (publisher
+  identity reviewed), *community* (automated checks only), or *unlisted*
+  (installed from Git or a directory, which nothing but you vouches for).
+  A tier says who published a plugin, never what it may do: capabilities
+  and the sandbox decide that.
+- **Signatures.** A release is signed with its publisher's SSH key. Hive
+  verifies it before the install preview and records the key that signed
+  it. `[plugins] require_signature` (default `official-verified`) needs
+  official and verified releases signed; a release whose signature does not
+  verify is never installed. A signature proves which key published a
+  release, not that its code is safe.
+- **Continuity.** An update must come from the same publisher, and a signed
+  release is never followed by an unsigned one. Reinstalling accepts a
+  change of publisher.
+- **A stolen key** is answered by revoking it in `revocations.json`
+  (`keys`, with the time from which it is distrusted): every release it
+  signed from then on is revoked, everywhere the plugin appears.
+- **Official signatures.** The official plugins are published by the
+  `hive` publisher (`registry/publishers.json`), with one key held like
+  Hive's release key: the `HIVE_PLUGIN_SIGNING_KEY` secret of this
+  repository. The official publishing workflow signs each release once
+  (`registry/official-signatures.json`, never rewritten), and the store
+  sync publishes `registry-2.json` only when `go run ./tools/plugin-registry
+  verify` finds every official and verified release signed. To set it up:
+
+  ```sh
+  go run ./tools/release-sign keygen plugin-signing.key   # keep it out of the repository
+  HIVE_PLUGIN_SIGNING_KEY=$(cat plugin-signing.key) go run ./tools/plugin-registry public-key
+  ```
+
+  Add the printed key to the `hive` publisher's `keys`, set the file's
+  contents as the `HIVE_PLUGIN_SIGNING_KEY` secret, and run the "Publish
+  official plugin releases" workflow. A lost or leaked key is revoked in
+  `revocations.json` and replaced the same way.
+- **Compatibility results.** Each Hive release candidate is tested with
+  every listed plugin's newest release (the `plugin-compat` workflow,
+  [publishing.md](publishing.md#testing-against-hive-releases)); results
+  are kept in `registry/compat-results.json` and listed as `tested`.
+- **Keeping it current.** The installed record keeps what the registry said
+  of the release at install or update. `hive plugin doctor` checks it again
+  (signature, tier, revocation) and records the result, so a revocation
+  shows in every client.
+
 ## Listing states
 
 A listing's state is shown by `hive plugin search` and `info`, and from

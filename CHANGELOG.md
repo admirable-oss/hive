@@ -4,6 +4,128 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.7.0 (unreleased): Plugin ecosystem 2 (M26)
+
+Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). In progress.
+
+### Trust in every client
+
+- Every installed plugin carries its tier (official, verified, community, or
+  unlisted for Git and linked installs), its publisher, the key that signed
+  its release, its build provenance and any revocation, in the installed
+  record and in `plugin.list`, with `sandbox` (none, sandbox-exec or bwrap).
+- `hive plugin list` has a TIER column and marks revoked releases; `info`,
+  `install` and `update` show the tier, publisher, signer and provenance.
+- The TUI's palette always offers **Plugins…**, a view with each plugin's
+  tier, sandbox and revocations, and its details.
+- The desktop app has a **Plugins** window (File menu and palette).
+- The web observer shows a runtime's plugins to links that see all of it,
+  through the new `observe.plugins` observer method.
+- `pkg/hiveapi` gains `Plugins` and the tier constants. API level 16.
+
+### Plugin API 2: sandboxed by default
+
+- `api = 2` plugins run in the system sandbox wherever one exists
+  (`sandbox-exec` on macOS; bubblewrap with Landlock on Linux): they read
+  only their own files and the system's, write only their own directories,
+  reach only the hosts they list and run only the programs they list,
+  unless granted more. Plugin API 1 plugins run as before.
+- New capabilities: `filesystem.read`, `filesystem.read:workspace`,
+  `filesystem.write:workspace` and `unconfined`; `[permissions.network]
+  hosts` and `[permissions.process] exec` narrow `network` and
+  `process.exec`.
+- Listed hosts are reached through a per-plugin proxy with its own
+  credentials, which logs what it refuses.
+- `isolation = "none"` (with `isolation_reason`) and systems without a
+  sandbox need `unconfined`, approved once per release.
+- `[plugins] isolation = "api2"` runs only API 2 plugins.
+- `hive plugin init` scaffolds an API 2 plugin; the TypeScript, Python and
+  Rust SDKs know the new capabilities. Plugin API 2 fixtures are in
+  `sdk/protocol/fixtures/v2/`.
+
+### WebAssembly plugins
+
+- A plugin API 2 plugin declaring `[[runtime]] kind = "wasm"` runs its
+  `.wasm` modules (WASI) inside the daemon through wazero, on every system
+  including Windows: it sees only its data (`/data`) and settings
+  (`/config`), has no network and no programs, memory is bounded, and
+  timeouts stop it. It calls Hive through the `hive.call` host function,
+  checked as its socket would be.
+
+### Pane views, workflow steps and triggers
+
+- A plugin API 2 plugin can declare `[[contributes.views]]` and set what
+  one shows with `plugin.view.set` (`hive plugin view`): a document of
+  text, rows, columns, lists, tables, progress, badges, dividers, buttons
+  and https links, checked by the daemon and drawn by clients, never
+  plugin code. `hive pane split --view` and `hive tab create --view` open
+  one in a pane with no process, which saves, exports and restores like
+  any pane; the TUI draws it in cells, and clicking a button (or tab and
+  enter) runs the plugin's action it names. `hive plugin views` lists
+  views and draws one as text; `hive plugin click` presses a button.
+- `[[contributes.steps]]` declares a workflow step with typed inputs and
+  outputs: a workflow writes `uses = "<plugin>/<step>"` with `with = {…}`,
+  and its outputs become `steps.<id>.outputs.*`. The command reads its
+  inputs as JSON on stdin and answers its outputs on stdout; both are
+  checked against their types. `hive workflow show` and `validate` name a
+  plugin step that does not fit what is installed.
+- `[[contributes.triggers]]` declares a workflow trigger the plugin fires
+  with `workflow.trigger` (`hive plugin trigger`); workflows name it with
+  `[[on]] plugin = "<plugin>/<trigger>"` and a `match` over its payload.
+- New wire methods `plugin.views`, `plugin.view.set`, `plugin.view.clear`,
+  `plugin.view.click` (closed to plugins) and `workflow.trigger`;
+  `pane.Spec` and `pane.Pane` gain `view`, workflows gain `problems`.
+
+### Forges and issue trackers
+
+- `[[contributes.forges]]` opens pull requests for the hosts a plugin
+  lists, through its command: `hive branch pr` uses a plugin forge for a
+  remote no `[[branches.forge]]` routes, before GitHub and GitLab.
+- `[[contributes.trackers]]` adds an issue tracker. Issues are named
+  `<tracker>:<key>`; GitHub's (`github:owner/repo#42`, through `gh`) are
+  built in. `hive issue get|search|comment|close` and the `issue.*` wire
+  methods read and update them; `issue.close` is closed to plugins.
+- `hive task run --from-issue <ref>` starts a task from an issue. A task's
+  `issue` is named in its pull request, and `close_issue = true` closes it
+  when the task's branch merges.
+
+### Publishing
+
+- `hive plugin publish` tags, checksums, signs (`ssh-keygen -Y sign`, with
+  `--key`, git's `user.signingkey` or ssh-agent) and records a release, with
+  build provenance from GitHub Actions; `--push`, `--dry-run`, and
+  `--submit` to append it to the registry submission and open the pull
+  request. Moved tags and uncommitted changes are refused.
+- `hive plugin test` checks a plugin, or a catalog plugin's newest release,
+  against this Hive, a binary or a downloaded release (`--hive 1.7.0-rc.1`):
+  validate, install, doctor and the manifest's new `[test]` command, in a
+  scratch `HIVE_HOME`.
+- A reusable GitHub Action, `admirable-oss/hive/.github/actions/plugin-publish`.
+- The registry's `plugin-compat` workflow tests every listed plugin against
+  each release candidate; the release workflow refuses to publish a Hive
+  that fails an official plugin.
+- `tools/plugin-registry` builds and verifies `registry-2.json`, signs the
+  official releases with the official publisher key, and records
+  compatibility results.
+
+### Registry schema 2 and signatures
+
+- Hive reads `registry-2.json` beside the catalog first, and the schema 1
+  catalog only when the registry serves no schema 2 (404).
+- Schema 2 lists publishers with their tier and ed25519 SSH keys, and per
+  release a publisher signature (`ssh-keygen -Y sign -n
+  hive-plugin-release` over the release statement), build provenance, the
+  Hive releases it was tested against, its plugin API and minimum Hive
+  version, and per-plugin refs (`pr-status/v1.2.0`).
+- `[plugins] require_signature`: `official-verified` (default), `all` or
+  `none`. A release whose signature does not verify is never installed; an
+  update keeps the publisher, and never goes from signed to unsigned.
+- `revocations.json` gains `keys`: a revoked publisher key revokes every
+  release it signed from the time it is distrusted.
+- `hive plugin install` and `update` pick the newest release this hive can
+  run (its plugin API and minimum Hive version), and `hive plugin doctor`
+  checks each release's signature and records what the registry says of it.
+
 ## v1.5.0 (unreleased): Workflow automation (M24)
 
 Reusable workflows from agents, scripts and events ([docs/workflows.md](docs/workflows.md), [RFC 0004](rfcs/0004-workflow-automation.md)).

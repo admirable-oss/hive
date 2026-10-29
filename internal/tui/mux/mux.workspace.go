@@ -491,6 +491,7 @@ func (a *App) handleEvents(m eventsMsg) {
 		a.ws.live, a.ws.retry, a.dirty = true, 0, true
 		a.refresh() // changes made before the stream opened
 		a.loadContributions()
+		a.loadViews()
 	default:
 		a.apply(*m.ev)
 	}

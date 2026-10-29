@@ -134,7 +134,7 @@ func TestPluginContributionsInTheUI(t *testing.T) {
 		titles = append(titles, it.title)
 	}
 	got := strings.Join(titles, "|")
-	if got != "Rerun the pipeline|Dashboard|Configure CI|Run 88" {
+	if got != "Plugins…|Rerun the pipeline|Dashboard|Configure CI|Run 88" {
 		t.Fatalf("palette items = %q", got)
 	}
 	h.typeText("rerun")
@@ -160,6 +160,27 @@ func TestPluginContributionsInTheUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.waitFor("the card to go", func() bool { return !strings.Contains(h.screen(), "Pipeline") })
+}
+
+// TestPluginsView: the palette's Plugins entry lists the installed
+// plugins with their tier and sandbox, and opens one's details.
+func TestPluginsView(t *testing.T) {
+	h := pluginHarness(t, 140, 30)
+	h.waitFor("contributions", func() bool { return len(h.a.plugins.contrib.Declared) > 0 })
+	h.press("ctrl+b", ":")
+	h.typeText("plugins")
+	h.press("enter")
+	h.waitFor("the plugins view", func() bool { _, ok := h.a.ui.overlay.(*pluginList); return ok })
+	h.waitText("[unlisted]")
+	if scr := h.screen(); !strings.Contains(scr, "ci") || !strings.Contains(scr, "unsandboxed") {
+		t.Fatalf("plugins view:\n%s", scr)
+	}
+	h.press("enter")
+	h.waitText("installed from source, not from the registry")
+	h.press("esc")
+	h.waitFor("the list again", func() bool { l, ok := h.a.ui.overlay.(*pluginList); return ok && l.detail < 0 })
+	h.press("esc")
+	h.waitFor("the view to close", func() bool { return h.a.ui.overlay == nil })
 }
 
 // TestPluginSettingsForm: the palette's settings entry opens a form built

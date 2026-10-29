@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 15. Clients speak newline-delimited JSON over the daemon's unix
+API level 16. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -450,6 +450,44 @@ Result: [insights.Summary](#insightssummary)
 
 Result: [insights.UsageResult](#insightsusageresult)
 
+## issue
+
+### `issue.close`
+
+| Param | Type | |
+|---|---|---|
+| `comment` | `string` | a comment to add as it closes |
+| `ref` | `string` | tracker:key |
+
+Result: [issue.Issue](#issueissue)
+
+### `issue.comment`
+
+| Param | Type | |
+|---|---|---|
+| `body` | `string` | the comment, as the tracker formats it (Markdown on GitHub) |
+| `ref` | `string` | tracker:key |
+
+Result: `object`
+
+### `issue.get`
+
+| Param | Type | |
+|---|---|---|
+| `ref` | `string` | tracker:key (linear:HIV-42, github:owner/repo#42) |
+
+Result: [issue.Issue](#issueissue)
+
+### `issue.search`
+
+| Param | Type | |
+|---|---|---|
+| `limit` | `integer` | at most this many (default 20, at most 100) |
+| `query` | `string` | what to search for, in the tracker's own syntax |
+| `tracker` | `string` | only this tracker (default: every one) |
+
+Result: [\[\]issue.Issue](#issueissue)
+
 ## layout
 
 ### `layout.apply`
@@ -827,6 +865,45 @@ Result: [plugin.Result](#pluginresult)
 | `ttl` | `integer` | nanoseconds |
 
 Result: [plugin.StatusContent](#pluginstatuscontent)
+
+### `plugin.view.clear`
+
+| Param | Type | |
+|---|---|---|
+| `doc` | [plugin.ViewDoc](#pluginviewdoc) |  |
+| `plugin` | `string` |  |
+| `view` | `string` |  |
+
+Result: [plugin.ViewContent](#pluginviewcontent)
+
+### `plugin.view.click`
+
+| Param | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `node` | `string` |  |
+| `pane` | `string` |  |
+| `plugin` | `string` |  |
+| `tab` | `string` |  |
+| `view` | `string` |  |
+
+Result: [plugin.Result](#pluginresult)
+
+### `plugin.view.set`
+
+| Param | Type | |
+|---|---|---|
+| `doc` | [plugin.ViewDoc](#pluginviewdoc) |  |
+| `plugin` | `string` |  |
+| `view` | `string` |  |
+
+Result: [plugin.ViewContent](#pluginviewcontent)
+
+### `plugin.views`
+
+No params.
+
+Result: [\[\]plugin.ViewContent](#pluginviewcontent)
 
 ## process
 
@@ -1217,6 +1294,16 @@ Result: [\[\]workflow.RunSummary](#workflowrunsummary)
 | `id` | `string` | the run's ID, or a unique prefix of it |
 
 Result: [workflow.Run](#workflowrun)
+
+### `workflow.trigger`
+
+| Param | Type | |
+|---|---|---|
+| `name` | `string` | the trigger's name, as the plugin's [[contributes.triggers]] says |
+| `payload` | `map[string]any` | what the workflows' match filters, and expressions read as trigger.data |
+| `plugin` | `string` | the plugin whose trigger fires (a plugin's own call says it) |
+
+Result: [runtime.workflowTriggerResult](#runtimeworkflowtriggerresult)
 
 ### `workflow.trust`
 
@@ -2063,6 +2150,49 @@ Result: [protocol.Empty](#protocolempty)
 | `plan` | `string` |  |
 | `task` | `string` |  |
 
+### issue.CloseParams
+
+| Field | Type | |
+|---|---|---|
+| `comment` | `string` | a comment to add as it closes |
+| `ref` | `string` | tracker:key |
+
+### issue.CommentParams
+
+| Field | Type | |
+|---|---|---|
+| `body` | `string` | the comment, as the tracker formats it (Markdown on GitHub) |
+| `ref` | `string` | tracker:key |
+
+### issue.Issue
+
+| Field | Type | |
+|---|---|---|
+| `assignees` | `[]string` |  |
+| `body` | `string` |  |
+| `key` | `string` | the tracker's own name for it: HIV-42, owner/repo#42 |
+| `labels` | `[]string` |  |
+| `ref` | `string` | tracker:key, as Hive names it |
+| `state` | `string` | open or closed, as the tracker says |
+| `title` | `string` |  |
+| `tracker` | `string` | the tracker: github, or a plugin's |
+| `updated_at` | `string` |  |
+| `url` | `string` |  |
+
+### issue.RefParams
+
+| Field | Type | |
+|---|---|---|
+| `ref` | `string` | tracker:key (linear:HIV-42, github:owner/repo#42) |
+
+### issue.SearchParams
+
+| Field | Type | |
+|---|---|---|
+| `limit` | `integer` | at most this many (default 20, at most 100) |
+| `query` | `string` | what to search for, in the tracker's own syntax |
+| `tracker` | `string` | only this tracker (default: every one) |
+
 ### layout.Node
 
 | Field | Type | |
@@ -2227,6 +2357,7 @@ Result: [protocol.Empty](#protocolempty)
 | `process_id` | `string` |  |
 | `rect` | [layout.Rect](#layoutrect) |  |
 | `tab_id` | `string` |  |
+| `view` | `string` |  |
 | `zoomed` | `boolean` |  |
 
 ### pane.Popup
@@ -2254,6 +2385,7 @@ Result: [protocol.Empty](#protocolempty)
 | `cwd` | `string` |  |
 | `env` | `map[string]string` |  |
 | `name` | `string` |  |
+| `view` | `string` |  |
 
 ### pane.SplitRequest
 
@@ -2551,9 +2683,14 @@ Result: [protocol.Empty](#protocolempty)
 |---|---|---|
 | `actions` | [\[\]plugin.ContextAction](#plugincontextaction) |  |
 | `cards` | [\[\]plugin.Card](#plugincard) |  |
+| `forges` | [\[\]plugin.ForgeDecl](#pluginforgedecl) |  |
 | `links` | [\[\]plugin.Link](#pluginlink) |  |
 | `palette` | [\[\]plugin.PaletteEntry](#pluginpaletteentry) |  |
 | `status` | [\[\]plugin.StatusIndicator](#pluginstatusindicator) |  |
+| `steps` | [\[\]plugin.StepDecl](#pluginstepdecl) |  |
+| `trackers` | [\[\]plugin.TrackerDecl](#plugintrackerdecl) |  |
+| `triggers` | [\[\]plugin.TriggerDecl](#plugintriggerdecl) |  |
+| `views` | [\[\]plugin.ViewDecl](#pluginviewdecl) |  |
 
 ### plugin.Contribution
 
@@ -2611,6 +2748,14 @@ Result: [protocol.Empty](#protocolempty)
 | `failed` | `integer` |  |
 | `queued` | `integer` |  |
 
+### plugin.ForgeDecl
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `hosts` | `[]string` |  |
+| `name` | `string` |  |
+
 ### plugin.Grant
 
 | Field | Type | |
@@ -2659,6 +2804,7 @@ Result: [protocol.Empty](#protocolempty)
 | `events` | [\[\]plugin.Event](#pluginevent) |  |
 | `id` | `string` |  |
 | `isolation` | `string` |  |
+| `isolation_reason` | `string` |  |
 | `max_hive_version` | `string` |  |
 | `migrations` | [\[\]plugin.Migration](#pluginmigration) |  |
 | `min_hive_version` | `string` |  |
@@ -2667,6 +2813,7 @@ Result: [protocol.Empty](#protocolempty)
 | `platforms` | `[]string` |  |
 | `runtime` | [\[\]plugin.Runtime](#pluginruntime) |  |
 | `startup` | [\[\]plugin.Startup](#pluginstartup) |  |
+| `test` | [plugin.TestSpec](#plugintestspec) |  |
 | `version` | `string` |  |
 
 ### plugin.Migration
@@ -2677,12 +2824,27 @@ Result: [protocol.Empty](#protocolempty)
 | `from` | `integer` |  |
 | `to` | `integer` |  |
 
+### plugin.NetworkScope
+
+| Field | Type | |
+|---|---|---|
+| `hosts` | `[]string` |  |
+
 ### plugin.PaletteEntry
 
 | Field | Type | |
 |---|---|---|
 | `action` | `string` |  |
 | `title` | `string` |  |
+
+### plugin.ParamSpec
+
+| Field | Type | |
+|---|---|---|
+| `default` | `any` |  |
+| `description` | `string` |  |
+| `required` | `boolean` |  |
+| `type` | `string` |  |
 
 ### plugin.PermissionRequest
 
@@ -2697,9 +2859,27 @@ Result: [protocol.Empty](#protocolempty)
 
 | Field | Type | |
 |---|---|---|
+| `network` | [plugin.NetworkScope](#pluginnetworkscope) |  |
 | `optional` | `[]string` |  |
+| `process` | [plugin.ProcessScope](#pluginprocessscope) |  |
 | `reasons` | `map[string]string` |  |
 | `required` | `[]string` |  |
+
+### plugin.ProcessScope
+
+| Field | Type | |
+|---|---|---|
+| `exec` | `[]string` |  |
+
+### plugin.Provenance
+
+| Field | Type | |
+|---|---|---|
+| `attestation` | `string` |  |
+| `builder` | `string` |  |
+| `repository` | `string` |  |
+| `run` | `string` |  |
+| `workflow` | `string` |  |
 
 ### plugin.Result
 
@@ -2709,6 +2889,16 @@ Result: [protocol.Empty](#protocolempty)
 | `exit_code` | `integer` |  |
 | `output` | `string` |  |
 | `run` | `string` |  |
+
+### plugin.Revocation
+
+| Field | Type | |
+|---|---|---|
+| `advisory` | `string` |  |
+| `id` | `string` |  |
+| `reason` | `string` |  |
+| `revoked_at` | `string` |  |
+| `version` | `string` |  |
 
 ### plugin.RunInfo
 
@@ -2724,6 +2914,7 @@ Result: [protocol.Empty](#protocolempty)
 | Field | Type | |
 |---|---|---|
 | `command` | `string` |  |
+| `kind` | `string` |  |
 | `min_version` | `string` |  |
 
 ### plugin.Setting
@@ -2748,6 +2939,7 @@ Result: [protocol.Empty](#protocolempty)
 | Field | Type | |
 |---|---|---|
 | `api` | `integer` |  |
+| `checked_at` | `string` |  |
 | `checksum` | `string` |  |
 | `commit` | `string` |  |
 | `dir` | `string` |  |
@@ -2764,13 +2956,20 @@ Result: [protocol.Empty](#protocolempty)
 | `previous_checksum` | `string` |  |
 | `previous_commit` | `string` |  |
 | `previous_ref` | `string` |  |
+| `previous_trust` | [plugin.Trust](#plugintrust) |  |
 | `previous_version` | `string` |  |
 | `problem` | `string` |  |
+| `provenance` | [plugin.Provenance](#pluginprovenance) |  |
+| `publisher` | `string` |  |
 | `ref` | `string` |  |
 | `registry` | `boolean` |  |
+| `revoked` | [plugin.Revocation](#pluginrevocation) |  |
 | `running` | `integer` |  |
 | `runs` | [\[\]plugin.RunInfo](#pluginruninfo) |  |
+| `sandbox` | `string` |  |
+| `signed_by` | `string` |  |
 | `source` | `string` |  |
+| `tier` | `string` |  |
 | `version` | `string` |  |
 
 ### plugin.StatusContent
@@ -2799,6 +2998,108 @@ Result: [protocol.Empty](#protocolempty)
 | `text` | `string` |  |
 | `tone` | `string` |  |
 | `ttl` | `integer` | nanoseconds |
+
+### plugin.StepDecl
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `description` | `string` |  |
+| `inputs` | [map[string]plugin.ParamSpec](#pluginparamspec) |  |
+| `name` | `string` |  |
+| `outputs` | [map[string]plugin.ParamSpec](#pluginparamspec) |  |
+| `timeout` | `string` |  |
+
+### plugin.TestSpec
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `timeout` | `string` |  |
+
+### plugin.TrackerDecl
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `name` | `string` |  |
+
+### plugin.TriggerDecl
+
+| Field | Type | |
+|---|---|---|
+| `description` | `string` |  |
+| `name` | `string` |  |
+
+### plugin.Trust
+
+| Field | Type | |
+|---|---|---|
+| `checked_at` | `string` |  |
+| `provenance` | [plugin.Provenance](#pluginprovenance) |  |
+| `publisher` | `string` |  |
+| `revoked` | [plugin.Revocation](#pluginrevocation) |  |
+| `signed_by` | `string` |  |
+| `tier` | `string` |  |
+
+### plugin.ViewClick
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `node` | `string` |  |
+| `pane` | `string` |  |
+| `plugin` | `string` |  |
+| `tab` | `string` |  |
+| `view` | `string` |  |
+
+### plugin.ViewContent
+
+| Field | Type | |
+|---|---|---|
+| `available` | `boolean` |  |
+| `doc` | [plugin.ViewDoc](#pluginviewdoc) |  |
+| `plugin` | `string` |  |
+| `title` | `string` |  |
+| `updated` | `string` |  |
+| `view` | `string` |  |
+
+### plugin.ViewDecl
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `id` | `string` |  |
+| `title` | `string` |  |
+
+### plugin.ViewDoc
+
+| Field | Type | |
+|---|---|---|
+| `root` | [plugin.ViewNode](#pluginviewnode) |  |
+
+### plugin.ViewNode
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `children` | [\[\]plugin.ViewNode](#pluginviewnode) |  |
+| `columns` | `[]string` |  |
+| `id` | `string` |  |
+| `kind` | `string` |  |
+| `rows` | `[][]string` |  |
+| `style` | `string` |  |
+| `text` | `string` |  |
+| `url` | `string` |  |
+| `value` | `number` |  |
+
+### plugin.ViewUpdate
+
+| Field | Type | |
+|---|---|---|
+| `doc` | [plugin.ViewDoc](#pluginviewdoc) |  |
+| `plugin` | `string` |  |
+| `view` | `string` |  |
 
 ### process.LogsRequest
 
@@ -3113,6 +3414,20 @@ An object.
 | `plugin` | `string` |  |
 | `run` | `string` |  |
 
+### runtime.workflowTriggerParams
+
+| Field | Type | |
+|---|---|---|
+| `name` | `string` | the trigger's name, as the plugin's [[contributes.triggers]] says |
+| `payload` | `map[string]any` | what the workflows' match filters, and expressions read as trigger.data |
+| `plugin` | `string` | the plugin whose trigger fires (a plugin's own call says it) |
+
+### runtime.workflowTriggerResult
+
+| Field | Type | |
+|---|---|---|
+| `runs` | `[]string` |  |
+
 ### runtime.worktreeListParams
 
 | Field | Type | |
@@ -3209,11 +3524,13 @@ An object.
 | `approve` | `boolean` | wait for a person's approval before starting |
 | `args` | `[]string` | extra command-line arguments for the agent |
 | `base` | `string` | where a new worktree branch starts (default HEAD) |
+| `close_issue` | `boolean` | close the issue when the task's branch merges |
 | `command` | `[]string` | with until=command: the command whose exit status decides |
 | `env` | `map[string]string` | extra environment variables for the agent |
 | `environment_id` | `string` | the environment to run in, or to make a worktree of |
 | `id` | `string` | the task's name within its plan (letters, digits, '.', '_', '-') |
 | `isolate` | `boolean` | run in a new worktree on hive/<plan>/<task> unless worktree names a branch |
+| `issue` | `string` | the issue it works on, as tracker:key (linear:HIV-42, github:owner/repo#42) |
 | `keep_agent` | `boolean` | leave the agent running when the task ends |
 | `kind` | `string` | the agent: claude, codex, … (see agent.manifests) |
 | `labels` | `[]string` | run on a machine that has all of these labels |
@@ -3435,6 +3752,7 @@ An object.
 | `prompt` | `string` |  |
 | `run` | `[]string` |  |
 | `shell` | `string` |  |
+| `uses` | `string` |  |
 | `with` | `map[string]string` |  |
 | `worktree` | `string` |  |
 
@@ -3592,6 +3910,7 @@ An object.
 | `shell` | `string` |  |
 | `timeout_ms` | `integer` |  |
 | `until` | `string` |  |
+| `uses` | `string` |  |
 | `with` | `map[string]string` |  |
 | `worktree` | `string` |  |
 
@@ -3623,6 +3942,7 @@ An object.
 | `git` | `string` |  |
 | `inputs` | `map[string]string` |  |
 | `match` | `map[string]string` |  |
+| `plugin` | `string` |  |
 | `remote` | `string` |  |
 | `repo` | `string` |  |
 | `schedule` | `string` |  |
@@ -3669,6 +3989,7 @@ An object.
 | `next` | `string` |  |
 | `own` | `boolean` |  |
 | `path` | `string` |  |
+| `problems` | `[]string` |  |
 | `spec` | [workflow.Spec](#workflowspec) |  |
 | `steps` | `integer` |  |
 | `text` | `string` |  |

@@ -1,12 +1,15 @@
 package plugin
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func writePlugin(t *testing.T, manifest string, files map[string]string, repo bool) string {
@@ -70,4 +73,59 @@ func TestPlatformsAreEnforced(t *testing.T) {
 	if _, err := ParseManifest([]byte("id = \"p\"\nversion = \"1.0.0\"\nplatforms = [\"plan9\"]\n[[actions]]\nid = \"a\"\ncommand = [\"x\"]\n")); err == nil {
 		t.Fatal("plan9 accepted")
 	}
+}
+
+// Shared by the tests on every system.
+
+type published struct {
+	mu     sync.Mutex
+	events []string
+}
+
+func (p *published) publish(typ string, _ any) {
+	p.mu.Lock()
+	p.events = append(p.events, typ)
+	p.mu.Unlock()
+}
+
+// startHost links manifest (with files) and runs a host over it.
+func startHost(t *testing.T, manifest string, files map[string]string, cfg HostConfig) (*Host, *Store, *published) {
+	t.Helper()
+	dir := writePlugin(t, manifest, files, false)
+	s := NewStore(filepath.Join(t.TempDir(), "plugins"))
+	if _, _, err := s.Link(context.Background(), dir, "dev"); err != nil {
+		t.Fatal(err)
+	}
+	pub := &published{}
+	if cfg.Version == "" {
+		cfg.Version = "dev"
+	}
+	cfg.Store, cfg.Publish = s, pub.publish
+	h := NewHost(cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { h.Run(ctx); close(done) }()
+	t.Cleanup(func() { cancel(); <-done })
+	waitFor(t, "the host to load", func() bool { return len(h.Status()) > 0 })
+	return h, s, pub
+}
+
+func waitFor(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for !ok() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func statusOf(h *Host, id string) Status {
+	for _, s := range h.Status() {
+		if s.ID == id {
+			return s
+		}
+	}
+	return Status{}
 }

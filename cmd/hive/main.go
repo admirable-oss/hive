@@ -16,6 +16,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/shim"
 )
@@ -44,6 +45,11 @@ func execute(args []string, stdout, stderr io.Writer, getenv func(string) string
 	// no configuration, client or command tree.
 	if len(args) == 2 && args[0] == shimCommand {
 		return shim.Main(args[1])
+	}
+	// `hive __plugin-sandbox -- <command>` starts a plugin API 2 command
+	// inside its Linux sandbox (Landlock, the network proxy).
+	if len(args) > 0 && args[0] == plugin.SandboxCommand {
+		return plugin.SandboxMain(args[1:])
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

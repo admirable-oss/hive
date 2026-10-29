@@ -83,6 +83,12 @@ command hive integration
 command hive integration install
 command hive integration status
 command hive integration uninstall
+command hive issue
+command hive issue (alias issues)
+command hive issue close
+command hive issue comment
+command hive issue get
+command hive issue search
 command hive layout
 command hive layout apply
 command hive layout export
@@ -147,6 +153,7 @@ command hive plugin (alias plugins)
 command hive plugin cancel
 command hive plugin capabilities
 command hive plugin card
+command hive plugin click
 command hive plugin config
 command hive plugin contributions
 command hive plugin disable
@@ -162,6 +169,7 @@ command hive plugin link
 command hive plugin list
 command hive plugin list (alias ls)
 command hive plugin logs
+command hive plugin publish
 command hive plugin ready
 command hive plugin reload
 command hive plugin request
@@ -170,11 +178,15 @@ command hive plugin rollback
 command hive plugin run
 command hive plugin search
 command hive plugin status
+command hive plugin test
+command hive plugin trigger
 command hive plugin uninstall
 command hive plugin uninstall (alias remove)
 command hive plugin uninstall (alias rm)
 command hive plugin update
 command hive plugin validate
+command hive plugin view
+command hive plugin views
 command hive process
 command hive process (alias ps)
 command hive process get
@@ -374,6 +386,9 @@ flag hive insights report --pane string
 flag hive insights report --session string
 flag hive insights report --source string
 flag hive insights report --total bool
+flag hive issue close --comment string
+flag hive issue search --limit int -n
+flag hive issue search --tracker string
 flag hive layout export --output string -o
 flag hive machine add --hive-path string
 flag hive machine add --no-check bool
@@ -453,6 +468,7 @@ flag hive pane split --env stringArray -e
 flag hive pane split --name string
 flag hive pane split --no-focus bool
 flag hive pane split --ratio float64 -r
+flag hive pane split --view string
 flag hive pane wait-output --anywhere bool
 flag hive pane wait-output --regex string
 flag hive pane wait-output --text string
@@ -476,6 +492,16 @@ flag hive plugin install --ref string
 flag hive plugin install --subdir string
 flag hive plugin logs --follow bool -f
 flag hive plugin logs --lines int -n
+flag hive plugin publish --dry-run bool
+flag hive plugin publish --git-remote string
+flag hive plugin publish --key string
+flag hive plugin publish --out string
+flag hive plugin publish --push bool
+flag hive plugin publish --ref string
+flag hive plugin publish --registry string
+flag hive plugin publish --skip-tests bool
+flag hive plugin publish --submit bool
+flag hive plugin publish --unsigned bool
 flag hive plugin ready --plugin string
 flag hive plugin request --plugin string
 flag hive plugin run --env string
@@ -484,7 +510,15 @@ flag hive plugin search --category string
 flag hive plugin status --plugin string
 flag hive plugin status --tone string
 flag hive plugin status --ttl duration
+flag hive plugin test --hive string
+flag hive plugin trigger --field stringArray
+flag hive plugin trigger --payload string
+flag hive plugin trigger --plugin string
 flag hive plugin uninstall --delete-data bool
+flag hive plugin view --clear bool
+flag hive plugin view --doc string
+flag hive plugin view --plugin string
+flag hive plugin views --width int
 flag hive process logs --follow bool -f
 flag hive process logs --lines int -n
 flag hive process logs --stderr bool
@@ -498,13 +532,16 @@ flag hive tab create --cwd string
 flag hive tab create --env stringArray -e
 flag hive tab create --name string
 flag hive tab create --pane-name string
+flag hive tab create --view string
 flag hive task approve --deny bool
 flag hive task approve --note string
 flag hive task report --screen int
 flag hive task run --approve bool
 flag hive task run --base string
 flag hive task run --check stringArray
+flag hive task run --close-issue bool
 flag hive task run --env string -e
+flag hive task run --from-issue string
 flag hive task run --id string
 flag hive task run --isolate bool
 flag hive task run --kind string

@@ -1,0 +1,24 @@
+{
+  "api": 2,
+  "capabilities": [
+    "filesystem.read:workspace",
+    "hive.read",
+    "hive.write",
+    "unconfined"
+  ],
+  "environment": "feature-x",
+  "event": {
+    "data": {
+      "branch": "feature/x",
+      "environment": {
+        "id": "feature-x"
+      }
+    },
+    "seq": 42,
+    "time": "2026-01-02T03:04:05Z",
+    "type": "worktree.created"
+  },
+  "plugin": "contract",
+  "session": "work",
+  "trigger": "event"
+}

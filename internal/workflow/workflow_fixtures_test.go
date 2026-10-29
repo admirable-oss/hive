@@ -238,6 +238,35 @@ func (f *fakeActions) Action(_ context.Context, req workflow.ActionRequest) (wor
 	return workflow.ActionResult{ExitCode: 0, Output: "posted\n"}, nil
 }
 
+// fakeSteps is a plugin "deploy" with a step "preview": inputs
+// environment (required) and wait (a boolean); it answers the url.
+type fakeSteps struct {
+	mu   sync.Mutex
+	reqs []workflow.StepRequest
+}
+
+func (f *fakeSteps) Step(_ context.Context, req workflow.StepRequest) (workflow.StepResult, error) {
+	f.mu.Lock()
+	f.reqs = append(f.reqs, req)
+	f.mu.Unlock()
+	if req.With["environment"] == "broken" {
+		return workflow.StepResult{Output: "the deploy failed"}, errors.New("deploy preview: the deploy failed")
+	}
+	return workflow.StepResult{Outputs: map[string]string{"url": "https://" + req.With["environment"] + ".example.org"}, Output: "deployed"}, nil
+}
+
+func (f *fakeSteps) Check(plugin, step string, with map[string]string) error {
+	switch {
+	case plugin != "deploy" || step != "preview":
+		return fmt.Errorf("no plugin step %s/%s", plugin, step)
+	case with["environment"] == "":
+		return errors.New("environment is required")
+	case with["wait"] != "" && with["wait"] != "true" && with["wait"] != "false" && !strings.Contains(with["wait"], "${{"):
+		return errors.New("wait: want a boolean")
+	}
+	return nil
+}
+
 // fakeWorkspace has environments by directory and repositories' refs.
 type fakeWorkspace struct {
 	mu    sync.Mutex
@@ -357,6 +386,7 @@ type env struct {
 	tasks  *fakeTasks
 	cmds   *fakeCommands
 	acts   *fakeActions
+	steps  *fakeSteps
 	ws     *fakeWorkspace
 	events *recorder
 	agents fakeAgents
@@ -369,7 +399,7 @@ func newEnv(t *testing.T, cfg workflow.Config) *env {
 	root := t.TempDir()
 	e := &env{
 		t: t, dir: filepath.Join(root, "state"), own: filepath.Join(root, "own"), shared: filepath.Join(root, "repo", ".hive", "workflows"),
-		tasks: newFakeTasks(), cmds: newFakeCommands(), acts: &fakeActions{}, ws: newFakeWorkspace(),
+		tasks: newFakeTasks(), cmds: newFakeCommands(), acts: &fakeActions{}, steps: &fakeSteps{}, ws: newFakeWorkspace(),
 		events: &recorder{}, agents: fakeAgents{"codex", "claude"},
 	}
 	for _, d := range []string{e.own, e.shared} {
@@ -393,7 +423,7 @@ func newEnv(t *testing.T, cfg workflow.Config) *env {
 func (e *env) start() {
 	e.t.Helper()
 	e.svc = workflow.NewService(e.cfg, workflow.NewFilesystemStore(e.dir), workflow.Ports{
-		Tasks: e.tasks, Commands: e.cmds, Actions: e.acts, Workspace: e.ws, Agents: &e.agents, Events: e.events,
+		Tasks: e.tasks, Commands: e.cmds, Actions: e.acts, Steps: e.steps, Workspace: e.ws, Agents: &e.agents, Events: e.events,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := e.svc.Load(ctx); err != nil {

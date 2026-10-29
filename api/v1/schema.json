@@ -2125,6 +2125,123 @@
       ],
       "type": "object"
     },
+    "issue.CloseParams": {
+      "properties": {
+        "comment": {
+          "description": "a comment to add as it closes",
+          "type": "string"
+        },
+        "ref": {
+          "description": "tracker:key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "issue.CommentParams": {
+      "properties": {
+        "body": {
+          "description": "the comment, as the tracker formats it (Markdown on GitHub)",
+          "type": "string"
+        },
+        "ref": {
+          "description": "tracker:key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "body"
+      ],
+      "type": "object"
+    },
+    "issue.Issue": {
+      "properties": {
+        "assignees": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "body": {
+          "type": "string"
+        },
+        "key": {
+          "description": "the tracker's own name for it: HIV-42, owner/repo#42",
+          "type": "string"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ref": {
+          "description": "tracker:key, as Hive names it",
+          "type": "string"
+        },
+        "state": {
+          "description": "open or closed, as the tracker says",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "tracker": {
+          "description": "the tracker: github, or a plugin's",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "tracker",
+        "key",
+        "title"
+      ],
+      "type": "object"
+    },
+    "issue.RefParams": {
+      "properties": {
+        "ref": {
+          "description": "tracker:key (linear:HIV-42, github:owner/repo#42)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "issue.SearchParams": {
+      "properties": {
+        "limit": {
+          "description": "at most this many (default 20, at most 100)",
+          "type": "integer"
+        },
+        "query": {
+          "description": "what to search for, in the tracker's own syntax",
+          "type": "string"
+        },
+        "tracker": {
+          "description": "only this tracker (default: every one)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
     "layout.Node": {
       "properties": {
         "first": {
@@ -2541,6 +2658,9 @@
         "tab_id": {
           "type": "string"
         },
+        "view": {
+          "type": "string"
+        },
         "zoomed": {
           "type": "boolean"
         }
@@ -2611,6 +2731,9 @@
           "type": "object"
         },
         "name": {
+          "type": "string"
+        },
+        "view": {
           "type": "string"
         }
       },
@@ -3333,6 +3456,12 @@
           },
           "type": "array"
         },
+        "forges": {
+          "items": {
+            "$ref": "#/$defs/plugin.ForgeDecl"
+          },
+          "type": "array"
+        },
         "links": {
           "items": {
             "$ref": "#/$defs/plugin.Link"
@@ -3348,6 +3477,30 @@
         "status": {
           "items": {
             "$ref": "#/$defs/plugin.StatusIndicator"
+          },
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/plugin.StepDecl"
+          },
+          "type": "array"
+        },
+        "trackers": {
+          "items": {
+            "$ref": "#/$defs/plugin.TrackerDecl"
+          },
+          "type": "array"
+        },
+        "triggers": {
+          "items": {
+            "$ref": "#/$defs/plugin.TriggerDecl"
+          },
+          "type": "array"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/plugin.ViewDecl"
           },
           "type": "array"
         }
@@ -3540,6 +3693,31 @@
       ],
       "type": "object"
     },
+    "plugin.ForgeDecl": {
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hosts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "hosts",
+        "command"
+      ],
+      "type": "object"
+    },
     "plugin.Grant": {
       "properties": {
         "denied": {
@@ -3687,6 +3865,9 @@
         "isolation": {
           "type": "string"
         },
+        "isolation_reason": {
+          "type": "string"
+        },
         "max_hive_version": {
           "type": "string"
         },
@@ -3723,6 +3904,9 @@
           },
           "type": "array"
         },
+        "test": {
+          "$ref": "#/$defs/plugin.TestSpec"
+        },
         "version": {
           "type": "string"
         }
@@ -3755,6 +3939,17 @@
       ],
       "type": "object"
     },
+    "plugin.NetworkScope": {
+      "properties": {
+        "hosts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "plugin.PaletteEntry": {
       "properties": {
         "action": {
@@ -3766,6 +3961,24 @@
       },
       "required": [
         "action"
+      ],
+      "type": "object"
+    },
+    "plugin.ParamSpec": {
+      "properties": {
+        "default": {},
+        "description": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
       ],
       "type": "object"
     },
@@ -3794,11 +4007,17 @@
     },
     "plugin.Permissions": {
       "properties": {
+        "network": {
+          "$ref": "#/$defs/plugin.NetworkScope"
+        },
         "optional": {
           "items": {
             "type": "string"
           },
           "type": "array"
+        },
+        "process": {
+          "$ref": "#/$defs/plugin.ProcessScope"
         },
         "reasons": {
           "additionalProperties": {
@@ -3813,6 +4032,40 @@
           "type": "array"
         }
       },
+      "type": "object"
+    },
+    "plugin.ProcessScope": {
+      "properties": {
+        "exec": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "plugin.Provenance": {
+      "properties": {
+        "attestation": {
+          "type": "string"
+        },
+        "builder": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "run": {
+          "type": "string"
+        },
+        "workflow": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "builder"
+      ],
       "type": "object"
     },
     "plugin.Result": {
@@ -3833,6 +4086,33 @@
       "required": [
         "exit_code",
         "output"
+      ],
+      "type": "object"
+    },
+    "plugin.Revocation": {
+      "properties": {
+        "advisory": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "revoked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "reason",
+        "revoked_at"
       ],
       "type": "object"
     },
@@ -3862,6 +4142,9 @@
     "plugin.Runtime": {
       "properties": {
         "command": {
+          "type": "string"
+        },
+        "kind": {
           "type": "string"
         },
         "min_version": {
@@ -3917,6 +4200,10 @@
         "api": {
           "type": "integer"
         },
+        "checked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
         "checksum": {
           "type": "string"
         },
@@ -3969,10 +4256,19 @@
         "previous_ref": {
           "type": "string"
         },
+        "previous_trust": {
+          "$ref": "#/$defs/plugin.Trust"
+        },
         "previous_version": {
           "type": "string"
         },
         "problem": {
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/plugin.Provenance"
+        },
+        "publisher": {
           "type": "string"
         },
         "ref": {
@@ -3980,6 +4276,9 @@
         },
         "registry": {
           "type": "boolean"
+        },
+        "revoked": {
+          "$ref": "#/$defs/plugin.Revocation"
         },
         "running": {
           "type": "integer"
@@ -3990,7 +4289,16 @@
           },
           "type": "array"
         },
+        "sandbox": {
+          "type": "string"
+        },
+        "signed_by": {
+          "type": "string"
+        },
         "source": {
+          "type": "string"
+        },
+        "tier": {
           "type": "string"
         },
         "version": {
@@ -4007,6 +4315,7 @@
         "health",
         "grant",
         "isolation",
+        "sandbox",
         "api"
       ],
       "type": "object"
@@ -4074,6 +4383,272 @@
       },
       "required": [
         "indicator"
+      ],
+      "type": "object"
+    },
+    "plugin.StepDecl": {
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/plugin.ParamSpec"
+          },
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/plugin.ParamSpec"
+          },
+          "type": "object"
+        },
+        "timeout": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "command"
+      ],
+      "type": "object"
+    },
+    "plugin.TestSpec": {
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timeout": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "type": "object"
+    },
+    "plugin.TrackerDecl": {
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "command"
+      ],
+      "type": "object"
+    },
+    "plugin.TriggerDecl": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "plugin.Trust": {
+      "properties": {
+        "checked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/plugin.Provenance"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "revoked": {
+          "$ref": "#/$defs/plugin.Revocation"
+        },
+        "signed_by": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "plugin.ViewClick": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "tab": {
+          "type": "string"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "view",
+        "node"
+      ],
+      "type": "object"
+    },
+    "plugin.ViewContent": {
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "doc": {
+          "$ref": "#/$defs/plugin.ViewDoc"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "view",
+        "title",
+        "available"
+      ],
+      "type": "object"
+    },
+    "plugin.ViewDecl": {
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "type": "object"
+    },
+    "plugin.ViewDoc": {
+      "properties": {
+        "root": {
+          "$ref": "#/$defs/plugin.ViewNode"
+        }
+      },
+      "required": [
+        "root"
+      ],
+      "type": "object"
+    },
+    "plugin.ViewNode": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "children": {
+          "items": {
+            "$ref": "#/$defs/plugin.ViewNode"
+          },
+          "type": "array"
+        },
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "style": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "plugin.ViewUpdate": {
+      "properties": {
+        "doc": {
+          "$ref": "#/$defs/plugin.ViewDoc"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "view"
       ],
       "type": "object"
     },
@@ -4870,6 +5445,41 @@
       ],
       "type": "object"
     },
+    "runtime.workflowTriggerParams": {
+      "properties": {
+        "name": {
+          "description": "the trigger's name, as the plugin's [[contributes.triggers]] says",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": {},
+          "description": "what the workflows' match filters, and expressions read as trigger.data",
+          "type": "object"
+        },
+        "plugin": {
+          "description": "the plugin whose trigger fires (a plugin's own call says it)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "runtime.workflowTriggerResult": {
+      "properties": {
+        "runs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "runs"
+      ],
+      "type": "object"
+    },
     "runtime.worktreeListParams": {
       "properties": {
         "repo": {
@@ -5135,6 +5745,10 @@
           "description": "where a new worktree branch starts (default HEAD)",
           "type": "string"
         },
+        "close_issue": {
+          "description": "close the issue when the task's branch merges",
+          "type": "boolean"
+        },
         "command": {
           "description": "with until=command: the command whose exit status decides",
           "items": {
@@ -5160,6 +5774,10 @@
         "isolate": {
           "description": "run in a new worktree on hive/\u003cplan\u003e/\u003ctask\u003e unless worktree names a branch",
           "type": "boolean"
+        },
+        "issue": {
+          "description": "the issue it works on, as tracker:key (linear:HIV-42, github:owner/repo#42)",
+          "type": "string"
         },
         "keep_agent": {
           "description": "leave the agent running when the task ends",
@@ -5772,6 +6390,9 @@
         "shell": {
           "type": "string"
         },
+        "uses": {
+          "type": "string"
+        },
         "with": {
           "additionalProperties": {
             "type": "string"
@@ -6289,6 +6910,9 @@
         "until": {
           "type": "string"
         },
+        "uses": {
+          "type": "string"
+        },
         "with": {
           "additionalProperties": {
             "type": "string"
@@ -6377,6 +7001,9 @@
             "type": "string"
           },
           "type": "object"
+        },
+        "plugin": {
+          "type": "string"
         },
         "remote": {
           "type": "string"
@@ -6489,6 +7116,12 @@
         "path": {
           "type": "string"
         },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "spec": {
           "$ref": "#/$defs/workflow.Spec"
         },
@@ -6516,7 +7149,7 @@
       "type": "object"
     }
   },
-  "api_level": 15,
+  "api_level": 16,
   "methods": [
     {
       "name": "agent.explain",
@@ -6960,6 +7593,46 @@
       }
     },
     {
+      "name": "issue.close",
+      "params": {
+        "$ref": "#/$defs/issue.CloseParams"
+      },
+      "result": {
+        "$ref": "#/$defs/issue.Issue"
+      }
+    },
+    {
+      "name": "issue.comment",
+      "params": {
+        "$ref": "#/$defs/issue.CommentParams"
+      },
+      "result": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "issue.get",
+      "params": {
+        "$ref": "#/$defs/issue.RefParams"
+      },
+      "result": {
+        "$ref": "#/$defs/issue.Issue"
+      }
+    },
+    {
+      "name": "issue.search",
+      "params": {
+        "$ref": "#/$defs/issue.SearchParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/issue.Issue"
+        },
+        "type": "array"
+      }
+    },
+    {
       "name": "layout.apply",
       "params": {
         "$ref": "#/$defs/pane.LayoutSpec"
@@ -7342,6 +8015,46 @@
       },
       "result": {
         "$ref": "#/$defs/plugin.StatusContent"
+      }
+    },
+    {
+      "name": "plugin.view.clear",
+      "params": {
+        "$ref": "#/$defs/plugin.ViewUpdate"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.ViewContent"
+      }
+    },
+    {
+      "name": "plugin.view.click",
+      "params": {
+        "$ref": "#/$defs/plugin.ViewClick"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.Result"
+      }
+    },
+    {
+      "name": "plugin.view.set",
+      "params": {
+        "$ref": "#/$defs/plugin.ViewUpdate"
+      },
+      "result": {
+        "$ref": "#/$defs/plugin.ViewContent"
+      }
+    },
+    {
+      "name": "plugin.views",
+      "params": {
+        "properties": {},
+        "type": "object"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/plugin.ViewContent"
+        },
+        "type": "array"
       }
     },
     {
@@ -7743,6 +8456,15 @@
       },
       "result": {
         "$ref": "#/$defs/workflow.Run"
+      }
+    },
+    {
+      "name": "workflow.trigger",
+      "params": {
+        "$ref": "#/$defs/runtime.workflowTriggerParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.workflowTriggerResult"
       }
     },
     {

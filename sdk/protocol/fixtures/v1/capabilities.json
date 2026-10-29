@@ -115,6 +115,9 @@
     "insights.export",
     "insights.summary",
     "insights.usage",
+    "issue.comment",
+    "issue.get",
+    "issue.search",
     "layout.apply",
     "layout.export",
     "metadata.list",
@@ -142,6 +145,9 @@
     "plugin.ready",
     "plugin.request",
     "plugin.status",
+    "plugin.view.clear",
+    "plugin.view.set",
+    "plugin.views",
     "process.get",
     "process.list",
     "process.logs",
@@ -166,6 +172,7 @@
     "workflow.list",
     "workflow.runs",
     "workflow.status",
+    "workflow.trigger",
     "workflow.validate",
     "workflow.wait",
     "worktree.create",
@@ -174,6 +181,7 @@
   ],
   "plugin": "contract",
   "supported_apis": [
-    1
+    1,
+    2
   ]
 }

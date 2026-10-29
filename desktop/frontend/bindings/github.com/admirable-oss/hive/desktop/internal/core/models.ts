@@ -1477,6 +1477,91 @@ export class PlanTask {
 }
 
 /**
+ * Plugin is an installed plugin as the Plugins window shows it: who stands
+ * behind it, what confines it, and whether its release was revoked.
+ */
+export class Plugin {
+    "id": string;
+    "name": string;
+    "version": string;
+
+    /**
+     * Tier is official, verified, community or unlisted ("" until the
+     * registry was checked); TierMeaning says what that means.
+     */
+    "tier": string;
+    "tier_meaning": string;
+    "publisher"?: string;
+    "signed_by"?: string;
+    "provenance"?: string;
+
+    /**
+     * Sandbox is none, sandbox-exec or bwrap.
+     */
+    "sandbox": string;
+    "enabled": boolean;
+    "state": string;
+    "problem"?: string;
+    "registry": boolean;
+
+    /**
+     * Revoked is why the registry withdrew the installed release, and
+     * Advisory where to read more; empty when it did not.
+     */
+    "revoked"?: string;
+    "advisory"?: string;
+
+    /**
+     * CheckedAt is when the registry was last asked (zero: never).
+     */
+    "checked_at": string;
+
+    /** Creates a new Plugin instance. */
+    constructor($$source: Partial<Plugin> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("version" in $$source)) {
+            this["version"] = "";
+        }
+        if (!("tier" in $$source)) {
+            this["tier"] = "";
+        }
+        if (!("tier_meaning" in $$source)) {
+            this["tier_meaning"] = "";
+        }
+        if (!("sandbox" in $$source)) {
+            this["sandbox"] = "";
+        }
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("registry" in $$source)) {
+            this["registry"] = false;
+        }
+        if (!("checked_at" in $$source)) {
+            this["checked_at"] = "0001-01-01T00:00:00.000Z";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Plugin instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Plugin {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Plugin($$parsedSource as Partial<Plugin>);
+    }
+}
+
+/**
  * Rect is a place in a tab, in cells.
  */
 export class Rect {

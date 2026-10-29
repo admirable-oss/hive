@@ -1,0 +1,17 @@
+{
+  "action": "show",
+  "api": 2,
+  "capabilities": [
+    "filesystem.read:workspace",
+    "hive.read",
+    "hive.write",
+    "unconfined"
+  ],
+  "environment": "api",
+  "pane": "p1",
+  "plugin": "contract",
+  "run": "<run>",
+  "session": "work",
+  "tab": "t1",
+  "trigger": "action"
+}

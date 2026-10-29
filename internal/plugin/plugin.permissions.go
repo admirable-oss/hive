@@ -34,15 +34,22 @@ func (m *Manifest) EffectiveAPI() int {
 // (every capability, for a legacy plugin).
 func (m *Manifest) RequiredCapabilities() []string {
 	if m.Legacy() {
-		return AllCapabilities()
+		return capabilityNames(CapabilityList)
+	}
+	if m.API >= 2 && m.Isolation == IsolationNone && !slices.Contains(m.Permissions.Required, CapUnconfined) {
+		return append(slices.Clone(m.Permissions.Required), CapUnconfined)
 	}
 	return m.Permissions.Required
 }
 
-// OptionalCapabilities are those it can use when granted.
+// OptionalCapabilities are those it can use when granted. Every plugin API
+// 2 plugin may be granted unconfined, for a system with no sandbox.
 func (m *Manifest) OptionalCapabilities() []string {
 	if m.Legacy() {
 		return nil
+	}
+	if m.API >= 2 && !slices.Contains(m.RequiredCapabilities(), CapUnconfined) && !slices.Contains(m.Permissions.Optional, CapUnconfined) {
+		return append(slices.Clone(m.Permissions.Optional), CapUnconfined)
 	}
 	return m.Permissions.Optional
 }
@@ -72,16 +79,26 @@ func (m *Manifest) checkSurfaces() error {
 		}
 	}
 	seen := map[string]bool{}
+	api := m.EffectiveAPI()
 	for _, list := range [][]string{m.Permissions.Required, m.Permissions.Optional} {
 		for _, c := range list {
-			if !KnownCapability(c) {
-				return fmt.Errorf("permissions: unknown capability %q (have %s)", c, strings.Join(AllCapabilities(), ", "))
+			if !KnownCapabilityFor(api, c) {
+				if KnownCapability(c) {
+					return fmt.Errorf("permissions: %s needs api = 2", c)
+				}
+				return fmt.Errorf("permissions: unknown capability %q (have %s)", c, strings.Join(capabilityNames(CapabilitiesFor(api)), ", "))
 			}
 			if seen[c] {
 				return fmt.Errorf("permissions: %s is listed twice", c)
 			}
 			seen[c] = true
 		}
+	}
+	if err := m.checkScopes(seen); err != nil {
+		return err
+	}
+	if err := m.checkV2Contributions(seen); err != nil {
+		return err
 	}
 	for c, reason := range m.Permissions.Reasons {
 		if !seen[c] {
@@ -91,10 +108,22 @@ func (m *Manifest) checkSurfaces() error {
 			return fmt.Errorf("permissions.reasons.%s: at most 200 characters", c)
 		}
 	}
-	switch m.Isolation {
-	case "", "strict":
+	switch {
+	case m.Isolation == "" || m.Isolation == "strict":
+		if m.IsolationReason != "" {
+			return errors.New("isolation_reason: only with isolation = \"none\"")
+		}
+	case m.Isolation == IsolationNone && api >= 2:
+		if strings.TrimSpace(m.IsolationReason) == "" {
+			return errors.New("isolation = \"none\" needs isolation_reason: why it cannot run sandboxed (shown when you install it)")
+		}
+		if utf8.RuneCountInString(m.IsolationReason) > 200 {
+			return errors.New("isolation_reason: at most 200 characters")
+		}
+	case m.Isolation == IsolationNone:
+		return errors.New("isolation = \"none\" needs api = 2")
 	default:
-		return fmt.Errorf("isolation %q: want strict or nothing", m.Isolation)
+		return fmt.Errorf("isolation %q: want strict, none (api 2) or nothing", m.Isolation)
 	}
 	if m.EventConcurrency < 0 || m.EventConcurrency > 16 {
 		return errors.New("event_concurrency: 1 to 16")
@@ -190,7 +219,7 @@ func (m *Manifest) checkSurfaces() error {
 
 func (m *Manifest) hasContributions() bool {
 	c := m.Contributes
-	return len(c.Cards)+len(c.Status)+len(c.Actions)+len(c.Palette)+len(c.Links) > 0
+	return len(c.Cards)+len(c.Status)+len(c.Actions)+len(c.Palette)+len(c.Links) > 0 || c.hasV2Contributions()
 }
 
 // SafeURL reports an absolute http(s) URL of sensible length: the only
@@ -350,7 +379,7 @@ func (c PermissionChange) String() string {
 }
 
 func describeCapability(name string) string {
-	for _, c := range CapabilityList {
+	for _, c := range append(slices.Clone(CapabilityListV2), CapabilityList...) {
 		if c.Name == name {
 			return c.Description
 		}
@@ -363,6 +392,11 @@ func describeCapability(name string) string {
 func Approve(next *Manifest, granted []string) []string {
 	out := slices.Clone(next.RequiredCapabilities())
 	for _, g := range granted {
+		// Running unconfined is approved for one release: an update asks
+		// again (`hive plugin grant <id> unconfined`).
+		if g == CapUnconfined {
+			continue
+		}
 		if slices.Contains(next.OptionalCapabilities(), g) {
 			out = append(out, g)
 		}
@@ -371,4 +405,110 @@ func Approve(next *Manifest, granted []string) []string {
 		return nil
 	}
 	return sortedUnique(out)
+}
+
+// IsolationNone is a plugin API 2 manifest's isolation = "none": run
+// outside the sandbox, once approved.
+const IsolationNone = "none"
+
+// Bounds on a manifest's scopes.
+const (
+	MaxNetworkHosts = 32
+	MaxExecPrograms = 32
+)
+
+// checkScopes checks [permissions.network] and [permissions.process]:
+// plugin API 2 only, each for a capability it asks for.
+func (m *Manifest) checkScopes(requested map[string]bool) error {
+	hosts, exec := m.Permissions.Network.Hosts, m.Permissions.Process.Exec
+	if len(hosts)+len(exec) == 0 {
+		return nil
+	}
+	if m.EffectiveAPI() < 2 {
+		return errors.New("[permissions.network] and [permissions.process] need api = 2")
+	}
+	if len(hosts) > 0 && !requested[CapNetwork] {
+		return errors.New("permissions.network.hosts: request network too")
+	}
+	if len(exec) > 0 && !requested[CapProcessExec] {
+		return errors.New("permissions.process.exec: request process.exec too")
+	}
+	if len(hosts) > MaxNetworkHosts {
+		return fmt.Errorf("permissions.network.hosts: at most %d", MaxNetworkHosts)
+	}
+	if len(exec) > MaxExecPrograms {
+		return fmt.Errorf("permissions.process.exec: at most %d", MaxExecPrograms)
+	}
+	for _, h := range hosts {
+		if _, _, err := ParseHostPattern(h); err != nil {
+			return fmt.Errorf("permissions.network.hosts: %w", err)
+		}
+	}
+	for _, p := range exec {
+		switch {
+		case p == "" || strings.ContainsAny(p, "\x00\n"):
+			return fmt.Errorf("permissions.process.exec: invalid program %q", p)
+		case strings.ContainsRune(p, '/') && !strings.HasPrefix(p, "/"):
+			return fmt.Errorf("permissions.process.exec: %q: a program name found on PATH, or an absolute path", p)
+		}
+	}
+	return nil
+}
+
+// ParseHostPattern reads a host:port a plugin may reach: a host name, an
+// IP address, or *.domain for its subdomains; a port from 1 to 65535.
+func ParseHostPattern(s string) (host string, port int, err error) {
+	h, p, ok := strings.Cut(s, ":")
+	if strings.HasPrefix(s, "[") { // [IPv6]:port
+		end := strings.Index(s, "]:")
+		if end < 0 {
+			return "", 0, fmt.Errorf("%q: want host:port", s)
+		}
+		h, p, ok = s[1:end], s[end+2:], true
+	}
+	if !ok || h == "" {
+		return "", 0, fmt.Errorf("%q: want host:port", s)
+	}
+	n, perr := strconv.Atoi(p)
+	if perr != nil || n < 1 || n > 65535 {
+		return "", 0, fmt.Errorf("%q: the port must be 1 to 65535", s)
+	}
+	name := strings.TrimPrefix(h, "*.")
+	if strings.Contains(name, "*") || len(name) > 253 || !validHostName(name) {
+		return "", 0, fmt.Errorf("%q: not a host name (use *.domain for subdomains)", s)
+	}
+	return strings.ToLower(h), n, nil
+}
+
+func validHostName(h string) bool {
+	if h == "" {
+		return false
+	}
+	for _, r := range h {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '.', r == ':':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// HostAllowed reports whether host:port matches one of patterns.
+func HostAllowed(patterns []string, host string, port int) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	for _, p := range patterns {
+		h, n, err := ParseHostPattern(p)
+		if err != nil || n != port {
+			continue
+		}
+		if suffix, ok := strings.CutPrefix(h, "*."); ok {
+			if strings.HasSuffix(host, "."+suffix) {
+				return true
+			}
+		} else if host == h {
+			return true
+		}
+	}
+	return false
 }

@@ -549,3 +549,23 @@ func TestStoreRefusesANewerFile(t *testing.T) {
 		t.Fatalf("moved aside: %v", m)
 	}
 }
+
+// TestPullRequestNamesTheTasksIssue: the default body of a task's pull
+// request names the issue the task works on.
+func TestPullRequestNamesTheTasksIssue(t *testing.T) {
+	e := newEnv(t, branch.Config{})
+	ctx := context.Background()
+	bare := filepath.Join(t.TempDir(), "remote.git")
+	run(t, e.repo, "init", "-q", "--bare", bare)
+	run(t, e.repo, "remote", "add", "origin", "https://github.com/acme/app.git")
+	run(t, e.repo, "config", "url."+bare+".pushInsteadOf", "https://github.com/acme/app.git")
+	b := e.worktree("fix", "hive/p1/fix", &branch.Owner{Kind: "claude", Plan: "p1", Task: "fix"})
+	write(t, filepath.Join(b.Path, "fix.txt"), "fix\n")
+	e.commit(b.Path, "Fix it")
+	if _, err := e.svc.OpenPullRequest(ctx, branch.PullRequestRequest{Ref: "fix", Push: true}); err != nil {
+		t.Fatal(err)
+	}
+	if body := e.forge.requests[0].Body; !strings.Contains(body, "Issue: https://linear.app/acme/issue/HIV-42") {
+		t.Fatalf("body:\n%s", body)
+	}
+}

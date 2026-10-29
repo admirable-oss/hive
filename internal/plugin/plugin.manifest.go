@@ -61,6 +61,10 @@ type Manifest struct {
 	// Plugin releases should include built output so installation never has to
 	// download packages or invoke a compiler.
 	Runtimes []Runtime `toml:"runtime" json:"runtime,omitempty"`
+	// Test is how `hive plugin test` and `publish` check the plugin (Hive
+	// 1.7 and later; earlier releases reject the key, so a manifest with it
+	// needs min_hive_version 1.7.0).
+	Test *TestSpec `toml:"test" json:"test,omitempty"`
 
 	// Permissions are the capabilities it asks for (API 1).
 	Permissions Permissions `toml:"permissions" json:"permissions,omitzero"`
@@ -68,7 +72,10 @@ type Manifest struct {
 	Contributes Contributes `toml:"contributes" json:"contributes,omitzero"`
 	// Isolation "strict" says it can run sandboxed: no network or writes
 	// outside its own directories unless granted, and only its own socket.
-	Isolation string `toml:"isolation" json:"isolation,omitempty"`
+	// Plugin API 2 runs sandboxed by default; "none" asks to run outside
+	// the sandbox, with IsolationReason shown to whoever installs it.
+	Isolation       string `toml:"isolation" json:"isolation,omitempty"`
+	IsolationReason string `toml:"isolation_reason" json:"isolation_reason,omitempty"`
 	// EventConcurrency bounds its event commands running at once (default
 	// 4); 1 runs them strictly one after another, in event order.
 	EventConcurrency int `toml:"event_concurrency" json:"event_concurrency,omitempty"`
@@ -86,6 +93,24 @@ type Permissions struct {
 	Optional []string `toml:"optional" json:"optional,omitempty"`
 	// Reasons say why, per capability; shown when installing.
 	Reasons map[string]string `toml:"reasons" json:"reasons,omitempty"`
+	// Network and Process narrow network and process.exec (plugin API 2):
+	// the hosts it may reach, the programs it may run.
+	Network NetworkScope `toml:"network" json:"network,omitzero"`
+	Process ProcessScope `toml:"process" json:"process,omitzero"`
+}
+
+// NetworkScope lists the hosts a plugin API 2 plugin may reach, as
+// host:port ("api.linear.app:443", "*.example.org:443"). None listed, a
+// plugin granted network reaches any host.
+type NetworkScope struct {
+	Hosts []string `toml:"hosts" json:"hosts,omitempty"`
+}
+
+// ProcessScope lists the programs a plugin API 2 plugin may run: names
+// found on PATH when it starts, or absolute paths. None listed, a plugin
+// granted process.exec runs any program.
+type ProcessScope struct {
+	Exec []string `toml:"exec" json:"exec,omitempty"`
 }
 
 // Contributes is a plugin's restricted UI contribution: declared here, so
@@ -102,6 +127,14 @@ type Contributes struct {
 	Palette []PaletteEntry `toml:"palette" json:"palette,omitempty"`
 	// Links are fixed URLs offered in the palette.
 	Links []Link `toml:"links" json:"links,omitempty"`
+
+	// Plugin API 2: pane views, forges, issue trackers, workflow steps
+	// and workflow triggers.
+	Views    []ViewDecl    `toml:"views" json:"views,omitempty"`
+	Forges   []ForgeDecl   `toml:"forges" json:"forges,omitempty"`
+	Trackers []TrackerDecl `toml:"trackers" json:"trackers,omitempty"`
+	Steps    []StepDecl    `toml:"steps" json:"steps,omitempty"`
+	Triggers []TriggerDecl `toml:"triggers" json:"triggers,omitempty"`
 }
 
 // Card is a sidebar card, about the focused environment or agent.
@@ -155,8 +188,28 @@ var ActionContexts = []string{"pane", "agent", "environment", "session"}
 // Runtime is an executable requirement checked before installation and when
 // loading an installed plugin.
 type Runtime struct {
+	// Kind "wasm" (plugin API 2) says its commands are WebAssembly modules
+	// in its package, run by Hive itself; Command is then empty.
+	Kind       string `toml:"kind" json:"kind,omitempty"`
 	Command    string `toml:"command" json:"command"`
 	MinVersion string `toml:"min_version" json:"min_version,omitempty"`
+}
+
+// TestSpec is a plugin's own tests: a command run in its directory, with
+// HIVE_BIN and HIVE_HOME pointing at the Hive under test.
+type TestSpec struct {
+	Command []string `toml:"command" json:"command"`
+	// Timeout bounds it (default 10m).
+	Timeout string `toml:"timeout" json:"timeout,omitempty"`
+}
+
+// TestTimeout is the test's timeout.
+func (t *TestSpec) TestTimeout() time.Duration {
+	if t == nil || t.Timeout == "" {
+		return 10 * time.Minute
+	}
+	d, _ := time.ParseDuration(t.Timeout)
+	return d
 }
 
 // Configuration defines a versioned settings file stored in Hive's
@@ -298,11 +351,21 @@ func (m *Manifest) check() error {
 		return fmt.Errorf("max_hive_version %q: want MAJOR.MINOR.PATCH", m.MaxHiveVersion)
 	case m.MinHiveVersion != "" && m.MaxHiveVersion != "" && newer(m.MinHiveVersion, m.MaxHiveVersion):
 		return errors.New("min_hive_version must not be newer than max_hive_version")
-	case len(m.Startup)+len(m.Actions)+len(m.Events) == 0:
+	case len(m.Startup)+len(m.Actions)+len(m.Events) == 0 && !m.Contributes.runsCommands():
 		return errors.New("nothing to run: add [[startup]], [[actions]] or [[events]]")
 	}
 	if m.Name == "" {
 		m.Name = m.ID
+	}
+	if m.Test != nil {
+		if len(m.Test.Command) == 0 || m.Test.Command[0] == "" {
+			return errors.New("test.command: name the program to run")
+		}
+		if m.Test.Timeout != "" {
+			if d, err := time.ParseDuration(m.Test.Timeout); err != nil || d <= 0 || d > 2*time.Hour {
+				return fmt.Errorf("test.timeout %q: want a duration up to 2h", m.Test.Timeout)
+			}
+		}
 	}
 	if err := m.checkSurfaces(); err != nil {
 		return err
@@ -365,7 +428,16 @@ func (m *Manifest) check() error {
 			return fmt.Errorf("platforms: %q (want darwin, linux or windows)", p)
 		}
 	}
+	if err := m.checkWasm(); err != nil {
+		return err
+	}
 	for i, r := range m.Runtimes {
+		if r.Kind == RuntimeWasm {
+			continue
+		}
+		if r.Kind != "" {
+			return fmt.Errorf("runtime[%d]: kind %q (want wasm, or none for a program)", i, r.Kind)
+		}
 		if !runtimeCommand.MatchString(r.Command) {
 			return fmt.Errorf("runtime[%d]: invalid command %q", i, r.Command)
 		}
@@ -449,6 +521,9 @@ func (m *Manifest) Supported(ctx context.Context, hiveVersion string) error {
 		return fmt.Errorf("plugin %s supports hive through %s (this is %s)", m.ID, m.MaxHiveVersion, hiveVersion)
 	}
 	for _, r := range m.Runtimes {
+		if r.Kind == RuntimeWasm {
+			continue // Hive runs it
+		}
 		path, err := exec.LookPath(r.Command)
 		if err != nil {
 			return fmt.Errorf("plugin %s needs %s%s on PATH", m.ID, r.Command, minVersionLabel(r.MinVersion))
@@ -620,8 +695,21 @@ func (m *Manifest) Preview(source string) string {
 			fmt.Fprintf(&b, "  may ask for %s: %s%s\n", c, describeCapability(c), reasonSuffix(m.Permissions.Reasons[c]))
 		}
 	}
-	if m.Isolation == "strict" {
+	switch {
+	case m.Wasm():
+		b.WriteString("  runs as WebAssembly inside Hive: no network, no programs, only its own data and settings\n")
+	case m.API >= 2 && m.Isolation == IsolationNone:
+		fmt.Fprintf(&b, "  runs UNCONFINED, outside the sandbox: %s\n", m.IsolationReason)
+	case m.API >= 2:
+		b.WriteString("  runs sandboxed: it reads only its own files and the system's, and writes, connects and runs programs only as granted\n")
+	case m.Isolation == "strict":
 		b.WriteString("  can run isolated (strict): no network or outside writes unless granted\n")
+	}
+	if hosts := m.Permissions.Network.Hosts; len(hosts) > 0 {
+		fmt.Fprintf(&b, "  network limited to: %s\n", strings.Join(hosts, ", "))
+	}
+	if exec := m.Permissions.Process.Exec; len(exec) > 0 {
+		fmt.Fprintf(&b, "  programs limited to: %s\n", strings.Join(exec, ", "))
 	}
 	c := m.Contributes
 	for _, card := range c.Cards {

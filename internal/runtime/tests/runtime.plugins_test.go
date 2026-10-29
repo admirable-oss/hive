@@ -109,7 +109,7 @@ func TestPluginSocketIsScoped(t *testing.T) {
 		t.Fatalf("acting as another plugin: %v", err)
 	}
 	var d plugin.Discovery
-	if err := mux.Call(ctx, "plugin.capabilities", struct{}{}, &d); err != nil || d.Plugin != "scoped" || !slices.Equal(d.Granted, []string{"hive.read"}) || d.API != plugin.APIVersion {
+	if err := mux.Call(ctx, "plugin.capabilities", struct{}{}, &d); err != nil || d.Plugin != "scoped" || !slices.Equal(d.Granted, []string{"hive.read"}) || d.API != 1 { // its own plugin API
 		t.Fatalf("discovery = %+v, %v", d, err)
 	}
 

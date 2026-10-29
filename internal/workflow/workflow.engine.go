@@ -340,6 +340,7 @@ func (s *Service) resolveStepLocked(r *Run, spec StepSpec, ctx Context) (Resolve
 	if spec.Action != "" {
 		res.Action = spec.Action
 	}
+	res.Uses = spec.Uses
 	for i, a := range spec.Run {
 		var v string
 		str(&v, a, fmt.Sprintf("run[%d]", i))
@@ -462,6 +463,8 @@ func (s *Service) attempt(ctx context.Context, l launch) {
 		out = s.runAgent(ctx, l)
 	case KindAction:
 		out = s.runAction(ctx, l)
+	case KindStep:
+		out = s.runStep(ctx, l)
 	default:
 		out = s.runCommand(ctx, l)
 	}
@@ -732,6 +735,47 @@ func (s *Service) runAction(actx context.Context, l launch) outcome {
 		res.Reason = fmt.Sprintf("exit status %d", code)
 		return outcome{res: res, outcome: OutcomeFailure}
 	}
+	return outcome{res: res, outcome: OutcomeSuccess}
+}
+
+// runStep runs a plugin's step: its resolved inputs to the plugin, its
+// typed outputs back as the step's outputs.
+func (s *Service) runStep(actx context.Context, l launch) outcome {
+	res := Result{Resolved: l.resolved}
+	if s.ports.Steps == nil {
+		res.Reason = "plugins do not run here"
+		return outcome{res: res, outcome: OutcomeFailure}
+	}
+	plugin, step, _ := strings.Cut(l.resolved.Uses, "/")
+	ctx := actx
+	if t := l.spec.Timeout(); t > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, t)
+		defer cancel()
+	}
+	sr, err := s.ports.Steps.Step(ctx, StepRequest{
+		Plugin: plugin, Step: step, With: l.resolved.With,
+		Workflow: l.workflow, Run: l.run, ID: l.spec.ID, Environment: cmpStr(l.resolved.EnvironmentID, l.defEnv),
+	})
+	res.Output = tailLines(sr.Output, MaxOutputLines)
+	res.Outputs = sr.Outputs
+	if c, st := stopped(actx); st {
+		return outcome{stopping: true}
+	} else if c {
+		res.Reason = "cancelled"
+		return outcome{res: res, outcome: OutcomeCancelled}
+	}
+	if ctx.Err() != nil {
+		res.Reason = "timed out after " + l.spec.Timeout().String()
+		return outcome{res: res, outcome: OutcomeFailure}
+	}
+	code := 0
+	if err != nil {
+		code = 1
+		res.ExitCode, res.Reason = &code, err.Error()
+		return outcome{res: res, outcome: OutcomeFailure}
+	}
+	res.ExitCode = &code
 	return outcome{res: res, outcome: OutcomeSuccess}
 }
 

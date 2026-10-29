@@ -249,8 +249,12 @@ func (a *App) Handle(m Msg) {
 		a.refresh()
 	case contributionsMsg:
 		a.contributionsLoaded(m)
+	case viewsMsg:
+		a.viewsLoaded(m)
 	case configMsg:
 		a.configLoaded(m)
+	case pluginListMsg:
+		a.pluginListLoaded(m)
 	case imagePasteMsg:
 		switch {
 		case m.err != nil:

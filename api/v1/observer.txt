@@ -29,6 +29,7 @@ method observe.history
 method observe.insights
 method observe.output
 method observe.pane
+method observe.plugins
 method observe.schema
 method observe.screen
 method observe.snapshot
@@ -45,6 +46,8 @@ observe.output params: observer.OutputRequest
 observe.output result: observer.OutputResult
 observe.pane params: observer.PaneRequest
 observe.pane result: observer.PaneResult
+observe.plugins params: protocol.Empty
+observe.plugins result: []observer.Plugin
 observe.schema params: protocol.Empty
 observe.schema result: protocol.Schema
 observe.screen params: observer.ScreenRequest
@@ -265,6 +268,20 @@ type observer.PlanTask.started_at: string
 type observer.PlanTask.state: string
 type observer.PlanTask.title: string
 type observer.PlanTask: object
+type observer.Plugin.enabled: boolean
+type observer.Plugin.id: string
+type observer.Plugin.name: string
+type observer.Plugin.publisher: string
+type observer.Plugin.revoked: observer.PluginRevocation
+type observer.Plugin.sandbox: string
+type observer.Plugin.signed_by: string
+type observer.Plugin.state: string
+type observer.Plugin.tier: string
+type observer.Plugin.version: string
+type observer.Plugin: object
+type observer.PluginRevocation.advisory: string
+type observer.PluginRevocation.reason: string
+type observer.PluginRevocation: object
 type observer.Process.ended_at: string
 type observer.Process.environment_id: string
 type observer.Process.exit_code: integer

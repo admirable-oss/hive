@@ -13,6 +13,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/admirable-oss/hive/internal/git"
+	"github.com/admirable-oss/hive/internal/issue"
 )
 
 // Plan files are TOML:
@@ -231,6 +232,7 @@ func withDefaults(t, d Spec) Spec {
 	t.Approve = t.Approve || d.Approve
 	t.NoSummary = t.NoSummary || d.NoSummary
 	t.KeepAgent = t.KeepAgent || d.KeepAgent
+	t.CloseIssue = t.CloseIssue || d.CloseIssue
 	return t
 }
 
@@ -262,6 +264,15 @@ func check(t Spec) error {
 		return bad("until = \"command\" needs command = [\"…\"]")
 	case t.Machine != "" && !idPattern.MatchString(t.Machine):
 		return bad("machine %q", t.Machine)
+	case t.CloseIssue && t.Issue == "":
+		return bad("close_issue needs issue = \"tracker:key\"")
+	case t.CloseIssue && t.Worktree == "" && !t.Isolate:
+		return bad("close_issue closes the issue when the task's branch merges: give it one (isolate = true, or worktree)")
+	}
+	if t.Issue != "" {
+		if _, _, err := issue.ParseRef(t.Issue); err != nil {
+			return bad("issue: %v", err)
+		}
 	}
 	if t.Match != "" {
 		if _, err := regexp.Compile(t.Match); err != nil {

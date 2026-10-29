@@ -68,7 +68,7 @@ const workflowFileHelp = `A workflow file is TOML:
   [inputs.branch]
   default = "main"           # or required = true
 
-  [[on]]                     # event, schedule, every, git or webhook
+  [[on]]                     # event, schedule, every, git, webhook or plugin
   git = "push"
   branches = ["main"]
   [on.inputs]
@@ -95,8 +95,11 @@ const workflowFileHelp = `A workflow file is TOML:
 
 A step runs after the one before it unless needs says otherwise (needs = []
 starts it at once). action = "plugin/action" with with = {…} runs a plugin's
-action; foreach and repeat = { max, until } loop. Commands may write
-name=value lines to $HIVE_OUTPUT: steps.<id>.outputs.<name>.`
+action, and uses = "plugin/step" a plugin's step with typed inputs and
+outputs; foreach and repeat = { max, until } loop. Commands may write
+name=value lines to $HIVE_OUTPUT: steps.<id>.outputs.<name>. A trigger
+plugin = "plugin/trigger" fires when that plugin says, with match = {…} over
+its payload.`
 
 func newWorkflowListCmd(a *app) *cobra.Command {
 	return needsDaemon(&cobra.Command{
@@ -186,6 +189,9 @@ func newWorkflowShowCmd(a *app) *cobra.Command {
 					fmt.Fprintf(a.out, "\n%s\n", w.Error)
 					return nil
 				}
+				for _, p := range w.Problems {
+					fmt.Fprintf(a.out, "  problem: %s\n", p)
+				}
 				for _, in := range w.Inputs {
 					req := ""
 					if in.Required {
@@ -221,6 +227,8 @@ func stepWhat(st workflow.StepSpec) string {
 		return strings.Join(st.Agent, " or ") + " agent"
 	case workflow.KindAction:
 		return "action " + st.Action
+	case workflow.KindStep:
+		return "step " + st.Uses
 	}
 	if st.Shell != "" {
 		return st.Shell

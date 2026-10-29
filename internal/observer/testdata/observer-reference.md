@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 15. Clients speak newline-delimited JSON over the daemon's unix
+API level 16. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -71,6 +71,12 @@ Result: [observer.OutputResult](#observeroutputresult)
 | `pane` | `string` |  |
 
 Result: [observer.PaneResult](#observerpaneresult)
+
+### `observe.plugins`
+
+No params.
+
+Result: [\[\]observer.Plugin](#observerplugin)
 
 ### `observe.schema`
 
@@ -443,6 +449,28 @@ Result: [observer.WatchResult](#observerwatchresult)
 | `started_at` | `string` |  |
 | `state` | `string` |  |
 | `title` | `string` |  |
+
+### observer.Plugin
+
+| Field | Type | |
+|---|---|---|
+| `enabled` | `boolean` |  |
+| `id` | `string` |  |
+| `name` | `string` |  |
+| `publisher` | `string` |  |
+| `revoked` | [observer.PluginRevocation](#observerpluginrevocation) |  |
+| `sandbox` | `string` |  |
+| `signed_by` | `string` |  |
+| `state` | `string` |  |
+| `tier` | `string` |  |
+| `version` | `string` |  |
+
+### observer.PluginRevocation
+
+| Field | Type | |
+|---|---|---|
+| `advisory` | `string` |  |
+| `reason` | `string` |  |
 
 ### observer.Process
 

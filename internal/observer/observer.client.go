@@ -135,6 +135,14 @@ func (c *Client) Insights(ctx context.Context, req InsightsRequest) (Insights, e
 	return in, err
 }
 
+// Plugins lists the installed plugins: their tier, signer, sandbox and
+// revocations (credentials that see the whole runtime).
+func (c *Client) Plugins(ctx context.Context) ([]Plugin, error) {
+	var out []Plugin
+	err := c.Call(ctx, methodPlugins, nil, &out)
+	return out, err
+}
+
 // Schema describes the observer API.
 func (c *Client) Schema(ctx context.Context) (protocol.Schema, error) {
 	var s protocol.Schema

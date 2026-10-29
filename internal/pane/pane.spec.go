@@ -98,6 +98,18 @@ func (sp *LayoutSpec) Validate() error {
 	return nil
 }
 
+// checkViewSpec checks a view pane's spec: plugin/view, and nothing to run.
+func checkViewSpec(spec Spec) error {
+	plugin, view, ok := strings.Cut(spec.View, "/")
+	switch {
+	case !ok || plugin == "" || view == "" || strings.Contains(view, "/"):
+		return fmt.Errorf("%w: view %q: write plugin/view", ErrInvalid, spec.View)
+	case len(spec.Command) > 0 || spec.Cwd != "" || len(spec.Env) > 0:
+		return fmt.Errorf("%w: a view pane runs nothing: no command, cwd or env", ErrInvalid)
+	}
+	return nil
+}
+
 // count validates a node and returns its number of panes.
 func (n *NodeSpec) count() (int, error) {
 	switch {
@@ -106,6 +118,11 @@ func (n *NodeSpec) count() (int, error) {
 	case n.Pane != nil:
 		if n.Split != "" || n.First != nil || n.Second != nil {
 			return 0, fmt.Errorf("%w: a node is either a pane or a split", ErrInvalid)
+		}
+		if n.Pane.View != "" {
+			if err := checkViewSpec(*n.Pane); err != nil {
+				return 0, err
+			}
 		}
 		return 1, nil
 	case n.Split != layout.Horizontal && n.Split != layout.Vertical:
@@ -193,14 +210,14 @@ func (s *Service) applyTabLocked(ctx context.Context, env environment.Environmen
 	var panes []Pane
 	for _, id := range tab.Layout.Panes() {
 		spec := specs[id]
-		proc, err := s.startLocked(ctx, env, tab.ID, id, spec, geometry[id])
-		if err != nil {
+		p := Pane{ID: id, TabID: tab.ID, EnvironmentID: env.ID, Name: spec.Name, CreatedAt: s.nowFn()}
+		if err := s.startPaneLocked(ctx, env, &p, spec, geometry[id]); err != nil {
 			for _, p := range panes {
-				_ = s.procs.Stop(ctx, p.ProcessID)
+				s.stopLocked(ctx, p)
 			}
 			return Tab{}, 0, err
 		}
-		panes = append(panes, Pane{ID: id, TabID: tab.ID, EnvironmentID: env.ID, ProcessID: proc.ID, Name: spec.Name, CreatedAt: s.nowFn()})
+		panes = append(panes, p)
 	}
 	tab.Focused = panes[0].ID
 	st.Tabs = append(st.Tabs, tab)
@@ -283,7 +300,10 @@ func (s *Service) exportNodeLocked(ctx context.Context, n *layout.Node, panes ma
 		}
 	}
 	p := panes[n.Pane]
-	spec := Spec{Name: p.Name}
+	spec := Spec{Name: p.Name, View: p.View}
+	if p.View != "" {
+		return &NodeSpec{Pane: &spec}
+	}
 	if proc, err := s.procs.Get(ctx, p.ProcessID); err == nil {
 		spec.Command, spec.Cwd, spec.Env = exportProcess(proc, env, shell)
 	}

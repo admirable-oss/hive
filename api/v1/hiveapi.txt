@@ -60,6 +60,10 @@ const PlanSucceeded
 const PlanWaitAttention
 const PlanWaitChange
 const PlanWaitFinished
+const PluginTierCommunity
+const PluginTierOfficial
+const PluginTierUnlisted
+const PluginTierVerified
 const Right
 const StateBlocked
 const StateDone
@@ -160,6 +164,7 @@ func (c *Client) OpenPullRequest(ctx context.Context, req PullRequestRequest) (B
 func (c *Client) Panes(ctx context.Context, envID, tabID string) ([]Pane, error)
 func (c *Client) Plan(ctx context.Context, id string) (Plan, error)
 func (c *Client) Plans(ctx context.Context) ([]PlanSummary, error)
+func (c *Client) Plugins(ctx context.Context) ([]PluginStatus, error)
 func (c *Client) Popup(ctx context.Context, options PopupOptions) (Pane, error)
 func (c *Client) Processes(ctx context.Context, environmentID string) ([]Process, error)
 func (c *Client) Prompt(ctx context.Context, id, text string, opts PromptOptions) (PromptResult, error)
@@ -214,6 +219,7 @@ func NewWorkflowReport(r WorkflowRun) WorkflowReport
 func Observe(ctx context.Context, opts ObserverOptions) (*Observer, error)
 func ParsePlan(data []byte, source string) (PlanSpec, error)
 func ParseWorkflow(data []byte, source string) (WorkflowSpec, error)
+func PluginTierMeaning(tier string) string
 type Agent = agent.Agent
 type AgentList = agent.ListResult
 type AgentStarted = client.AgentStarted
@@ -298,6 +304,10 @@ type PlanState = task.PlanState
 type PlanSummary = task.Summary
 type PlanWaitOptions = client.TaskWaitOptions
 type PlanWaitResult = task.WaitResult
+type PluginProvenance = plugin.Provenance
+type PluginRevocation = plugin.Revocation
+type PluginStatus = plugin.Status
+type PluginTrust = plugin.Trust
 type PopupOptions struct
 type Process = process.Process
 type PromptOptions = client.PromptOptions

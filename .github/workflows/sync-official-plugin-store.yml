@@ -7,6 +7,10 @@ on:
       - "registry/official-releases.json"
       - "registry/official-listings.json"
       - "registry/revocations.json"
+      - "registry/official-signatures.json"
+      - "registry/publishers.json"
+      - "registry/compat-results.json"
+      - "registry/submissions/**"
   workflow_dispatch:
 
 permissions:
@@ -48,6 +52,16 @@ jobs:
       # read them; docs/plugins/ecosystem.md).
       - name: Copy the registry's revocations
         run: cp hive/registry/revocations.json hive-web/public/plugins/revocations.json
+      # Schema 2 (Hive 1.7 and later read it first): built and checked as
+      # Hive reads it, and published only once every official and verified
+      # release is signed. Until then nothing is written and Hive keeps
+      # reading registry.json.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: hive/go.mod
+      - name: Build the schema 2 catalog
+        working-directory: hive
+        run: go run ./tools/plugin-registry build --dir registry -o ../hive-web/public/plugins/registry-2.json --if-ready
       - name: Create a registry update pull request
         uses: peter-evans/create-pull-request@v8
         with:
@@ -59,6 +73,7 @@ jobs:
           add-paths: |
             public/plugins/registry.json
             public/plugins/revocations.json
+            public/plugins/registry-2.json
             src/data/plugins-registry.json
           commit-message: "chore(plugins): sync official plugin releases"
           title: "chore(plugins): sync official plugin releases"

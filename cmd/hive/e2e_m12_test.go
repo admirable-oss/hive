@@ -226,7 +226,7 @@ func TestM12PluginRuntimeSurfaces(t *testing.T) {
 	// Capability discovery, from the CLI.
 	var d plugin.Discovery
 	decode(t, c.must("--json", "plugin", "capabilities"), &d)
-	if d.API != plugin.APIVersion || len(d.Capabilities) != len(plugin.CapabilityList) || !slices.Contains(d.Events, "worktree.created") {
+	if d.API != plugin.APIVersion || len(d.Capabilities) != len(plugin.CapabilitiesFor(plugin.APIVersion)) || !slices.Contains(d.Events, "worktree.created") {
 		t.Fatalf("capabilities = %+v", d)
 	}
 }

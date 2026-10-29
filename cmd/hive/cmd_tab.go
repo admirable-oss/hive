@@ -120,6 +120,7 @@ func newTabCreateCmd(a *app) *cobra.Command {
 	})
 	cmd.Flags().StringVar(&name, "name", "", "the tab's name")
 	spec.register(cmd, "pane-name")
+	spec.registerView(cmd)
 	return cmd
 }
 

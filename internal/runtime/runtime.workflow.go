@@ -16,6 +16,7 @@ import (
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
 	"github.com/admirable-oss/hive/internal/plugin"
+	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/task"
 	"github.com/admirable-oss/hive/internal/workflow"
 )
@@ -60,6 +61,7 @@ func newWorkflows(cfg Config, tasks *task.Service, envs environment.Service, age
 		Tasks:     tasks,
 		Commands:  workflowCommands{},
 		Actions:   workflowActions{host: plugins},
+		Steps:     workflowSteps{host: plugins},
 		Workspace: &workflowWorkspace{envs: envs, git: git.New()},
 		Agents:    workflowAgents{agents: agents},
 		Events:    bus,
@@ -112,6 +114,67 @@ func (a workflowActions) Action(ctx context.Context, req workflow.ActionRequest)
 		},
 	})
 	return workflow.ActionResult{ExitCode: res.ExitCode, Output: res.Output}, err
+}
+
+// workflowSteps runs plugin steps through the host, which checks their
+// inputs and outputs against the plugin's declared types.
+type workflowSteps struct {
+	host *plugin.Host
+}
+
+func (s workflowSteps) Step(ctx context.Context, req workflow.StepRequest) (workflow.StepResult, error) {
+	if s.host == nil {
+		return workflow.StepResult{}, errors.New("plugins do not run in this daemon")
+	}
+	outputs, summary, err := s.host.RunStep(ctx, plugin.StepCall{
+		Plugin: req.Plugin, Step: req.Step, With: req.With,
+		Workflow: req.Workflow, Run: req.Run, StepID: req.ID, Environment: req.Environment,
+	})
+	return workflow.StepResult{Outputs: outputs, Output: summary}, err
+}
+
+func (s workflowSteps) Check(pluginID, step string, with map[string]string) error {
+	if s.host == nil {
+		return errors.New("plugins do not run in this daemon")
+	}
+	return s.host.CheckStep(pluginID, step, with)
+}
+
+// workflowTriggerParams is workflow.trigger's request.
+type workflowTriggerParams struct {
+	Plugin  string         `json:"plugin,omitempty" desc:"the plugin whose trigger fires (a plugin's own call says it)"`
+	Name    string         `json:"name" desc:"the trigger's name, as the plugin's [[contributes.triggers]] says"`
+	Payload map[string]any `json:"payload,omitempty" desc:"what the workflows' match filters, and expressions read as trigger.data"`
+}
+
+// workflowTriggerResult is the runs workflow.trigger started.
+type workflowTriggerResult struct {
+	Runs []string `json:"runs"`
+}
+
+// registerWorkflowTriggers serves workflow.trigger: a plugin fires one of
+// its declared triggers, and the workflows that name it run (a shared
+// workflow only once it is trusted).
+func registerWorkflowTriggers(r *protocol.Router, host *plugin.Host, svc *workflow.Service) {
+	r.MustRegister("workflow.trigger", protocol.Method(func(ctx context.Context, p workflowTriggerParams) (workflowTriggerResult, error) {
+		id, err := callerPlugin(ctx, p.Plugin)
+		if err != nil {
+			return workflowTriggerResult{}, err
+		}
+		if host == nil || !host.DeclaresTrigger(id, p.Name) {
+			return workflowTriggerResult{}, protocol.NewError(protocol.ErrorCodeNotFound,
+				fmt.Errorf("plugin %s declares no trigger %q ([[contributes.triggers]])", id, p.Name))
+		}
+		runs, err := svc.FirePlugin(ctx, id, p.Name, p.Payload)
+		if err != nil {
+			return workflowTriggerResult{}, workflow.WireError(err)
+		}
+		out := workflowTriggerResult{Runs: make([]string, 0, len(runs))}
+		for _, r := range runs {
+			out.Runs = append(out.Runs, r.ID)
+		}
+		return out, nil
+	}))
 }
 
 // workflowAgents lists the agent kinds whose start command is on the

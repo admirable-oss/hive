@@ -49,7 +49,8 @@ const Version2 = "2"
 //	13 git-native development: branch.*, branch.* events, agent.start isolate (M23)
 //	14 workflow automation: workflow.*, workflow.* events (M24)
 //	15 agent insights: insights.*, insights.* events (M25)
-const APILevel = 15
+//	16 plugin ecosystem 2: plugin trust and sandbox in plugin.list, observe.plugins (M26)
+const APILevel = 16
 
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.

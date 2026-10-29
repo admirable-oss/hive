@@ -28,6 +28,7 @@ const (
 	methodEvents   = "observe.events"
 	methodWatch    = "observe.watch"
 	methodInsights = "observe.insights"
+	methodPlugins  = "observe.plugins"
 )
 
 // Screen and output bounds.
@@ -173,6 +174,33 @@ type Insights struct {
 	Asks    []insights.Ask          `json:"asks"`
 }
 
+// Plugin is an installed plugin as an observer sees it (observe.plugins):
+// who stands behind it and what confines it; never its files, settings or
+// capabilities.
+type Plugin struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+	// Tier is official, verified, community or unlisted ("" until the
+	// registry was checked).
+	Tier      string `json:"tier"`
+	Publisher string `json:"publisher,omitempty"`
+	// SignedBy is the fingerprint of the key that signed its release.
+	SignedBy string `json:"signed_by,omitempty"`
+	// Sandbox is none, sandbox-exec or bwrap.
+	Sandbox string `json:"sandbox"`
+	Enabled bool   `json:"enabled"`
+	State   string `json:"state,omitempty"`
+	// Revoked is why the registry withdrew the installed release.
+	Revoked *PluginRevocation `json:"revoked,omitempty"`
+}
+
+// PluginRevocation is why a plugin release was withdrawn.
+type PluginRevocation struct {
+	Reason   string `json:"reason"`
+	Advisory string `json:"advisory,omitempty"`
+}
+
 func (s *Server) register(r *protocol.Router) {
 	r.MustRegister(methodAuth, protocol.Method(func(ctx context.Context, p AuthRequest) (AuthResult, error) {
 		client := ""
@@ -209,6 +237,27 @@ func (s *Server) register(r *protocol.Router) {
 	r.MustRegister(methodEvents, protocol.PipeMethod(s.events))
 	r.MustRegister(methodWatch, protocol.PipeMethod(s.watch))
 	r.MustRegister(methodInsights, protocol.Method(s.insights))
+	r.MustRegister(methodPlugins, protocol.Method(s.plugins))
+}
+
+// plugins answers observe.plugins, for credentials that see the whole
+// runtime: plugins act on all of it, so a narrower scope sees none.
+func (s *Server) plugins(ctx context.Context, _ protocol.Empty) ([]Plugin, error) {
+	cred, err := sessionOf(ctx).credential()
+	if err != nil {
+		return nil, err
+	}
+	if !cred.Scope.All {
+		return nil, protocol.NewError(protocol.ErrorCodePermissionDenied, errors.New("observer: plugins are shown only to credentials that see the whole runtime"))
+	}
+	if s.cfg.Sources.Plugins == nil {
+		return []Plugin{}, nil
+	}
+	out := s.cfg.Sources.Plugins(ctx)
+	if out == nil {
+		out = []Plugin{}
+	}
+	return out, nil
 }
 
 // insights answers observe.insights: only rows of what the credential sees

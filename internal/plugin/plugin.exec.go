@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -51,6 +52,22 @@ func (h *Host) pluginDirs(l *loaded) (data, config, cache string, err error) {
 }
 
 func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string, c Context, also io.Writer, extra map[string]string) (int, error) {
+	return h.runCommand(ctx, l, argv, c, runOptions{also: also, extra: extra})
+}
+
+// runOptions shape one command run. By default its stdin is its context,
+// and its stdout and stderr go to the plugin's log (and also).
+type runOptions struct {
+	also  io.Writer
+	extra map[string]string
+	// stdin replaces the context on stdin (typed calls); stdout takes the
+	// command's stdout apart from the log.
+	stdin  []byte
+	stdout io.Writer
+}
+
+func (h *Host) runCommand(ctx context.Context, l *loaded, argv []string, c Context, o runOptions) (int, error) {
+	also, extra := o.also, o.extra
 	c.API, c.Plugin, c.Session = APIVersion, l.ID, h.cfg.Session
 	if l.Manifest != nil {
 		c.API = l.Manifest.EffectiveAPI()
@@ -96,17 +113,31 @@ func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string,
 	for key, value := range extra {
 		vars[key] = value
 	}
+	if l.wasm {
+		var w io.Writer = pluginLog{l}
+		if also != nil {
+			w = io.MultiWriter(w, also)
+		}
+		h.running.Add(1)
+		defer h.running.Done()
+		stdin, stdout := ctxJSON, w
+		if o.stdin != nil {
+			stdin = o.stdin
+		}
+		if o.stdout != nil {
+			stdout = o.stdout
+		}
+		return h.runWasm(ctx, l, argv, stdin, vars, stdout, w, data)
+	}
 	env := h.cfg.Env(vars)
 	full := append([]string{path}, argv[1:]...)
 	if l.strict {
 		env = strictEnv(env, cache)
-		full, err = sandboxArgv(full, sandboxSpec{
-			Writable:        []string{data, configDir, cache},
-			Network:         slices.Contains(c.Capabilities, CapNetwork),
-			FilesystemWrite: slices.Contains(c.Capabilities, CapFilesystemWrite),
-			Socket:          l.socket,
-			DaemonSocket:    h.cfg.SocketPath,
-		})
+		spec := h.sandboxFor(ctx, l, c.Capabilities, data, configDir, cache)
+		if spec.ProxyPort != 0 {
+			env = append(env, ProxyEnv(l.proxy.URL(fmt.Sprintf("127.0.0.1:%d", spec.ProxyPort)))...)
+		}
+		full, err = sandboxArgv(full, spec)
 		if err != nil {
 			return 0, err
 		}
@@ -115,11 +146,17 @@ func (h *Host) runWithEnvironment(ctx context.Context, l *loaded, argv []string,
 	cmd.Dir = l.Dir
 	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(ctxJSON)
+	if o.stdin != nil {
+		cmd.Stdin = bytes.NewReader(o.stdin)
+	}
 	var w io.Writer = pluginLog{l}
 	if also != nil {
 		w = io.MultiWriter(w, also)
 	}
 	cmd.Stdout, cmd.Stderr = w, w
+	if o.stdout != nil {
+		cmd.Stdout = o.stdout
+	}
 	// Its own group, so stopping it stops what it started.
 	pgroup.Configure(cmd)
 	cmd.Cancel = func() error { return pgroup.TerminateAfter(cmd.Process.Pid, 3*time.Second) }

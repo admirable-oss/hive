@@ -57,7 +57,11 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Validate plugin registry contracts
-        run: go test ./internal/plugin
+        run: go test ./internal/plugin ./tools/plugin-registry
+      # The schema 2 catalog these records make, read as Hive reads it:
+      # publishers, keys and every release signature.
+      - name: Verify the schema 2 catalog and its signatures
+        run: go run ./tools/plugin-registry verify
 
   trusted-listing-review:
     if: needs.detect-trusted-change.outputs.trusted == 'true'

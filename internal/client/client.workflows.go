@@ -92,6 +92,17 @@ func (w Workflows) Fire(ctx context.Context, name string, data any) ([]workflow.
 	return workflowCall[[]workflow.RunSummary](ctx, w, "workflow.fire", workflow.FireParams{Webhook: name, Data: raw})
 }
 
+// TriggerResult is the runs a plugin trigger started.
+type TriggerResult struct {
+	Runs []string `json:"runs"`
+}
+
+// Trigger fires one of a plugin's workflow triggers (a plugin, on its own
+// socket, or with plugin set).
+func (w Workflows) Trigger(ctx context.Context, plugin, name string, payload map[string]any) (TriggerResult, error) {
+	return workflowCall[TriggerResult](ctx, w, "workflow.trigger", map[string]any{"plugin": plugin, "name": name, "payload": payload})
+}
+
 // Trust lets a shared workflow's triggers fire while its file keeps its
 // text; revoke stops them.
 func (w Workflows) Trust(ctx context.Context, name string, revoke bool) (workflow.Workflow, error) {

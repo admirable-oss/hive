@@ -25,6 +25,12 @@ import (
 // pluginsState is what plugins contribute, as the daemon last said.
 type pluginsState struct {
 	contrib plugin.Contributions
+	// views are the plugins' pane views, by plugin/view (nil until read);
+	// buttons where each view pane drew its buttons and links, selected
+	// the button each has selected.
+	views    map[string]plugin.ViewContent
+	buttons  map[string][]viewButton
+	selected map[string]string
 	// failed remembers the failures already announced, so each is toasted
 	// once.
 	failed map[string]string
@@ -61,6 +67,9 @@ func (a *App) contributionsLoaded(m contributionsMsg) {
 // plugin are announced.
 func (a *App) applyPluginEvent(ev event.Event) {
 	switch ev.Type {
+	case plugin.EventView:
+		a.loadViews()
+		return
 	case plugin.EventPermission:
 		var r plugin.PermissionRequest
 		if json.Unmarshal(ev.Data, &r) == nil {
@@ -86,6 +95,7 @@ func (a *App) applyPluginEvent(ev event.Event) {
 		}
 	}
 	a.loadContributions()
+	a.loadViews()
 }
 
 // --- sidebar cards ---
@@ -257,11 +267,10 @@ func (a *App) paletteItems() []paletteItem {
 }
 
 func (a *App) openPalette() {
-	p := &palette{items: a.paletteItems()}
-	if len(p.items) == 0 {
-		a.toast(compositor.ToastInfo, "no plugin offers anything here (hive plugin contributions)")
-		return
-	}
+	// The palette always offers the Plugins view: what is installed, who
+	// stands behind it, and what confines it.
+	items := append([]paletteItem{{plugin: "hive", kind: paletteKindPlugins, title: "Plugins…", detail: "installed plugins, their tier, sandbox and revocations"}}, a.paletteItems()...)
+	p := &palette{items: items}
 	p.rank()
 	a.ui.overlay = p
 }
@@ -317,6 +326,8 @@ func (p *palette) choose(a *App) {
 		}
 	case plugin.ContribConfig:
 		a.openPluginConfig(it.plugin)
+	case paletteKindPlugins:
+		a.openPluginList()
 	default:
 		a.runPluginAction(it.plugin, it.action, it.title)
 	}

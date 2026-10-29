@@ -32,8 +32,30 @@ jobs:
           SHA: ${{ github.sha }}
         run: sh .github/scripts/release-gate.sh
 
+  # A release that breaks an official plugin is not published (RFC 0006):
+  # each one is tested against the tagged build, as `hive plugin test`
+  # tests any plugin against a release.
+  plugins:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: build the tagged hive
+        run: go build -o "$RUNNER_TEMP/hive" -ldflags "-X github.com/admirable-oss/hive/internal/buildinfo.version=${GITHUB_REF_NAME#v}" ./cmd/hive
+      - name: test the official plugins against it
+        run: |
+          status=0
+          for dir in plugins/official/*/; do
+            "$RUNNER_TEMP/hive" plugin test "$dir" --hive "$RUNNER_TEMP/hive" || status=1
+          done
+          exit $status
+
   release:
-    needs: gate
+    needs: [gate, plugins]
     runs-on: ubuntu-latest
     steps:
       - name: refuse to publish an unsigned release

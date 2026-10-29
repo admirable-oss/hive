@@ -125,6 +125,9 @@ export function runCommand(name: string) {
     case "observe":
       store.setUI({ dialog: { kind: "observe" } });
       break;
+    case "plugins":
+      store.setUI({ dialog: { kind: "plugins" } });
+      break;
     case "prompt": {
       const agent = s.workspace.agents.find((a) => a.pane_id === pane?.id);
       store.setUI({ dialog: { kind: "prompt", agent: agent?.id } });
