@@ -769,8 +769,16 @@ func statusSegment(t map[string]any) (StatusSegment, error) {
 	default:
 		return s, fmt.Errorf("type %q (want %s)", s.Type, strings.Join(StatusTypes, ", "))
 	}
-	if s.Type != "command" && interval != "" {
-		return s, errors.New("interval is for type command")
+	if s.Type != "command" {
+		if interval != "" {
+			return s, errors.New("interval is for type command")
+		}
+		// Kept out of the segment, not just unused: config show writes a
+		// command for type command only, so keeping one here would make a
+		// shown configuration parse back differently.
+		if s.Command != "" {
+			return s, errors.New("command is for type command")
+		}
 	}
 	return s, nil
 }

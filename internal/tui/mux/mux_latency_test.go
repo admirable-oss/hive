@@ -173,6 +173,9 @@ func measureLatency(tb testing.TB, h *harness, n int, timer func(on bool)) []tim
 }
 
 func percentile(ds []time.Duration, p float64) time.Duration {
+	if len(ds) == 0 {
+		return 0
+	}
 	s := slices.Clone(ds)
 	slices.Sort(s)
 	return s[min(int(float64(len(s))*p), len(s)-1)]

@@ -504,7 +504,7 @@ func (h *Host) RunStep(ctx context.Context, c StepCall) (map[string]string, stri
 	}
 	var out stepOutput
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, "", fmt.Errorf("%w: step %s/%s answered %v, not {\"outputs\": {…}}", ErrCall, c.Plugin, c.Step, err)
+		return nil, "", fmt.Errorf("%w: step %s/%s answered %w, not {\"outputs\": {…}}", ErrCall, c.Plugin, c.Step, err)
 	}
 	text := make(map[string]string, len(out.Outputs))
 	for k, v := range out.Outputs {

@@ -16,15 +16,25 @@ import (
 	"github.com/admirable-oss/hive/internal/plugin"
 )
 
-// TestMain doubles as the hive binary: with HIVE_CLI_TEST_EXEC=1, or when a
-// copy of it is called hive, the test executable runs the CLI instead of
-// tests. End-to-end tests exec it, and the CLI in turn spawns `hive daemon`
-// the way a user's shell would; plugins and agents call it as $HIVE_BIN.
+// TestMain doubles as the hive binary: with HIVE_CLI_TEST_EXEC=1, when a
+// copy of it is called hive, or when it is asked for one of the hidden
+// commands, the test executable runs the CLI instead of tests. End-to-end
+// tests exec it, and the CLI in turn spawns `hive daemon` the way a user's
+// shell would; plugins and agents call it as $HIVE_BIN.
 func TestMain(m *testing.M) {
-	if name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe"); os.Getenv("HIVE_CLI_TEST_EXEC") == "1" || name == "hive" {
+	if name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe"); os.Getenv("HIVE_CLI_TEST_EXEC") == "1" || name == "hive" || hiddenCommand(os.Args[1:]) {
 		os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 	}
 	goleak.VerifyTestMain(m)
+}
+
+// hiddenCommand reports whether args ask for a command the daemon runs the
+// hive binary for by path: a launch environment strips HIVE_* (so
+// HIVE_CLI_TEST_EXEC is gone) and a test binary is not called hive, which
+// would leave the sandbox launcher running this whole suite inside a
+// plugin's sandbox. `go test` never passes these.
+func hiddenCommand(args []string) bool {
+	return len(args) > 0 && (args[0] == shimCommand || args[0] == plugin.SandboxCommand)
 }
 
 func TestDetachReaderStopsAtCtrlBracket(t *testing.T) {

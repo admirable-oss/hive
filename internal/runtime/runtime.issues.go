@@ -57,7 +57,7 @@ func (p pluginTracker) call(ctx context.Context, req plugin.TrackerRequest, into
 		return err
 	}
 	if err := json.Unmarshal(raw, into); err != nil {
-		return fmt.Errorf("%w: tracker %s answered %s: %v", plugin.ErrCall, p.t.Decl.Name, req.Op, err)
+		return fmt.Errorf("%w: tracker %s answered %s: %w", plugin.ErrCall, p.t.Decl.Name, req.Op, err)
 	}
 	return nil
 }

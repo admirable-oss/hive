@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"sync"
 	"testing"
@@ -34,6 +33,7 @@ func (c *closingTracker) Get(context.Context, string) (issue.Issue, error) {
 	defer c.mu.Unlock()
 	return issue.Issue{Title: "t", State: c.state}, nil
 }
+
 func (c *closingTracker) Search(context.Context, string, int) ([]issue.Issue, error) { return nil, nil }
 func (c *closingTracker) Comment(context.Context, string, string) error              { return nil }
 func (c *closingTracker) Close(_ context.Context, key, comment string) (issue.Issue, error) {
@@ -59,7 +59,7 @@ func (o oneTracker) Names() []string                           { return []string
 // branches close nothing.
 func TestCloseMergedIssues(t *testing.T) {
 	tr := &closingTracker{state: "open"}
-	bus := event.NewBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	bus := event.NewBus(slog.New(slog.DiscardHandler))
 	links := &issueLinks{issues: issue.NewService(nil, oneTracker{tr}, bus), tasks: onePlan{ID: "p1", Tasks: []task.Task{
 		{Spec: task.Spec{ID: "fix", Issue: "linear:HIV-42", CloseIssue: true}},
 		{Spec: task.Spec{ID: "keep", Issue: "linear:HIV-43"}},
@@ -67,15 +67,17 @@ func TestCloseMergedIssues(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		closeMergedIssues(ctx, bus, links, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		closeMergedIssues(ctx, bus, links, slog.New(slog.DiscardHandler))
 		close(done)
 	}()
 	defer func() { cancel(); <-done }()
 	time.Sleep(50 * time.Millisecond) // subscribed
 
 	merged := func(taskID string) branch.Branch {
-		return branch.Branch{Name: "hive/p1/" + taskID, State: branch.StateMerged, Owner: &branch.Owner{Plan: "p1", Task: taskID},
-			PullRequest: &branch.PullRequest{URL: "https://github.com/acme/app/pull/7"}}
+		return branch.Branch{
+			Name: "hive/p1/" + taskID, State: branch.StateMerged, Owner: &branch.Owner{Plan: "p1", Task: taskID},
+			PullRequest: &branch.PullRequest{URL: "https://github.com/acme/app/pull/7"},
+		}
 	}
 	bus.Publish(branch.EventUpdated, merged("keep"))
 	bus.Publish(branch.EventUpdated, branch.Branch{Name: "hive/p1/fix", State: branch.StateReady, Owner: &branch.Owner{Plan: "p1", Task: "fix"}})

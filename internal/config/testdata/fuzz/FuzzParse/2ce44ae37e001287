@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("[[ui.status_right]]\ntype=\"dAtetime\" \ncommand=\"0\"")

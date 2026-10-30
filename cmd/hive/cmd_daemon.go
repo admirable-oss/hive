@@ -151,6 +151,7 @@ func runDaemon(ctx context.Context, a *app) error {
 	if scrollback == 0 {
 		scrollback = -1 // none
 	}
+	//nolint:contextcheck // NewModule only assembles the daemon; the context arrives at Service.Start below
 	mod := runtime.NewModule(runtime.Config{
 		SocketPath: a.socket,
 		BaseDir:    a.root,

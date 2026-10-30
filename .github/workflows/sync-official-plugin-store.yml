@@ -46,8 +46,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22.12"
+      # The script reads and rewrites the website's registry copies by
+      # their paths in hive-web, so it runs from that checkout.
       - name: Seed official plugin releases into the website registry
-        run: node hive-web/.github/scripts/seed-official-registry.mjs hive
+        working-directory: hive-web
+        run: node .github/scripts/seed-official-registry.mjs ../hive
       # Revocations are served beside the catalog (hive 1.0.10 and later
       # read them; docs/plugins/ecosystem.md).
       - name: Copy the registry's revocations

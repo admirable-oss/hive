@@ -102,6 +102,11 @@ func TestFrameTime100Panes(t *testing.T) {
 		frames = append(frames, time.Since(start))
 	}
 	frames = frames[min(10, len(frames)):] // the first frames build caches
+	// A machine this slow measures nothing: say so instead of reporting a
+	// percentile of no samples.
+	if len(frames) < 10 {
+		t.Fatalf("only %d frames drawn in 4s: too slow to measure the budget", len(frames))
+	}
 	p50, p99 := percentile(frames, 0.5), percentile(frames, 0.99)
 	t.Logf("%d frames with 100 panes: p50 %v, p99 %v, max %v", len(frames), p50, p99, slices.Max(frames))
 	if p99 > frameBudget {

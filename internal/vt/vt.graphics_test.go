@@ -219,6 +219,9 @@ func TestGraphicsStripper(t *testing.T) {
 		{"\x1b_Ga=t;AAAA\x18after", "after"},
 		{"\x1b]0;title\x07ok", "\x1b]0;title\x07ok"},
 		{"\x1b_Ga=p;\x1b[31mvisible\x1b\\", "\x1b[31mvisible\x1b\\"},
+		// An APC string this aborts passes through, closed, so what is left
+		// never reads as a graphics command again.
+		{"\x1b_\x1b_G\x1b\\G", "\x1b_\x1b\\G"},
 	}
 	for _, tc := range cases {
 		for split := 0; split <= len(tc.in); split++ {

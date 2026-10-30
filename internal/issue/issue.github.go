@@ -77,7 +77,7 @@ func (t GitHubTracker) Get(ctx context.Context, key string) (Issue, error) {
 	}
 	var g ghIssue
 	if err := json.Unmarshal(out, &g); err != nil {
-		return Issue{}, fmt.Errorf("gh issue view printed %v", err)
+		return Issue{}, fmt.Errorf("gh issue view printed %w", err)
 	}
 	return g.issue(repo), nil
 }
@@ -89,7 +89,7 @@ func (t GitHubTracker) Search(ctx context.Context, query string, limit int) ([]I
 	}
 	var found []ghIssue
 	if err := json.Unmarshal(out, &found); err != nil {
-		return nil, fmt.Errorf("gh search issues printed %v", err)
+		return nil, fmt.Errorf("gh search issues printed %w", err)
 	}
 	issues := make([]Issue, 0, len(found))
 	for _, g := range found {

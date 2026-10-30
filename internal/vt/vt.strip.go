@@ -6,11 +6,16 @@ import "io"
 // graphics commands (ESC _ G … ESC \), so a log of agent output never keeps
 // image data. Commands may span writes; at most two bytes (ESC, ESC _) are
 // held back between writes. Every other byte passes through unchanged, in
-// order, including other APC strings.
+// order, including other APC strings, with one addition: an APC introducer
+// that passed through, whose string a dropped graphics command ended, is
+// closed with ST so it does not swallow the rest of the log.
 type GraphicsStripper struct {
 	W     io.Writer
 	state stripState
 	out   []byte
+	// dangling marks an ESC _ written for an APC string the input aborted:
+	// until something else is written, it still opens a string in W.
+	dangling bool
 }
 
 type stripState uint8
@@ -38,6 +43,7 @@ func (s *GraphicsStripper) Write(p []byte) (int, error) {
 				s.state = stripEscape
 			} else {
 				out = append(out, b)
+				s.dangling = false
 			}
 		case stripEscape:
 			switch b {
@@ -45,19 +51,31 @@ func (s *GraphicsStripper) Write(p []byte) (int, error) {
 				s.state = stripAPC
 			case 0x1b:
 				out = append(out, 0x1b) // the first ESC was not ours to hold
+				s.dangling = false
 			default:
 				out = append(out, 0x1b, b)
+				s.dangling = false
 				s.state = stripGround
 			}
 		case stripAPC:
 			switch b {
 			case 'G':
+				// What ended the APC string written just above is this
+				// command, which is dropped: close the string, or the log
+				// keeps an introducer that swallows everything after it
+				// (and ESC _ G would read as a graphics command again).
+				if s.dangling {
+					out = append(out, 0x1b, '\\')
+					s.dangling = false
+				}
 				s.state = stripGraphics
 			case 0x1b:
 				out = append(out, 0x1b, '_')
+				s.dangling = true
 				s.state = stripEscape
 			default:
 				out = append(out, 0x1b, '_', b)
+				s.dangling = false
 				s.state = stripGround
 			}
 		case stripGraphics:
@@ -103,7 +121,7 @@ func (s *GraphicsStripper) Close() error {
 	case stripAPC:
 		_, err = s.W.Write([]byte{0x1b, '_'})
 	}
-	s.state = stripGround
+	s.state, s.dangling = stripGround, false
 	if c, ok := s.W.(io.Closer); ok {
 		if cerr := c.Close(); err == nil {
 			err = cerr
