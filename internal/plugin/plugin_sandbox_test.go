@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -23,7 +24,7 @@ check read_secret sh -c 'read -r line < "$1"' _ %[1]q
 check write_outside sh -c 'echo x > "$1/written"' _ %[2]q
 check write_own sh -c 'echo x > "$HIVE_PLUGIN_DATA/written"'
 check exec_listed uname
-check exec_unlisted whoami
+check exec_unlisted %[6]s
 check net_listed curl -sf --max-time 5 http://127.0.0.1:%[3]d/
 check net_unlisted curl -sf --max-time 5 http://127.0.0.1:%[4]d/
 check net_direct curl -sf --max-time 5 --noproxy '*' http://127.0.0.1:%[3]d/
@@ -49,10 +50,33 @@ func TestAPI2SandboxConfinesByDefault(t *testing.T) {
 	if !SandboxAvailable() {
 		t.Skip("no sandbox here: " + sandboxTool())
 	}
-	for _, tool := range []string{"curl", "uname", "whoami"} {
-		if _, err := exec.LookPath(tool); err != nil {
+	var listed []os.FileInfo
+	for _, tool := range []string{"curl", "uname"} {
+		p, err := exec.LookPath(tool)
+		if err != nil {
 			t.Skip(tool + " not installed")
 		}
+		if fi, err := os.Stat(p); err == nil {
+			listed = append(listed, fi)
+		}
+	}
+	// A program that is not the same file as a listed one: a multi-call
+	// coreutils (uutils on Ubuntu 26.04, hard links to one binary) is
+	// uname and whoami at once, and Landlock allows files, not names.
+	unlisted := ""
+	for _, tool := range []string{"whoami", "find", "grep", "sed", "tar"} {
+		p, err := exec.LookPath(tool)
+		if err != nil {
+			continue
+		}
+		fi, err := os.Stat(p)
+		if err == nil && !slices.ContainsFunc(listed, func(l os.FileInfo) bool { return os.SameFile(l, fi) }) {
+			unlisted = tool
+			break
+		}
+	}
+	if unlisted == "" {
+		t.Skip("no program here apart from the listed ones")
 	}
 	// What the plugin must not touch: a secret in a home-like directory,
 	// and a directory to write into.
@@ -86,7 +110,7 @@ func TestAPI2SandboxConfinesByDefault(t *testing.T) {
 		_ = http.Serve(dl, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("daemon")) }))
 	}()
 
-	probe := fmt.Sprintf(hostileProbe, secret, outside, port(ok), port(other), daemonSock)
+	probe := fmt.Sprintf(hostileProbe, secret, outside, port(ok), port(other), daemonSock, unlisted)
 	manifest := func(extra string) string {
 		return fmt.Sprintf(`api = 2
 id = "hostile"
@@ -104,10 +128,9 @@ id = "probe"
 command = ["./probe.sh"]
 `, extra, port(ok))
 	}
-	launcher, _ := os.Executable()
 	run := func(t *testing.T, m string) map[string]string {
 		t.Helper()
-		h, _, _ := startHost(t, m, map[string]string{"probe.sh": probe}, HostConfig{Launcher: launcher, SocketPath: daemonSock})
+		h, _, _ := startHost(t, m, map[string]string{"probe.sh": probe}, HostConfig{SocketPath: daemonSock})
 		if st := statusOf(h, "hostile"); st.Problem != "" || st.Sandbox == SandboxNone {
 			t.Fatalf("status: problem %q, sandbox %q, warnings %v", st.Problem, st.Sandbox, st.Health.Warnings)
 		}

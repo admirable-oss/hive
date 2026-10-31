@@ -236,8 +236,16 @@ func bwrapArgs(s sandboxSpec) []string {
 			}
 		}
 	}
-	args = append(args, "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp")
-	if s.Confined && !s.ReadAll && !s.FilesystemWrite {
+	args = append(args, "--dev", "/dev", "--proc", "/proc")
+	// A plugin granted writes everywhere sees the real /tmp, so what it
+	// writes there stays; any other gets a private one, and what it needs
+	// from the host's /tmp (its package, its programs, the launcher, its
+	// socket: all there in tests) is bound back in.
+	privateTmp := !s.Confined || !s.FilesystemWrite
+	if privateTmp {
+		args = append(args, "--tmpfs", "/tmp")
+	}
+	if s.Confined && !s.FilesystemWrite {
 		for _, d := range append(append(slices.Clone(s.Readable), s.Exec...), s.Launcher) {
 			if d != "" {
 				args = append(args, "--ro-bind-try", d, d)
@@ -253,17 +261,16 @@ func bwrapArgs(s sandboxSpec) []string {
 	if !s.Network || s.ProxySocket != "" {
 		args = append(args, "--unshare-net")
 	}
-	if s.ProxySocket != "" {
+	proxySocket := s.ProxySocket // where the real /tmp is, at its own path
+	if s.ProxySocket != "" && privateTmp {
 		args = append(args, "--bind", s.ProxySocket, sandboxProxySocket)
+		proxySocket = sandboxProxySocket
 	}
 	if s.DaemonSocket != "" {
 		args = append(args, "--ro-bind-try", "/dev/null", s.DaemonSocket)
 	}
 	if s.Confined {
-		spec := launchSpec{ExecAny: s.ExecAny, ProxyToken: s.ProxyToken}
-		if s.ProxySocket != "" {
-			spec.ProxySocket = sandboxProxySocket
-		}
+		spec := launchSpec{ExecAny: s.ExecAny, ProxySocket: proxySocket, ProxyToken: s.ProxyToken}
 		if !s.ExecAny {
 			spec.Exec = append(append(slices.Clone(shells), s.Exec...), loaders()...)
 		}
@@ -274,7 +281,7 @@ func bwrapArgs(s sandboxSpec) []string {
 }
 
 // sandboxProxySocket is where a plugin's proxy socket is inside its
-// sandbox (/tmp is the sandbox's own).
+// sandbox when /tmp is the sandbox's own.
 const sandboxProxySocket = "/tmp/.hive-proxy.sock"
 
 // loaders are this system's dynamic loaders.
