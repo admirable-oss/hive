@@ -53,9 +53,11 @@ type routedNote struct {
 		PlanID string `json:"plan_id"`
 		ID     string `json:"id"`
 	} `json:"task"`
-	To []struct {
-		ID string `json:"id"`
-	} `json:"to"`
+	To []routedPerson `json:"to"`
+}
+
+type routedPerson struct {
+	ID string `json:"id"`
 }
 
 // routedNotification is the system notification for a notify event, when
@@ -68,9 +70,7 @@ func (h *Hub) routedNotification(data json.RawMessage) (Notification, bool) {
 	h.mu.Lock()
 	self, settings, ws := h.self, h.settings, h.ws
 	h.mu.Unlock()
-	if self == "" || settings.SystemNotifications || !slices.ContainsFunc(n.To, func(p struct {
-		ID string `json:"id"`
-	}) bool {
+	if self == "" || settings.SystemNotifications || !slices.ContainsFunc(n.To, func(p routedPerson) bool {
 		return p.ID == self
 	}) {
 		return Notification{}, false

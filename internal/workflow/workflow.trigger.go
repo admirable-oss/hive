@@ -20,7 +20,10 @@ type triggers struct {
 
 	mu    sync.Mutex
 	state TriggerState
-	next  map[string]time.Time // schedule and every triggers, by key
+	// unsaved is set while state has changes its last save failed to
+	// write; the next poll writes them.
+	unsaved bool
+	next    map[string]time.Time // schedule and every triggers, by key
 	// nextOf is the schedule each next was computed for, so an edited one
 	// is computed again.
 	nextOf  map[string]string
@@ -84,6 +87,12 @@ func (t *triggers) run(ctx context.Context) {
 		case <-poll.C:
 			t.s.reload(ctx)
 			t.scanGit(ctx)
+			t.mu.Lock()
+			unsaved := t.unsaved
+			t.mu.Unlock()
+			if unsaved {
+				t.save()
+			}
 		case <-t.gitPoke:
 			if debounce == nil {
 				debounce = time.After(500 * time.Millisecond)
@@ -205,14 +214,11 @@ func (t *triggers) fireDue(ctx context.Context, now time.Time) {
 		delete(t.next, key) // refresh recomputes it
 		t.state.Every[key] = now
 	}
-	st := t.cloneStateLocked()
 	t.mu.Unlock()
 	if len(fire) == 0 {
 		return
 	}
-	if err := t.s.store.SaveState(st); err != nil {
-		t.s.log.Warn("saving workflow trigger state", "err", err)
-	}
+	t.save()
 	for _, d := range fire {
 		typ := TriggerSchedule
 		t.s.mu.Lock()
@@ -225,6 +231,23 @@ func (t *triggers) fireDue(ctx context.Context, now time.Time) {
 		}}, "")
 	}
 	t.refresh(now)
+}
+
+// save writes what triggers saw. A failed write is tried again by the
+// next poll: the references it holds are already in state, so no later
+// scan would see them change (on Windows, replacing the file fails while
+// it is open).
+func (t *triggers) save() {
+	t.mu.Lock()
+	st := t.cloneStateLocked()
+	t.mu.Unlock()
+	err := t.s.store.SaveState(st)
+	t.mu.Lock()
+	t.unsaved = err != nil
+	t.mu.Unlock()
+	if err != nil {
+		t.s.log.Warn("saving workflow trigger state", "err", err)
+	}
 }
 
 func (t *triggers) cloneStateLocked() TriggerState {
@@ -558,12 +581,7 @@ func (t *triggers) scanGit(ctx context.Context) {
 		}
 	}
 	if dirty {
-		t.mu.Lock()
-		st := t.cloneStateLocked()
-		t.mu.Unlock()
-		if err := t.s.store.SaveState(st); err != nil {
-			t.s.log.Warn("saving workflow trigger state", "err", err)
-		}
+		t.save()
 	}
 	for _, f := range fires {
 		t.s.fire(ctx, f.watch.workflow, f.watch.index, Trigger{

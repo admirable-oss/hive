@@ -3,6 +3,9 @@ package runtime
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -24,15 +27,16 @@ type gitTracker struct {
 	log      *slog.Logger
 
 	mu      sync.Mutex
-	watcher *git.Watcher   // nil until run starts, and after it ends
-	refs    map[string]int // directory → environments using it
+	watcher *git.Watcher           // nil until run starts, and after it ends
+	refs    map[string]int         // directory → environments using it
+	early   map[string]*git.Status // what watch read before the watcher existed
 }
 
 func newGitTracker(g *git.Git, envs interface {
 	List(context.Context) ([]environment.Environment, error)
 }, events event.Publisher, interval time.Duration, log *slog.Logger,
 ) *gitTracker {
-	return &gitTracker{git: g, envs: envs, events: events, interval: interval, log: log, refs: map[string]int{}}
+	return &gitTracker{git: g, envs: envs, events: events, interval: interval, log: log, refs: map[string]int{}, early: map[string]*git.Status{}}
 }
 
 // run watches every environment until ctx ends. It is a Server task, so a
@@ -47,11 +51,26 @@ func (t *gitTracker) run(ctx context.Context) {
 	if err != nil {
 		t.log.Warn("list environments for git tracking", "err", err)
 	}
+	listed := map[string]int{}
+	for _, e := range envs {
+		listed[e.Path]++
+	}
+	// Environments created before the watcher existed were counted by
+	// watch, and may be listed too: a directory counts its larger number.
 	t.mu.Lock()
 	t.watcher = w
+	for dir, n := range listed {
+		t.refs[dir] = max(t.refs[dir], n)
+	}
+	dirs, early := slices.Collect(maps.Keys(t.refs)), t.early
+	t.early = map[string]*git.Status{}
 	t.mu.Unlock()
-	for _, e := range envs {
-		t.watch(ctx, e.Path)
+	for _, dir := range dirs {
+		// A change since watch read it was not announced yet.
+		st := w.Watch(ctx, dir)
+		if old, ok := early[dir]; ok && !reflect.DeepEqual(old, st) {
+			t.announce(ctx, dir, st)
+		}
 	}
 	w.Run(ctx)
 	t.mu.Lock()
@@ -60,16 +79,27 @@ func (t *gitTracker) run(ctx context.Context) {
 	t.mu.Unlock()
 }
 
-// watch starts tracking dir for one more environment.
-func (t *gitTracker) watch(ctx context.Context, dir string) {
+// watch starts tracking dir for one more environment, and returns its
+// status. Before run starts, it is read once; run watches it.
+func (t *gitTracker) watch(ctx context.Context, dir string) *git.Status {
 	t.mu.Lock()
 	w := t.watcher
 	t.refs[dir]++
 	first := t.refs[dir] == 1
 	t.mu.Unlock()
-	if w != nil && first {
-		w.Watch(ctx, dir)
+	switch {
+	case w == nil:
+		st, _ := t.git.Status(ctx, dir)
+		t.mu.Lock()
+		if t.watcher == nil {
+			t.early[dir] = st
+		}
+		t.mu.Unlock()
+		return st
+	case first:
+		return w.Watch(ctx, dir)
 	}
+	return w.Status(dir)
 }
 
 // unwatch stops tracking dir for one environment.
@@ -102,10 +132,14 @@ func (t *gitTracker) status(dir string) *git.Status {
 
 // changed publishes the new status for every environment in dir.
 func (t *gitTracker) changed(dir string, st *git.Status) {
+	t.announce(context.Background(), dir, st)
+}
+
+func (t *gitTracker) announce(ctx context.Context, dir string, st *git.Status) {
 	if t.events == nil {
 		return
 	}
-	envs, err := t.envs.List(context.Background())
+	envs, err := t.envs.List(ctx)
 	if err != nil {
 		return
 	}

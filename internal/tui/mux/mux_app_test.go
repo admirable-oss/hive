@@ -581,6 +581,11 @@ func TestCopyModeEndsWhenItsPaneCloses(t *testing.T) {
 	h.press("ctrl+b", "%")
 	h.waitFor("a split", func() bool { return len(h.panes()) == 2 })
 	left, right := h.panes()[0], h.panes()[1]
+	// Copy mode needs the new pane's screen, which follows the layout.
+	h.waitFor("the right pane's screen", func() bool {
+		p := h.a.ws.snap.pane(right)
+		return p != nil && (h.a.views[p.ProcessID] != nil || h.a.cache[p.ProcessID] != nil)
+	})
 	h.a.enterCopy(right, false, 0)
 	if h.a.ui.copy == nil {
 		t.Fatal("copy mode on the right pane")

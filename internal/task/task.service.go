@@ -301,7 +301,7 @@ func (s *Service) schedule(ctx context.Context, mc *machineCache) time.Time {
 		// again rather than place it nowhere.
 		signal(s.wake)
 	}
-	for _, pl := range place(s.order, machines, s.cfg.Kinds, s.heldLocked(now)) {
+	for _, pl := range place(s.order, machines, s.cfg.Kinds, s.heldLocked(ctx, now)) {
 		p, i := pl.plan, pl.index
 		t := &p.Tasks[i]
 		if pl.reason != "" {
@@ -321,7 +321,7 @@ func (s *Service) schedule(ctx context.Context, mc *machineCache) time.Time {
 	for _, st := range starts {
 		ex, err := s.machines.Executor(st.machine)
 		if err != nil {
-			s.finish(st.key, st.attempt.Task.Attempt, Outcome{State: StateFailed, Reason: err.Error(), Result: &Result{Outcome: "unreachable"}})
+			s.finish(ctx, st.key, st.attempt.Task.Attempt, Outcome{State: StateFailed, Reason: err.Error(), Result: &Result{Outcome: "unreachable"}})
 			continue
 		}
 		go s.execute(st, ex)
@@ -331,7 +331,7 @@ func (s *Service) schedule(ctx context.Context, mc *machineCache) time.Time {
 
 // heldLocked marks the queued tasks Hold holds with why, and returns
 // the test place skips them by. A task no longer held loses the reason.
-func (s *Service) heldLocked(now time.Time) func(p *Plan, t *Task) bool {
+func (s *Service) heldLocked(ctx context.Context, now time.Time) func(p *Plan, t *Task) bool {
 	if s.cfg.Hold == nil {
 		return nil
 	}
@@ -352,11 +352,11 @@ func (s *Service) heldLocked(now time.Time) func(p *Plan, t *Task) bool {
 			case why != "" && t.Reason != why:
 				t.Reason = why
 				t.Log = appendLog(t.Log, now, why)
-				s.commitLocked(context.Background(), p, i)
+				s.commitLocked(ctx, p, i)
 			case why == "" && was:
 				t.Reason = ""
 				t.Log = appendLog(t.Log, now, "no longer held")
-				s.commitLocked(context.Background(), p, i)
+				s.commitLocked(ctx, p, i)
 			}
 		}
 	}
@@ -401,13 +401,13 @@ func (s *Service) launchLocked(ctx context.Context, p *Plan, t *Task, resume boo
 func (s *Service) execute(st start, ex Executor) {
 	defer s.running.Done()
 	n := st.attempt.Task.Attempt
-	out := ex.Execute(st.ctx, st.attempt, func(pr Progress) { s.progress(st.key, n, pr) })
-	s.finish(st.key, n, out)
+	out := ex.Execute(st.ctx, st.attempt, func(pr Progress) { s.progress(st.ctx, st.key, n, pr) })
+	s.finish(st.ctx, st.key, n, out)
 }
 
 // progress records what an attempt reports. Worked time and phases are
 // saved, but are not news: they bump no revision and publish nothing.
-func (s *Service) progress(key taskKey, n int, pr Progress) {
+func (s *Service) progress(ctx context.Context, key taskKey, n int, pr Progress) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, i := s.findLocked(key)
@@ -443,7 +443,7 @@ func (s *Service) progress(key taskKey, n int, pr Progress) {
 		t.Log, news = appendLog(t.Log, s.cfg.Now(), pr.Log), true
 	}
 	if news {
-		s.commitLocked(context.Background(), p, i)
+		s.commitLocked(ctx, p, i)
 		return
 	}
 	s.dirty[p.ID] = true
@@ -452,7 +452,7 @@ func (s *Service) progress(key taskKey, n int, pr Progress) {
 
 // finish records how an attempt ended. A failed attempt with retries left
 // is queued again.
-func (s *Service) finish(key taskKey, n int, out Outcome) {
+func (s *Service) finish(ctx context.Context, key taskKey, n int, out Outcome) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if a := s.attempts[key]; a != nil && a.n == n {
@@ -483,7 +483,7 @@ func (s *Service) finish(key taskKey, n int, out Outcome) {
 		t.State = out.State
 		t.Log = appendLog(t.Log, now, msg)
 	}
-	s.commitLocked(context.Background(), p, append([]int{i}, settle(p, now)...)...)
+	s.commitLocked(ctx, p, append([]int{i}, settle(p, now)...)...)
 	if p.State.Finished() {
 		s.log.Info("plan finished", "plan", p.ID, "status", p.State)
 		s.pruneLocked()

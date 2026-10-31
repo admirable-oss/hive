@@ -22,7 +22,13 @@ import (
 // hive binary is for the daemon.
 func TestMain(m *testing.M) {
 	if len(os.Args) > 1 && os.Args[1] == SandboxCommand {
-		os.Exit(SandboxMain(os.Args[2:]))
+		code := SandboxMain(os.Args[2:])
+		// A coverage build warns on exit without GOCOVERDIR, and the
+		// last line of a plugin's stderr is what its caller reports.
+		if null, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0); err == nil {
+			os.Stderr = null
+		}
+		os.Exit(code)
 	}
 	goleak.VerifyTestMain(m)
 }

@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -111,7 +112,7 @@ func TestStore(t *testing.T) {
 	if err != nil || got.ID != m.ID || got.GrantsString() != "observer@all" {
 		t.Fatalf("reloaded: %+v %v", got, err)
 	}
-	if fi, err := os.Stat(filepath.Join(dir, "members.json")); err != nil || fi.Mode().Perm() != 0o600 {
+	if fi, err := os.Stat(filepath.Join(dir, "members.json")); err != nil || runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
 		t.Fatalf("members.json: %v %v", fi, err)
 	}
 
