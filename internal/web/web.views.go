@@ -627,6 +627,7 @@ func environmentFragments(p *page, r *shown, env string) []g.Node {
 				g.Iff(e.Worktree != nil, func() g.Node { return fact("Worktree", g.Text(e.Worktree.Branch+" of "+e.Worktree.Repo)) }),
 				g.Iff(e.Git != nil, func() g.Node { return fact("Git", g.Text(gitText(e))) }),
 				g.If(hasMeta, fact("Reported", metaNode(md))),
+				peopleFact(r, env),
 				fact("Connection", runtimeState(r, p.now)),
 			)),
 		),
@@ -666,7 +667,38 @@ func paneItem(p *page, r *shown, id string) g.Node {
 		}),
 		g.Iff(a != nil, func() g.Node { return g.Group{g.Text(" "), stateBadge(a.State)} }),
 		g.If(pn.Focused, h.Span(h.Class("muted"), g.Text(" · focused"))),
+		typingNode(r, id),
 	)
+}
+
+// peopleFact names who is in environment env, in a shared runtime.
+func peopleFact(r *shown, env string) g.Node {
+	if r.c == nil {
+		return nil
+	}
+	p := r.c.Presence()
+	if p == nil {
+		return nil
+	}
+	var names []string
+	for _, x := range p.People {
+		if x.Environment == env && !slices.Contains(names, x.Name) {
+			names = append(names, x.Name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return fact("Here", g.Text(strings.Join(names, ", ")))
+}
+
+// typingNode says who holds a pane's input, in a shared runtime.
+func typingNode(r *shown, id string) g.Node {
+	f, ok := r.v.Floors[id]
+	if !ok {
+		return nil
+	}
+	return h.Span(h.Class("typing"), g.Text(" · "+f.Holder+" is typing"))
 }
 
 func metaNode(md observer.Metadata) g.Node {
@@ -732,6 +764,9 @@ func paneFragments(p *page, r *shown, id string, scr screenState) []g.Node {
 					return fact("Program", g.Text(pn.Process.Program+" · "+string(pn.Process.Status)))
 				}),
 				g.If(hasMeta, fact("Reported", metaNode(md))),
+				g.Iff(r.v.Floors[id].Holder != "", func() g.Node {
+					return fact("Typing", g.Text(r.v.Floors[id].Holder+" holds this pane's input"))
+				}),
 				fact("Connection", runtimeState(r, p.now)),
 			)),
 			g.If(ok, followMuteControls(p, r, a, p.prefs, p.path)),

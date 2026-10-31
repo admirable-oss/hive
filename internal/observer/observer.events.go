@@ -70,6 +70,8 @@ var Types = []string{
 	task.EventPlan,           // Plan without Tasks: how a plan stands (observers that see all)
 	task.EventRemoved,        // {"ids"}: finished plans forgotten (observers that see all)
 	insights.EventAlert,      // Alert: a budget warns or is exceeded (where its key is seen)
+	EventPresenceChanged,     // {"people": []Present}: who is where (observers that see all)
+	EventPaneFloor,           // Floor: who holds a pane's input now
 	Resync,                   // ResyncData
 }
 
@@ -204,6 +206,8 @@ func Translate(ev event.Event, locate Locator) (Event, bool) {
 		var a insights.Alert
 		err = json.Unmarshal(ev.Data, &a)
 		data, target = a, Target{Environment: a.Target()}
+	case EventPresenceChanged, EventPaneFloor:
+		data, target, err = translatePresence(ev.Data, ev.Type)
 	default:
 		return Event{}, false
 	}

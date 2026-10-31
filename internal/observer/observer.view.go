@@ -267,6 +267,9 @@ type Snapshot struct {
 	// Plans are the plans with tasks in scope, newest first; omitted by
 	// daemons before 1.3.
 	Plans []Plan `json:"plans,omitempty"`
+	// Floors are who holds the input of panes in scope; omitted by daemons
+	// before 1.8, and when no one holds any.
+	Floors []Floor `json:"floors,omitempty"`
 }
 
 // Cursor is where a screen's cursor is (0-based) and whether it shows.

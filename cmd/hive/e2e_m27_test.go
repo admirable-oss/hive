@@ -7,10 +7,12 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/admirable-oss/hive/internal/access"
+	"github.com/admirable-oss/hive/internal/observer"
 	"github.com/admirable-oss/hive/internal/runtime"
 )
 
@@ -362,6 +364,16 @@ func TestM27OneTypistAtATime(t *testing.T) {
 	}
 	if out := r.must("presence"); !strings.Contains(out, "TYPING") || !strings.Contains(out, "alice") || !strings.Contains(out, agentPane) {
 		t.Fatalf("presence:\n%s", out)
+	}
+	// An observer of dev sees who holds the pane, by name.
+	var created runtime.ObserverCreated
+	decode(t, r.must("--json", "observer", "create", "dash", "--env", "dev"), &created)
+	obs := *r.cli
+	obs.env = append(slices.Clone(r.env), observerTokenEnv+"="+created.Token)
+	var snap observer.Snapshot
+	decode(t, obs.must("observer", "snapshot"), &snap)
+	if len(snap.Floors) != 1 || snap.Floors[0].Pane != agentPane || snap.Floors[0].Holder != "alice" {
+		t.Fatalf("the observer's floors: %+v", snap.Floors)
 	}
 	alice.must(asMember("pane", "release", agentPane)...)
 	r.must("agent", "prompt", agentPane, "mine now")
