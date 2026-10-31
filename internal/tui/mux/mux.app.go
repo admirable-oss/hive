@@ -282,6 +282,8 @@ func (a *App) Handle(m Msg) {
 		}
 	case statusTickMsg:
 		a.after(time.Second, statusTickMsg{})
+	case presenceReportedMsg:
+		a.ws.noPresence = m.unsupported
 	case claimedMsg:
 		delete(a.ws.claiming, m.tab)
 		if m.err != nil {

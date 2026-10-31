@@ -198,6 +198,9 @@ enabled = {{.Access.Enabled}}
 max_connections = {{.Access.MaxConnections}}
 # The file members' keys are kept in ("" is ~/.ssh/authorized_keys).
 authorized_keys = {{q .Access.AuthorizedKeys}}
+# A terminal takes input from one person at a time; someone who stops
+# typing keeps it this long before another may type.
+input_idle = {{dur .Access.InputIdle}}
 
 [web]
 # The web observer (` + "`hive web serve`" + `): read-only agent status in a browser.

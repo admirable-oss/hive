@@ -667,6 +667,15 @@ Result: [runtime.ObserverValidation](#runtimeobservervalidation)
 
 ## pane
 
+### `pane.claim`
+
+| Param | Type | |
+|---|---|---|
+| `force` | `boolean` |  |
+| `pane` | `string` |  |
+
+Result: [runtime.PaneClaimed](#runtimepaneclaimed)
+
 ### `pane.close`
 
 | Param | Type | |
@@ -743,6 +752,14 @@ Result: [pane.Pane](#panepane)
 | `source` | `string` |  |
 
 Result: `[]string`
+
+### `pane.release`
+
+| Param | Type | |
+|---|---|---|
+| `pane` | `string` |  |
+
+Result: `map[string]boolean`
 
 ### `pane.rename`
 
@@ -982,6 +999,24 @@ Result: [plugin.ViewContent](#pluginviewcontent)
 No params.
 
 Result: [\[\]plugin.ViewContent](#pluginviewcontent)
+
+## presence
+
+### `presence.list`
+
+No params.
+
+Result: [runtime.PresenceList](#runtimepresencelist)
+
+### `presence.set`
+
+| Param | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `pane` | `string` |  |
+| `tab` | `string` |  |
+
+Result: [protocol.Empty](#protocolempty)
 
 ## process
 
@@ -3217,6 +3252,36 @@ Result: [protocol.Empty](#protocolempty)
 | `plugin` | `string` |  |
 | `view` | `string` |  |
 
+### presence.Entry
+
+| Field | Type | |
+|---|---|---|
+| `client` | `string` |  |
+| `connection` | `string` |  |
+| `environment` | `string` |  |
+| `pane` | `string` |  |
+| `person` | [presence.Person](#presenceperson) |  |
+| `since` | `string` |  |
+| `tab` | `string` |  |
+
+### presence.Hold
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `holder` | [presence.Person](#presenceperson) |  |
+| `pane` | `string` |  |
+| `process_id` | `string` |  |
+| `since` | `string` |  |
+| `until` | `string` |  |
+
+### presence.Person
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` |  |
+| `name` | `string` |  |
+
 ### process.LogsRequest
 
 | Field | Type | |
@@ -3440,6 +3505,13 @@ An object.
 | `state` | `string` |  |
 | `valid` | `boolean` |  |
 
+### runtime.PaneClaimed
+
+| Field | Type | |
+|---|---|---|
+| `holder` | [presence.Person](#presenceperson) |  |
+| `previous` | [presence.Person](#presenceperson) |  |
+
 ### runtime.PluginRunRequest
 
 | Field | Type | |
@@ -3456,6 +3528,13 @@ An object.
 |---|---|---|
 | `profile` | `string` |  |
 | `seconds` | `integer` |  |
+
+### runtime.PresenceList
+
+| Field | Type | |
+|---|---|---|
+| `holds` | [\[\]presence.Hold](#presencehold) |  |
+| `presence` | [\[\]presence.Entry](#presenceentry) |  |
 
 ### runtime.Snapshot
 
@@ -3596,6 +3675,19 @@ An object.
 |---|---|---|
 | `token` | `string` |  |
 
+### runtime.paneClaimParams
+
+| Field | Type | |
+|---|---|---|
+| `force` | `boolean` |  |
+| `pane` | `string` |  |
+
+### runtime.paneReleaseParams
+
+| Field | Type | |
+|---|---|---|
+| `pane` | `string` |  |
+
 ### runtime.pluginConfigSet
 
 | Field | Type | |
@@ -3624,6 +3716,14 @@ An object.
 |---|---|---|
 | `plugin` | `string` |  |
 | `run` | `string` |  |
+
+### runtime.presenceSetParams
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `pane` | `string` |  |
+| `tab` | `string` |  |
 
 ### runtime.workflowTriggerParams
 

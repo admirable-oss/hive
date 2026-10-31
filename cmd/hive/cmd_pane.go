@@ -52,6 +52,8 @@ a pane can drive its own pane (hive pane split, hive pane read).`,
 			return a.done(map[string]any{"id": id}, "closed pane %s", id)
 		}),
 		newPaneRenameCmd(a),
+		newPaneClaimCmd(a),
+		newPaneReleaseCmd(a),
 		paneCmd(a, &cobra.Command{Use: "input [pane]", Short: "Send standard input to a pane, byte for byte"}, func(ctx context.Context, w client.Workspace, id string, _ []string) error {
 			data, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
 			if err != nil {

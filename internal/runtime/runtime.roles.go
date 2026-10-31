@@ -69,6 +69,9 @@ type roleRule struct {
 	// by: the method records who acted (its "by" parameter), which the
 	// daemon fills with the member's name.
 	by bool
+	// ownFocus: a member's focus is their own, kept in presence, never the
+	// session's.
+	ownFocus bool
 }
 
 func p(name string, kind targetKind) ruleParam { return ruleParam{name, kind} }
@@ -86,6 +89,8 @@ func filtered(r access.Role, params ...ruleParam) roleRule {
 func typing(r roleRule) roleRule { r.agentOnly = true; return r }
 
 func signed(r roleRule) roleRule { r.by = true; return r }
+
+func ownFocus(r roleRule) roleRule { r.ownFocus = true; return r }
 
 const (
 	roleObserver = access.RoleObserver
@@ -128,6 +133,13 @@ var memberRules = map[string]roleRule{
 	"branch.diff":       on(roleObserver, p("ref", targetBranch)),
 	"branch.conflicts":  on(roleObserver, p("ref", targetBranch)),
 
+	// Where the member looks: their own focus, and their presence.
+	"pane.focus":    ownFocus(on(roleObserver, p("id", targetPane))),
+	"tab.focus":     ownFocus(on(roleObserver, p("id", targetTab))),
+	"agent.focus":   ownFocus(on(roleObserver, p("id", targetAgent))),
+	"presence.set":  filtered(roleObserver, p("environment", targetEnv), p("tab", targetTab), p("pane", targetPane)),
+	"presence.list": filtered(roleObserver),
+
 	// Reading what spans environments.
 	"worktree.list": across(roleObserver), "observer.activity": across(roleObserver),
 	"insights.summary": across(roleObserver), "insights.asks": across(roleObserver),
@@ -149,6 +161,8 @@ var memberRules = map[string]roleRule{
 	"terminal.input":  typing(on(roleOperator, p("process_id", targetProcess))),
 	"terminal.image":  typing(on(roleOperator, p("process_id", targetProcess))),
 	"terminal.resize": typing(on(roleOperator, p("process_id", targetProcess))),
+	"pane.claim":      typing(on(roleOperator, p("pane", targetPane))),
+	"pane.release":    on(roleOperator, p("pane", targetPane)),
 	"task.approve":    signed(on(roleOperator, p("id", targetPlan))),
 	"branch.comment":  signed(on(roleOperator, p("ref", targetBranch))),
 	"branch.send":     on(roleOperator, p("ref", targetBranch)),
@@ -161,12 +175,10 @@ var memberRules = map[string]roleRule{
 	"tab.close":       on(roleOwner, p("id", targetTab)),
 	"tab.rename":      on(roleOwner, p("id", targetTab)),
 	"tab.resize":      on(roleOwner, p("id", targetTab)),
-	"tab.focus":       on(roleOwner, p("id", targetTab)),
 	"pane.close":      on(roleOwner, p("id", targetPane)),
 	"pane.rename":     on(roleOwner, p("id", targetPane)),
 	"pane.resize":     on(roleOwner, p("id", targetPane)),
 	"pane.zoom":       on(roleOwner, p("id", targetPane)),
-	"pane.focus":      on(roleOwner, p("id", targetPane)),
 	"pane.run":        on(roleOwner, p("id", targetPane)),
 	"pane.split":      on(roleOwner, p("pane", targetPane), p("tab_id", targetTab)),
 	"pane.popup":      on(roleOwner, p("tab_id", targetTab)),
@@ -176,7 +188,6 @@ var memberRules = map[string]roleRule{
 	"agent.start":     on(roleOwner, p("environment_id", targetEnv)),
 	"agent.stop":      on(roleOwner, p("id", targetAgent)),
 	"agent.rename":    on(roleOwner, p("id", targetAgent)),
-	"agent.focus":     on(roleOwner, p("id", targetAgent)),
 	"process.start":   on(roleOwner, p("environment_id", targetEnv)),
 	"process.stop":    on(roleOwner, p("id", targetProcess)),
 	"metadata.report": on(roleOwner, p("environment", targetEnv), p("pane", targetPane)),
@@ -232,6 +243,7 @@ func memberAllowed(m access.Member, method string) bool {
 // see.
 type memberGuard struct {
 	router   protocol.Handler
+	input    *inputGuard
 	envs     environment.Service
 	panes    *pane.Service
 	agents   *agent.Service
@@ -268,7 +280,12 @@ func (g *memberGuard) Handle(ctx context.Context, req protocol.Request) protocol
 	if rule.view && !g.mayType(ctx, m, rule, req, envs) {
 		ctx = terminal.ReadOnly(ctx)
 	}
-	resp := g.router.Handle(ctx, req)
+	var resp protocol.Response
+	if rule.ownFocus {
+		resp = g.memberFocus(ctx, req)
+	} else {
+		resp = g.router.Handle(ctx, req)
+	}
 	if resp.Error == nil && resp.Pipe == nil && len(resp.Result) > 0 {
 		if shaped, err := g.shape(ctx, m, req.Method, resp.Result); err == nil {
 			resp.Result = shaped
@@ -695,6 +712,15 @@ func (g *memberGuard) eventFilterWith(m access.Member, s shaper) event.Filter {
 		v, err := decodeAny(ev.Data)
 		if err != nil {
 			return ev, false
+		}
+		if ev.Type == EventPresenceChanged {
+			// Everyone's presence: the walk leaves out who is elsewhere.
+			data, err := json.Marshal(s.walk(v, "", ""))
+			if err != nil {
+				return ev, false
+			}
+			ev.Data = data
+			return ev, true
 		}
 		env := ""
 		if obj, ok := v.(map[string]any); ok {

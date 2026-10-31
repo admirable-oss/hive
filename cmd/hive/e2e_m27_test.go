@@ -340,3 +340,35 @@ func TestM27Roles(t *testing.T) {
 		t.Fatal("the audit holds what alice typed")
 	}
 }
+
+// TestM27OneTypistAtATime: a member typing into an agent's pane holds it;
+// the owner's prompt is refused, naming her, until she lets go.
+func TestM27OneTypistAtATime(t *testing.T) {
+	r := newTeamRuntime(t)
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte(fakeClaude), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.env = append(r.env, "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	r.must("env", "create", "dev", "--managed")
+	agentPane := strings.TrimSpace(r.must("agent", "start", "--kind", "claude", "--env", "dev", "--name", "helper"))
+	alice := r.invite("alice", 1, "operator", "dev")
+
+	if out := alice.must(asMember("pane", "claim", agentPane)...); !strings.Contains(out, "alice") {
+		t.Fatalf("claim: %s", out)
+	}
+	if _, errOut, code := r.run("agent", "prompt", agentPane, "mine now"); code == 0 || !strings.Contains(errOut, "alice is typing") {
+		t.Fatalf("the owner prompting over alice: %d %s", code, errOut)
+	}
+	if out := r.must("presence"); !strings.Contains(out, "TYPING") || !strings.Contains(out, "alice") || !strings.Contains(out, agentPane) {
+		t.Fatalf("presence:\n%s", out)
+	}
+	alice.must(asMember("pane", "release", agentPane)...)
+	r.must("agent", "prompt", agentPane, "mine now")
+	if out := r.must("presence"); !strings.Contains(out, "TYPING") {
+		t.Fatalf("the owner's prompt does not hold the pane:\n%s", out)
+	}
+	if _, errOut, code := alice.run(asMember("agent", "prompt", agentPane, "hers")...); code == 0 || !strings.Contains(errOut, "is typing") {
+		t.Fatalf("alice prompting over the owner: %d %s", code, errOut)
+	}
+}

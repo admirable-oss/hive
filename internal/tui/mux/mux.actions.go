@@ -152,13 +152,19 @@ func (a *App) paneAction(act keymap.Action) {
 			keymap.FocusLeft: layout.Left, keymap.FocusRight: layout.Right,
 			keymap.FocusUp: layout.Up, keymap.FocusDown: layout.Down,
 		}[act]
+		var got pane.Pane
 		a.call("focus", func(ctx context.Context) error {
-			_, err := api.PaneFocus(ctx, id, d)
+			var err error
+			got, err = api.PaneFocus(ctx, id, d)
 			if isCode(err, protocol.ErrorCodeNotFound) {
 				return nil // nothing that way: stay
 			}
 			return err
-		}, nil)
+		}, func(err error) {
+			if err == nil {
+				a.focusedOwn(got)
+			}
+		})
 	case keymap.FocusNext, keymap.FocusPrev:
 		if next := a.neighbourInOrder(id, act == keymap.FocusNext); next != "" {
 			a.focusPane(next)
@@ -238,10 +244,16 @@ func (a *App) neighbourInOrder(id string, next bool) string {
 // focusPane focuses a pane (and its tab).
 func (a *App) focusPane(id string) {
 	api := a.api
+	var got pane.Pane
 	a.call("focus", func(ctx context.Context) error {
-		_, err := api.PaneFocus(ctx, id, "")
+		var err error
+		got, err = api.PaneFocus(ctx, id, "")
 		return err
-	}, nil)
+	}, func(err error) {
+		if err == nil {
+			a.focusedOwn(got)
+		}
+	})
 }
 
 // --- tabs ---
@@ -269,6 +281,7 @@ func (a *App) focusTab(id string) {
 		for _, o := range s.tabsOf(t.EnvironmentID) {
 			o.Active = o.ID == id
 		}
+		a.shownOwnTab(t)
 		a.exitCopy()
 		a.afterChange()
 	}

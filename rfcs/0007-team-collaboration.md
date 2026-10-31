@@ -182,8 +182,10 @@ Alice's or your view.
 - Input from someone who does not hold the pane takes it, if it is free.
 - While someone else holds it, input answers `conflict` with the holder's
   name, and nothing is written.
-- The holder keeps it until they release it (`pane.release`), leave, or
-  stop typing for `[access] input_idle` (10 seconds by default).
+- The holder keeps it until they release it (`pane.release`), stop typing
+  for `[access] input_idle` (10 seconds by default), or lose access.
+  Leaving counts as no longer typing: a command is a connection of its
+  own, so a claim made by one outlasts it.
 - `pane.claim {pane, force}` takes it on purpose. `force` is for an owner
   in that environment, and the previous holder is told.
 - An `agent.prompt` holds the pane for the whole write, so a prompt never

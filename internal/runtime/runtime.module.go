@@ -123,7 +123,10 @@ func NewModule(cfg Config) *Module {
 	keep.load()
 
 	router := protocol.NewRouter()
-	server := NewServer(cfg, router, procs)
+	// Everyone reaches the router through the input guard: one typist per
+	// terminal.
+	input := &inputGuard{next: router, reg: newPresence(cfg, bus, panes), panes: panes, agents: agents, owner: ownerPerson()}
+	server := NewServer(cfg, input, procs)
 	server.Go(tracker.run)
 	server.Go(func(ctx context.Context) { closeFinishedPopups(ctx, bus, panes, log) })
 	server.Go(agents.Run)
@@ -141,7 +144,7 @@ func NewModule(cfg Config) *Module {
 
 	meta := metadata.NewStore(nil)
 	server.Go(func(ctx context.Context) { expireMetadata(ctx, meta, bus, log) })
-	plugins = newPluginHost(cfg, log.With("module", "plugin"), router, bus, func(ctx context.Context) []string {
+	plugins = newPluginHost(cfg, log.With("module", "plugin"), input, bus, func(ctx context.Context) []string {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		envs, err := guardedEnvs.List(ctx)
@@ -188,9 +191,9 @@ func NewModule(cfg Config) *Module {
 		},
 	})
 	server.Go(obs.run)
-	mems := newMembers(cfg, log.With("module", "access"), bus, router, &memberGuard{
-		envs: guardedEnvs, panes: panes, agents: agents, procs: procs, tasks: tasks.svc, branches: branches,
-	})
+	mems := newMembers(cfg, log.With("module", "access"), bus, input, &memberGuard{
+		input: input, envs: guardedEnvs, panes: panes, agents: agents, procs: procs, tasks: tasks.svc, branches: branches,
+	}, input.reg)
 	server.Go(mems.run)
 
 	Register(router, server)
@@ -227,6 +230,7 @@ func NewModule(cfg Config) *Module {
 	registerDebug(router, server)
 	registerObservers(router, obs, guardedEnvs, panes)
 	registerAccess(router, mems, guardedEnvs)
+	registerPresence(router, input)
 	registerAPI(router, server, guardedEnvs, panes, procs, agents) // last: it describes the others
 
 	return &Module{

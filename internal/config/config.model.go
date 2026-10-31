@@ -341,6 +341,9 @@ type Access struct {
 	// AuthorizedKeys is the file Hive keeps members' keys in; empty means
 	// ~/.ssh/authorized_keys.
 	AuthorizedKeys string
+	// InputIdle is how long someone who stopped typing keeps a terminal's
+	// input before another person may type.
+	InputIdle time.Duration
 }
 
 // Web configures the web observer (`hive web serve`).
@@ -485,7 +488,7 @@ func Defaults() Config {
 		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},
 		Plugins:   Plugins{Allow: []string{}, Deny: []string{}, Isolation: "auto", RequireSignature: "official-verified", RestartLimit: 5, RestartWindow: 10 * time.Minute, Hidden: []string{}},
 		Observers: Observers{Enabled: true, HistoryEvents: 2048, MaxConnections: 32},
-		Access:    Access{Enabled: true, MaxConnections: 32},
+		Access:    Access{Enabled: true, MaxConnections: 32, InputIdle: 10 * time.Second},
 		Web:       Web{Listen: "127.0.0.1:8484", Push: true},
 		Update:    Update{Channel: "stable"},
 		Notify:    notify.Defaults(),

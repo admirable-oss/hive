@@ -103,6 +103,9 @@ func (a *App) modeIndicator() []compositor.Span {
 	if o := a.observedBy(); o != "" {
 		out = append(out, compositor.Span{Text: "◉ observed by " + o + " ", Style: uv.Style{Fg: a.theme.Warning}})
 	}
+	if w := a.withOthers(); w != "" {
+		out = append(out, compositor.Span{Text: "◇ " + w + " ", Style: uv.Style{Fg: a.theme.Info}})
+	}
 	switch {
 	case a.ui.overview != nil:
 		return append(out, badge("OVERVIEW", a.theme.Info)...)
@@ -450,6 +453,12 @@ func (a *App) drawPane(t *pane.Tab, p *pane.Pane, w, h int) compositor.Pane {
 	}
 	if s := a.ws.snap; s != nil && s.observed.Watched[p.ID] > 0 {
 		cp.Badges = append(cp.Badges, compositor.Span{Text: "[watched]", Style: uv.Style{Fg: a.theme.Warning}})
+	}
+	if who := a.typingIn(p); who != "" {
+		cp.Badges = append(cp.Badges, compositor.Span{Text: "[✎ " + who + "]", Style: uv.Style{Fg: a.theme.Warning}})
+	}
+	if names := a.othersAt("", p.ID); len(names) > 0 {
+		cp.Badges = append(cp.Badges, compositor.Span{Text: "[" + strings.Join(names, ", ") + "]", Style: uv.Style{Fg: a.theme.Info}})
 	}
 	if c := a.ui.copy; c != nil && c.paneID == p.ID {
 		if c.c == nil {

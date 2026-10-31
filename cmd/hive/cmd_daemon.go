@@ -186,6 +186,7 @@ func runDaemon(ctx context.Context, a *app) error {
 			Disabled:       !a.cfg.Access.Enabled,
 			MaxConnections: a.cfg.Access.MaxConnections,
 			AuthorizedKeys: a.cfg.Access.AuthorizedKeys,
+			InputIdle:      a.cfg.Access.InputIdle,
 			ProxyCommand:   a.memberProxyCommand(exe),
 		},
 		Images: runtime.ImagesConfig{

@@ -48,6 +48,20 @@ Teammates in your runtime, over ssh, with a role ([RFC 0007](rfcs/0007-team-coll
 - Every change a member makes is audited with where it acted and its
   outcome (`action` entries; `environment` and `outcome` fields).
 
+### Working together
+
+- Presence: `presence.set` and `presence.list`, the `presence.changed`
+  event, and `hive presence`. The multiplexer reports where you look, shows
+  who else is in the environment (`◇ with alice`) and on each pane, and a
+  member's focus is their own: `pane.focus`, `tab.focus` and `agent.focus`
+  from a member move only their presence.
+- One person types into a pane at a time, you included: input into a pane
+  someone else holds answers `conflict` naming them (frames and attach
+  views drop it), until they stop typing for `[access] input_idle` (10 s),
+  release it, or lose access. `pane.claim` (`--force` to take it) and
+  `pane.release`, `hive pane claim|release`, the `pane.floor` event, and
+  `[✎ alice]` on the pane.
+
 ## v1.7.0 (unreleased): Plugin ecosystem 2 (M26)
 
 Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). In progress.

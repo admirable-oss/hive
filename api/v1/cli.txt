@@ -138,6 +138,7 @@ command hive observer status
 command hive observer validate
 command hive observer watch
 command hive pane
+command hive pane claim
 command hive pane close
 command hive pane focus
 command hive pane get
@@ -147,6 +148,7 @@ command hive pane list (alias ls)
 command hive pane move
 command hive pane popup
 command hive pane read
+command hive pane release
 command hive pane rename
 command hive pane report-agent
 command hive pane report-metadata
@@ -198,6 +200,7 @@ command hive plugin update
 command hive plugin validate
 command hive plugin view
 command hive plugin views
+command hive presence
 command hive process
 command hive process (alias ps)
 command hive process get
@@ -458,6 +461,7 @@ flag hive observer validate --token-file string
 flag hive observer watch --ansi bool
 flag hive observer watch --interval duration
 flag hive observer watch --token-file string
+flag hive pane claim --force bool
 flag hive pane focus --direction string -d
 flag hive pane list --env string
 flag hive pane list --tab string

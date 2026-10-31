@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/access"
 	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/branch"
 	"github.com/admirable-oss/hive/internal/client"
@@ -19,6 +20,7 @@ import (
 	"github.com/admirable-oss/hive/internal/layout"
 	"github.com/admirable-oss/hive/internal/metadata"
 	"github.com/admirable-oss/hive/internal/pane"
+	"github.com/admirable-oss/hive/internal/presence"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/task"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
@@ -56,6 +58,10 @@ type snapshot struct {
 	// runs is the latest workflow runs' summaries, newest first; nil from
 	// a daemon without workflows.
 	runs []workflow.RunSummary
+	// self is who this client is: the runtime's own user, or a member.
+	self selfState
+	// presence is who else is connected, where, and who types where.
+	presence presenceState
 }
 
 // observedState is observer.activity.
@@ -90,6 +96,12 @@ type workspaceState struct {
 	finals   map[string]bool // exited agents whose last screen was asked for
 	claims   map[string]size // tab sizes this client asked for, by tab ID
 	claiming map[string]bool // tab.resize calls in flight
+	// own is a member's own focus, over the session's.
+	own ownFocus
+	// reported is where this client last told the daemon it looks;
+	// noPresence is a daemon without presence.
+	reported   presence.Spot
+	noPresence bool
 	// insights is today's insights, as the Overview last read them; nil
 	// until read, and from a daemon without insights.
 	insights *insightsView
@@ -195,6 +207,8 @@ func load(ctx context.Context, c client.Client, api client.Workspace) (*snapshot
 	s.plans = loadPlans(ctx, c)
 	s.branches = loadBranches(ctx, c)
 	s.runs = loadWorkflowRuns(ctx, c)
+	s.self = loadSelf(ctx, c)
+	s.presence = loadPresence(ctx, c)
 	slices.SortStableFunc(s.procs, func(a, b process.Process) int { return a.StartedAt.Compare(b.StartedAt) })
 	return &s, nil
 }
@@ -224,6 +238,7 @@ func (a *App) loaded(m loadedMsg) {
 	} else {
 		a.ws.err = nil
 		a.ws.snap = m.snap
+		a.applyOwnFocus()
 		for id := range a.ws.activity {
 			if m.snap.tab(id) == nil {
 				delete(a.ws.activity, id) // the tab closed
@@ -256,6 +271,7 @@ func (a *App) afterChange() {
 	a.loadFinals()
 	a.claimSize(false)
 	a.seen()
+	a.reportPresence()
 	a.dirty = true
 }
 
@@ -414,6 +430,9 @@ func (a *App) claimSize(force bool) {
 	if t == nil {
 		return
 	}
+	if !a.mayIn(t.EnvironmentID, access.RoleOwner) {
+		return // a member below owner leaves the tab's size to its owners
+	}
 	want := a.paneArea()
 	if want.w < 2 || want.h < 2 || (t.Width == want.w && t.Height == want.h) || a.ws.claiming[t.ID] {
 		return
@@ -542,6 +561,9 @@ func (a *App) apply(ev event.Event) {
 		// A read in flight began before this event and would undo it.
 		a.ws.stale = true
 	}
+	if a.applyPresenceEvent(ev) {
+		return
+	}
 	switch ev.Type {
 	case agent.EventState:
 		a.applyAgentState(ev)
@@ -556,6 +578,9 @@ func (a *App) apply(ev event.Event) {
 		}
 		return
 	case "pane.focused":
+		if a.member() != nil {
+			return // the session's focus is the owner's; a member keeps their own
+		}
 		var p pane.Pane
 		if json.Unmarshal(ev.Data, &p) != nil {
 			break
@@ -579,6 +604,7 @@ func (a *App) apply(ev event.Event) {
 		if t := s.tab(nt.ID); t != nil {
 			nt.Active = t.Active
 			*t = nt
+			a.applyOwnFocus()
 			a.afterChange()
 			return
 		}

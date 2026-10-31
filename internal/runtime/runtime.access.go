@@ -17,6 +17,7 @@ import (
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/platform"
+	"github.com/admirable-oss/hive/internal/presence"
 	"github.com/admirable-oss/hive/internal/protocol"
 )
 
@@ -39,6 +40,9 @@ type AccessConfig struct {
 	// AuthorizedKeys is the file members' keys are kept in; empty means
 	// ~/.ssh/authorized_keys.
 	AuthorizedKeys string
+	// InputIdle is how long someone who stopped typing keeps a terminal's
+	// input; zero means presence.DefaultIdle.
+	InputIdle time.Duration
 	// ProxyCommand is the shell command a member's key is forced to run,
 	// up to the member's ID: `<hive> [--session s] proxy --member`.
 	// Empty means "hive proxy --member".
@@ -77,14 +81,26 @@ type members struct {
 	audit     *access.Audit
 }
 
-func newMembers(cfg Config, log *slog.Logger, bus *event.Bus, router *protocol.Router, guard *memberGuard) *members {
+func newMembers(cfg Config, log *slog.Logger, bus *event.Bus, router methodHandler, guard *memberGuard, reg *presence.Registry) *members {
 	dir := filepath.Join(cfg.root(), "access")
 	m := &members{cfg: cfg, log: log, dir: dir, path: MemberSocketPath(cfg.root()), bus: bus, store: access.NewStore(dir)}
 	guard.router, guard.audit = router, m.auditLog
 	m.server = access.NewServer(access.Config{
 		Store: m.store, Handler: guard, Methods: router.Methods, Allowed: memberAllowed, Logger: log,
 		MaxConnections: cfg.Access.MaxConnections,
-		OnChange:       func() { bus.Publish(EventAccessChanged, accessEvent{Action: "connections"}) },
+		OnChange: func() {
+			// A member whose access ended lets go of the terminals they held;
+			// one who only left keeps them until they stop typing for the
+			// idle time, as anyone does (a command is a connection of its own).
+			reg.ReleaseIf(func(id string) bool {
+				if id == presence.OwnerID {
+					return false
+				}
+				_, err := m.store.Check(id)
+				return err != nil
+			})
+			bus.Publish(EventAccessChanged, accessEvent{Action: "connections"})
+		},
 	})
 	return m
 }

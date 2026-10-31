@@ -4762,6 +4762,84 @@
       ],
       "type": "object"
     },
+    "presence.Entry": {
+      "properties": {
+        "client": {
+          "type": "string"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "person": {
+          "$ref": "#/$defs/presence.Person"
+        },
+        "since": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tab": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection",
+        "person",
+        "since"
+      ],
+      "type": "object"
+    },
+    "presence.Hold": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "holder": {
+          "$ref": "#/$defs/presence.Person"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "process_id": {
+          "type": "string"
+        },
+        "since": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "until": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "process_id",
+        "holder",
+        "since",
+        "until"
+      ],
+      "type": "object"
+    },
+    "presence.Person": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
     "process.LogsRequest": {
       "properties": {
         "follow": {
@@ -5380,6 +5458,20 @@
       ],
       "type": "object"
     },
+    "runtime.PaneClaimed": {
+      "properties": {
+        "holder": {
+          "$ref": "#/$defs/presence.Person"
+        },
+        "previous": {
+          "$ref": "#/$defs/presence.Person"
+        }
+      },
+      "required": [
+        "holder"
+      ],
+      "type": "object"
+    },
     "runtime.PluginRunRequest": {
       "properties": {
         "action": {
@@ -5415,6 +5507,27 @@
       },
       "required": [
         "profile"
+      ],
+      "type": "object"
+    },
+    "runtime.PresenceList": {
+      "properties": {
+        "holds": {
+          "items": {
+            "$ref": "#/$defs/presence.Hold"
+          },
+          "type": "array"
+        },
+        "presence": {
+          "items": {
+            "$ref": "#/$defs/presence.Entry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "presence",
+        "holds"
       ],
       "type": "object"
     },
@@ -5734,6 +5847,31 @@
       ],
       "type": "object"
     },
+    "runtime.paneClaimParams": {
+      "properties": {
+        "force": {
+          "type": "boolean"
+        },
+        "pane": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pane"
+      ],
+      "type": "object"
+    },
+    "runtime.paneReleaseParams": {
+      "properties": {
+        "pane": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pane"
+      ],
+      "type": "object"
+    },
     "runtime.pluginConfigSet": {
       "properties": {
         "plugin": {
@@ -5790,6 +5928,20 @@
         "plugin",
         "run"
       ],
+      "type": "object"
+    },
+    "runtime.presenceSetParams": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "tab": {
+          "type": "string"
+        }
+      },
       "type": "object"
     },
     "runtime.workflowTriggerParams": {
@@ -8170,6 +8322,15 @@
       }
     },
     {
+      "name": "pane.claim",
+      "params": {
+        "$ref": "#/$defs/runtime.paneClaimParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.PaneClaimed"
+      }
+    },
+    {
       "name": "pane.close",
       "params": {
         "$ref": "#/$defs/pane.idParams"
@@ -8245,6 +8406,18 @@
           "type": "string"
         },
         "type": "array"
+      }
+    },
+    {
+      "name": "pane.release",
+      "params": {
+        "$ref": "#/$defs/runtime.paneReleaseParams"
+      },
+      "result": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "type": "object"
       }
     },
     {
@@ -8486,6 +8659,24 @@
           "$ref": "#/$defs/plugin.ViewContent"
         },
         "type": "array"
+      }
+    },
+    {
+      "name": "presence.list",
+      "params": {
+        "$ref": "#/$defs/protocol.Empty"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.PresenceList"
+      }
+    },
+    {
+      "name": "presence.set",
+      "params": {
+        "$ref": "#/$defs/runtime.presenceSetParams"
+      },
+      "result": {
+        "$ref": "#/$defs/protocol.Empty"
       }
     },
     {

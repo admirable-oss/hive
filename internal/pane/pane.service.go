@@ -705,15 +705,39 @@ func (s *Service) focusLocked(ctx context.Context, paneID string) (Pane, error) 
 func (s *Service) FocusDirection(ctx context.Context, paneID string, d layout.Direction) (Pane, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, t, _, err := s.paneLocked(ctx, paneID)
+	next, err := s.neighborLocked(ctx, paneID, d)
 	if err != nil {
 		return Pane{}, err
 	}
+	return s.focusLocked(ctx, next)
+}
+
+// Neighbor returns the pane next to paneID in direction d without
+// focusing it: where someone's own focus moves (a member's, RFC 0007).
+func (s *Service) Neighbor(ctx context.Context, paneID string, d layout.Direction) (Pane, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next, err := s.neighborLocked(ctx, paneID, d)
+	if err != nil {
+		return Pane{}, err
+	}
+	_, t, p, err := s.paneLocked(ctx, next)
+	if err != nil {
+		return Pane{}, err
+	}
+	return s.describeLocked(ctx, t, *p), nil
+}
+
+func (s *Service) neighborLocked(ctx context.Context, paneID string, d layout.Direction) (string, error) {
+	_, t, _, err := s.paneLocked(ctx, paneID)
+	if err != nil {
+		return "", err
+	}
 	next, ok := layout.Neighbor(t.Layout, area(t), paneID, d)
 	if !ok {
-		return Pane{}, fmt.Errorf("%w: no pane %s of %s", ErrPaneNotFound, d, paneID)
+		return "", fmt.Errorf("%w: no pane %s of %s", ErrPaneNotFound, d, paneID)
 	}
-	return s.focusLocked(ctx, next)
+	return next, nil
 }
 
 // Resize grows a pane by cells towards d (negative cells shrink it).

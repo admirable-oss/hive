@@ -107,6 +107,7 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newProxyCmd(a),
 		newObserverCmd(a),
 		newAccessCmd(a),
+		newPresenceCmd(a),
 		newWebCmd(a),
 		newGCCmd(a),
 		newUpdateCmd(a),

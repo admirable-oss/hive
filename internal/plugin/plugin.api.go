@@ -154,6 +154,7 @@ var methodCapabilities = map[string]string{
 	"workflow.validate": CapHiveRead, "workflow.runs": CapHiveRead, "workflow.status": CapHiveRead,
 	"workflow.wait": CapHiveRead, "insights.summary": CapHiveRead, "insights.asks": CapHiveRead,
 	"insights.budgets": CapHiveRead, "insights.export": CapHiveRead,
+	"presence.list": CapHiveRead,
 
 	// Changing the workspace.
 	"agent.focus": CapHiveWrite, "agent.rename": CapHiveWrite, "agent.seen": CapHiveWrite, "agent.report": CapHiveWrite,
@@ -169,7 +170,7 @@ var methodCapabilities = map[string]string{
 	"agent.prompt": CapHiveInput, "agent.send_keys": CapHiveInput, "pane.input": CapHiveInput,
 	"pane.send_keys": CapHiveInput, "pane.send_text": CapHiveInput, "terminal.input": CapHiveInput,
 	"terminal.attach": CapHiveInput, "terminal.image": CapHiveInput, "branch.comment": CapHiveInput,
-	"branch.send": CapHiveInput,
+	"branch.send": CapHiveInput, "pane.claim": CapHiveInput, "pane.release": CapHiveInput,
 
 	// Starting and stopping programs, and removing what holds work.
 	"agent.start": CapHiveProcess, "agent.stop": CapHiveProcess, "process.start": CapHiveProcess,
@@ -197,6 +198,8 @@ var closedMethods = []string{
 	// never as a member.
 	"access.audit", "access.doctor", "access.get", "access.grant", "access.invite", "access.list",
 	"access.renew", "access.revoke", "access.whoami",
+	// Presence is a person's: a plugin is nowhere.
+	"presence.set",
 	"branch.push", "branch.pr", "workflow.trust", "insights.resume",
 	// A click is a person's: a plugin runs its own actions directly.
 	"plugin.view.click",

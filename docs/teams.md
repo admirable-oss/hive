@@ -6,9 +6,9 @@ role you chose. Nothing is hosted: your machine, your `authorized_keys` and
 the daemon are all there is. The design is
 [RFC 0007](../rfcs/0007-team-collaboration.md).
 
-> **In progress (M27).** Members, roles, the member socket, invitations,
-> revocation and the audit log work today. Presence, one-at-a-time input,
-> handing work over and team notifications follow.
+> **In progress (M27).** Members, roles, presence, one typist per pane,
+> the member socket, invitations, revocation and the audit log work today.
+> Handing work over and team notifications follow.
 
 ```sh
 hive access invite alice --key alice.pub --role operator --env web
@@ -100,15 +100,41 @@ next request, on connections already open too.
 - **Never a member's**, whatever the role: managing members and observers,
   configuration, plugins (installing, settings, running their commands),
   updates, the daemon, `runtime.gc`, sessions' save and restore.
-- **Focus is shared until M27's next step.** Moving focus (`pane.focus`,
-  `tab.focus`, `agent.focus`) changes everyone's view, so it is an owner's
-  for now; each person's own focus comes with presence.
+- **A member's focus is their own.** Moving focus (`pane.focus`,
+  `tab.focus`, `agent.focus`) moves where they look, kept in presence; it
+  never moves yours or anyone else's.
 
 Every method's role is listed in [api/v1/roles.txt](../api/v1/roles.txt).
 
 **A role is not a sandbox.** An operator cannot start processes through
 Hive, but the agents they prompt run as you and can do anything you can.
 Let operators direct only agents you would let them direct.
+
+## Working together
+
+**Presence.** Everyone connected says where they look: the multiplexer
+tells the daemon as focus moves (`presence.set`). The tab bar shows who
+else is in the environment on screen (`◇ with alice, bob`), and a pane
+shows who is looking at it (`[alice]`). `hive presence` lists everyone,
+their client, the environment, tab and pane they look at, and who is
+typing where. A connection's presence ends with it.
+
+**One person types at a time.** Each pane takes input from one person:
+
+- Typing into a pane nobody holds takes it. While someone else holds it,
+  your input is refused (`conflict`, naming them) and nothing is written;
+  in the multiplexer the pane shows `[✎ alice]`, and what you type there
+  is dropped.
+- The holder keeps it until they stop typing for `[access] input_idle`
+  (10 seconds by default), release it (`hive pane release`), or lose
+  access. Leaving counts as no longer typing.
+- `hive pane claim <pane>` takes it on purpose; `--force` takes it from
+  whoever holds it, yours on your own runtime, a member's with the owner
+  role in its environment.
+- A prompt (`hive agent prompt`) holds the pane while it is written, so it
+  never mixes with someone else's keys.
+- The holder is a person, not a connection: your TUI, desktop app and
+  scripts never refuse each other, so working alone is unchanged.
 
 ## Expiry and revocation
 

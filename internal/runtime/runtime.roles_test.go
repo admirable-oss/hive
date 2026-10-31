@@ -100,6 +100,9 @@ func TestMemberRolesFrozen(t *testing.T) {
 		if r.by {
 			extra += ", by the member"
 		}
+		if r.ownFocus {
+			extra += ", the member's own focus"
+		}
 		lines = append(lines, "method "+m+": "+string(r.role)+" in "+scope+extra)
 	}
 	for _, m := range memberClosed {

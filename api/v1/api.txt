@@ -186,6 +186,7 @@ method observer.get
 method observer.list
 method observer.revoke
 method observer.validate
+method pane.claim
 method pane.close
 method pane.focus
 method pane.get
@@ -194,6 +195,7 @@ method pane.list
 method pane.move
 method pane.popup
 method pane.read
+method pane.release
 method pane.rename
 method pane.resize
 method pane.run
@@ -219,6 +221,8 @@ method plugin.view.clear
 method plugin.view.click
 method plugin.view.set
 method plugin.views
+method presence.list
+method presence.set
 method process.get
 method process.list
 method process.logs
@@ -279,6 +283,8 @@ observer.revoke params: runtime.observerRef
 observer.revoke result: observer.Credential
 observer.validate params: runtime.observerValidateParams
 observer.validate result: runtime.ObserverValidation
+pane.claim params: runtime.paneClaimParams
+pane.claim result: runtime.PaneClaimed
 pane.close params: pane.idParams
 pane.close result: protocol.Empty
 pane.focus params: pane.focusParams
@@ -295,6 +301,8 @@ pane.popup params: pane.PopupRequest
 pane.popup result: pane.Pane
 pane.read params: pane.readParams
 pane.read result: []string
+pane.release params: runtime.paneReleaseParams
+pane.release result: map[string]boolean
 pane.rename params: pane.renameParams
 pane.rename result: pane.Pane
 pane.resize params: pane.paneResizeParams
@@ -351,6 +359,10 @@ plugin.view.set params: plugin.ViewUpdate
 plugin.view.set result: plugin.ViewContent
 plugin.views params: object
 plugin.views result: []plugin.ViewContent
+presence.list params: protocol.Empty
+presence.list result: runtime.PresenceList
+presence.set params: runtime.presenceSetParams
+presence.set result: protocol.Empty
 process.get params: process.idParams
 process.get result: process.Process
 process.list params: process.listParams
@@ -1472,6 +1484,24 @@ type plugin.ViewUpdate.doc: plugin.ViewDoc
 type plugin.ViewUpdate.plugin: string
 type plugin.ViewUpdate.view: string
 type plugin.ViewUpdate: object
+type presence.Entry.client: string
+type presence.Entry.connection: string
+type presence.Entry.environment: string
+type presence.Entry.pane: string
+type presence.Entry.person: presence.Person
+type presence.Entry.since: string
+type presence.Entry.tab: string
+type presence.Entry: object
+type presence.Hold.environment: string
+type presence.Hold.holder: presence.Person
+type presence.Hold.pane: string
+type presence.Hold.process_id: string
+type presence.Hold.since: string
+type presence.Hold.until: string
+type presence.Hold: object
+type presence.Person.id: string
+type presence.Person.name: string
+type presence.Person: object
 type process.LogsRequest.follow: boolean
 type process.LogsRequest.id: string
 type process.LogsRequest.stream: string
@@ -1604,6 +1634,9 @@ type runtime.ObserverValidation.credential: observer.Credential
 type runtime.ObserverValidation.state: string
 type runtime.ObserverValidation.valid: boolean
 type runtime.ObserverValidation: object
+type runtime.PaneClaimed.holder: presence.Person
+type runtime.PaneClaimed.previous: presence.Person
+type runtime.PaneClaimed: object
 type runtime.PluginRunRequest.action: string
 type runtime.PluginRunRequest.environment: string
 type runtime.PluginRunRequest.pane: string
@@ -1613,6 +1646,9 @@ type runtime.PluginRunRequest: object
 type runtime.PprofRequest.profile: string
 type runtime.PprofRequest.seconds: integer
 type runtime.PprofRequest: object
+type runtime.PresenceList.holds: []presence.Hold
+type runtime.PresenceList.presence: []presence.Entry
+type runtime.PresenceList: object
 type runtime.Snapshot.agents_survive_restart: boolean
 type runtime.Snapshot.api_level: integer
 type runtime.Snapshot.pid: integer
@@ -1684,6 +1720,11 @@ type runtime.observerRef.id: string
 type runtime.observerRef: object
 type runtime.observerValidateParams.token: string
 type runtime.observerValidateParams: object
+type runtime.paneClaimParams.force: boolean
+type runtime.paneClaimParams.pane: string
+type runtime.paneClaimParams: object
+type runtime.paneReleaseParams.pane: string
+type runtime.paneReleaseParams: object
 type runtime.pluginConfigSet.plugin: string
 type runtime.pluginConfigSet.set: map[string]any
 type runtime.pluginConfigSet.unset: []string
@@ -1697,6 +1738,10 @@ type runtime.pluginRequestParams: object
 type runtime.pluginRunRef.plugin: string
 type runtime.pluginRunRef.run: string
 type runtime.pluginRunRef: object
+type runtime.presenceSetParams.environment: string
+type runtime.presenceSetParams.pane: string
+type runtime.presenceSetParams.tab: string
+type runtime.presenceSetParams: object
 type runtime.workflowTriggerParams.name: string
 type runtime.workflowTriggerParams.payload: map[string]any
 type runtime.workflowTriggerParams.plugin: string

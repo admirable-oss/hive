@@ -160,6 +160,7 @@ func (c *Config) schema() map[string]map[string]setter {
 			"enabled":         boolean(&c.Access.Enabled),
 			"max_connections": integer(&c.Access.MaxConnections, 1, 1024),
 			"authorized_keys": str(&c.Access.AuthorizedKeys),
+			"input_idle":      duration(&c.Access.InputIdle, time.Second, 10*time.Minute),
 		},
 		"web": {
 			"listen":       str(&c.Web.Listen),
