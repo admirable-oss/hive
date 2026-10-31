@@ -59,7 +59,9 @@ type RuntimeView struct {
 	Agents map[string]observer.Agent
 	Meta   map[observer.Target]observer.Metadata
 	// Plans are the plans with tasks this observer sees, by ID.
-	Plans    map[string]observer.Plan
+	Plans map[string]observer.Plan
+	// Floors are who holds a pane's input, by pane (shared runtimes).
+	Floors   map[string]observer.Floor
 	Output   map[string]time.Time // pane → when its screen last changed
 	Activity []Activity           // newest last
 	loaded   bool
@@ -81,6 +83,7 @@ func (m *Model) View() RuntimeView {
 	v.Agents = cloneMap(v.Agents)
 	v.Meta = cloneMap(v.Meta)
 	v.Plans = cloneMap(v.Plans) // plans' task slices are replaced, never changed in place
+	v.Floors = cloneMap(v.Floors)
 	v.Output = cloneMap(v.Output)
 	v.Activity = slices.Clone(v.Activity)
 	return v
@@ -168,6 +171,10 @@ func (m *Model) snapshot(s observer.Snapshot) {
 	v.Plans = make(map[string]observer.Plan, len(s.Plans))
 	for _, p := range s.Plans {
 		v.Plans[p.ID] = p
+	}
+	v.Floors = make(map[string]observer.Floor, len(s.Floors))
+	for _, f := range s.Floors {
+		v.Floors[f.Pane] = f
 	}
 }
 
@@ -352,6 +359,19 @@ func (m *Model) event(ev observer.Event) bool {
 				text += ": " + a.Reason
 			}
 			note(a.EnvironmentID, a.PaneID, "agent", text)
+		}
+	case observer.EventPaneFloor:
+		var f observer.Floor
+		if json.Unmarshal(ev.Data, &f) != nil || f.Pane == "" {
+			return false
+		}
+		if v.Floors == nil {
+			v.Floors = map[string]observer.Floor{}
+		}
+		if f.Holder == "" {
+			delete(v.Floors, f.Pane)
+		} else {
+			v.Floors[f.Pane] = f
 		}
 	case "metadata.changed":
 		var md observer.Metadata

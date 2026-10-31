@@ -76,6 +76,9 @@ type Sources struct {
 		Asks(ctx context.Context, q insights.Query, limit int) ([]insights.Ask, error)
 		Budgets(ctx context.Context) []insights.BudgetStatus
 	}
+	// Presence is who is where in a shared runtime; nil means nobody is
+	// shown.
+	Presence PresenceSource
 	// Info describes the daemon.
 	Info func() Info
 }

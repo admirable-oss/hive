@@ -69,6 +69,15 @@
       }
     },
     {
+      "name": "observe.presence",
+      "params": {
+        "$ref": "#/$defs/protocol.Empty"
+      },
+      "result": {
+        "$ref": "#/$defs/observer.Presence"
+      }
+    },
+    {
       "name": "observe.schema",
       "params": {
         "$ref": "#/$defs/protocol.Empty"
@@ -679,6 +688,28 @@
       ],
       "type": "object"
     },
+    "observer.Floor": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "holder": {
+          "type": "string"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "since": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "until": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "observer.HistoryRequest": {
       "properties": {
         "epoch": {
@@ -1074,6 +1105,55 @@
       ],
       "type": "object"
     },
+    "observer.Presence": {
+      "properties": {
+        "floors": {
+          "items": {
+            "$ref": "#/$defs/observer.Floor"
+          },
+          "type": "array"
+        },
+        "people": {
+          "items": {
+            "$ref": "#/$defs/observer.Present"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "people",
+        "floors"
+      ],
+      "type": "object"
+    },
+    "observer.Present": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "boolean"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "since": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tab": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "since"
+      ],
+      "type": "object"
+    },
     "observer.Process": {
       "properties": {
         "ended_at": {
@@ -1249,6 +1329,12 @@
         },
         "epoch": {
           "type": "string"
+        },
+        "floors": {
+          "items": {
+            "$ref": "#/$defs/observer.Floor"
+          },
+          "type": "array"
         },
         "metadata": {
           "items": {

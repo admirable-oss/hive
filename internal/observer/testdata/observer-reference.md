@@ -78,6 +78,12 @@ No params.
 
 Result: [\[\]observer.Plugin](#observerplugin)
 
+### `observe.presence`
+
+No params.
+
+Result: [observer.Presence](#observerpresence)
+
 ### `observe.schema`
 
 No params.
@@ -327,6 +333,16 @@ Result: [observer.WatchResult](#observerwatchresult)
 | `epoch` | `string` |  |
 | `seq` | `integer` |  |
 
+### observer.Floor
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `holder` | `string` |  |
+| `pane` | `string` |  |
+| `since` | `string` |  |
+| `until` | `string` |  |
+
 ### observer.HistoryRequest
 
 | Field | Type | |
@@ -472,6 +488,24 @@ Result: [observer.WatchResult](#observerwatchresult)
 | `advisory` | `string` |  |
 | `reason` | `string` |  |
 
+### observer.Presence
+
+| Field | Type | |
+|---|---|---|
+| `floors` | [\[\]observer.Floor](#observerfloor) |  |
+| `people` | [\[\]observer.Present](#observerpresent) |  |
+
+### observer.Present
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `name` | `string` |  |
+| `owner` | `boolean` |  |
+| `pane` | `string` |  |
+| `since` | `string` |  |
+| `tab` | `string` |  |
+
 ### observer.Process
 
 | Field | Type | |
@@ -538,6 +572,7 @@ Result: [observer.WatchResult](#observerwatchresult)
 | `agents` | [\[\]observer.Agent](#observeragent) |  |
 | `environments` | [\[\]observer.Environment](#observerenvironment) |  |
 | `epoch` | `string` |  |
+| `floors` | [\[\]observer.Floor](#observerfloor) |  |
 | `metadata` | [\[\]observer.Metadata](#observermetadata) |  |
 | `panes` | [\[\]observer.Pane](#observerpane) |  |
 | `plans` | [\[\]observer.Plan](#observerplan) |  |

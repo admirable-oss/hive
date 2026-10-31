@@ -131,6 +131,9 @@ func (a *App) send(v *view, data []byte) {
 		a.toast(compositor.ToastWarning, "not connected to the pane; reconnecting…")
 		return
 	}
+	if err := v.takeLost(); err != nil {
+		a.toast(compositor.ToastWarning, "keys did not reach the pane: "+err.Error())
+	}
 	if !v.send(data) {
 		a.toast(compositor.ToastWarning, "the pane is not reading its input; keys were dropped")
 	}

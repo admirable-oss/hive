@@ -126,6 +126,23 @@ ssh. Other machines are reached through the user's ssh.
   on and available, and it is not available on Windows. A plugin without
   `api` (API 0) holds every capability. Install plugins you trust, from a
   release you have read.
+- **Members act within their role, as themselves.** An operator prompts
+  agents, answers them and approves tasks in their environments; starting
+  agents or processes, splitting panes and typing into shells need the
+  owner role. What a member reads (presence included) is filtered to their
+  environments. A member holding a pane's input keeps others from typing
+  into it, the owner included, until they let go or it lapses;
+  `hive pane claim --force` takes it back. An operator hands over only
+  agents and tasks that are theirs, and only to someone who may work there.
+- **The audit log is a record, not evidence.** It is a rotated JSON-lines
+  file in `HIVE_HOME`, private to you: you (or a program running as you)
+  can change it. It holds members' actions and refusals, never what they
+  typed, and not what they read. A write that fails does not stop the
+  action; `hive access doctor` says when the log cannot be written.
+- **Observers see people by name.** A credential sees who is present, and
+  who holds a pane's input, only where it sees: names, not member IDs,
+  connections or clients. Someone in no environment is visible only to a
+  credential that sees all.
 - **Screens are shown as they are.** An observer allowed to read screens sees
   whatever is on them, secrets included. There is no redaction of terminal
   contents.

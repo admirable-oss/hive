@@ -185,13 +185,22 @@ and `observe.schema` returns the same document.
 | `observe.auth` | `token` | the credential; the event stream's `epoch` and `seq` |
 | `observe.schema` | – | the observer API's schema |
 | `observe.status` | – | version, session, start time, API level, `epoch`/`seq`, the credential, counts in scope |
-| `observe.snapshot` | – | `epoch`, `seq`, and the `environments`, `tabs`, `panes`, `agents` and `metadata` in scope |
+| `observe.snapshot` | – | `epoch`, `seq`, and the `environments`, `tabs`, `panes`, `agents`, `metadata`, `plans` and `floors` in scope |
 | `observe.pane` | `pane` | one pane, with its agent and metadata |
 | `observe.screen` | `pane`, `ansi`, `scrollback` (≤ 1000) | the screen as lines; cursor, size, title, `alt_screen` (needs screens) |
 | `observe.output` | `pane`, `lines` (default 100, ≤ 1000), `ansi` | the newest lines of output (needs screens) |
 | `observe.history` | `epoch`, `since`, `limit` (default 100, ≤ 1000) | a page of events after `since` (see below) |
 | `observe.events` | `epoch`, `since` (optional) | a pipe: one event per line |
 | `observe.watch` | `pane`, `ansi`, `interval_ms` (100 to 10000, default 250) | a pipe: screen updates (needs screens) |
+| `observe.insights` | `from`, `to`, `by`, `asks` (default 20, ≤ 1000), `within` | time and usage of what is in scope, its budgets, the latest asks (their reasons need screens) |
+| `observe.plugins` | – | the installed plugins: version, publisher, tier, sandbox, state |
+| `observe.presence` | – | in a shared runtime: who is where in scope (`people`, by name) and who holds which pane's input (`floors`) |
+
+Who is present is named, never identified: no member IDs, connections or
+clients. Someone in no environment is shown only to a credential that sees
+all. `pane.floor` events say when a pane's input is taken or free;
+`presence.changed`, with everyone's places, goes only to credentials that
+see all, so others read `observe.presence` again.
 
 Errors use the protocol's codes:
 - `permission_denied`: not authenticated, a token that is invalid, expired or

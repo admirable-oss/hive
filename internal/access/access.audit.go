@@ -64,8 +64,9 @@ type Audit struct {
 	path string
 	now  func() time.Time
 
-	mu sync.Mutex
-	f  *logging.RotatingFile
+	mu     sync.Mutex
+	f      *logging.RotatingFile
+	failed error // the last write's, until one succeeds
 }
 
 // OpenAudit opens the audit log in dir.
@@ -82,7 +83,7 @@ func OpenAudit(dir string) (*Audit, error) {
 }
 
 // Record appends e, stamped now. Failing to write is not an error for the
-// caller: auditing must not take the daemon down.
+// caller: auditing must not take the daemon down. Err says it happened.
 func (a *Audit) Record(e AuditEntry) {
 	if a == nil {
 		return
@@ -94,7 +95,17 @@ func (a *Audit) Record(e AuditEntry) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	_, _ = a.f.Write(append(line, '\n'))
+	_, a.failed = a.f.Write(append(line, '\n'))
+}
+
+// Err is why the last entry could not be written, nil once one is.
+func (a *Audit) Err() error {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.failed
 }
 
 // Read returns up to limit of the newest entries, oldest first; with

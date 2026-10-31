@@ -373,7 +373,7 @@ Hive is designed **contracts first**. Each layer depends on a small interface (a
 
 - **One file per role:** `pkg.model.go` (types), `pkg.service.go` (contract and implementation), `pkg.store.go` (port), `pkg.filesystem_store.go` (adapter), `pkg.protocol.go` (wire handlers), `pkg.module.go` (wiring and package doc), `pkg.error.go`.
 - **Comments explain why, not what.** Each package starts with a short doc comment, and non-obvious decisions are commented where they happen.
-- **Minimal dependencies.** Bubble Tea and Lip Gloss (UI), `creack/pty` (terminals), cobra (CLI), go-toml (config), `x/sys`, godbus (the logind shutdown notice on Linux), and two small `charmbracelet/x` helpers. Everything else is the standard library. A new dependency needs an [ADR](https://hive.admir-saheta.com/docs/ref/architecture/README/).
+- **Minimal dependencies.** Ultraviolet and `charmbracelet/x` (the TUI and terminal emulation), uniseg (character widths), `creack/pty` (terminals), cobra (CLI), go-toml (config), `x/sys` and `x/net` (platform calls, local discovery), fsnotify (git watching), godbus (the logind shutdown notice on Linux), wazero (WebAssembly plugins) and gomponents (the web observer's pages); chromedp and goleak only in tests. Everything else is the standard library. A new dependency needs an [ADR](https://hive.admir-saheta.com/docs/ref/architecture/README/).
 
 ## Contributing
 

@@ -6,9 +6,11 @@ role you chose. Nothing is hosted: your machine, your `authorized_keys` and
 the daemon are all there is. The design is
 [RFC 0007](../rfcs/0007-team-collaboration.md).
 
-> **In progress (M27).** Members, roles, presence, one typist per pane,
+> **New in 1.8 (M27).** Members, roles, presence, one typist per pane,
 > handing work over, team notifications, the member socket, invitations,
-> revocation and the audit log work today.
+> revocation and the audit log. The desktop app and the web observer show
+> who is present and who is typing. The design is still a draft
+> ([RFC 0007](../rfcs/0007-team-collaboration.md)) until it is accepted.
 
 ```sh
 hive access invite alice --key alice.pub --role operator --env web

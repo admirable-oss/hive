@@ -306,3 +306,29 @@ func (h *harness) srvAgents() map[string]observer.Agent {
 	}
 	return out
 }
+
+// TestUnsubscribeNeedsItsEndpoint: a body that cannot be read removes no
+// device (an empty endpoint would remove them all), and one endpoint
+// removes only its device.
+func TestUnsubscribeNeedsItsEndpoint(t *testing.T) {
+	h := newHarness(t)
+	push := newPushService(t)
+	b := h.browser()
+	b.signIn(h.share(web.ShareRequest{Label: "phone", Scope: observer.Scope{All: true}}))
+	one, _ := push.device("/one")
+	two, _ := push.device("/two")
+	b.post("/push/subscribe", one)
+	b.post("/push/subscribe", two)
+	if code := b.post("/push/unsubscribe", "not an object"); code != http.StatusBadRequest {
+		t.Fatalf("a bad body: %d", code)
+	}
+	if devices, _ := h.srv.Store().Subscriptions(""); len(devices) != 2 {
+		t.Fatalf("a bad body removed devices: %s", fmtEndpoints(devices))
+	}
+	if code := b.post("/push/unsubscribe", map[string]any{"endpoint": one["endpoint"]}); code != http.StatusOK {
+		t.Fatalf("unsubscribe: %d", code)
+	}
+	if devices, _ := h.srv.Store().Subscriptions(""); len(devices) != 1 || !strings.Contains(fmtEndpoints(devices), "/two") {
+		t.Fatalf("after unsubscribing one: %s", fmtEndpoints(devices))
+	}
+}
