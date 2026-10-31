@@ -131,6 +131,30 @@ run = ["sleep"]
 	e.wait(second[0].ID)
 }
 
+// TestGitBaselineSavedAfterAFailedWrite: what a scan saw is written by a
+// later poll when writing it failed, though the references stay the same.
+func TestGitBaselineSavedAfterAFailedWrite(t *testing.T) {
+	home := filepath.FromSlash("/home/me")
+	e := newEnv(t, workflow.Config{Home: home})
+	repo := filepath.Join(home, "src", "api")
+	e.ws.setRef(repo, "refs/heads/main", "c1")
+	e.ws.roots[repo] = repo
+	// A directory where the state goes: writing it fails.
+	state := filepath.Join(e.dir, "state.json")
+	if err := os.MkdirAll(state, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	e.write(e.own, "branch.toml", "version = 1\n[[on]]\ngit = \"branch\"\nrepo = \"~/src/api\"\n[[step]]\nid = \"s\"\nrun = [\"ok\"]\n")
+	time.Sleep(300 * time.Millisecond) // scans that cannot save
+	if err := os.Remove(state); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the baseline", func() bool {
+		st, _ := workflow.NewFilesystemStore(e.dir).LoadState()
+		return st.Refs[repo]["refs/heads/main"] == "c1"
+	})
+}
+
 func TestGitTriggers(t *testing.T) {
 	home := filepath.FromSlash("/home/me")
 	e := newEnv(t, workflow.Config{Home: home})
