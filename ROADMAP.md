@@ -1824,7 +1824,7 @@ the policy: [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md#publishers-tie
 
 ---
 
-## M27 · Team Collaboration — `v1.8.0` — **PROPOSED**
+## M27 · Team Collaboration — `v1.8.0` — **IN PROGRESS**
 
 Share the work, keep control.
 
@@ -1857,6 +1857,26 @@ audited, and no hosted service required.
 **✅ Acceptance:** two people work in one runtime, one as operator. The
 operator can prompt and approve but not start processes. Input never
 interleaves. Every action is audited, and revoking access ends it at once.
+
+### M27 progress
+
+The design: [RFC 0007](rfcs/0007-team-collaboration.md).
+
+- [ ] Members and the member socket (delivery step 1): `hive access
+  invite|list|show|renew|revoke`, `hive proxy --member`, the managed
+  `authorized_keys` block, connections audited, revocation that ends them.
+- [ ] Roles per environment (delivery step 2): the role table, observer
+  views below owner, operators' input to agent panes only, `access.whoami`,
+  actions audited, `actor` on events.
+- [ ] Shared workspaces (delivery step 3): presence, per-member focus and
+  the input holder in every client.
+- [ ] Handing over (delivery step 4): `owner` on agents, tasks and plans,
+  `agent.handover`, `task.assign`.
+- [ ] Notifications routed by the daemon (delivery step 5), with the
+  fallback.
+- [ ] The acceptance test, `docs/teams.md` and the threat model
+  (delivery step 6).
+- [ ] RFC 0007 discussed and accepted; then tag `v1.8.0`.
 
 ---
 

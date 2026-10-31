@@ -37,3 +37,4 @@ anything breaking, and each roadmap.
 | [0004](0004-workflow-automation.md) | Workflows, from a trigger to a report (M24) | Proposed |
 | [0005](0005-agent-insights.md) | Agent insights, on your machine (M25) | Proposed |
 | [0006](0006-plugin-ecosystem-2.md) | Plugin ecosystem 2, richer and safer (M26) | Draft |
+| [0007](0007-team-collaboration.md) | Team collaboration, over ssh (M27) | Draft |
