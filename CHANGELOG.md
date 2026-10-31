@@ -77,6 +77,20 @@ Teammates in your runtime, over ssh, with a role ([RFC 0007](rfcs/0007-team-coll
 - A task waiting to start is in the environment its spec names, so an
   operator there can approve it without a grant for every environment.
 
+### Notifications for teams
+
+- The daemon decides who is told that work needs someone: when an agent is
+  blocked or done, a task waits for approval or fails, it publishes
+  `notify` to the work's owner while they are connected, else to
+  `[access] notify_fallback` (members' names, `owner`, `operators`;
+  `["owner"]` by default), and to you when that names nobody.
+- The multiplexer and the desktop app show only notifications addressed to
+  their person when the daemon routes them (`notify` in `access.whoami`),
+  and decide for themselves against an older daemon. A failed task now
+  notifies, where `done` does.
+- The multiplexer follows `presence.changed` again: who is where updated
+  only on a full refresh.
+
 ### Fixes
 
 - A plugin holding `hive.read` but not `hive.input` could type into a

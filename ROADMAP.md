@@ -1886,8 +1886,9 @@ The design: [RFC 0007](rfcs/0007-team-collaboration.md).
 - [x] Handing over (delivery step 4): `owner` on agents, tasks and plans,
   `agent.handover`, `task.assign` (`hive agent handover`, `hive task
   assign`), and `actor` on events a member caused (`TestHandingOver`).
-- [ ] Notifications routed by the daemon (delivery step 5), with the
-  fallback.
+- [x] Notifications routed by the daemon (delivery step 5): `notify`
+  events to the work's owner, else `[access] notify_fallback`, followed by
+  the multiplexer and the desktop app (`TestNotificationRecipients`).
 - [ ] The acceptance test, `docs/teams.md` and the threat model
   (delivery step 6).
 - [ ] RFC 0007 discussed and accepted; then tag `v1.8.0`.

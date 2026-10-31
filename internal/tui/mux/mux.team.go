@@ -22,6 +22,9 @@ import (
 type selfState struct {
 	Owner  bool           `json:"owner"`
 	Member *access.Member `json:"member"`
+	// Notify: the daemon decides who is told about work (notify events),
+	// so this client raises only what is addressed to it.
+	Notify bool `json:"notify"`
 }
 
 // presenceState is presence.list.

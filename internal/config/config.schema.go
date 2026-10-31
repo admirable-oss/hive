@@ -161,6 +161,7 @@ func (c *Config) schema() map[string]map[string]setter {
 			"max_connections": integer(&c.Access.MaxConnections, 1, 1024),
 			"authorized_keys": str(&c.Access.AuthorizedKeys),
 			"input_idle":      duration(&c.Access.InputIdle, time.Second, 10*time.Minute),
+			"notify_fallback": notifyFallback(&c.Access.NotifyFallback),
 		},
 		"web": {
 			"listen":       str(&c.Web.Listen),
@@ -401,6 +402,29 @@ func capabilityList(dst *[]string) setter {
 }
 
 // contributionList reads contribution keys: plugin[:kind[:id]].
+// notifyFallback is [access] notify_fallback: "owner", "operators" or
+// members' names.
+func notifyFallback(dst *[]string) setter {
+	return func(raw any) error {
+		list, ok := raw.([]any)
+		if !ok {
+			return typeError("a list of member names, \"owner\" or \"operators\"", raw)
+		}
+		out := []string{}
+		for _, item := range list {
+			s, ok := item.(string)
+			if s = strings.TrimSpace(s); !ok || s == "" {
+				return fmt.Errorf("%v: want a member's name, \"owner\" or \"operators\"", item)
+			}
+			if !slices.Contains(out, s) {
+				out = append(out, s)
+			}
+		}
+		*dst = out
+		return nil
+	}
+}
+
 func contributionList(dst *[]string) setter {
 	return func(raw any) error {
 		list, ok := raw.([]any)

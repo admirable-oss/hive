@@ -61,10 +61,18 @@ func (a *App) applyTaskEvent(ev event.Event) {
 		}
 	case task.EventApproval:
 		var v task.TaskView
-		if json.Unmarshal(ev.Data, &v) == nil && a.opts.Notify.Wants(v.Kind, "blocked") {
-			a.raise(notify.Note{Title: "plan " + v.PlanID + " · " + v.ID, Body: "waits for your approval"}, compositor.ToastWarning,
-				fmt.Sprintf("task %s of plan %s waits for approval (hive task approve %s %s)", v.ID, v.PlanID, v.PlanID, v.ID))
+		if json.Unmarshal(ev.Data, &v) == nil && !s.self.Notify {
+			a.notifyApproval(v) // a daemon that does not say who is told: decide here
 		}
+	}
+}
+
+// notifyApproval tells the user a task waits for their approval, as
+// configured.
+func (a *App) notifyApproval(v task.TaskView) {
+	if a.opts.Notify.Wants(v.Kind, "blocked") {
+		a.raise(notify.Note{Title: "plan " + v.PlanID + " · " + v.ID, Body: "waits for your approval"}, compositor.ToastWarning,
+			fmt.Sprintf("task %s of plan %s waits for approval (hive task approve %s %s)", v.ID, v.PlanID, v.PlanID, v.ID))
 	}
 }
 

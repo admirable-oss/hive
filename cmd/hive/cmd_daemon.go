@@ -187,6 +187,7 @@ func runDaemon(ctx context.Context, a *app) error {
 			MaxConnections: a.cfg.Access.MaxConnections,
 			AuthorizedKeys: a.cfg.Access.AuthorizedKeys,
 			InputIdle:      a.cfg.Access.InputIdle,
+			NotifyFallback: a.cfg.Access.NotifyFallback,
 			ProxyCommand:   a.memberProxyCommand(exe),
 		},
 		Images: runtime.ImagesConfig{

@@ -195,6 +195,15 @@ func NewModule(cfg Config) *Module {
 		input: input, envs: guardedEnvs, panes: panes, agents: agents, procs: procs, tasks: tasks.svc, branches: branches,
 	}, input.reg)
 	server.Go(mems.run)
+	fallback := cfg.Access.NotifyFallback
+	if len(fallback) == 0 {
+		fallback = []string{fallbackOwner}
+	}
+	notes := &notifier{
+		bus: bus, agents: agents, store: mems.store, owner: input.owner, fallback: fallback,
+		ownerHere: server.Connected, connections: mems.server.Connections, log: log.With("module", "notify"),
+	}
+	server.Go(notes.run)
 
 	Register(router, server)
 	environment.Register(router, guardedEnvs)

@@ -1680,6 +1680,7 @@ type runtime.Stats.uptime_seconds: number
 type runtime.Stats: object
 type runtime.WhoAmI.from: string
 type runtime.WhoAmI.member: access.Member
+type runtime.WhoAmI.notify: boolean
 type runtime.WhoAmI.owner: boolean
 type runtime.WhoAmI: object
 type runtime.WorktreeCreateRequest.base: string

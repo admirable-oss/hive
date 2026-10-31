@@ -5639,12 +5639,16 @@
         "member": {
           "$ref": "#/$defs/access.Member"
         },
+        "notify": {
+          "type": "boolean"
+        },
         "owner": {
           "type": "boolean"
         }
       },
       "required": [
-        "owner"
+        "owner",
+        "notify"
       ],
       "type": "object"
     },

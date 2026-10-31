@@ -43,6 +43,10 @@ type AccessConfig struct {
 	// InputIdle is how long someone who stopped typing keeps a terminal's
 	// input; zero means presence.DefaultIdle.
 	InputIdle time.Duration
+	// NotifyFallback is who is told that work needs someone when its owner
+	// is away: members' names, "owner" and "operators"; empty means
+	// ["owner"].
+	NotifyFallback []string
 	// ProxyCommand is the shell command a member's key is forced to run,
 	// up to the member's ID: `<hive> [--session s] proxy --member`.
 	// Empty means "hive proxy --member".
@@ -310,6 +314,10 @@ type WhoAmI struct {
 	Owner  bool           `json:"owner"`
 	Member *access.Member `json:"member,omitempty"`
 	From   string         `json:"from,omitempty"`
+	// Notify says the daemon decides who is told that work needs someone
+	// (notify events): clients show those addressed to them, and decide
+	// nothing themselves.
+	Notify bool `json:"notify"`
 }
 
 func registerAccess(r *protocol.Router, m *members, envs environment.Service) {
@@ -443,9 +451,9 @@ func registerAccess(r *protocol.Router, m *members, envs environment.Service) {
 	r.MustRegister("access.whoami", protocol.Method(func(ctx context.Context, _ protocol.Empty) (WhoAmI, error) {
 		c, ok := access.CallerOf(ctx)
 		if !ok {
-			return WhoAmI{Owner: true}, nil
+			return WhoAmI{Owner: true, Notify: true}, nil
 		}
-		return WhoAmI{Member: &c.Member, From: c.From}, nil
+		return WhoAmI{Member: &c.Member, From: c.From, Notify: true}, nil
 	}))
 }
 

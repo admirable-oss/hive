@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"image/color"
 	"os"
 	"slices"
@@ -12,7 +13,9 @@ import (
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/notify"
+	"github.com/admirable-oss/hive/internal/presence"
 	"github.com/admirable-oss/hive/internal/process"
+	"github.com/admirable-oss/hive/internal/task"
 	"github.com/admirable-oss/hive/internal/tui/compositor"
 	"github.com/admirable-oss/hive/internal/tui/keymap"
 )
@@ -62,8 +65,46 @@ func (a *App) applyAgentState(ev event.Event) {
 		}
 		return // never notify about the pane you are in
 	}
-	if a.opts.Notify.Wants(x.Kind, string(x.State)) {
-		a.notifyAgent(x)
+	if !s.self.Notify && a.opts.Notify.Wants(x.Kind, string(x.State)) {
+		a.notifyAgent(x) // a daemon that does not say who is told: decide here
+	}
+}
+
+// eventNotify is the daemon's notify event: work needs someone.
+const eventNotify = "notify"
+
+// notification is a notify event (runtime.Notification).
+type notification struct {
+	Kind  string            `json:"kind"`
+	Agent *agent.Agent      `json:"agent"`
+	Task  *task.TaskView    `json:"task"`
+	To    []presence.Person `json:"to"`
+}
+
+// applyNotify raises a notification the daemon addressed to this client's
+// person, as [notify] says.
+func (a *App) applyNotify(ev event.Event) {
+	var n notification
+	if json.Unmarshal(ev.Data, &n) != nil || !a.ws.snap.self.Notify {
+		return
+	}
+	me := a.selfID()
+	if !slices.ContainsFunc(n.To, func(p presence.Person) bool { return p.ID == me }) {
+		return
+	}
+	switch {
+	case n.Agent != nil:
+		if x := *n.Agent; !a.onScreen(x.ID) && a.opts.Notify.Wants(x.Kind, string(x.State)) {
+			a.notifyAgent(x)
+		}
+	case n.Task != nil && n.Kind == "approval":
+		a.notifyApproval(*n.Task)
+	case n.Task != nil && n.Kind == "failed":
+		// A failed task ended: [notify] on = ["done"] covers it.
+		if v := *n.Task; a.opts.Notify.Wants(v.Kind, "done") {
+			a.raise(notify.Note{Title: "plan " + v.PlanID + " · " + v.ID, Body: "failed"}, compositor.ToastWarning,
+				fmt.Sprintf("task %s of plan %s failed (hive task retry %s %s)", v.ID, v.PlanID, v.PlanID, v.ID))
+		}
 	}
 }
 

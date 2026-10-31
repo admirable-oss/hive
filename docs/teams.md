@@ -7,8 +7,8 @@ the daemon are all there is. The design is
 [RFC 0007](../rfcs/0007-team-collaboration.md).
 
 > **In progress (M27).** Members, roles, presence, one typist per pane,
-> handing work over, the member socket, invitations, revocation and the
-> audit log work today. Team notifications follow.
+> handing work over, team notifications, the member socket, invitations,
+> revocation and the audit log work today.
 
 ```sh
 hive access invite alice --key alice.pub --role operator --env web
@@ -157,6 +157,31 @@ hive task assign <plan> --to owner      # the plan and its unfinished tasks, bac
   in the audit log.
 - Events a member's request caused carry an `actor` naming them, so
   clients and workflows can tell who did what.
+
+## Notifications
+
+The daemon decides who is told that work needs someone, so a team is not
+told everything twice and a member is not told about work that is not
+theirs. When an agent is blocked or done, a task waits for approval or a
+task fails, the daemon publishes a `notify` event addressed to:
+
+- the work's **owner**, when they have a client connected and may still
+  see it;
+- otherwise, the **fallback**, `[access] notify_fallback`: members' names,
+  `owner` (you) and `operators` (every operator and owner of the work's
+  environment). It is `["owner"]` by default. When the fallback names
+  nobody who may see the work, you are told.
+
+```toml
+[access]
+notify_fallback = ["operators", "owner"]
+```
+
+Each client shows only what is addressed to its person, as its `[notify]`
+settings say: the multiplexer and the desktop app follow `notify` events
+when the daemon sends them (`access.whoami` says so), and decide for
+themselves against an older daemon. A failed task notifies where `done`
+does. Web Push keeps notifying everyone a link lets see the work.
 
 ## Expiry and revocation
 

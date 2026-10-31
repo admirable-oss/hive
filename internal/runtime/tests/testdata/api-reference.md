@@ -3596,6 +3596,7 @@ An object.
 |---|---|---|
 | `from` | `string` |  |
 | `member` | [access.Member](#accessmember) |  |
+| `notify` | `boolean` |  |
 | `owner` | `boolean` |  |
 
 ### runtime.WorktreeCreateRequest

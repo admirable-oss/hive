@@ -340,6 +340,14 @@ func (s *Server) track(conn net.Conn) bool {
 	return true
 }
 
+// Connected reports whether a client of the runtime's own user is
+// connected to the control socket.
+func (s *Server) Connected() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.conns) > 0
+}
+
 func (s *Server) untrack(conn net.Conn) {
 	s.mu.Lock()
 	delete(s.conns, conn)

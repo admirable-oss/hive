@@ -201,6 +201,9 @@ authorized_keys = {{q .Access.AuthorizedKeys}}
 # A terminal takes input from one person at a time; someone who stops
 # typing keeps it this long before another may type.
 input_idle = {{dur .Access.InputIdle}}
+# Who is told that an agent or task needs someone when its owner is away:
+# members' names, "owner" (you) and "operators" of its environment.
+notify_fallback = {{list .Access.NotifyFallback}}
 
 [web]
 # The web observer (` + "`hive web serve`" + `): read-only agent status in a browser.

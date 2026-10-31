@@ -131,6 +131,7 @@ the defaults, so a typo never stops the daemon.
 | `max_connections` | `32` | Open member connections allowed, all members together. |
 | `authorized_keys` | `""` | The file members' keys are kept in ("" is ~/.ssh/authorized_keys). |
 | `input_idle` | `"10s"` | A terminal takes input from one person at a time; someone who stops typing keeps it this long before another may type. |
+| `notify_fallback` | `["owner"]` | Who is told that an agent or task needs someone when its owner is away: members' names, "owner" (you) and "operators" of its environment. |
 
 ## `[web]`
 

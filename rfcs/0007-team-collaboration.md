@@ -245,10 +245,12 @@ who is notified into the daemon:
 
 - When an agent becomes blocked or done, or a task needs approval or
   fails, the daemon publishes `notify {kind, agent|task, to}`.
-- `to` is the agent's or task's owner, if they have a client connected and
-  their grant still covers it.
+- `to` (a list of people) is the agent's or task's owner, if they have a
+  client connected and their grant still covers it.
 - Otherwise it is the fallback: `[access] notify_fallback`, a list of
-  members, `owner` (the default) or `operators` of that environment.
+  members, `owner` (the default) or `operators` of that environment, and
+  `fallback` is set. When the fallback names nobody who may see the work,
+  it is the runtime's own user.
 - Each client shows only the notifications addressed to the person it
   belongs to, using the `[notify]` settings it has today. A client of an
   older daemon keeps deciding for itself.
