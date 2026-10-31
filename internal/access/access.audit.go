@@ -24,7 +24,8 @@ const (
 	AuditKeys         = "keys"         // Hive's block in authorized_keys was rewritten, or could not be
 	AuditConnected    = "connected"    // a member's connection was accepted
 	AuditRefused      = "refused"      // a connection for an unknown, expired or revoked member
-	AuditDenied       = "denied"       // a member asked for something it may not do
+	AuditDenied       = "denied"       // a member asked for something it may not do, or cannot see
+	AuditAction       = "action"       // a member changed something, or tried to
 	AuditDisconnected = "disconnected" // a member's connection ended (or was ended)
 )
 
@@ -47,8 +48,12 @@ type AuditEntry struct {
 	// Client is the program the member's side says it is (its hello); it
 	// is not verified.
 	Client string `json:"client,omitempty"`
-	// Method is the call a denial was for.
+	// Method is the call an action or a denial was for.
 	Method string `json:"method,omitempty"`
+	// Environment is where the call acted, when it named environments.
+	Environment string `json:"environment,omitempty"`
+	// Outcome is how an action ended: ok, or the error's code.
+	Outcome string `json:"outcome,omitempty"`
 	// Detail says what changed, what was refused, or why a connection
 	// ended.
 	Detail string `json:"detail,omitempty"`

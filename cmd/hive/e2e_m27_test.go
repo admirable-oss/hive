@@ -130,9 +130,8 @@ func TestM27Members(t *testing.T) {
 	if who.Owner || who.Member == nil || who.Member.ID != alice.ID || who.From != "198.51.100.4 50000" {
 		t.Fatalf("whoami as alice = %+v", who)
 	}
-	// Until roles are enforced (RFC 0007, step 2), a member reaches nothing
-	// else, and never what manages access.
-	for _, args := range [][]string{{"env", "list"}, {"access", "list"}, {"access", "revoke", "alice"}} {
+	// A member never reaches what manages access, whatever its role.
+	for _, args := range [][]string{{"access", "list"}, {"access", "revoke", "alice"}} {
 		if _, errOut, code := mate.run(append([]string{"--remote", "buildbox"}, args...)...); code == 0 || !strings.Contains(errOut, "may not call") {
 			t.Fatalf("alice ran %v: %d %s", args, code, errOut)
 		}
@@ -143,7 +142,7 @@ func TestM27Members(t *testing.T) {
 	}
 
 	audit := c.must("access", "audit", "--member", "alice")
-	for _, want := range []string{"invited", "connected", "denied", "environment.list", "access.revoke", "198.51.100.4"} {
+	for _, want := range []string{"invited", "connected", "denied", "access.list", "access.revoke", "198.51.100.4"} {
 		if !strings.Contains(audit, want) {
 			t.Fatalf("audit has no %q:\n%s", want, audit)
 		}
@@ -196,4 +195,148 @@ func mustRead(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// teamRuntime is a runtime whose members' keys go into its own
+// authorized_keys, with a fake ssh to reach it as a member, and /bin/sh as
+// its shell.
+type teamRuntime struct {
+	*cli
+	keys, ssh string
+}
+
+func newTeamRuntime(t *testing.T) *teamRuntime {
+	t.Helper()
+	c := newCLI(t)
+	r := &teamRuntime{cli: c, keys: filepath.Join(c.home, "ssh", "authorized_keys"), ssh: filepath.Join(c.home, "member-ssh")}
+	cfg := "[terminal]\nshell = \"/bin/sh\"\n\n[access]\nauthorized_keys = \"" + r.keys + "\"\n"
+	if err := os.WriteFile(c.cfg, []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(r.ssh, []byte(memberSSH), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+// invite lets name in with role where (an environment, or "--all") and
+// returns a CLI acting as them from their own machine.
+func (r *teamRuntime) invite(name string, seed byte, role, where string) *cli {
+	r.t.Helper()
+	pub, b64 := e2eKey(r.t, r.home, name, seed)
+	scope := []string{"--env", where}
+	if where == "--all" {
+		scope = []string{"--all"}
+	}
+	r.must(append([]string{"access", "invite", name, "--key", pub, "--role", role, "--yes"}, scope...)...)
+	mate := newCLI(r.t)
+	mate.env = append(mate.env, "HIVE_SSH="+r.ssh, "HIVE_TEST_AUTHORIZED_KEYS="+r.keys, "HIVE_TEST_MEMBER_KEY="+b64)
+	return mate
+}
+
+// remote runs a member's command against the runtime.
+func asMember(args ...string) []string { return append([]string{"--remote", "buildbox"}, args...) }
+
+// TestM27Roles: an operator prompts an agent but starts nothing and types
+// into no shell; an observer only reads; both see only their environments,
+// and records without their secrets.
+func TestM27Roles(t *testing.T) {
+	r := newTeamRuntime(t)
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte(fakeClaude), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.env = append(r.env, "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	r.must("env", "create", "dev", "--managed", "-e", "DEV_TOKEN=s3cret")
+	r.must("env", "create", "ops", "--managed", "-e", "OPS_TOKEN=s3cret")
+	agentPane := strings.TrimSpace(r.must("agent", "start", "--kind", "claude", "--env", "dev", "--name", "helper"))
+	shellPane := strings.Fields(r.must("tab", "create", "dev", "--name", "sh"))[1]
+	r.must("ps", "start", "ops", "--", "sh", "-c", "sleep 600")
+	r.must("ps", "start", "dev", "--", "sh", "-c", "sleep 600 # --password=hunter2")
+
+	alice := r.invite("alice", 1, "operator", "dev")
+	bob := r.invite("bob", 2, "observer", "--all")
+
+	// Alice sees dev alone, without its secrets.
+	if out := alice.must(asMember("--json", "env", "list")...); !strings.Contains(out, `"dev"`) || strings.Contains(out, `"ops"`) || strings.Contains(out, "s3cret") {
+		t.Fatalf("alice's environments:\n%s", out)
+	}
+	if _, errOut, code := alice.run(asMember("env", "get", "ops")...); code == 0 || !strings.Contains(errOut, "not found") {
+		t.Fatalf("alice reading ops: %d %s", code, errOut)
+	}
+	procs := alice.must(asMember("--json", "ps", "list")...)
+	// (The CLI prints what it decoded: what was left out shows as empty.)
+	for _, bad := range []string{"OPS_TOKEN", "DEV_TOKEN", "s3cret", "hunter2", `"environment_id": "ops"`, `"working_dir": "/`} {
+		if strings.Contains(procs, bad) {
+			t.Fatalf("alice's process list has %s:\n%s", bad, procs)
+		}
+	}
+	if !strings.Contains(procs, `"command"`) {
+		t.Fatalf("alice's process list has no programs:\n%s", procs)
+	}
+
+	// She prompts the agent and reads it.
+	alice.must(asMember("agent", "prompt", agentPane, "write the tests")...)
+	r.waitFor("the agent to take alice's prompt", func() bool { // the fake works on any prompt
+		return strings.Contains(r.must("agent", "read", agentPane), "Osmosing")
+	})
+	if out := alice.must(asMember("agent", "read", agentPane)...); !strings.Contains(out, "Osmosing") {
+		t.Fatalf("alice reading the agent:\n%s", out)
+	}
+
+	// She starts nothing, and types into no shell.
+	refused := map[string][]string{
+		"agent.start":    {"agent", "start", "--kind", "claude", "--env", "dev"},
+		"process.start":  {"ps", "start", "dev", "--", "true"},
+		"pane.split":     {"pane", "split", agentPane},
+		"tab.create":     {"tab", "create", "dev"},
+		"pane.send_text": {"pane", "send-text", shellPane, "echo hi"},
+	}
+	for method, args := range refused {
+		_, errOut, code := alice.run(asMember(args...)...)
+		if code == 0 || !strings.Contains(errOut, "may not call "+method) {
+			t.Fatalf("alice ran %s: %d %s", method, code, errOut)
+		}
+	}
+	if _, errOut, _ := alice.run(asMember("pane", "send-text", shellPane, "echo hi")...); !strings.Contains(errOut, "never into a shell") {
+		t.Fatalf("typing into a shell: %s", errOut)
+	}
+
+	// Bob reads everything, and changes nothing.
+	if out := bob.must(asMember("env", "list")...); !strings.Contains(out, "dev") || !strings.Contains(out, "ops") {
+		t.Fatalf("bob's environments:\n%s", out)
+	}
+	if procs := bob.must(asMember("--json", "ps", "list")...); strings.Contains(procs, "s3cret") {
+		t.Fatalf("bob's process list has a secret:\n%s", procs)
+	}
+	if _, errOut, code := bob.run(asMember("agent", "prompt", agentPane, "hello")...); code == 0 || !strings.Contains(errOut, "may not call agent.prompt") {
+		t.Fatalf("bob prompting: %d %s", code, errOut)
+	}
+
+	// The owner still sees everything as it is.
+	if env := r.must("--json", "env", "get", "dev"); !strings.Contains(env, "s3cret") {
+		t.Fatalf("the owner's environment lost its variables:\n%s", env)
+	}
+	if procs := r.must("--json", "ps", "list"); !strings.Contains(procs, "hunter2") {
+		t.Fatalf("the owner's process list lost its arguments:\n%s", procs)
+	}
+	if env := alice.must(asMember("--json", "env", "get", "dev")...); strings.Contains(env, "s3cret") {
+		t.Fatalf("alice reads dev's variables:\n%s", env)
+	}
+
+	var entries []access.AuditEntry
+	audit := r.must("--json", "access", "audit", "--member", "alice")
+	decode(t, audit, &entries)
+	seen := map[string]bool{}
+	for _, e := range entries {
+		seen[e.Action+" "+e.Method+" "+e.Outcome] = true
+	}
+	for _, want := range []string{"action agent.prompt ok", "denied agent.start permission_denied", "denied pane.send_text permission_denied", "denied environment.get not_found"} {
+		if !seen[want] {
+			t.Fatalf("alice's audit has no %q:\n%s", want, audit)
+		}
+	}
+	if strings.Contains(audit, "write the tests") {
+		t.Fatal("the audit holds what alice typed")
+	}
 }

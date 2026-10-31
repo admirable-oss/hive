@@ -18,8 +18,7 @@ Teammates in your runtime, over ssh, with a role ([RFC 0007](rfcs/0007-team-coll
 - Members connect with Hive as usual (`hive --remote`, saved machines). The
   daemon's new member socket (`member.sock`) learns who they are from the
   proxy, re-checks them before every request, and refuses anything else
-  their key is asked to run. Until roles are enforced (next step), a member
-  can only see who they are.
+  their key is asked to run.
 - `hive access list | show | grant | renew | revoke | audit | doctor | whoami`.
   Members expire (90 days by default); revoking one ends their connections
   at once and removes their key.
@@ -31,6 +30,23 @@ Teammates in your runtime, over ssh, with a role ([RFC 0007](rfcs/0007-team-coll
   event. API level 17.
 - A `--remote` client that a daemon refuses (a revoked member) now says
   why, instead of offering to install Hive.
+
+### Roles
+
+- The daemon enforces members' roles on every request: `observer` reads,
+  `operator` also prompts agents, types into panes running an agent and
+  approves tasks, `owner` starts, stops and arranges, in the environments
+  each grant names. Every control method is classified
+  (`api/v1/roles.txt`); one that is not is refused.
+- Members see only their environments: lists, `api.snapshot` and
+  `events.subscribe` are filtered, and anything elsewhere answers
+  `not_found`. Below owner, records leave out environment variables,
+  command arguments, working directories, process and session IDs.
+- A `terminal.frames` view opened by a member who may not type there drops
+  their input. Approvals, branch comments and workflow runs record the
+  member's name.
+- Every change a member makes is audited with where it acted and its
+  outcome (`action` entries; `environment` and `outcome` fields).
 
 ## v1.7.0 (unreleased): Plugin ecosystem 2 (M26)
 

@@ -6,10 +6,8 @@ role you chose. Nothing is hosted: your machine, your `authorized_keys` and
 the daemon are all there is. The design is
 [RFC 0007](../rfcs/0007-team-collaboration.md).
 
-> **In progress (M27).** Members, the member socket, invitations,
-> revocation and the audit log work today. Roles are stored but not yet
-> enforced: until they are, a member can connect and see who they are
-> (`hive access whoami`) and nothing else. Presence, one-at-a-time input,
+> **In progress (M27).** Members, roles, the member socket, invitations,
+> revocation and the audit log work today. Presence, one-at-a-time input,
 > handing work over and team notifications follow.
 
 ```sh
@@ -67,17 +65,46 @@ counts. You, on your own socket, are always the runtime's owner.
 
 | Role | May |
 |---|---|
-| `observer` | read environments, agents, tasks, events and screens |
-| `operator` | also prompt agents and send input to agent panes, approve tasks and plans; never start a process or type into a shell |
-| `owner` | run the environment as you would: start and stop agents and processes, change layouts, push branches |
-
-Managing members, configuration, plugins, observers, updates and the daemon
-are never a member's, whatever their role.
+| `observer` | read environments, tabs, panes, agents, processes, tasks, branches, events and screens |
+| `operator` | also prompt agents and send keys to them, type into panes running an agent, approve tasks and plans, comment on branches; never start a process or type into a shell |
+| `owner` | run the environment as you would: start and stop agents and processes, split, close and arrange panes, run and cancel plans, push branches and open pull requests |
 
 ```sh
 hive access grant alice --env api --role observer
 hive access grant alice --env api --role none     # take it away
 ```
+
+The daemon checks the role on every request, against what the request acts
+on: a pane, tab, agent, process, plan or branch belongs to an environment,
+and the member needs the role there. Grants changed or revoked apply to the
+next request, on connections already open too.
+
+- **Only their environments exist.** Lists, the API snapshot and the event
+  stream hold only what is in the member's environments. Asking for
+  something elsewhere answers `not_found`, as for something that does not
+  exist.
+- **No secrets below owner.** Observers and operators receive records
+  without environment variables, command arguments, working directories,
+  process IDs or agents' session IDs; a command shows only its program's
+  name. Screens are shown as they are.
+- **Operators type only into agents.** Prompting, keys, pasted text and
+  terminal input go only to panes where Hive sees a running agent; a pane
+  whose agent exits stops taking an operator's input. A terminal view an
+  observer opens drops whatever it types.
+- **Their name, not their word.** Approvals, branch comments and workflow
+  runs record the member's name, whatever their client says.
+- **What spans environments** (workflows, insights, issues, plugins,
+  worktrees, who observes) needs the role in every environment: a grant
+  with `--all`. So do events that name no environment, creating and
+  removing environments, and plans placed nowhere yet.
+- **Never a member's**, whatever the role: managing members and observers,
+  configuration, plugins (installing, settings, running their commands),
+  updates, the daemon, `runtime.gc`, sessions' save and restore.
+- **Focus is shared until M27's next step.** Moving focus (`pane.focus`,
+  `tab.focus`, `agent.focus`) changes everyone's view, so it is an owner's
+  for now; each person's own focus comes with presence.
+
+Every method's role is listed in [api/v1/roles.txt](../api/v1/roles.txt).
 
 **A role is not a sandbox.** An operator cannot start processes through
 Hive, but the agents they prompt run as you and can do anything you can.
@@ -102,8 +129,10 @@ files kept) records:
 - changes to Hive's block in `authorized_keys`;
 - every connection, with where it came from (`SSH_CONNECTION`) and the
   client it says it is, and why it ended;
+- every call a member makes that changes something (`action`), with where
+  it acted and its outcome (`ok`, or the error's code);
 - refusals (an unknown, expired or revoked member) and denials (a call the
-  member may not make).
+  member may not make, or something outside their environments).
 
 It never holds what a member types. `hive access audit [--member alice]`
 reads it.

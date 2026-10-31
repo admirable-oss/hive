@@ -1,0 +1,151 @@
+method access.audit: closed
+method access.doctor: closed
+method access.get: closed
+method access.grant: closed
+method access.invite: closed
+method access.list: closed
+method access.renew: closed
+method access.revoke: closed
+method access.whoami: observer in none
+method agent.explain: observer in environment
+method agent.focus: owner in environment
+method agent.get: observer in environment
+method agent.list: observer in filtered
+method agent.manifests: observer in none
+method agent.prompt: operator in environment, agents only below owner
+method agent.read: observer in environment
+method agent.reload: closed
+method agent.rename: owner in environment
+method agent.report: closed
+method agent.seen: operator in environment
+method agent.send_keys: operator in environment, agents only below owner
+method agent.start: owner in environment
+method agent.stop: owner in environment
+method agent.wait: observer in environment
+method api.schema: observer in none
+method api.snapshot: observer in filtered
+method branch.check: observer in environment
+method branch.clean: owner in environment
+method branch.comment: operator in environment, by the member
+method branch.conflicts: observer in environment
+method branch.diff: observer in environment
+method branch.get: observer in environment
+method branch.list: observer in filtered
+method branch.pr: owner in environment
+method branch.push: owner in environment
+method branch.ready: owner in environment
+method branch.send: operator in environment
+method branch.update: owner in environment
+method client.report: observer in none
+method debug.pprof: closed
+method debug.stats: closed
+method environment.create: owner in all environments
+method environment.get: observer in environment
+method environment.list: observer in filtered
+method environment.remove: owner in all environments
+method environment.update: owner in environment
+method events.subscribe: observer in filtered
+method insights.asks: observer in all environments
+method insights.budgets: observer in all environments
+method insights.export: observer in all environments
+method insights.resume: closed
+method insights.summary: observer in all environments
+method insights.usage: closed
+method issue.close: closed
+method issue.comment: operator in all environments
+method issue.get: observer in all environments
+method issue.search: observer in all environments
+method layout.apply: owner in all environments
+method layout.export: observer in environment
+method metadata.list: observer in filtered
+method metadata.report: owner in environment
+method observer.activity: observer in all environments
+method observer.audit: closed
+method observer.create: closed
+method observer.get: closed
+method observer.list: closed
+method observer.revoke: closed
+method observer.validate: closed
+method pane.close: owner in environment
+method pane.focus: owner in environment
+method pane.get: observer in environment
+method pane.input: operator in environment, agents only below owner
+method pane.list: observer in environment or filtered
+method pane.move: owner in environment
+method pane.popup: owner in environment
+method pane.read: observer in environment
+method pane.rename: owner in environment
+method pane.resize: owner in environment
+method pane.run: owner in environment
+method pane.send_keys: operator in environment, agents only below owner
+method pane.send_text: operator in environment, agents only below owner
+method pane.split: owner in environment
+method pane.swap: owner in environment
+method pane.wait_output: observer in environment
+method pane.zoom: owner in environment
+method plugin.cancel: closed
+method plugin.capabilities: observer in all environments
+method plugin.card: closed
+method plugin.config.set: closed
+method plugin.config: closed
+method plugin.contributions: observer in all environments
+method plugin.list: observer in all environments
+method plugin.ready: closed
+method plugin.reload: closed
+method plugin.request: closed
+method plugin.run: closed
+method plugin.status: closed
+method plugin.view.clear: closed
+method plugin.view.click: owner in all environments
+method plugin.view.set: closed
+method plugin.views: observer in all environments
+method process.get: observer in environment
+method process.list: observer in environment or filtered
+method process.logs.stream: closed
+method process.logs: observer in environment
+method process.start: owner in environment
+method process.stop: owner in environment
+method runtime.gc: closed
+method runtime.ping: observer in none
+method runtime.shutdown: closed
+method runtime.status: observer in none
+method session.restore: closed
+method session.save: closed
+method tab.close: owner in environment
+method tab.create: owner in environment
+method tab.focus: owner in environment
+method tab.get: observer in environment
+method tab.list: observer in environment or filtered
+method tab.rename: owner in environment
+method tab.resize: owner in environment
+method task.approve: operator in environment, by the member
+method task.cancel: owner in environment
+method task.get: observer in environment
+method task.list: observer in filtered
+method task.retry: owner in environment
+method task.run: owner in all environments
+method task.wait: observer in environment
+method terminal.attach: operator in environment, agents only below owner
+method terminal.frames: observer in environment, input only for operators of agents
+method terminal.graphics: observer in environment
+method terminal.image: operator in environment, agents only below owner
+method terminal.input: operator in environment, agents only below owner
+method terminal.resize: operator in environment, agents only below owner
+method terminal.snapshot: observer in environment
+method workflow.cancel: owner in all environments, by the member
+method workflow.fire: owner in all environments
+method workflow.get: observer in all environments
+method workflow.list: observer in all environments
+method workflow.reload: closed
+method workflow.rerun: owner in all environments, by the member
+method workflow.run: owner in all environments, by the member
+method workflow.runs: observer in all environments
+method workflow.status: observer in all environments
+method workflow.trigger: closed
+method workflow.trust: closed
+method workflow.validate: observer in all environments
+method workflow.wait: observer in all environments
+method worktree.create: owner in all environments
+method worktree.list: observer in all environments
+method worktree.open: owner in all environments
+method worktree.remove: owner in all environments

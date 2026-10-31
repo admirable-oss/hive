@@ -1461,10 +1461,12 @@ Result: [protocol.Empty](#protocolempty)
 | `action` | `string` |  |
 | `client` | `string` |  |
 | `detail` | `string` |  |
+| `environment` | `string` |  |
 | `from` | `string` |  |
 | `member` | `string` |  |
 | `method` | `string` |  |
 | `name` | `string` |  |
+| `outcome` | `string` |  |
 | `time` | `string` |  |
 
 ### access.Grant

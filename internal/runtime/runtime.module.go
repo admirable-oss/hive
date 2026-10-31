@@ -188,7 +188,9 @@ func NewModule(cfg Config) *Module {
 		},
 	})
 	server.Go(obs.run)
-	mems := newMembers(cfg, log.With("module", "access"), bus, router)
+	mems := newMembers(cfg, log.With("module", "access"), bus, router, &memberGuard{
+		envs: guardedEnvs, panes: panes, agents: agents, procs: procs, tasks: tasks.svc, branches: branches,
+	})
 	server.Go(mems.run)
 
 	Register(router, server)

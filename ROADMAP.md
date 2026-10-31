@@ -1867,16 +1867,21 @@ The design: [RFC 0007](rfcs/0007-team-collaboration.md).
   --member` (only `hive proxy` served over ssh), the managed
   `authorized_keys` block (unrestricted duplicates refused), the member
   socket re-checking members per request, connections and denials audited,
-  revocation that ends them at once. Members reach only `access.whoami`
-  until roles land. API level 17 ([docs/teams.md](docs/teams.md);
+  revocation that ends them at once. API level 17 ([docs/teams.md](docs/teams.md);
   `TestM27Members`, `TestServer`, `TestKeysFile`).
-- [ ] Roles per environment (delivery step 2): the role table, observer
-  views below owner, operators' input to agent panes only, `access.whoami`,
-  actions audited, `actor` on events.
+- [x] Roles per environment (delivery step 2): every control method
+  classified for members (`api/v1/roles.txt`), targets resolved to their
+  environment and checked on every request, lists, `api.snapshot` and
+  events filtered to the member's environments, observer-style redaction
+  below owner, operators' input to running agents only, read-only frames
+  views, `by` filled from the member, actions audited with their outcome
+  (`TestM27Roles`, `TestMemberViewsTypeOnlyWhenAllowed`,
+  `TestMemberRulesClassifyEveryMethod`, `TestRedactionCoversSecrets`).
 - [ ] Shared workspaces (delivery step 3): presence, per-member focus and
   the input holder in every client.
 - [ ] Handing over (delivery step 4): `owner` on agents, tasks and plans,
-  `agent.handover`, `task.assign`.
+  `agent.handover`, `task.assign`, and `actor` on events a member caused
+  (moved from step 2: the event bus needs the caller first).
 - [ ] Notifications routed by the daemon (delivery step 5), with the
   fallback.
 - [ ] The acceptance test, `docs/teams.md` and the threat model

@@ -416,10 +416,12 @@ terminal.snapshot result: terminal.SnapshotResult
 type access.AuditEntry.action: string
 type access.AuditEntry.client: string
 type access.AuditEntry.detail: string
+type access.AuditEntry.environment: string
 type access.AuditEntry.from: string
 type access.AuditEntry.member: string
 type access.AuditEntry.method: string
 type access.AuditEntry.name: string
+type access.AuditEntry.outcome: string
 type access.AuditEntry.time: string
 type access.AuditEntry: object
 type access.Grant.environment: string

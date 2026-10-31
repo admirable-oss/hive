@@ -36,7 +36,7 @@ ssh. Other machines are reached through the user's ssh.
 | **A network attacker between you and GitHub or the registry** | Yes. Releases are signed; plugin releases are pinned by commit and checksum; registry links must be HTTPS. |
 | **A compromised registry listing or plugin maintainer** | Partly. Releases are immutable and pinned, permission changes are shown before an update, and releases can be revoked. From 1.7, schema 2 releases carry their publisher's SSH signature: a stolen repository token alone cannot publish an official or verified release, an update cannot change publisher, and a stolen signing key is revoked from the time it was distrusted. A malicious release you choose to install runs as you. |
 | **An observer (a dashboard, a person with a share link)** | Yes. It reads only what its credential allows and cannot control anything. |
-| **A member (a teammate let in with `hive access`)** | Yes. Their key reaches only the member socket, the daemon decides who they are from the key's forced command, and they cannot manage access. Until roles are enforced (RFC 0007, step 2) a member can do nothing but see who they are. An operator's prompts run as you, through your agents. |
+| **A member (a teammate let in with `hive access`)** | Yes. Their key reaches only the member socket, the daemon decides who they are from the key's forced command, and checks their role in the environment of everything they ask for. They see nothing outside their environments, no secret-bearing fields below owner, start nothing below owner, type only into agents as operators, and never manage access, plugins or the daemon. An operator's prompts run as you, through your agents. |
 | **A malicious website open in your browser** | Yes, for the web observer: CSP, SameSite=Strict cookies, no framing, codes in URL fragments. |
 | **The agents themselves** | No. Agents run as you, unsandboxed, by design. See non-goals. |
 | **Malware already running as you** | No. It can read your files and open your sockets, as it could without Hive. |
@@ -59,8 +59,10 @@ ssh. Other machines are reached through the user's ssh.
    `hive proxy --member <id>` with every forwarding and the terminal off;
    the proxy binds the connection to that member before relaying, and
    serves only clients asking for `hive proxy`. The daemon re-checks the
-   member before every request, and revocation ends its connections at
-   once. As for observers, this is access control in the API: a program
+   member before every request, and its role in the environment of what
+   the request acts on (every control method is classified,
+   `api/v1/roles.txt`); revocation ends its connections at once. As for
+   observers, this is access control in the API: a program
    running as the user can claim any member, and the boundary holds only
    when the restricted key is the member's only way into the account.
    Inviting a key that already logs in unrestricted is refused.

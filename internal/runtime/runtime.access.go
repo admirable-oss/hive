@@ -77,11 +77,12 @@ type members struct {
 	audit     *access.Audit
 }
 
-func newMembers(cfg Config, log *slog.Logger, bus *event.Bus, router *protocol.Router) *members {
+func newMembers(cfg Config, log *slog.Logger, bus *event.Bus, router *protocol.Router, guard *memberGuard) *members {
 	dir := filepath.Join(cfg.root(), "access")
 	m := &members{cfg: cfg, log: log, dir: dir, path: MemberSocketPath(cfg.root()), bus: bus, store: access.NewStore(dir)}
+	guard.router, guard.audit = router, m.auditLog
 	m.server = access.NewServer(access.Config{
-		Store: m.store, Handler: router, Methods: router.Methods, Logger: log,
+		Store: m.store, Handler: guard, Methods: router.Methods, Allowed: memberAllowed, Logger: log,
 		MaxConnections: cfg.Access.MaxConnections,
 		OnChange:       func() { bus.Publish(EventAccessChanged, accessEvent{Action: "connections"}) },
 	})

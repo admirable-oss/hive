@@ -11,6 +11,9 @@
         "detail": {
           "type": "string"
         },
+        "environment": {
+          "type": "string"
+        },
         "from": {
           "type": "string"
         },
@@ -21,6 +24,9 @@
           "type": "string"
         },
         "name": {
+          "type": "string"
+        },
+        "outcome": {
           "type": "string"
         },
         "time": {

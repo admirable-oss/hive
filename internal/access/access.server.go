@@ -318,7 +318,10 @@ func (c *conn) Handle(ctx context.Context, req protocol.Request) protocol.Respon
 		return protocol.Fail(req, protocol.NewError(protocol.ErrorCodePermissionDenied, errors.New(why)))
 	}
 	if !c.s.cfg.Allowed(m, req.Method) {
-		c.s.cfg.Audit.Record(AuditEntry{Action: AuditDenied, Member: m.ID, Name: m.Name, From: c.from, Client: c.clientName(), Method: req.Method})
+		c.s.cfg.Audit.Record(AuditEntry{
+			Action: AuditDenied, Member: m.ID, Name: m.Name, From: c.from, Client: c.clientName(),
+			Method: req.Method, Outcome: protocol.ErrorCodePermissionDenied,
+		})
 		return protocol.Fail(req, protocol.NewError(protocol.ErrorCodePermissionDenied,
 			fmt.Errorf("member %s may not call %s", m.Name, req.Method)))
 	}

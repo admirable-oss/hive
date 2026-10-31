@@ -427,12 +427,11 @@ Each step is a pull request that links this RFC:
    audit log, revocation that ends connections.
 2. Roles: the role table, grants per environment, observer views below
    owner, agent-pane-only input for operators, filtered welcomes,
-   `access.whoami`, `Approval.by` from identity, actions in the audit log,
-   `actor` on events.
+   `access.whoami`, `Approval.by` from identity, actions in the audit log.
 3. Shared workspaces: presence, per-member focus, the input holder, and
    their display in the TUI, desktop app and web observer.
 4. Handing over: `owner` on agents, tasks and plans, `agent.handover`,
-   `task.assign`.
+   `task.assign`, and `actor` on events.
 5. Notifications routed by the daemon, with the fallback.
 6. The acceptance test, `docs/teams.md` and the threat model; then tag
    `v1.8.0`.
