@@ -214,7 +214,10 @@ func TestGraphicsStripper(t *testing.T) {
 		{png + png + "x", "x"},
 		{"\x1b[31mred\x1b[0m", "\x1b[31mred\x1b[0m"},
 		{"\x1b_Xother\x1b\\", "\x1b_Xother\x1b\\"},
-		{"\x1b\x1b_Ga=t;AAAA\x1b\\z", "\x1bz"},
+		// The lone ESC the command's ESC aborted passes through, cancelled,
+		// so it does not join what follows the command.
+		{"\x1b\x1b_Ga=t;AAAA\x1b\\z", "\x1b\x18z"},
+		{"\x1b\x1b_G\x1b\\_G", "\x1b\x18_G"},
 		{"\x1b_Ga=t;AA\x1b\x1b\\after", "after"},
 		{"\x1b_Ga=t;AAAA\x18after", "after"},
 		{"\x1b]0;title\x07ok", "\x1b]0;title\x07ok"},

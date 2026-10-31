@@ -6,9 +6,12 @@ import "io"
 // graphics commands (ESC _ G … ESC \), so a log of agent output never keeps
 // image data. Commands may span writes; at most two bytes (ESC, ESC _) are
 // held back between writes. Every other byte passes through unchanged, in
-// order, including other APC strings, with one addition: an APC introducer
-// that passed through, whose string a dropped graphics command ended, is
-// closed with ST so it does not swallow the rest of the log.
+// order, including other APC strings, with two additions, so what a dropped
+// graphics command ended stays ended: an APC introducer that passed through,
+// whose string the command ended, is closed with ST so it does not swallow
+// the rest of the log; and a lone ESC that passed through, whose sequence the
+// command's ESC aborted, is cancelled with CAN so it does not join the bytes
+// after the command (ESC ESC _G… ESC\ _G would otherwise log ESC _G).
 type GraphicsStripper struct {
 	W     io.Writer
 	state stripState
@@ -16,6 +19,10 @@ type GraphicsStripper struct {
 	// dangling marks an ESC _ written for an APC string the input aborted:
 	// until something else is written, it still opens a string in W.
 	dangling bool
+	// lone marks an ESC written as the last byte to W, aborted by an ESC
+	// that is still held: until something else is written, it still starts
+	// a sequence in W.
+	lone bool
 }
 
 type stripState uint8
@@ -43,7 +50,7 @@ func (s *GraphicsStripper) Write(p []byte) (int, error) {
 				s.state = stripEscape
 			} else {
 				out = append(out, b)
-				s.dangling = false
+				s.dangling, s.lone = false, false
 			}
 		case stripEscape:
 			switch b {
@@ -51,10 +58,10 @@ func (s *GraphicsStripper) Write(p []byte) (int, error) {
 				s.state = stripAPC
 			case 0x1b:
 				out = append(out, 0x1b) // the first ESC was not ours to hold
-				s.dangling = false
+				s.dangling, s.lone = false, true
 			default:
 				out = append(out, 0x1b, b)
-				s.dangling = false
+				s.dangling, s.lone = false, false
 				s.state = stripGround
 			}
 		case stripAPC:
@@ -64,6 +71,10 @@ func (s *GraphicsStripper) Write(p []byte) (int, error) {
 				// command, which is dropped: close the string, or the log
 				// keeps an introducer that swallows everything after it
 				// (and ESC _ G would read as a graphics command again).
+				if s.lone {
+					out = append(out, 0x18)
+					s.lone = false
+				}
 				if s.dangling {
 					out = append(out, 0x1b, '\\')
 					s.dangling = false
@@ -71,11 +82,11 @@ func (s *GraphicsStripper) Write(p []byte) (int, error) {
 				s.state = stripGraphics
 			case 0x1b:
 				out = append(out, 0x1b, '_')
-				s.dangling = true
+				s.dangling, s.lone = true, false
 				s.state = stripEscape
 			default:
 				out = append(out, 0x1b, '_', b)
-				s.dangling = false
+				s.dangling, s.lone = false, false
 				s.state = stripGround
 			}
 		case stripGraphics:
@@ -121,7 +132,7 @@ func (s *GraphicsStripper) Close() error {
 	case stripAPC:
 		_, err = s.W.Write([]byte{0x1b, '_'})
 	}
-	s.state, s.dangling = stripGround, false
+	s.state, s.dangling, s.lone = stripGround, false, false
 	if c, ok := s.W.(io.Closer); ok {
 		if cerr := c.Close(); err == nil {
 			err = cerr

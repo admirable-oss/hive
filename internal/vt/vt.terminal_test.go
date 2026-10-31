@@ -1,6 +1,7 @@
 package vt_test
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -224,5 +225,43 @@ func TestUnwrapJoinsFullWidthLines(t *testing.T) {
 	got := vt.Unwrap(s.Lines[:3], 10)
 	if len(got) != 2 || got[0] != strings.Repeat("x", 10)+"yy" || got[1] != "short" {
 		t.Fatalf("unwrapped = %q", got)
+	}
+}
+
+// TestHugeCountsAreCapped: a huge tab, erase or repeat count returns at once,
+// and a capped REP leaves the screen and cursor that printing every copy
+// would.
+func TestHugeCountsAreCapped(t *testing.T) {
+	for _, seq := range []string{"\x1b[1055555550Z", "\x1b[1055555550I", "\x1b[1055555550X", "a\x1b[1055555550b"} {
+		term := newTerm(t, 40, 2, vt.Options{})
+		start := time.Now()
+		_, _ = term.Write([]byte(seq))
+		if d := time.Since(start); d > time.Second {
+			t.Errorf("%q took %v", seq, d)
+		}
+	}
+	screen := func(cols, rows int, in string) string {
+		term := newTerm(t, cols, rows, vt.Options{ScrollbackBytes: -1})
+		_, _ = term.Write([]byte(in))
+		s := term.Snapshot()
+		var b strings.Builder
+		for y := range rows {
+			b.WriteString(s.LineText(y) + "|")
+		}
+		return fmt.Sprintf("%s cursor %d,%d", b.String(), s.Cursor.X, s.Cursor.Y)
+	}
+	for _, tc := range []struct {
+		cols, rows int
+		ch, prefix string
+	}{
+		{5, 2, "a", ""}, {7, 3, "b", "x世"}, {6, 2, "a", "\x1b[?7l"}, {4, 4, "c", "\x1b[2;3r"},
+	} {
+		for _, n := range []int{20, 123, 517} {
+			got := screen(tc.cols, tc.rows, fmt.Sprintf("%s%s\x1b[%db", tc.prefix, tc.ch, n))
+			want := screen(tc.cols, tc.rows, tc.prefix+strings.Repeat(tc.ch, n+1))
+			if got != want {
+				t.Errorf("%dx%d %q REP %d: got %q, want %q", tc.cols, tc.rows, tc.prefix+tc.ch, n, got, want)
+			}
+		}
 	}
 }

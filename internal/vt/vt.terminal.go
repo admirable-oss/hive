@@ -104,6 +104,7 @@ func New(cols, rows int, opts Options) *Terminal {
 		},
 	})
 	t.trackModes(t.emu)
+	limitCounts(t.emu)
 	go t.pumpReplies(opts.Reply)
 	t.sync()
 	return t
