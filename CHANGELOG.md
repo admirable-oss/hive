@@ -4,6 +4,99 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.8.0 (unreleased): Team collaboration (M27)
+
+Teammates in your runtime, over ssh, with a role ([RFC 0007](rfcs/0007-team-collaboration.md)). In progress.
+
+### Members
+
+- `hive access invite <name> --key <file> --role <role> (--env <id>… | --all)`
+  lets a teammate in: their key goes into `~/.ssh/authorized_keys`, inside a
+  block Hive manages, forced to run `hive proxy --member <id>` with every
+  forwarding and the terminal off. It asks first; `--print` prints the line
+  instead. A key that already logs in unrestricted is refused.
+- Members connect with Hive as usual (`hive --remote`, saved machines). The
+  daemon's new member socket (`member.sock`) learns who they are from the
+  proxy, re-checks them before every request, and refuses anything else
+  their key is asked to run.
+- `hive access list | show | grant | renew | revoke | audit | doctor | whoami`.
+  Members expire (90 days by default); revoking one ends their connections
+  at once and removes their key.
+- `access/audit.log` records invitations, role changes, revocations,
+  `authorized_keys` changes, connections with where they came from,
+  refusals and denials, never what a member typed.
+- `[access] enabled`, `max_connections` and `authorized_keys`.
+- New methods `access.*` (closed to plugins) and the `access.changed`
+  event. API level 17.
+- A `--remote` client that a daemon refuses (a revoked member) now says
+  why, instead of offering to install Hive.
+
+### Roles
+
+- The daemon enforces members' roles on every request: `observer` reads,
+  `operator` also prompts agents, types into panes running an agent and
+  approves tasks, `owner` starts, stops and arranges, in the environments
+  each grant names. Every control method is classified
+  (`api/v1/roles.txt`); one that is not is refused.
+- Members see only their environments: lists, `api.snapshot` and
+  `events.subscribe` are filtered, and anything elsewhere answers
+  `not_found`. Below owner, records leave out environment variables,
+  command arguments, working directories, process and session IDs.
+- A `terminal.frames` view opened by a member who may not type there drops
+  their input. Approvals, branch comments and workflow runs record the
+  member's name.
+- Every change a member makes is audited with where it acted and its
+  outcome (`action` entries; `environment` and `outcome` fields).
+
+### Working together
+
+- Presence: `presence.set` and `presence.list`, the `presence.changed`
+  event, and `hive presence`. The multiplexer reports where you look, shows
+  who else is in the environment (`◇ with alice`) and on each pane, and a
+  member's focus is their own: `pane.focus`, `tab.focus` and `agent.focus`
+  from a member move only their presence.
+- One person types into a pane at a time, you included: input into a pane
+  someone else holds answers `conflict` naming them (frames and attach
+  views drop it), until they stop typing for `[access] input_idle` (10 s),
+  release it, or lose access. `pane.claim` (`--force` to take it) and
+  `pane.release`, `hive pane claim|release`, the `pane.floor` event, and
+  `[✎ alice]` on the pane.
+
+### Handing work over
+
+- Agents (and processes), plans and tasks have an `owner`: the member who
+  started them, or you when absent. A task's agent is its owner's.
+- `agent.handover` (`hive agent handover <agent> <member>`) gives an agent,
+  its task and its pane's input to another member; `task.assign`
+  (`hive task assign <plan> [task] --to <member>`) gives a task, or a plan
+  and its unfinished tasks, with their agents. Work goes only to operators
+  and owners of its environment; an operator gives away only their own.
+  The `agent.handover` event; `HandOverAgent` and `AssignTask` in the Go
+  SDK.
+- Events caused by a member's request carry `actor`.
+- A task waiting to start is in the environment its spec names, so an
+  operator there can approve it without a grant for every environment.
+
+### Notifications for teams
+
+- The daemon decides who is told that work needs someone: when an agent is
+  blocked or done, a task waits for approval or fails, it publishes
+  `notify` to the work's owner while they are connected, else to
+  `[access] notify_fallback` (members' names, `owner`, `operators`;
+  `["owner"]` by default), and to you when that names nobody.
+- The multiplexer and the desktop app show only notifications addressed to
+  their person when the daemon routes them (`notify` in `access.whoami`),
+  and decide for themselves against an older daemon. A failed task now
+  notifies, where `done` does.
+- The multiplexer follows `presence.changed` again: who is where updated
+  only on a full refresh.
+
+### Fixes
+
+- A plugin holding `hive.read` but not `hive.input` could type into a
+  terminal through the `terminal.frames` pipe it may open. Its frames view
+  now drops what it types.
+
 ## v1.7.0 (unreleased): Plugin ecosystem 2 (M26)
 
 Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). In progress.

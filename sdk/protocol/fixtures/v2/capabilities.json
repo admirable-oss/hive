@@ -175,6 +175,7 @@
     "plugin.view.clear",
     "plugin.view.set",
     "plugin.views",
+    "presence.list",
     "process.get",
     "process.list",
     "process.logs",

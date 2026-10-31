@@ -1,9 +1,29 @@
+access.audit params: runtime.accessAuditParams
+access.audit result: []access.AuditEntry
+access.doctor params: runtime.accessDoctorParams
+access.doctor result: runtime.AccessDoctor
+access.get params: runtime.accessRef
+access.get result: runtime.AccessMember
+access.grant params: runtime.accessGrantParams
+access.grant result: access.Member
+access.invite params: runtime.AccessInviteParams
+access.invite result: runtime.AccessInvited
+access.list params: protocol.Empty
+access.list result: runtime.AccessList
+access.renew params: runtime.accessRenewParams
+access.renew result: access.Member
+access.revoke params: runtime.accessRef
+access.revoke result: access.Member
+access.whoami params: protocol.Empty
+access.whoami result: runtime.WhoAmI
 agent.explain params: agent.idParams
 agent.explain result: agent.Explanation
 agent.focus params: runtime.agentIDParams
 agent.focus result: agent.Agent
 agent.get params: agent.idParams
 agent.get result: agent.Agent
+agent.handover params: runtime.handoverParams
+agent.handover result: runtime.AgentHandedOver
 agent.list params: agent.listParams
 agent.list result: agent.ListResult
 agent.manifests params: object
@@ -102,9 +122,19 @@ metadata.list params: object
 metadata.list result: []metadata.Entry
 metadata.report params: metadata.Report
 metadata.report result: metadata.Entry
+method access.audit
+method access.doctor
+method access.get
+method access.grant
+method access.invite
+method access.list
+method access.renew
+method access.revoke
+method access.whoami
 method agent.explain
 method agent.focus
 method agent.get
+method agent.handover
 method agent.list
 method agent.manifests
 method agent.prompt
@@ -159,6 +189,7 @@ method observer.get
 method observer.list
 method observer.revoke
 method observer.validate
+method pane.claim
 method pane.close
 method pane.focus
 method pane.get
@@ -167,6 +198,7 @@ method pane.list
 method pane.move
 method pane.popup
 method pane.read
+method pane.release
 method pane.rename
 method pane.resize
 method pane.run
@@ -192,6 +224,8 @@ method plugin.view.clear
 method plugin.view.click
 method plugin.view.set
 method plugin.views
+method presence.list
+method presence.set
 method process.get
 method process.list
 method process.logs
@@ -212,6 +246,7 @@ method tab.list
 method tab.rename
 method tab.resize
 method task.approve
+method task.assign
 method task.cancel
 method task.get
 method task.list
@@ -252,6 +287,8 @@ observer.revoke params: runtime.observerRef
 observer.revoke result: observer.Credential
 observer.validate params: runtime.observerValidateParams
 observer.validate result: runtime.ObserverValidation
+pane.claim params: runtime.paneClaimParams
+pane.claim result: runtime.PaneClaimed
 pane.close params: pane.idParams
 pane.close result: protocol.Empty
 pane.focus params: pane.focusParams
@@ -268,6 +305,8 @@ pane.popup params: pane.PopupRequest
 pane.popup result: pane.Pane
 pane.read params: pane.readParams
 pane.read result: []string
+pane.release params: runtime.paneReleaseParams
+pane.release result: map[string]boolean
 pane.rename params: pane.renameParams
 pane.rename result: pane.Pane
 pane.resize params: pane.paneResizeParams
@@ -324,6 +363,10 @@ plugin.view.set params: plugin.ViewUpdate
 plugin.view.set result: plugin.ViewContent
 plugin.views params: object
 plugin.views result: []plugin.ViewContent
+presence.list params: protocol.Empty
+presence.list result: runtime.PresenceList
+presence.set params: runtime.presenceSetParams
+presence.set result: protocol.Empty
 process.get params: process.idParams
 process.get result: process.Process
 process.list params: process.listParams
@@ -360,6 +403,8 @@ tab.resize params: pane.tabResizeParams
 tab.resize result: pane.Tab
 task.approve params: task.ApproveParams
 task.approve result: task.Plan
+task.assign params: runtime.assignParams
+task.assign result: task.Plan
 task.cancel params: task.Ref
 task.cancel result: task.Plan
 task.get params: task.Ref
@@ -386,12 +431,39 @@ terminal.resize params: terminal.resizeParams
 terminal.resize result: protocol.Empty
 terminal.snapshot params: terminal.snapshotParams
 terminal.snapshot result: terminal.SnapshotResult
+type access.AuditEntry.action: string
+type access.AuditEntry.client: string
+type access.AuditEntry.detail: string
+type access.AuditEntry.environment: string
+type access.AuditEntry.from: string
+type access.AuditEntry.member: string
+type access.AuditEntry.method: string
+type access.AuditEntry.name: string
+type access.AuditEntry.outcome: string
+type access.AuditEntry.time: string
+type access.AuditEntry: object
+type access.Grant.environment: string
+type access.Grant.role: string
+type access.Grant: object
+type access.Member.created_at: string
+type access.Member.expires_at: string
+type access.Member.fingerprint: string
+type access.Member.grants: []access.Grant
+type access.Member.id: string
+type access.Member.key: string
+type access.Member.last_seen_at: string
+type access.Member.managed: boolean
+type access.Member.name: string
+type access.Member.revoked_at: string
+type access.Member.state: string
+type access.Member: object
 type agent.Agent.completion_seq: integer
 type agent.Agent.environment_id: string
 type agent.Agent.id: string
 type agent.Agent.kind: string
 type agent.Agent.last_output: string
 type agent.Agent.name: string
+type agent.Agent.owner: presence.Person
 type agent.Agent.pane_id: string
 type agent.Agent.pid: integer
 type agent.Agent.reason: string
@@ -1419,6 +1491,24 @@ type plugin.ViewUpdate.doc: plugin.ViewDoc
 type plugin.ViewUpdate.plugin: string
 type plugin.ViewUpdate.view: string
 type plugin.ViewUpdate: object
+type presence.Entry.client: string
+type presence.Entry.connection: string
+type presence.Entry.environment: string
+type presence.Entry.pane: string
+type presence.Entry.person: presence.Person
+type presence.Entry.since: string
+type presence.Entry.tab: string
+type presence.Entry: object
+type presence.Hold.environment: string
+type presence.Hold.holder: presence.Person
+type presence.Hold.pane: string
+type presence.Hold.process_id: string
+type presence.Hold.since: string
+type presence.Hold.until: string
+type presence.Hold: object
+type presence.Person.id: string
+type presence.Person.name: string
+type presence.Person: object
 type process.LogsRequest.follow: boolean
 type process.LogsRequest.id: string
 type process.LogsRequest.stream: string
@@ -1433,6 +1523,7 @@ type process.Process.exit_code: integer
 type process.Process.id: string
 type process.Process.log_dir: string
 type process.Process.lost: boolean
+type process.Process.owner: presence.Person
 type process.Process.pid: integer
 type process.Process.started_at: string
 type process.Process.status: string
@@ -1476,6 +1567,42 @@ type runtime.APISnapshot.processes: []process.Process
 type runtime.APISnapshot.rollups: agent.Rollups
 type runtime.APISnapshot.tabs: []pane.Tab
 type runtime.APISnapshot: object
+type runtime.AccessDoctor.authorized_keys: string
+type runtime.AccessDoctor.fixed: boolean
+type runtime.AccessDoctor.problems: []string
+type runtime.AccessDoctor: object
+type runtime.AccessInviteParams.grants: []access.Grant
+type runtime.AccessInviteParams.key: string
+type runtime.AccessInviteParams.name: string
+type runtime.AccessInviteParams.print: boolean
+type runtime.AccessInviteParams.ttl_seconds: integer
+type runtime.AccessInviteParams: object
+type runtime.AccessInvited.authorized_keys: string
+type runtime.AccessInvited.line: string
+type runtime.AccessInvited.member: access.Member
+type runtime.AccessInvited.socket: string
+type runtime.AccessInvited: object
+type runtime.AccessList.authorized_keys: string
+type runtime.AccessList.enabled: boolean
+type runtime.AccessList.members: []runtime.AccessMember
+type runtime.AccessList.socket: string
+type runtime.AccessList: object
+type runtime.AccessMember.connections: integer
+type runtime.AccessMember.created_at: string
+type runtime.AccessMember.expires_at: string
+type runtime.AccessMember.fingerprint: string
+type runtime.AccessMember.grants: []access.Grant
+type runtime.AccessMember.id: string
+type runtime.AccessMember.key: string
+type runtime.AccessMember.last_seen_at: string
+type runtime.AccessMember.managed: boolean
+type runtime.AccessMember.name: string
+type runtime.AccessMember.revoked_at: string
+type runtime.AccessMember.state: string
+type runtime.AccessMember: object
+type runtime.AgentHandedOver.agent: agent.Agent
+type runtime.AgentHandedOver.from: presence.Person
+type runtime.AgentHandedOver: object
 type runtime.AgentStartRequest.args: []string
 type runtime.AgentStartRequest.base: string
 type runtime.AgentStartRequest.env: map[string]string
@@ -1518,6 +1645,9 @@ type runtime.ObserverValidation.credential: observer.Credential
 type runtime.ObserverValidation.state: string
 type runtime.ObserverValidation.valid: boolean
 type runtime.ObserverValidation: object
+type runtime.PaneClaimed.holder: presence.Person
+type runtime.PaneClaimed.previous: presence.Person
+type runtime.PaneClaimed: object
 type runtime.PluginRunRequest.action: string
 type runtime.PluginRunRequest.environment: string
 type runtime.PluginRunRequest.pane: string
@@ -1527,6 +1657,9 @@ type runtime.PluginRunRequest: object
 type runtime.PprofRequest.profile: string
 type runtime.PprofRequest.seconds: integer
 type runtime.PprofRequest: object
+type runtime.PresenceList.holds: []presence.Hold
+type runtime.PresenceList.presence: []presence.Entry
+type runtime.PresenceList: object
 type runtime.Snapshot.agents_survive_restart: boolean
 type runtime.Snapshot.api_level: integer
 type runtime.Snapshot.pid: integer
@@ -1545,6 +1678,11 @@ type runtime.Stats.open_fds: integer
 type runtime.Stats.started_at: string
 type runtime.Stats.uptime_seconds: number
 type runtime.Stats: object
+type runtime.WhoAmI.from: string
+type runtime.WhoAmI.member: access.Member
+type runtime.WhoAmI.notify: boolean
+type runtime.WhoAmI.owner: boolean
+type runtime.WhoAmI: object
 type runtime.WorktreeCreateRequest.base: string
 type runtime.WorktreeCreateRequest.branch: string
 type runtime.WorktreeCreateRequest.env: map[string]string
@@ -1568,11 +1706,32 @@ type runtime.WorktreeRemoveRequest.force: boolean
 type runtime.WorktreeRemoveRequest.id: string
 type runtime.WorktreeRemoveRequest.path: string
 type runtime.WorktreeRemoveRequest: object
+type runtime.accessAuditParams.limit: integer
+type runtime.accessAuditParams.member: string
+type runtime.accessAuditParams: object
+type runtime.accessDoctorParams.fix: boolean
+type runtime.accessDoctorParams: object
+type runtime.accessGrantParams.environment: string
+type runtime.accessGrantParams.member: string
+type runtime.accessGrantParams.role: string
+type runtime.accessGrantParams: object
+type runtime.accessRef.member: string
+type runtime.accessRef: object
+type runtime.accessRenewParams.member: string
+type runtime.accessRenewParams.ttl_seconds: integer
+type runtime.accessRenewParams: object
 type runtime.agentIDParams.id: string
 type runtime.agentIDParams: object
 type runtime.agentRenameParams.id: string
 type runtime.agentRenameParams.name: string
 type runtime.agentRenameParams: object
+type runtime.assignParams.id: string
+type runtime.assignParams.task: string
+type runtime.assignParams.to: string
+type runtime.assignParams: object
+type runtime.handoverParams.id: string
+type runtime.handoverParams.to: string
+type runtime.handoverParams: object
 type runtime.observerAuditParams.credential: string
 type runtime.observerAuditParams.limit: integer
 type runtime.observerAuditParams: object
@@ -1580,6 +1739,11 @@ type runtime.observerRef.id: string
 type runtime.observerRef: object
 type runtime.observerValidateParams.token: string
 type runtime.observerValidateParams: object
+type runtime.paneClaimParams.force: boolean
+type runtime.paneClaimParams.pane: string
+type runtime.paneClaimParams: object
+type runtime.paneReleaseParams.pane: string
+type runtime.paneReleaseParams: object
 type runtime.pluginConfigSet.plugin: string
 type runtime.pluginConfigSet.set: map[string]any
 type runtime.pluginConfigSet.unset: []string
@@ -1593,6 +1757,10 @@ type runtime.pluginRequestParams: object
 type runtime.pluginRunRef.plugin: string
 type runtime.pluginRunRef.run: string
 type runtime.pluginRunRef: object
+type runtime.presenceSetParams.environment: string
+type runtime.presenceSetParams.pane: string
+type runtime.presenceSetParams.tab: string
+type runtime.presenceSetParams: object
 type runtime.workflowTriggerParams.name: string
 type runtime.workflowTriggerParams.payload: map[string]any
 type runtime.workflowTriggerParams.plugin: string
@@ -1623,6 +1791,7 @@ type task.Plan.id: string
 type task.Plan.kinds: map[string]integer
 type task.Plan.max_parallel: integer
 type task.Plan.name: string
+type task.Plan.owner: presence.Person
 type task.Plan.reason: string
 type task.Plan.rev: integer
 type task.Plan.schema: integer
@@ -1682,6 +1851,7 @@ type task.Summary.created_at: string
 type task.Summary.ended_at: string
 type task.Summary.id: string
 type task.Summary.name: string
+type task.Summary.owner: presence.Person
 type task.Summary.reason: string
 type task.Summary.rev: integer
 type task.Summary.state: string
@@ -1695,6 +1865,7 @@ type task.Task.ended_at: string
 type task.Task.environment_id: string
 type task.Task.log: []task.LogEntry
 type task.Task.machine: string
+type task.Task.owner: presence.Person
 type task.Task.pane_id: string
 type task.Task.path: string
 type task.Task.phase: string
@@ -1716,6 +1887,7 @@ type task.TaskView.id: string
 type task.TaskView.kind: string
 type task.TaskView.machine: string
 type task.TaskView.needs: []string
+type task.TaskView.owner: presence.Person
 type task.TaskView.pane_id: string
 type task.TaskView.plan_id: string
 type task.TaskView.reason: string

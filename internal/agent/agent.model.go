@@ -11,7 +11,11 @@
 // at it (focusing its pane) or prompting it makes it idle.
 package agent
 
-import "time"
+import (
+	"time"
+
+	"github.com/admirable-oss/hive/internal/presence"
+)
 
 // State is what an agent is doing.
 type State string
@@ -107,6 +111,9 @@ type Agent struct {
 	TabID         string `json:"tab_id,omitempty"`
 	PaneID        string `json:"pane_id,omitempty"`
 	PID           int    `json:"pid,omitempty"`
+	// Owner is the member it belongs to: who started it, or who it was
+	// handed to (agent.handover). Absent, it is the runtime's own user's.
+	Owner *presence.Person `json:"owner,omitempty"`
 	Status
 }
 

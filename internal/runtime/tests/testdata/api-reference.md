@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 16. Clients speak newline-delimited JSON over the daemon's unix
+API level 17. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -12,6 +12,84 @@ sends requests such as
 each answered by a `response` with the same `id` and a `result` or an `error`
 (`code`, `message`). Pipe methods answer, then carry a byte stream on the
 connection. Every name below is stable within 1.x (the compatibility policy).
+
+## access
+
+### `access.audit`
+
+| Param | Type | |
+|---|---|---|
+| `limit` | `integer` |  |
+| `member` | `string` |  |
+
+Result: [\[\]access.AuditEntry](#accessauditentry)
+
+### `access.doctor`
+
+| Param | Type | |
+|---|---|---|
+| `fix` | `boolean` |  |
+
+Result: [runtime.AccessDoctor](#runtimeaccessdoctor)
+
+### `access.get`
+
+| Param | Type | |
+|---|---|---|
+| `member` | `string` |  |
+
+Result: [runtime.AccessMember](#runtimeaccessmember)
+
+### `access.grant`
+
+| Param | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `member` | `string` |  |
+| `role` | `string` | observer, operator, owner, or none to take the role away |
+
+Result: [access.Member](#accessmember)
+
+### `access.invite`
+
+| Param | Type | |
+|---|---|---|
+| `grants` | [\[\]access.Grant](#accessgrant) |  |
+| `key` | `string` |  |
+| `name` | `string` |  |
+| `print` | `boolean` |  |
+| `ttl_seconds` | `integer` |  |
+
+Result: [runtime.AccessInvited](#runtimeaccessinvited)
+
+### `access.list`
+
+No params.
+
+Result: [runtime.AccessList](#runtimeaccesslist)
+
+### `access.renew`
+
+| Param | Type | |
+|---|---|---|
+| `member` | `string` |  |
+| `ttl_seconds` | `integer` |  |
+
+Result: [access.Member](#accessmember)
+
+### `access.revoke`
+
+| Param | Type | |
+|---|---|---|
+| `member` | `string` |  |
+
+Result: [access.Member](#accessmember)
+
+### `access.whoami`
+
+No params.
+
+Result: [runtime.WhoAmI](#runtimewhoami)
 
 ## agent
 
@@ -38,6 +116,15 @@ Result: [agent.Agent](#agentagent)
 | `id` | `string` |  |
 
 Result: [agent.Agent](#agentagent)
+
+### `agent.handover`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` | the agent's ID, or its pane's |
+| `to` | `string` | who gets it: a member's name or ID, or owner for the runtime's own user |
+
+Result: [runtime.AgentHandedOver](#runtimeagenthandedover)
 
 ### `agent.list`
 
@@ -589,6 +676,15 @@ Result: [runtime.ObserverValidation](#runtimeobservervalidation)
 
 ## pane
 
+### `pane.claim`
+
+| Param | Type | |
+|---|---|---|
+| `force` | `boolean` |  |
+| `pane` | `string` |  |
+
+Result: [runtime.PaneClaimed](#runtimepaneclaimed)
+
 ### `pane.close`
 
 | Param | Type | |
@@ -665,6 +761,14 @@ Result: [pane.Pane](#panepane)
 | `source` | `string` |  |
 
 Result: `[]string`
+
+### `pane.release`
+
+| Param | Type | |
+|---|---|---|
+| `pane` | `string` |  |
+
+Result: `map[string]boolean`
 
 ### `pane.rename`
 
@@ -905,6 +1009,24 @@ No params.
 
 Result: [\[\]plugin.ViewContent](#pluginviewcontent)
 
+## presence
+
+### `presence.list`
+
+No params.
+
+Result: [runtime.PresenceList](#runtimepresencelist)
+
+### `presence.set`
+
+| Param | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `pane` | `string` |  |
+| `tab` | `string` |  |
+
+Result: [protocol.Empty](#protocolempty)
+
 ## process
 
 ### `process.get`
@@ -1081,6 +1203,16 @@ Result: [pane.Tab](#panetab)
 | `id` | `string` | the plan's ID, or a unique prefix of it |
 | `note` | `string` | why, for the task's log |
 | `task` | `string` | the task (may be left out when one task waits) |
+
+Result: [task.Plan](#taskplan)
+
+### `task.assign`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | the task to assign; without it, the plan and its unfinished tasks |
+| `to` | `string` | who gets it: a member's name or ID, or owner for the runtime's own user |
 
 Result: [task.Plan](#taskplan)
 
@@ -1376,6 +1508,44 @@ Result: [protocol.Empty](#protocolempty)
 
 ## Types
 
+### access.AuditEntry
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `client` | `string` |  |
+| `detail` | `string` |  |
+| `environment` | `string` |  |
+| `from` | `string` |  |
+| `member` | `string` |  |
+| `method` | `string` |  |
+| `name` | `string` |  |
+| `outcome` | `string` |  |
+| `time` | `string` |  |
+
+### access.Grant
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `role` | `string` |  |
+
+### access.Member
+
+| Field | Type | |
+|---|---|---|
+| `created_at` | `string` |  |
+| `expires_at` | `string` |  |
+| `fingerprint` | `string` |  |
+| `grants` | [\[\]access.Grant](#accessgrant) |  |
+| `id` | `string` |  |
+| `key` | `string` |  |
+| `last_seen_at` | `string` |  |
+| `managed` | `boolean` |  |
+| `name` | `string` |  |
+| `revoked_at` | `string` |  |
+| `state` | `string` |  |
+
 ### agent.Agent
 
 | Field | Type | |
@@ -1386,6 +1556,7 @@ Result: [protocol.Empty](#protocolempty)
 | `kind` | `string` |  |
 | `last_output` | `string` |  |
 | `name` | `string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `pane_id` | `string` |  |
 | `pid` | `integer` |  |
 | `reason` | `string` |  |
@@ -3101,6 +3272,36 @@ Result: [protocol.Empty](#protocolempty)
 | `plugin` | `string` |  |
 | `view` | `string` |  |
 
+### presence.Entry
+
+| Field | Type | |
+|---|---|---|
+| `client` | `string` |  |
+| `connection` | `string` |  |
+| `environment` | `string` |  |
+| `pane` | `string` |  |
+| `person` | [presence.Person](#presenceperson) |  |
+| `since` | `string` |  |
+| `tab` | `string` |  |
+
+### presence.Hold
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `holder` | [presence.Person](#presenceperson) |  |
+| `pane` | `string` |  |
+| `process_id` | `string` |  |
+| `since` | `string` |  |
+| `until` | `string` |  |
+
+### presence.Person
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` |  |
+| `name` | `string` |  |
+
 ### process.LogsRequest
 
 | Field | Type | |
@@ -3123,6 +3324,7 @@ Result: [protocol.Empty](#protocolempty)
 | `id` | `string` |  |
 | `log_dir` | `string` |  |
 | `lost` | `boolean` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `pid` | `integer` |  |
 | `started_at` | `string` |  |
 | `status` | `string` |  |
@@ -3201,6 +3403,66 @@ An object.
 | `rollups` | [agent.Rollups](#agentrollups) |  |
 | `tabs` | [\[\]pane.Tab](#panetab) |  |
 
+### runtime.AccessDoctor
+
+| Field | Type | |
+|---|---|---|
+| `authorized_keys` | `string` |  |
+| `fixed` | `boolean` |  |
+| `problems` | `[]string` |  |
+
+### runtime.AccessInviteParams
+
+| Field | Type | |
+|---|---|---|
+| `grants` | [\[\]access.Grant](#accessgrant) |  |
+| `key` | `string` |  |
+| `name` | `string` |  |
+| `print` | `boolean` |  |
+| `ttl_seconds` | `integer` |  |
+
+### runtime.AccessInvited
+
+| Field | Type | |
+|---|---|---|
+| `authorized_keys` | `string` |  |
+| `line` | `string` |  |
+| `member` | [access.Member](#accessmember) |  |
+| `socket` | `string` |  |
+
+### runtime.AccessList
+
+| Field | Type | |
+|---|---|---|
+| `authorized_keys` | `string` |  |
+| `enabled` | `boolean` |  |
+| `members` | [\[\]runtime.AccessMember](#runtimeaccessmember) |  |
+| `socket` | `string` |  |
+
+### runtime.AccessMember
+
+| Field | Type | |
+|---|---|---|
+| `connections` | `integer` |  |
+| `created_at` | `string` |  |
+| `expires_at` | `string` |  |
+| `fingerprint` | `string` |  |
+| `grants` | [\[\]access.Grant](#accessgrant) |  |
+| `id` | `string` |  |
+| `key` | `string` |  |
+| `last_seen_at` | `string` |  |
+| `managed` | `boolean` |  |
+| `name` | `string` |  |
+| `revoked_at` | `string` |  |
+| `state` | `string` |  |
+
+### runtime.AgentHandedOver
+
+| Field | Type | |
+|---|---|---|
+| `agent` | [agent.Agent](#agentagent) |  |
+| `from` | [presence.Person](#presenceperson) |  |
+
 ### runtime.AgentStartRequest
 
 | Field | Type | |
@@ -3271,6 +3533,13 @@ An object.
 | `state` | `string` |  |
 | `valid` | `boolean` |  |
 
+### runtime.PaneClaimed
+
+| Field | Type | |
+|---|---|---|
+| `holder` | [presence.Person](#presenceperson) |  |
+| `previous` | [presence.Person](#presenceperson) |  |
+
 ### runtime.PluginRunRequest
 
 | Field | Type | |
@@ -3287,6 +3556,13 @@ An object.
 |---|---|---|
 | `profile` | `string` |  |
 | `seconds` | `integer` |  |
+
+### runtime.PresenceList
+
+| Field | Type | |
+|---|---|---|
+| `holds` | [\[\]presence.Hold](#presencehold) |  |
+| `presence` | [\[\]presence.Entry](#presenceentry) |  |
 
 ### runtime.Snapshot
 
@@ -3313,6 +3589,15 @@ An object.
 | `open_fds` | `integer` |  |
 | `started_at` | `string` |  |
 | `uptime_seconds` | `number` |  |
+
+### runtime.WhoAmI
+
+| Field | Type | |
+|---|---|---|
+| `from` | `string` |  |
+| `member` | [access.Member](#accessmember) |  |
+| `notify` | `boolean` |  |
+| `owner` | `boolean` |  |
 
 ### runtime.WorktreeCreateRequest
 
@@ -3353,6 +3638,40 @@ An object.
 | `id` | `string` |  |
 | `path` | `string` |  |
 
+### runtime.accessAuditParams
+
+| Field | Type | |
+|---|---|---|
+| `limit` | `integer` |  |
+| `member` | `string` |  |
+
+### runtime.accessDoctorParams
+
+| Field | Type | |
+|---|---|---|
+| `fix` | `boolean` |  |
+
+### runtime.accessGrantParams
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `member` | `string` |  |
+| `role` | `string` | observer, operator, owner, or none to take the role away |
+
+### runtime.accessRef
+
+| Field | Type | |
+|---|---|---|
+| `member` | `string` |  |
+
+### runtime.accessRenewParams
+
+| Field | Type | |
+|---|---|---|
+| `member` | `string` |  |
+| `ttl_seconds` | `integer` |  |
+
 ### runtime.agentIDParams
 
 | Field | Type | |
@@ -3365,6 +3684,21 @@ An object.
 |---|---|---|
 | `id` | `string` |  |
 | `name` | `string` |  |
+
+### runtime.assignParams
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | the task to assign; without it, the plan and its unfinished tasks |
+| `to` | `string` | who gets it: a member's name or ID, or owner for the runtime's own user |
+
+### runtime.handoverParams
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` | the agent's ID, or its pane's |
+| `to` | `string` | who gets it: a member's name or ID, or owner for the runtime's own user |
 
 ### runtime.observerAuditParams
 
@@ -3384,6 +3718,19 @@ An object.
 | Field | Type | |
 |---|---|---|
 | `token` | `string` |  |
+
+### runtime.paneClaimParams
+
+| Field | Type | |
+|---|---|---|
+| `force` | `boolean` |  |
+| `pane` | `string` |  |
+
+### runtime.paneReleaseParams
+
+| Field | Type | |
+|---|---|---|
+| `pane` | `string` |  |
 
 ### runtime.pluginConfigSet
 
@@ -3413,6 +3760,14 @@ An object.
 |---|---|---|
 | `plugin` | `string` |  |
 | `run` | `string` |  |
+
+### runtime.presenceSetParams
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `pane` | `string` |  |
+| `tab` | `string` |  |
 
 ### runtime.workflowTriggerParams
 
@@ -3472,6 +3827,7 @@ An object.
 | `kinds` | `map[string]integer` |  |
 | `max_parallel` | `integer` |  |
 | `name` | `string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `reason` | `string` |  |
 | `rev` | `integer` |  |
 | `schema` | `integer` |  |
@@ -3555,6 +3911,7 @@ An object.
 | `ended_at` | `string` |  |
 | `id` | `string` |  |
 | `name` | `string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `reason` | `string` |  |
 | `rev` | `integer` |  |
 | `state` | `string` |  |
@@ -3572,6 +3929,7 @@ An object.
 | `environment_id` | `string` |  |
 | `log` | [\[\]task.LogEntry](#tasklogentry) |  |
 | `machine` | `string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `pane_id` | `string` |  |
 | `path` | `string` |  |
 | `phase` | `string` |  |
@@ -3597,6 +3955,7 @@ An object.
 | `kind` | `string` |  |
 | `machine` | `string` |  |
 | `needs` | `[]string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `pane_id` | `string` |  |
 | `plan_id` | `string` |  |
 | `reason` | `string` |  |

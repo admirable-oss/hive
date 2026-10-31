@@ -41,7 +41,7 @@ Commands take a plan ID or a unique prefix of one.`,
   hive task report 3f2a`,
 	}
 	cmd.AddCommand(newTaskRunCmd(a), newTaskListCmd(a), newTaskGetCmd(a), newTaskWaitCmd(a),
-		newTaskCancelCmd(a), newTaskRetryCmd(a), newTaskApproveCmd(a), newTaskReportCmd(a))
+		newTaskCancelCmd(a), newTaskRetryCmd(a), newTaskApproveCmd(a), newTaskAssignCmd(a), newTaskReportCmd(a))
 	return cmd
 }
 
@@ -322,6 +322,9 @@ func printPlan(a *app, p task.Plan) error {
 	if p.Reason != "" {
 		fmt.Fprintf(a.out, "  %s\n", p.Reason)
 	}
+	if p.Owner != nil {
+		fmt.Fprintf(a.out, "  owner: %s\n", p.Owner.Name)
+	}
 	fmt.Fprintln(a.out)
 	w := a.table()
 	fmt.Fprintln(w, "TASK\tSTATE\tKIND\tMACHINE\tPANE\tTRY\tNEEDS\tWHY")
@@ -344,6 +347,9 @@ func printTask(a *app, p task.Plan, t *task.Task) error {
 	row("title", t.Spec.Title)
 	row("state", string(t.State))
 	row("why", t.Reason)
+	if t.Owner != nil {
+		row("owner", t.Owner.Name)
+	}
 	row("kind", t.Spec.Kind)
 	row("machine", t.Machine)
 	row("environment", t.EnvironmentID)
@@ -472,6 +478,29 @@ asks again.`,
 	})
 	cmd.Flags().BoolVar(&o.Deny, "deny", false, "refuse: cancel the task")
 	cmd.Flags().StringVar(&o.Note, "note", "", "why, for the task's log")
+	return cmd
+}
+
+func newTaskAssignCmd(a *app) *cobra.Command {
+	var to string
+	cmd := planCmd(a, &cobra.Command{
+		Use:   "assign <plan> [task] --to <member>",
+		Short: "Give a task, or a plan and its unfinished tasks, to another member",
+		Long: `Give a task to another member (hive access), by name, or back to you with
+--to owner. Without a task, the plan and every unfinished task go. The agents
+working on them go with them. The member must be an operator or owner where
+the tasks run. A member with the operator role assigns only their own tasks.`,
+	}, func(ctx context.Context, t client.Tasks, id, taskID string) error {
+		if to == "" {
+			return &usageError{errors.New("give --to: a member's name, or owner")}
+		}
+		p, err := t.Assign(ctx, id, taskID, to)
+		if err != nil {
+			return err
+		}
+		return a.done(map[string]any{"plan": p}, "assigned %s to %s", target(p.ID, taskID), to)
+	})
+	cmd.Flags().StringVar(&to, "to", "", "who gets it: a member's name, or owner")
 	return cmd
 }
 

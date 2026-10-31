@@ -147,6 +147,8 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive workflow list \| show \| run [--headless] \| runs \| status \| wait \| report \| cancel \| rerun \| fire \| trust` | Run workflows by trigger or by hand, the same way every time, and in CI ([workflows](docs/workflows.md)) |
 | `hive plugin search \| install \| update [id] \| rollback <id> \| init <id> \| link \| list \| info \| enable \| disable \| uninstall \| run \| logs` | Discover catalog plugins or manage Git and local plugins; updates retain a rollback release and plugin data is preserved |
 | `hive plugin doctor \| reload [id] \| grant \| revoke \| config <id> \| contributions \| capabilities \| cancel \| export \| import` | Check plugin health and compatibility, manage capabilities and settings, back them up |
+| `hive access invite \| list \| show \| grant \| renew \| revoke \| audit \| doctor` | Let teammates in over ssh with their own key and a role per environment; audited, revocable at once ([teams](docs/teams.md)) |
+| `hive presence` · `hive pane claim \| release` | Who is connected and where they look; one person types into a pane at a time ([teams](docs/teams.md#working-together)) |
 | `hive observer create \| list \| show \| revoke \| validate \| audit` | Read-only credentials for dashboards and notifiers: scoped to environments or panes, expiring, revocable ([observers](docs/observers.md)) |
 | `hive observer status \| snapshot \| screen \| events \| watch` | Act as an observer, with the token in `$HIVE_OBSERVER_TOKEN` |
 | `hive web runtime add \| list \| remove` · `hive web serve` | Let the web observer show a runtime; run it ([web observer](docs/web.md)) |

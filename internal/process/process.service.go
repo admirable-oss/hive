@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/pgroup"
 	"github.com/admirable-oss/hive/internal/platform"
+	"github.com/admirable-oss/hive/internal/presence"
 	"github.com/admirable-oss/hive/internal/terminal"
 )
 
@@ -59,6 +61,9 @@ type Service interface {
 	// running process keeps running (in its original directory); only its
 	// record and logs move.
 	Move(ctx context.Context, id, envID string) (Process, error)
+	// SetOwner gives a process, running or not, to another person (nil:
+	// the runtime's own user).
+	SetOwner(ctx context.Context, id string, owner *presence.Person) (Process, error)
 
 	// StopEnvironment stops every live process in envID and waits for them.
 	StopEnvironment(ctx context.Context, envID string) error
@@ -153,6 +158,7 @@ type service struct {
 // liveProcess is a process this daemon launched and is still supervising.
 type liveProcess struct {
 	envID     string
+	owner     *presence.Person
 	handle    Handle
 	stopping  bool          // set by Stop so the exit is recorded as killed
 	detaching bool          // set by Detach: the exit is not ours to record
@@ -220,6 +226,9 @@ func (s *service) Start(ctx context.Context, req StartRequest) (Process, error) 
 		Status:        StatusStarting,
 		StartedAt:     time.Now(),
 	}
+	if who, ok := presence.ActorOf(ctx); ok {
+		p.Owner = &who // what a member starts is theirs
+	}
 	if err := s.store.Create(ctx, p); err != nil {
 		return Process{}, err
 	}
@@ -246,7 +255,7 @@ func (s *service) Start(ctx context.Context, req StartRequest) (Process, error) 
 
 	log.Info("process started", "pid", p.PID, "command", p.Command, "terminal", p.Terminal)
 	s.supervise(p, handle) //nolint:contextcheck // supervision outlives the start request by design
-	s.events.Publish(EventStarted, p)
+	event.PublishContext(ctx, s.events, EventStarted, p)
 	return p, nil
 }
 
@@ -297,7 +306,7 @@ func validEnvName(k string) bool {
 
 // supervise records p as live and watches it until it exits.
 func (s *service) supervise(p Process, handle Handle) {
-	lp := &liveProcess{envID: p.EnvironmentID, handle: handle, done: make(chan struct{})}
+	lp := &liveProcess{envID: p.EnvironmentID, owner: p.Owner, handle: handle, done: make(chan struct{})}
 	s.mu.Lock()
 	s.live[p.ID] = lp
 	s.mu.Unlock()
@@ -369,6 +378,7 @@ func (s *service) monitor(p Process, lp *liveProcess) {
 	s.finishing[p.ID] = lp
 	stopping, detaching := lp.stopping, lp.detaching
 	p.EnvironmentID = lp.envID // it may have moved since it started
+	p.Owner = lp.owner         // and changed hands
 	s.mu.Unlock()
 	if detaching {
 		return // the process lives on; a later daemon records how it ends
@@ -463,6 +473,24 @@ func (s *service) Move(ctx context.Context, id, envID string) (Process, error) {
 	}
 	s.log.Info("process moved", "process", id, "from", p.EnvironmentID, "to", envID)
 	return moved, nil
+}
+
+func (s *service) SetOwner(ctx context.Context, id string, owner *presence.Person) (Process, error) {
+	// Hold the live map so a concurrent exit records the new owner.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, err := s.store.Get(ctx, id)
+	if err != nil {
+		return Process{}, err
+	}
+	p.Owner = owner
+	if err := s.store.Update(ctx, p); err != nil {
+		return Process{}, err
+	}
+	if lp, ok := s.live[id]; ok {
+		lp.owner = owner
+	}
+	return p, nil
 }
 
 func (s *service) Logs(ctx context.Context, req LogsRequest) (string, error) {

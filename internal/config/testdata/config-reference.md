@@ -123,6 +123,16 @@ the defaults, so a typo never stops the daemon.
 | `history_events` | `2048` | Events kept for observers to catch up with after a reconnect. |
 | `max_connections` | `32` | Open observer connections allowed, all credentials together. |
 
+## `[access]`
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Serve the member socket: teammates let in through ssh with a role (`hive access invite`). Off, members are kept but nobody can connect. |
+| `max_connections` | `32` | Open member connections allowed, all members together. |
+| `authorized_keys` | `""` | The file members' keys are kept in ("" is ~/.ssh/authorized_keys). |
+| `input_idle` | `"10s"` | A terminal takes input from one person at a time; someone who stops typing keeps it this long before another may type. |
+| `notify_fallback` | `["owner"]` | Who is told that an agent or task needs someone when its owner is away: members' names, "owner" (you) and "operators" of its environment. |
+
 ## `[web]`
 
 | Key | Default | Description |

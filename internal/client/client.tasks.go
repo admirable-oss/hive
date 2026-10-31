@@ -83,3 +83,10 @@ type ApproveOptions struct {
 func (t Tasks) Approve(ctx context.Context, id, taskID string, o ApproveOptions) (task.Plan, error) {
 	return taskCall[task.Plan](ctx, t, "task.approve", task.ApproveParams{ID: id, Task: taskID, Deny: o.Deny, By: o.By, Note: o.Note})
 }
+
+// Assign gives a task, or (taskID "") a plan and its unfinished tasks, to
+// another member (by name or ID), or to "owner", the runtime's own user.
+// The agents working on them go with them.
+func (t Tasks) Assign(ctx context.Context, id, taskID, to string) (task.Plan, error) {
+	return taskCall[task.Plan](ctx, t, "task.assign", map[string]string{"id": id, "task": taskID, "to": to})
+}

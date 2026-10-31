@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/admirable-oss/hive/internal/presence"
 )
 
 type Status string
@@ -39,6 +41,9 @@ type Process struct {
 	// directory: on Windows a running process's logs cannot be moved with
 	// it to another environment, so they stay where it writes them.
 	LogDir string `json:"log_dir,omitempty"`
+	// Owner is the member it belongs to: who started it, or who it was
+	// handed to. Absent, it is the runtime's own user's.
+	Owner *presence.Person `json:"owner,omitempty"`
 }
 
 // Active reports whether the process is (or is about to be) running.

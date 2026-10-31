@@ -1824,7 +1824,7 @@ the policy: [docs/plugins/ecosystem.md](docs/plugins/ecosystem.md#publishers-tie
 
 ---
 
-## M27 · Team Collaboration — `v1.8.0` — **PROPOSED**
+## M27 · Team Collaboration — `v1.8.0` — **IN PROGRESS**
 
 Share the work, keep control.
 
@@ -1857,6 +1857,41 @@ audited, and no hosted service required.
 **✅ Acceptance:** two people work in one runtime, one as operator. The
 operator can prompt and approve but not start processes. Input never
 interleaves. Every action is audited, and revoking access ends it at once.
+
+### M27 progress
+
+The design: [RFC 0007](rfcs/0007-team-collaboration.md).
+
+- [x] Members and the member socket (delivery step 1): `hive access
+  invite|list|show|grant|renew|revoke|audit|doctor|whoami`, `hive proxy
+  --member` (only `hive proxy` served over ssh), the managed
+  `authorized_keys` block (unrestricted duplicates refused), the member
+  socket re-checking members per request, connections and denials audited,
+  revocation that ends them at once. API level 17 ([docs/teams.md](docs/teams.md);
+  `TestM27Members`, `TestServer`, `TestKeysFile`).
+- [x] Roles per environment (delivery step 2): every control method
+  classified for members (`api/v1/roles.txt`), targets resolved to their
+  environment and checked on every request, lists, `api.snapshot` and
+  events filtered to the member's environments, observer-style redaction
+  below owner, operators' input to running agents only, read-only frames
+  views, `by` filled from the member, actions audited with their outcome
+  (`TestM27Roles`, `TestMemberViewsTypeOnlyWhenAllowed`,
+  `TestMemberRulesClassifyEveryMethod`, `TestRedactionCoversSecrets`).
+- [x] Shared workspaces (delivery step 3): presence (`presence.*`,
+  `hive presence`), each member's own focus, one typist per pane for
+  everyone (`pane.claim|release`, `[access] input_idle`, `pane.floor`), and
+  both in the multiplexer (`TestOneTypistPerTerminal`,
+  `TestMembersFocusIsTheirOwn`, `TestM27OneTypistAtATime`, `FuzzRegistry`).
+- [ ] Presence and the holder in the desktop app and the web observer.
+- [x] Handing over (delivery step 4): `owner` on agents, tasks and plans,
+  `agent.handover`, `task.assign` (`hive agent handover`, `hive task
+  assign`), and `actor` on events a member caused (`TestHandingOver`).
+- [x] Notifications routed by the daemon (delivery step 5): `notify`
+  events to the work's owner, else `[access] notify_fallback`, followed by
+  the multiplexer and the desktop app (`TestNotificationRecipients`).
+- [ ] The acceptance test, `docs/teams.md` and the threat model
+  (delivery step 6).
+- [ ] RFC 0007 discussed and accepted; then tag `v1.8.0`.
 
 ---
 

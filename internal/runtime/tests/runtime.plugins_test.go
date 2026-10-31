@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/runtime"
@@ -54,7 +56,7 @@ func TestPluginSocketIsScoped(t *testing.T) {
 	if _, _, err := store.Link(context.Background(), dir, "dev"); err != nil {
 		t.Fatal(err)
 	}
-	start(t, sock)
+	mod := start(t, sock)
 	c := client.NewService(client.Config{SocketPath: sock})
 	t.Cleanup(func() { _ = c.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -121,6 +123,47 @@ func TestPluginSocketIsScoped(t *testing.T) {
 	var all plugin.Contributions
 	if err := c.Call(ctx, "plugin.contributions", nil, &all); err != nil || len(all.Status) != 1 || all.Status[0].Text != "ok" {
 		t.Fatalf("contributions = %+v, %v", all, err)
+	}
+
+	// hive.read opens a terminal's frames, and what it types there is
+	// dropped: typing needs hive.input.
+	if _, err := mod.Environments.Create(ctx, environment.CreateRequest{ID: "dev"}); err != nil {
+		t.Fatal(err)
+	}
+	_, shell, err := mod.Panes.CreateTab(ctx, pane.CreateTabRequest{EnvironmentID: "dev", Name: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	asPlugin := client.NewService(client.Config{SocketPath: string(path)})
+	t.Cleanup(func() { _ = asPlugin.Close() })
+	watch, err := asPlugin.TerminalFrames(ctx, client.ViewRequest{ProcessID: shell.ProcessID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer watch.Close()
+	if _, err := watch.Write([]byte("echo leaked-$((6*7))\n")); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if err := c.Call(ctx, "terminal.input", map[string]any{"process_id": shell.ProcessID, "data": []byte("echo typed-$((6*7))\n")}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(10 * time.Second); ; {
+		snap, err := c.TerminalSnapshot(ctx, client.SnapshotRequest{ProcessID: shell.ProcessID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		screen := strings.Join(snap.Lines, "\n")
+		if strings.Contains(screen, "leaked-42") {
+			t.Fatalf("a hive.read plugin typed into a shell:\n%s", screen)
+		}
+		if strings.Contains(screen, "typed-42") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the user's input never arrived:\n%s", screen)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 

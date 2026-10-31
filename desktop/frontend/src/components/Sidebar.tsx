@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, ChartColumn, FolderGit2, GitBranch, ListChecks, Monitor, MoreHorizontal, Plus, Server, TerminalSquare, Workflow } from "lucide-react";
+import { Bell, ChartColumn, FolderGit2, GitBranch, ListChecks, Monitor, MoreHorizontal, Plus, Server, TerminalSquare, Users, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -185,6 +185,12 @@ export function Sidebar({ mac }: { mac: boolean }) {
                     <div className="flex items-center gap-2 px-2 pt-1.5 pb-0.5 text-sm font-medium" title={e.path}>
                       <FolderGit2 className="size-3.5 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate">{e.name}</span>
+                      {(e.with?.length ?? 0) > 0 && (
+                        <span className="flex max-w-[40%] items-center gap-0.5 truncate text-[11px] font-normal text-muted-foreground" title={`Also here: ${e.with!.join(", ")}`}>
+                          <Users className="size-3 shrink-0" />
+                          <span className="truncate">{e.with!.join(", ")}</span>
+                        </span>
+                      )}
                       {e.branch && (
                         <span className="truncate font-mono text-[11px] text-muted-foreground">
                           {e.branch}

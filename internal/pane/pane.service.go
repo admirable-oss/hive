@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/environment"
+	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/layout"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/platform"
@@ -361,8 +362,8 @@ func (s *Service) createTabLocked(ctx context.Context, envID, name string, spec 
 	if err := s.saveLocked(ctx, envID); err != nil {
 		return Tab{}, Pane{}, err
 	}
-	s.events.Publish(EventTabCreated, tab)
-	s.events.Publish(EventPaneCreated, pane)
+	event.PublishContext(ctx, s.events, EventTabCreated, tab)
+	event.PublishContext(ctx, s.events, EventPaneCreated, pane)
 	described := s.describeLocked(ctx, &tab, pane)
 	return tab, described, nil
 }
@@ -426,7 +427,7 @@ func (s *Service) RenameTab(ctx context.Context, tabID, name string) (Tab, error
 	if err := s.saveLocked(ctx, t.EnvironmentID); err != nil {
 		return Tab{}, err
 	}
-	s.events.Publish(EventTabUpdated, *t)
+	event.PublishContext(ctx, s.events, EventTabUpdated, *t)
 	return *t, nil
 }
 
@@ -442,7 +443,7 @@ func (s *Service) FocusTab(ctx context.Context, tabID string) (Tab, error) {
 	if err := s.saveLocked(ctx, t.EnvironmentID); err != nil {
 		return Tab{}, err
 	}
-	s.events.Publish(EventTabUpdated, *t)
+	event.PublishContext(ctx, s.events, EventTabUpdated, *t)
 	return *t, nil
 }
 
@@ -462,7 +463,7 @@ func (s *Service) ResizeTab(ctx context.Context, tabID string, width, height int
 		return Tab{}, err
 	}
 	s.resizeTabLocked(st, t)
-	s.events.Publish(EventLayoutUpdated, *t)
+	event.PublishContext(ctx, s.events, EventLayoutUpdated, *t)
 	return *t, nil
 }
 
@@ -479,14 +480,14 @@ func (s *Service) CloseTab(ctx context.Context, tabID string) error {
 		if p.TabID == tab.ID {
 			s.stopLocked(ctx, p)
 			st.Panes = slices.DeleteFunc(st.Panes, func(x Pane) bool { return x.ID == p.ID })
-			s.events.Publish(EventPaneClosed, p)
+			event.PublishContext(ctx, s.events, EventPaneClosed, p)
 		}
 	}
 	s.removeTabLocked(st, tab.ID)
 	if err := s.saveLocked(ctx, tab.EnvironmentID); err != nil {
 		return err
 	}
-	s.events.Publish(EventTabClosed, tab)
+	event.PublishContext(ctx, s.events, EventTabClosed, tab)
 	return nil
 }
 
@@ -629,8 +630,8 @@ func (s *Service) Split(ctx context.Context, req SplitRequest) (Pane, error) {
 		return Pane{}, err
 	}
 	s.resizeTabLocked(st, t)
-	s.events.Publish(EventPaneCreated, pane)
-	s.events.Publish(EventLayoutUpdated, *t)
+	event.PublishContext(ctx, s.events, EventPaneCreated, pane)
+	event.PublishContext(ctx, s.events, EventLayoutUpdated, *t)
 	return s.describeLocked(ctx, t, pane), nil
 }
 
@@ -674,7 +675,7 @@ func (s *Service) Popup(ctx context.Context, req PopupRequest) (Pane, error) {
 	if err := s.saveLocked(ctx, t.EnvironmentID); err != nil {
 		return Pane{}, err
 	}
-	s.events.Publish(EventPaneCreated, pane)
+	event.PublishContext(ctx, s.events, EventPaneCreated, pane)
 	return s.describeLocked(ctx, t, pane), nil
 }
 
@@ -697,7 +698,7 @@ func (s *Service) focusLocked(ctx context.Context, paneID string) (Pane, error) 
 	if err := s.saveLocked(ctx, t.EnvironmentID); err != nil {
 		return Pane{}, err
 	}
-	s.events.Publish(EventPaneFocused, *p)
+	event.PublishContext(ctx, s.events, EventPaneFocused, *p)
 	return s.describeLocked(ctx, t, *p), nil
 }
 
@@ -705,15 +706,39 @@ func (s *Service) focusLocked(ctx context.Context, paneID string) (Pane, error) 
 func (s *Service) FocusDirection(ctx context.Context, paneID string, d layout.Direction) (Pane, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, t, _, err := s.paneLocked(ctx, paneID)
+	next, err := s.neighborLocked(ctx, paneID, d)
 	if err != nil {
 		return Pane{}, err
 	}
+	return s.focusLocked(ctx, next)
+}
+
+// Neighbor returns the pane next to paneID in direction d without
+// focusing it: where someone's own focus moves (a member's, RFC 0007).
+func (s *Service) Neighbor(ctx context.Context, paneID string, d layout.Direction) (Pane, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next, err := s.neighborLocked(ctx, paneID, d)
+	if err != nil {
+		return Pane{}, err
+	}
+	_, t, p, err := s.paneLocked(ctx, next)
+	if err != nil {
+		return Pane{}, err
+	}
+	return s.describeLocked(ctx, t, *p), nil
+}
+
+func (s *Service) neighborLocked(ctx context.Context, paneID string, d layout.Direction) (string, error) {
+	_, t, _, err := s.paneLocked(ctx, paneID)
+	if err != nil {
+		return "", err
+	}
 	next, ok := layout.Neighbor(t.Layout, area(t), paneID, d)
 	if !ok {
-		return Pane{}, fmt.Errorf("%w: no pane %s of %s", ErrPaneNotFound, d, paneID)
+		return "", fmt.Errorf("%w: no pane %s of %s", ErrPaneNotFound, d, paneID)
 	}
-	return s.focusLocked(ctx, next)
+	return next, nil
 }
 
 // Resize grows a pane by cells towards d (negative cells shrink it).
@@ -731,7 +756,7 @@ func (s *Service) Resize(ctx context.Context, paneID string, d layout.Direction,
 		return Pane{}, err
 	}
 	s.resizeTabLocked(st, t)
-	s.events.Publish(EventLayoutUpdated, *t)
+	event.PublishContext(ctx, s.events, EventLayoutUpdated, *t)
 	return s.describeLocked(ctx, t, *p), nil
 }
 
@@ -759,7 +784,7 @@ func (s *Service) Zoom(ctx context.Context, paneID string, on *bool) (Pane, erro
 		return Pane{}, err
 	}
 	s.resizeTabLocked(st, t)
-	s.events.Publish(EventLayoutUpdated, *t)
+	event.PublishContext(ctx, s.events, EventLayoutUpdated, *t)
 	return s.describeLocked(ctx, t, *p), nil
 }
 
@@ -785,7 +810,7 @@ func (s *Service) Swap(ctx context.Context, a, b string) error {
 		return err
 	}
 	s.resizeTabLocked(st, t)
-	s.events.Publish(EventLayoutUpdated, *t)
+	event.PublishContext(ctx, s.events, EventLayoutUpdated, *t)
 	return nil
 }
 
@@ -801,7 +826,7 @@ func (s *Service) Rename(ctx context.Context, paneID, name string) (Pane, error)
 	if err := s.saveLocked(ctx, t.EnvironmentID); err != nil {
 		return Pane{}, err
 	}
-	s.events.Publish(EventPaneUpdated, *p)
+	event.PublishContext(ctx, s.events, EventPaneUpdated, *p)
 	return s.describeLocked(ctx, t, *p), nil
 }
 
@@ -832,7 +857,7 @@ func (s *Service) Respawn(ctx context.Context, paneID string, spec Spec) (Pane, 
 	if err := s.saveLocked(ctx, t.EnvironmentID); err != nil {
 		return Pane{}, err
 	}
-	s.events.Publish(EventPaneUpdated, *p)
+	event.PublishContext(ctx, s.events, EventPaneUpdated, *p)
 	return s.describeLocked(ctx, t, *p), nil
 }
 
@@ -858,12 +883,12 @@ func (s *Service) closeLocked(ctx context.Context, paneID string, stop bool) err
 	if err := s.saveLocked(ctx, pane.EnvironmentID); err != nil {
 		return err
 	}
-	s.events.Publish(EventPaneClosed, pane)
+	event.PublishContext(ctx, s.events, EventPaneClosed, pane)
 	if tabClosed != nil {
-		s.events.Publish(EventTabClosed, *tabClosed)
+		event.PublishContext(ctx, s.events, EventTabClosed, *tabClosed)
 	} else {
 		s.resizeTabLocked(st, t)
-		s.events.Publish(EventLayoutUpdated, *t)
+		event.PublishContext(ctx, s.events, EventLayoutUpdated, *t)
 	}
 	return nil
 }
@@ -977,7 +1002,7 @@ func (s *Service) Move(ctx context.Context, req MoveRequest) (Pane, error) {
 		}
 		dstState.Tabs = append(dstState.Tabs, tab)
 		dst = &dstState.Tabs[len(dstState.Tabs)-1]
-		s.events.Publish(EventTabCreated, tab)
+		event.PublishContext(ctx, s.events, EventTabCreated, tab)
 	}
 	if target == "" {
 		dst.Layout = layout.Leaf(pane.ID)
@@ -995,12 +1020,12 @@ func (s *Service) Move(ctx context.Context, req MoveRequest) (Pane, error) {
 		}
 	}
 	if srcClosed != nil {
-		s.events.Publish(EventTabClosed, *srcClosed)
+		event.PublishContext(ctx, s.events, EventTabClosed, *srcClosed)
 	} else if t := findTab(srcState, srcID); t != nil {
 		s.resizeTabLocked(srcState, t)
 	}
 	s.resizeTabLocked(dstState, dst)
-	s.events.Publish(EventPaneMoved, pane)
+	event.PublishContext(ctx, s.events, EventPaneMoved, pane)
 	return s.describeLocked(ctx, dst, pane), nil
 }
 

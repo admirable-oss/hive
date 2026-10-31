@@ -127,6 +127,8 @@ type Environment struct {
 	Worktree bool `json:"worktree,omitempty"`
 	// Machine is the saved machine it is on ("" for this computer).
 	Machine string `json:"machine,omitempty"`
+	// With are the others working in it now (RFC 0007), by name.
+	With []string `json:"with,omitempty"`
 }
 
 // Tab is a tab of an environment.
@@ -161,6 +163,10 @@ type Pane struct {
 	Exit    *int `json:"exit,omitempty"`
 	// Agent is the agent in it, if any.
 	Agent string `json:"agent,omitempty"`
+	// Watchers are the others looking at it, and Typing who else holds
+	// its input: what is typed here is refused until they stop.
+	Watchers []string `json:"watchers,omitempty"`
+	Typing   string   `json:"typing,omitempty"`
 }
 
 // Rect is a place in a tab, in cells.

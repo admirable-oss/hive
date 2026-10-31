@@ -154,6 +154,7 @@ var methodCapabilities = map[string]string{
 	"workflow.validate": CapHiveRead, "workflow.runs": CapHiveRead, "workflow.status": CapHiveRead,
 	"workflow.wait": CapHiveRead, "insights.summary": CapHiveRead, "insights.asks": CapHiveRead,
 	"insights.budgets": CapHiveRead, "insights.export": CapHiveRead,
+	"presence.list": CapHiveRead,
 
 	// Changing the workspace.
 	"agent.focus": CapHiveWrite, "agent.rename": CapHiveWrite, "agent.seen": CapHiveWrite, "agent.report": CapHiveWrite,
@@ -169,7 +170,7 @@ var methodCapabilities = map[string]string{
 	"agent.prompt": CapHiveInput, "agent.send_keys": CapHiveInput, "pane.input": CapHiveInput,
 	"pane.send_keys": CapHiveInput, "pane.send_text": CapHiveInput, "terminal.input": CapHiveInput,
 	"terminal.attach": CapHiveInput, "terminal.image": CapHiveInput, "branch.comment": CapHiveInput,
-	"branch.send": CapHiveInput,
+	"branch.send": CapHiveInput, "pane.claim": CapHiveInput, "pane.release": CapHiveInput,
 
 	// Starting and stopping programs, and removing what holds work.
 	"agent.start": CapHiveProcess, "agent.stop": CapHiveProcess, "process.start": CapHiveProcess,
@@ -178,6 +179,7 @@ var methodCapabilities = map[string]string{
 	"task.retry": CapHiveProcess, "task.approve": CapHiveProcess, "branch.ready": CapHiveProcess,
 	"branch.update": CapHiveProcess, "branch.clean": CapHiveProcess, "workflow.run": CapHiveProcess,
 	"workflow.rerun": CapHiveProcess, "workflow.cancel": CapHiveProcess, "workflow.fire": CapHiveProcess,
+	"agent.handover": CapHiveProcess, "task.assign": CapHiveProcess,
 	"workflow.trigger": CapHiveWrite,
 
 	// Administration.
@@ -187,12 +189,18 @@ var methodCapabilities = map[string]string{
 }
 
 // closedMethods are daemon methods no plugin may call, whatever it holds:
-// an observer credential a plugin made would outlive the plugin and its
-// grants, a push or a pull request is published only on a person's own
-// command, only a person decides which shared workflows run by
+// an observer credential or a member a plugin made would outlive the
+// plugin and its grants, a push or a pull request is published only on a
+// person's own command, only a person decides which shared workflows run by
 // themselves, and only a person lifts a budget's hold on spending.
 var closedMethods = []string{
 	"observer.audit", "observer.create", "observer.get", "observer.list", "observer.revoke", "observer.validate",
+	// Members are let in by a person, and a plugin acts for its user,
+	// never as a member.
+	"access.audit", "access.doctor", "access.get", "access.grant", "access.invite", "access.list",
+	"access.renew", "access.revoke", "access.whoami",
+	// Presence is a person's: a plugin is nowhere.
+	"presence.set",
 	"branch.push", "branch.pr", "workflow.trust", "insights.resume",
 	// A click is a person's: a plugin runs its own actions directly.
 	"plugin.view.click",

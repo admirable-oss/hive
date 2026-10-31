@@ -13,6 +13,7 @@ import (
 
 	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/presence"
 )
 
 // agentTimeout bounds agent commands.
@@ -53,6 +54,7 @@ default to $HIVE_PANE_ID.`,
 		newAgentReadCmd(a),
 		newAgentSendKeysCmd(a),
 		newAgentRenameCmd(a),
+		newAgentHandoverCmd(a),
 		agentCmd(a, &cobra.Command{Use: "focus [agent]", Short: "Show an agent's pane in every client"}, func(ctx context.Context, ag client.Agents, id string) error {
 			x, err := ag.Focus(ctx, id)
 			if err != nil {
@@ -329,6 +331,38 @@ func newAgentRenameCmd(a *app) *cobra.Command {
 	})
 }
 
+func newAgentHandoverCmd(a *app) *cobra.Command {
+	return needsDaemon(&cobra.Command{
+		Use:   "handover [agent] <member>",
+		Short: "Give an agent, its task and its pane's input to another member",
+		Long: `Give an agent to another member (hive access), by name, or back to you with
+"owner". Its task goes with it, and so does its pane's input if someone is
+typing there. The member must be an operator or owner in the agent's
+environment. A member with the operator role hands over only their own agents.`,
+		Args:              rangeArgs(1, 2),
+		ValidArgsFunction: completePanes(a),
+		RunE: withTimeout(agentTimeout, func(ctx context.Context, _ *cobra.Command, args []string) error {
+			id, err := a.paneArg(args[:len(args)-1])
+			if err != nil {
+				return err
+			}
+			x, err := client.NewAgents(a.client).Handover(ctx, id, args[len(args)-1])
+			if err != nil {
+				return err
+			}
+			return a.done(map[string]any{"agent": x.Agent, "from": x.From}, "handed %s over to %s", x.Agent.ID, ownerName(x.Agent.Owner))
+		}),
+	})
+}
+
+// ownerName names who owns something: a member, or "owner" for you.
+func ownerName(p *presence.Person) string {
+	if p == nil {
+		return presence.OwnerID
+	}
+	return p.Name
+}
+
 // agentCmd completes cmd as a command on an optional [agent] argument
 // (default $HIVE_PANE_ID).
 func agentCmd(a *app, cmd *cobra.Command, run func(ctx context.Context, ag client.Agents, id string) error) *cobra.Command {
@@ -534,6 +568,9 @@ func printAgent(a *app, x agent.Agent) error {
 	row("process", x.ID)
 	row("pane", cmpStr(x.PaneID, "-"))
 	row("environment", x.EnvironmentID)
+	if x.Owner != nil {
+		row("owner", x.Owner.Name)
+	}
 	row("kind", cmpStr(x.Kind, "- (not a recognised agent)"))
 	row("state", fmt.Sprintf("%s since %s (%s)", x.State, ago(x.Since), cmpStr(string(x.Source), "-")))
 	if x.Reason != "" {

@@ -97,6 +97,9 @@ func (p RunParams) spec() (PlanSpec, error) {
 	return PlanSpec{}, errors.Join(ErrInvalid, errors.New("give a plan"))
 }
 
+// WireError gives the service's errors their protocol codes.
+func WireError(err error) error { return wireError(err) }
+
 // wireError gives domain errors their protocol codes.
 func wireError(err error) error {
 	switch {

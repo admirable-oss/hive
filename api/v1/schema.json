@@ -1,5 +1,115 @@
 {
   "$defs": {
+    "access.AuditEntry": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "client": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "time": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "time",
+        "action"
+      ],
+      "type": "object"
+    },
+    "access.Grant": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "environment",
+        "role"
+      ],
+      "type": "object"
+    },
+    "access.Member": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/access.Grant"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "last_seen_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revoked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "key",
+        "fingerprint",
+        "managed",
+        "grants",
+        "created_at",
+        "expires_at"
+      ],
+      "type": "object"
+    },
     "agent.Agent": {
       "properties": {
         "completion_seq": {
@@ -20,6 +130,9 @@
         },
         "name": {
           "type": "string"
+        },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
         },
         "pane_id": {
           "type": "string"
@@ -4652,6 +4765,84 @@
       ],
       "type": "object"
     },
+    "presence.Entry": {
+      "properties": {
+        "client": {
+          "type": "string"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "person": {
+          "$ref": "#/$defs/presence.Person"
+        },
+        "since": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tab": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection",
+        "person",
+        "since"
+      ],
+      "type": "object"
+    },
+    "presence.Hold": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "holder": {
+          "$ref": "#/$defs/presence.Person"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "process_id": {
+          "type": "string"
+        },
+        "since": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "until": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "process_id",
+        "holder",
+        "since",
+        "until"
+      ],
+      "type": "object"
+    },
+    "presence.Person": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
     "process.LogsRequest": {
       "properties": {
         "follow": {
@@ -4707,6 +4898,9 @@
         },
         "lost": {
           "type": "boolean"
+        },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
         },
         "pid": {
           "type": "integer"
@@ -4924,6 +5118,176 @@
       ],
       "type": "object"
     },
+    "runtime.AccessDoctor": {
+      "properties": {
+        "authorized_keys": {
+          "type": "string"
+        },
+        "fixed": {
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "authorized_keys",
+        "problems"
+      ],
+      "type": "object"
+    },
+    "runtime.AccessInviteParams": {
+      "properties": {
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/access.Grant"
+          },
+          "type": "array"
+        },
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "print": {
+          "type": "boolean"
+        },
+        "ttl_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "key",
+        "grants"
+      ],
+      "type": "object"
+    },
+    "runtime.AccessInvited": {
+      "properties": {
+        "authorized_keys": {
+          "type": "string"
+        },
+        "line": {
+          "type": "string"
+        },
+        "member": {
+          "$ref": "#/$defs/access.Member"
+        },
+        "socket": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "member",
+        "line",
+        "socket"
+      ],
+      "type": "object"
+    },
+    "runtime.AccessList": {
+      "properties": {
+        "authorized_keys": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/runtime.AccessMember"
+          },
+          "type": "array"
+        },
+        "socket": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "socket",
+        "enabled",
+        "authorized_keys",
+        "members"
+      ],
+      "type": "object"
+    },
+    "runtime.AccessMember": {
+      "properties": {
+        "connections": {
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/access.Grant"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "last_seen_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revoked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "key",
+        "fingerprint",
+        "managed",
+        "grants",
+        "created_at",
+        "expires_at",
+        "connections"
+      ],
+      "type": "object"
+    },
+    "runtime.AgentHandedOver": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/agent.Agent"
+        },
+        "from": {
+          "$ref": "#/$defs/presence.Person"
+        }
+      },
+      "required": [
+        "agent"
+      ],
+      "type": "object"
+    },
     "runtime.AgentStartRequest": {
       "properties": {
         "args": {
@@ -5114,6 +5478,20 @@
       ],
       "type": "object"
     },
+    "runtime.PaneClaimed": {
+      "properties": {
+        "holder": {
+          "$ref": "#/$defs/presence.Person"
+        },
+        "previous": {
+          "$ref": "#/$defs/presence.Person"
+        }
+      },
+      "required": [
+        "holder"
+      ],
+      "type": "object"
+    },
     "runtime.PluginRunRequest": {
       "properties": {
         "action": {
@@ -5149,6 +5527,27 @@
       },
       "required": [
         "profile"
+      ],
+      "type": "object"
+    },
+    "runtime.PresenceList": {
+      "properties": {
+        "holds": {
+          "items": {
+            "$ref": "#/$defs/presence.Hold"
+          },
+          "type": "array"
+        },
+        "presence": {
+          "items": {
+            "$ref": "#/$defs/presence.Entry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "presence",
+        "holds"
       ],
       "type": "object"
     },
@@ -5229,6 +5628,27 @@
         "num_gc",
         "uptime_seconds",
         "started_at"
+      ],
+      "type": "object"
+    },
+    "runtime.WhoAmI": {
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "member": {
+          "$ref": "#/$defs/access.Member"
+        },
+        "notify": {
+          "type": "boolean"
+        },
+        "owner": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "owner",
+        "notify"
       ],
       "type": "object"
     },
@@ -5328,6 +5748,70 @@
       },
       "type": "object"
     },
+    "runtime.accessAuditParams": {
+      "properties": {
+        "limit": {
+          "type": "integer"
+        },
+        "member": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "runtime.accessDoctorParams": {
+      "properties": {
+        "fix": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "runtime.accessGrantParams": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        },
+        "role": {
+          "description": "observer, operator, owner, or none to take the role away",
+          "type": "string"
+        }
+      },
+      "required": [
+        "member",
+        "environment",
+        "role"
+      ],
+      "type": "object"
+    },
+    "runtime.accessRef": {
+      "properties": {
+        "member": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "member"
+      ],
+      "type": "object"
+    },
+    "runtime.accessRenewParams": {
+      "properties": {
+        "member": {
+          "type": "string"
+        },
+        "ttl_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "member"
+      ],
+      "type": "object"
+    },
     "runtime.agentIDParams": {
       "properties": {
         "id": {
@@ -5351,6 +5835,44 @@
       "required": [
         "id",
         "name"
+      ],
+      "type": "object"
+    },
+    "runtime.assignParams": {
+      "properties": {
+        "id": {
+          "description": "the plan's ID, or a unique prefix of it",
+          "type": "string"
+        },
+        "task": {
+          "description": "the task to assign; without it, the plan and its unfinished tasks",
+          "type": "string"
+        },
+        "to": {
+          "description": "who gets it: a member's name or ID, or owner for the runtime's own user",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "to"
+      ],
+      "type": "object"
+    },
+    "runtime.handoverParams": {
+      "properties": {
+        "id": {
+          "description": "the agent's ID, or its pane's",
+          "type": "string"
+        },
+        "to": {
+          "description": "who gets it: a member's name or ID, or owner for the runtime's own user",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "to"
       ],
       "type": "object"
     },
@@ -5384,6 +5906,31 @@
       },
       "required": [
         "token"
+      ],
+      "type": "object"
+    },
+    "runtime.paneClaimParams": {
+      "properties": {
+        "force": {
+          "type": "boolean"
+        },
+        "pane": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pane"
+      ],
+      "type": "object"
+    },
+    "runtime.paneReleaseParams": {
+      "properties": {
+        "pane": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pane"
       ],
       "type": "object"
     },
@@ -5443,6 +5990,20 @@
         "plugin",
         "run"
       ],
+      "type": "object"
+    },
+    "runtime.presenceSetParams": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "pane": {
+          "type": "string"
+        },
+        "tab": {
+          "type": "string"
+        }
+      },
       "type": "object"
     },
     "runtime.workflowTriggerParams": {
@@ -5587,6 +6148,9 @@
         },
         "name": {
           "type": "string"
+        },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
         },
         "reason": {
           "type": "string"
@@ -5872,6 +6436,9 @@
         "name": {
           "type": "string"
         },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
+        },
         "reason": {
           "type": "string"
         },
@@ -5924,6 +6491,9 @@
         },
         "machine": {
           "type": "string"
+        },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
         },
         "pane_id": {
           "type": "string"
@@ -5999,6 +6569,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
         },
         "pane_id": {
           "type": "string"
@@ -7149,8 +7722,92 @@
       "type": "object"
     }
   },
-  "api_level": 16,
+  "api_level": 17,
   "methods": [
+    {
+      "name": "access.audit",
+      "params": {
+        "$ref": "#/$defs/runtime.accessAuditParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/access.AuditEntry"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "access.doctor",
+      "params": {
+        "$ref": "#/$defs/runtime.accessDoctorParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AccessDoctor"
+      }
+    },
+    {
+      "name": "access.get",
+      "params": {
+        "$ref": "#/$defs/runtime.accessRef"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AccessMember"
+      }
+    },
+    {
+      "name": "access.grant",
+      "params": {
+        "$ref": "#/$defs/runtime.accessGrantParams"
+      },
+      "result": {
+        "$ref": "#/$defs/access.Member"
+      }
+    },
+    {
+      "name": "access.invite",
+      "params": {
+        "$ref": "#/$defs/runtime.AccessInviteParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AccessInvited"
+      }
+    },
+    {
+      "name": "access.list",
+      "params": {
+        "$ref": "#/$defs/protocol.Empty"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AccessList"
+      }
+    },
+    {
+      "name": "access.renew",
+      "params": {
+        "$ref": "#/$defs/runtime.accessRenewParams"
+      },
+      "result": {
+        "$ref": "#/$defs/access.Member"
+      }
+    },
+    {
+      "name": "access.revoke",
+      "params": {
+        "$ref": "#/$defs/runtime.accessRef"
+      },
+      "result": {
+        "$ref": "#/$defs/access.Member"
+      }
+    },
+    {
+      "name": "access.whoami",
+      "params": {
+        "$ref": "#/$defs/protocol.Empty"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.WhoAmI"
+      }
+    },
     {
       "name": "agent.explain",
       "params": {
@@ -7176,6 +7833,15 @@
       },
       "result": {
         "$ref": "#/$defs/agent.Agent"
+      }
+    },
+    {
+      "name": "agent.handover",
+      "params": {
+        "$ref": "#/$defs/runtime.handoverParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AgentHandedOver"
       }
     },
     {
@@ -7739,6 +8405,15 @@
       }
     },
     {
+      "name": "pane.claim",
+      "params": {
+        "$ref": "#/$defs/runtime.paneClaimParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.PaneClaimed"
+      }
+    },
+    {
       "name": "pane.close",
       "params": {
         "$ref": "#/$defs/pane.idParams"
@@ -7814,6 +8489,18 @@
           "type": "string"
         },
         "type": "array"
+      }
+    },
+    {
+      "name": "pane.release",
+      "params": {
+        "$ref": "#/$defs/runtime.paneReleaseParams"
+      },
+      "result": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "type": "object"
       }
     },
     {
@@ -8058,6 +8745,24 @@
       }
     },
     {
+      "name": "presence.list",
+      "params": {
+        "$ref": "#/$defs/protocol.Empty"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.PresenceList"
+      }
+    },
+    {
+      "name": "presence.set",
+      "params": {
+        "$ref": "#/$defs/runtime.presenceSetParams"
+      },
+      "result": {
+        "$ref": "#/$defs/protocol.Empty"
+      }
+    },
+    {
       "name": "process.get",
       "params": {
         "$ref": "#/$defs/process.idParams"
@@ -8233,6 +8938,15 @@
       "name": "task.approve",
       "params": {
         "$ref": "#/$defs/task.ApproveParams"
+      },
+      "result": {
+        "$ref": "#/$defs/task.Plan"
+      }
+    },
+    {
+      "name": "task.assign",
+      "params": {
+        "$ref": "#/$defs/runtime.assignParams"
       },
       "result": {
         "$ref": "#/$defs/task.Plan"

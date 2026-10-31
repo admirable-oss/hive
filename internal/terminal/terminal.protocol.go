@@ -64,13 +64,45 @@ type SnapshotResult struct {
 	Scrollback []string `json:"scrollback,omitempty"`
 }
 
+type readOnlyKey struct{}
+
+// ReadOnly makes a terminal.frames view opened with ctx drop what its
+// client types: for callers who may watch a terminal but not type into it.
+func ReadOnly(ctx context.Context) context.Context {
+	return context.WithValue(ctx, readOnlyKey{}, true)
+}
+
+func isReadOnly(ctx context.Context) bool {
+	ro, _ := ctx.Value(readOnlyKey{}).(bool)
+	return ro
+}
+
+type inputGateKey struct{}
+
+// WithInputGate makes a terminal.attach or terminal.frames view opened
+// with ctx ask gate before writing each piece of what its client types,
+// and drop the pieces it refuses: input taken by one person at a time.
+func WithInputGate(ctx context.Context, gate func() bool) context.Context {
+	return context.WithValue(ctx, inputGateKey{}, gate)
+}
+
+// inputGate is the view's gate: nil lets everything through; a read-only
+// view lets nothing through.
+func inputGate(ctx context.Context) func() bool {
+	if isReadOnly(ctx) {
+		return func() bool { return false }
+	}
+	gate, _ := ctx.Value(inputGateKey{}).(func() bool)
+	return gate
+}
+
 // Register exposes svc on the wire as terminal.*. Sessions are created by the
 // process service; the wire views them, types into them and resizes them.
 func Register(r *protocol.Router, svc Service) {
 	// terminal.attach: a pipe carrying the screen painted as ANSI for a real
 	// terminal, and keystrokes back. It takes over the terminal size.
-	r.MustRegister("terminal.attach", protocol.PipeMethod(func(_ context.Context, p viewParams) (viewResult, protocol.PipeFunc, error) {
-		return openView(svc, p, true, func(_ context.Context, w io.Writer) func(*vt.Frame) error {
+	r.MustRegister("terminal.attach", protocol.PipeMethod(func(ctx context.Context, p viewParams) (viewResult, protocol.PipeFunc, error) {
+		return openView(svc, p, true, inputGate(ctx), func(_ context.Context, w io.Writer) func(*vt.Frame) error {
 			return vt.NewPainter(w).Paint
 		})
 	}))
@@ -89,7 +121,7 @@ func Register(r *protocol.Router, svc Service) {
 		}
 		deflate := protocol.PeerHas(ctx, vt.FrameDeflateCapability)
 		peer := protocol.PeerOf(ctx)
-		return openView(svc, p, false, func(ctx context.Context, w io.Writer) func(*vt.Frame) error {
+		return openView(svc, p, false, inputGate(ctx), func(ctx context.Context, w io.Writer) func(*vt.Frame) error {
 			out := newFrameWriter(w, deflate)
 			var buf []byte
 			return func(f *vt.Frame) error {
@@ -185,8 +217,9 @@ func Register(r *protocol.Router, svc Service) {
 }
 
 // openView joins a view and returns the pipe that serves it: frames out
-// through the encoder made by newEmit, keystrokes in.
-func openView(svc Service, p viewParams, interactive bool, newEmit func(context.Context, io.Writer) func(*vt.Frame) error) (viewResult, protocol.PipeFunc, error) {
+// through the encoder made by newEmit, keystrokes in (those gate refuses
+// dropped).
+func openView(svc Service, p viewParams, interactive bool, gate func() bool, newEmit func(context.Context, io.Writer) func(*vt.Frame) error) (viewResult, protocol.PipeFunc, error) {
 	sess, err := lookup(svc, p.ProcessID)
 	if err != nil {
 		return viewResult{}, nil, err
@@ -212,7 +245,7 @@ func openView(svc Service, p viewParams, interactive bool, newEmit func(context.
 			buf := make([]byte, 4096)
 			for {
 				n, err := pipe.Read(buf)
-				if n > 0 {
+				if n > 0 && (gate == nil || gate()) {
 					_ = svc.Interact(p.ProcessID, viewID)
 					if _, werr := sess.Write(buf[:n]); werr != nil {
 						return

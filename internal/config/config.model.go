@@ -30,6 +30,7 @@ type Config struct {
 	Images    Images
 	Plugins   Plugins
 	Observers Observers
+	Access    Access
 	Web       Web
 	Update    Update
 	Notify    notify.Config
@@ -329,6 +330,26 @@ type Observers struct {
 	MaxConnections int
 }
 
+// Access configures the member socket: teammates let in with a role
+// (`hive access`).
+type Access struct {
+	// Enabled serves the member socket. Off, members are kept but nobody
+	// can connect.
+	Enabled bool
+	// MaxConnections bounds open member connections, all members together.
+	MaxConnections int
+	// AuthorizedKeys is the file Hive keeps members' keys in; empty means
+	// ~/.ssh/authorized_keys.
+	AuthorizedKeys string
+	// InputIdle is how long someone who stopped typing keeps a terminal's
+	// input before another person may type.
+	InputIdle time.Duration
+	// NotifyFallback is who is told that work needs someone when its owner
+	// is away: member names, "owner" (you) and "operators" (of the work's
+	// environment).
+	NotifyFallback []string
+}
+
 // Web configures the web observer (`hive web serve`).
 type Web struct {
 	// Listen is its HTTP address.
@@ -471,6 +492,7 @@ func Defaults() Config {
 		Images:    Images{MaxKB: 5120, MaxMegapixels: 16, Keep: time.Hour, Render: "auto"},
 		Plugins:   Plugins{Allow: []string{}, Deny: []string{}, Isolation: "auto", RequireSignature: "official-verified", RestartLimit: 5, RestartWindow: 10 * time.Minute, Hidden: []string{}},
 		Observers: Observers{Enabled: true, HistoryEvents: 2048, MaxConnections: 32},
+		Access:    Access{Enabled: true, MaxConnections: 32, InputIdle: 10 * time.Second, NotifyFallback: []string{"owner"}},
 		Web:       Web{Listen: "127.0.0.1:8484", Push: true},
 		Update:    Update{Channel: "stable"},
 		Notify:    notify.Defaults(),

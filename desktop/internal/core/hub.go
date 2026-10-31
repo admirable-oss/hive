@@ -110,6 +110,9 @@ type Hub struct {
 	// failedRuns is the workflow runs known to have failed, so each is
 	// announced once.
 	failedRuns map[string]bool
+	// self is who the daemon addresses this app's notifications to (see
+	// whoAmI); "" when the app decides them itself.
+	self string
 }
 
 // New returns a hub; Start connects it.
@@ -303,7 +306,11 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 		h.mu.Unlock()
 		_ = c.Close()
 	}()
-	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "branch.", "workflow.run", "workflow.removed", "insights.alert", "events.")
+	self := whoAmI(ctx, c)
+	h.mu.Lock()
+	h.self = self
+	h.mu.Unlock()
+	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "branch.", "workflow.run", "workflow.removed", "insights.alert", eventNotify, "presence.", "events.")
 	if err != nil {
 		return err
 	}
@@ -326,6 +333,12 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 				// Announced as it comes: alerts are raised once, and change
 				// nothing in the workspace.
 				if n, ok := h.alertNotification(ev.Data); ok && h.cfg.Notify != nil {
+					h.cfg.Notify(n)
+				}
+				continue
+			}
+			if ev.Type == eventNotify {
+				if n, ok := h.routedNotification(ev.Data); ok && h.cfg.Notify != nil {
 					h.cfg.Notify(n)
 				}
 				continue
@@ -381,6 +394,10 @@ func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client, plans bool) error 
 		return err
 	}
 	ws := workspaceOf(snap)
+	h.mu.Lock()
+	self := h.self
+	h.mu.Unlock()
+	ws = withPresence(ws, readPresence(ctx, c), self)
 	if plans {
 		if list, err := c.Plans(ctx); err == nil {
 			ws.Plans = plansOf(list)
@@ -408,6 +425,9 @@ func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client, plans bool) error 
 	h.ws = ws
 	notes := h.notificationsLocked(ws)
 	notes = append(notes, h.approvalsLocked(ws)...)
+	if h.self != "" {
+		notes = nil // the daemon says who is told about agents and approvals
+	}
 	notes = append(notes, h.overlapsLocked(ws)...)
 	notes = append(notes, h.failedRunsLocked(ws)...)
 	for id, v := range h.views {
@@ -469,12 +489,7 @@ func (h *Hub) approvalsLocked(ws Workspace) []Notification {
 // window), or the daemon notifies the system itself.
 func (h *Hub) notificationsLocked(ws Workspace) []Notification {
 	var out []Notification
-	focusedPane := map[string]bool{}
-	for _, t := range ws.Tabs {
-		if t.Active && t.Focused != "" {
-			focusedPane[t.Focused] = true
-		}
-	}
+	focusedPane := focusedPanes(ws)
 	looking := h.cfg.Focused != nil && h.cfg.Focused()
 	next := make(map[string]Agent, len(ws.Agents))
 	for _, a := range ws.Agents {
@@ -1037,7 +1052,13 @@ func (h *Hub) FocusPane(paneID string) error {
 	if err := validID(paneID); err != nil {
 		return err
 	}
-	return h.call(func(ctx context.Context, c *hiveapi.Client) error { _, err := c.FocusPane(ctx, paneID, ""); return err })
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		if _, err := c.FocusPane(ctx, paneID, ""); err != nil {
+			return err
+		}
+		h.lookAt(ctx, c, "", paneID)
+		return nil
+	})
 }
 
 // FocusNeighbour focuses the pane beside paneID that way (the focus-left,
@@ -1050,7 +1071,14 @@ func (h *Hub) FocusNeighbour(paneID, dir string) error {
 	if err != nil {
 		return err
 	}
-	return h.call(func(ctx context.Context, c *hiveapi.Client) error { _, err := c.FocusPane(ctx, paneID, d); return err })
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		pn, err := c.FocusPane(ctx, paneID, d)
+		if err != nil {
+			return err
+		}
+		h.lookAt(ctx, c, "", pn.ID)
+		return nil
+	})
 }
 
 // SwapPane exchanges two panes of one tab, through the layout API
@@ -1149,7 +1177,13 @@ func (h *Hub) FocusTab(tabID string) error {
 	if err := validID(tabID); err != nil {
 		return err
 	}
-	return h.call(func(ctx context.Context, c *hiveapi.Client) error { _, err := c.FocusTab(ctx, tabID); return err })
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		if _, err := c.FocusTab(ctx, tabID); err != nil {
+			return err
+		}
+		h.lookAt(ctx, c, tabID, "")
+		return nil
+	})
 }
 
 // ResizeTab sets a tab's area to what the app has room for.

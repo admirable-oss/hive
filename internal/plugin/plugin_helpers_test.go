@@ -100,6 +100,10 @@ func startHost(t *testing.T, manifest string, files map[string]string, cfg HostC
 	if cfg.Version == "" {
 		cfg.Version = "dev"
 	}
+	if cfg.Launcher == "" {
+		// TestMain is the launcher a confined plugin needs on Linux.
+		cfg.Launcher, _ = os.Executable()
+	}
 	cfg.Store, cfg.Publish = s, pub.publish
 	h := NewHost(cfg)
 	ctx, cancel := context.WithCancel(context.Background())

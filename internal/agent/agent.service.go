@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/logging"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/terminal"
@@ -460,13 +461,13 @@ func (s *Service) unlockAndPublish(ctx context.Context) {
 	loc, _ := s.locate.Locate(ctx)
 	for _, a := range batch {
 		a.withLocation(loc)
-		if a.EnvironmentID == "" {
-			// Not in a pane: its process says where it runs.
-			if p, err := s.procs.Get(ctx, a.ID); err == nil {
-				a.EnvironmentID = p.EnvironmentID
+		if p, err := s.procs.Get(ctx, a.ID); err == nil {
+			a.Owner = p.Owner
+			if a.EnvironmentID == "" {
+				a.EnvironmentID = p.EnvironmentID // not in a pane: its process says where it runs
 			}
 		}
-		s.events.Publish(EventState, a)
+		event.PublishContext(ctx, s.events, EventState, a)
 	}
 }
 
@@ -514,7 +515,7 @@ func (s *Service) List(ctx context.Context, all bool) ([]Agent, error) {
 func (s *Service) agentLocked(p process.Process, manifests []*Manifest) Agent {
 	if t := s.trackers[p.ID]; t != nil && t.resolved {
 		a := t.agent()
-		a.EnvironmentID, a.PID = p.EnvironmentID, p.PID
+		a.EnvironmentID, a.PID, a.Owner = p.EnvironmentID, p.PID, p.Owner
 		if t.status.State != StateExited && !p.Active() {
 			a.State, a.Source, a.Reason = StateExited, SourceProcess, statusReason(p)
 		}
@@ -527,7 +528,7 @@ func (s *Service) agentLocked(p process.Process, manifests []*Manifest) Agent {
 	if m == nil {
 		m = Recognise(manifests, append([]string{p.Command}, p.Args...))
 	}
-	a := Agent{ID: p.ID, EnvironmentID: p.EnvironmentID, PID: p.PID, Status: Status{State: StateUnknown, Since: p.StartedAt}}
+	a := Agent{ID: p.ID, EnvironmentID: p.EnvironmentID, PID: p.PID, Owner: p.Owner, Status: Status{State: StateUnknown, Since: p.StartedAt}}
 	if m != nil {
 		a.Kind, a.Name = m.ID, m.Name
 	}

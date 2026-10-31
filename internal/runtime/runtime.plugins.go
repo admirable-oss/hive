@@ -25,6 +25,7 @@ import (
 	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/session"
+	"github.com/admirable-oss/hive/internal/terminal"
 	"github.com/admirable-oss/hive/internal/vt"
 )
 
@@ -38,7 +39,7 @@ func (c Config) pluginDir() string {
 
 // newPluginHost builds the host that runs the enabled plugins: each on its
 // own socket, scoped to its capabilities, with plugin events on the bus.
-func newPluginHost(cfg Config, log *slog.Logger, router *protocol.Router, bus *event.Bus, workspaces func(context.Context) []string) *plugin.Host {
+func newPluginHost(cfg Config, log *slog.Logger, router methodHandler, bus *event.Bus, workspaces func(context.Context) []string) *plugin.Host {
 	env := cfg.launchEnv()
 	launcher := cfg.bin()
 	if launcher == "" {
@@ -101,7 +102,7 @@ func newPluginHost(cfg Config, log *slog.Logger, router *protocol.Router, bus *e
 // plugin.* methods act on it alone.
 type pluginSockets struct {
 	dir     string
-	router  *protocol.Router
+	router  methodHandler
 	log     *slog.Logger
 	granted func(id string) []string
 }
@@ -164,10 +165,17 @@ func (s *pluginSockets) serve(id string, _ []string) (string, func(), error) {
 	return path, stop, nil
 }
 
+// methodHandler is the daemon's API as plugins reach it: the router,
+// behind what every caller goes through (one typist at a time).
+type methodHandler interface {
+	protocol.Handler
+	Methods() []string
+}
+
 // scopedHandler serves a plugin's socket.
 type scopedHandler struct {
 	id      string
-	router  *protocol.Router
+	router  methodHandler
 	granted func(id string) []string
 }
 
@@ -179,6 +187,11 @@ func (h scopedHandler) Handle(ctx context.Context, req protocol.Request) protoco
 			msg = fmt.Sprintf("plugin %s may not call %s: it needs %s (`hive plugin grant %s %s`)", h.id, req.Method, need, h.id, need)
 		}
 		return protocol.Fail(req, protocol.NewError(protocol.ErrorCodePermissionDenied, errors.New(msg)))
+	}
+	// terminal.frames is a read, but its pipe carries keystrokes back: a
+	// plugin that may not type watches without typing.
+	if req.Method == "terminal.frames" && !plugin.Allowed("terminal.input", h.granted(h.id)) {
+		ctx = terminal.ReadOnly(ctx)
 	}
 	return h.router.Handle(plugin.WithCaller(ctx, h.id), req)
 }

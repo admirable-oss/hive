@@ -11,7 +11,8 @@ Hive runs coding agents for one user, as that user. A daemon owns the
 workspace. A shim per agent owns its terminal and outlives the daemon.
 Clients (the CLI, the TUI, MCP, the desktop app, `pkg/hiveapi` programs)
 drive the daemon over a local socket. Observers read through a separate
-socket. Other machines are reached through the user's ssh.
+socket. Members, people the user lets in (M27), reach a third socket through
+ssh. Other machines are reached through the user's ssh.
 
 ## Assets
 
@@ -22,6 +23,7 @@ socket. Other machines are reached through the user's ssh.
 | **The release signing key and the release pipeline** | Whoever controls them can ship code that every `hive update` installs |
 | **This runtime's identity key** (`identity.json`) | Lets a machine pose as this runtime to machines that paired with it |
 | **Observer tokens, web sign-in links and cookies** | Read access to screens and agent activity |
+| **Members and Hive's block in `authorized_keys`** | Decide who else reaches the runtime, and with which role |
 | **Plugin releases and the registry** | Plugins run as the user |
 | **Saved machines and their pinned identities** | Decide where ssh connections go and which runtime is trusted |
 
@@ -34,6 +36,7 @@ socket. Other machines are reached through the user's ssh.
 | **A network attacker between you and GitHub or the registry** | Yes. Releases are signed; plugin releases are pinned by commit and checksum; registry links must be HTTPS. |
 | **A compromised registry listing or plugin maintainer** | Partly. Releases are immutable and pinned, permission changes are shown before an update, and releases can be revoked. From 1.7, schema 2 releases carry their publisher's SSH signature: a stolen repository token alone cannot publish an official or verified release, an update cannot change publisher, and a stolen signing key is revoked from the time it was distrusted. A malicious release you choose to install runs as you. |
 | **An observer (a dashboard, a person with a share link)** | Yes. It reads only what its credential allows and cannot control anything. |
+| **A member (a teammate let in with `hive access`)** | Yes. Their key reaches only the member socket, the daemon decides who they are from the key's forced command, and checks their role in the environment of everything they ask for. They see nothing outside their environments, no secret-bearing fields below owner, start nothing below owner, type only into agents as operators, and never manage access, plugins or the daemon. An operator's prompts run as you, through your agents. |
 | **A malicious website open in your browser** | Yes, for the web observer: CSP, SameSite=Strict cookies, no framing, codes in URL fragments. |
 | **The agents themselves** | No. Agents run as you, unsandboxed, by design. See non-goals. |
 | **Malware already running as you** | No. It can read your files and open your sockets, as it could without Hive. |
@@ -51,29 +54,41 @@ socket. Other machines are reached through the user's ssh.
    as the user can open the control socket instead. To hold an observer to
    its token, run it as someone else and let it in through a restricted ssh
    key.
-3. **ssh.** Remote machines run `hive proxy` through the user's ssh;
+3. **The member socket.** Same file permissions. A member's key in
+   `authorized_keys`, inside Hive's block, is forced to run
+   `hive proxy --member <id>` with every forwarding and the terminal off;
+   the proxy binds the connection to that member before relaying, and
+   serves only clients asking for `hive proxy`. The daemon re-checks the
+   member before every request, and its role in the environment of what
+   the request acts on (every control method is classified,
+   `api/v1/roles.txt`); revocation ends its connections at once. As for
+   observers, this is access control in the API: a program
+   running as the user can claim any member, and the boundary holds only
+   when the restricted key is the member's only way into the account.
+   Inviting a key that already logs in unrestricted is refused.
+4. **ssh.** Remote machines run `hive proxy` through the user's ssh;
    authentication, host keys and forwarding are ssh's. The remote daemon
    applies boundary 1 to that connection. The daemon itself goes through
    this boundary only for a plan's tasks placed on a saved machine
    (`task.run` there). It never goes to machines that are disabled or whose
    identity changed, and it uses the same ssh command and connection
    sharing as `--machine`.
-4. **Discovery and pairing.** An mDNS announcement is a hint. Pairing proves
+5. **Discovery and pairing.** An mDNS announcement is a hint. Pairing proves
    the machine holds the identity key (a signed challenge over ssh) and
    needs the user's confirmation. A changed identity is held until accepted.
-5. **The web observer.** It holds observer credentials, not control access.
+6. **The web observer.** It holds observer credentials, not control access.
    Browsers authenticate with one-time codes exchanged for cookies, and it
    refuses to serve beyond localhost without TLS.
-6. **The desktop webview.** The page reaches Go only through typed methods
+7. **The desktop webview.** The page reaches Go only through typed methods
    that validate input; it loads only embedded code (CSP), and terminal
    images are re-encoded in Go before it sees them.
-7. **Releases and updates.** `checksums.txt` is signed with ed25519 in CI,
+8. **Releases and updates.** `checksums.txt` is signed with ed25519 in CI,
    as a raw signature for `hive update` and in OpenSSH's format for the
    installers. `hive update` checks the signature with the key built into
    the running binary, then the archive's checksum, then that the new binary
    runs. Every archive has an SBOM and a build provenance attestation, and
    builds are reproducible.
-8. **Plugins.** Installed only after a preview and a yes. A registry release
+9. **Plugins.** Installed only after a preview and a yes. A registry release
    is pinned to a commit and an archive checksum and checked against the
    manifest. Plugin API 1 enforces declared capabilities on the plugin's
    socket (Hive API calls). Filesystem, network and process access are

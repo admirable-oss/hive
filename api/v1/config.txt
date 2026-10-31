@@ -1,3 +1,8 @@
+access.authorized_keys
+access.enabled
+access.input_idle
+access.max_connections
+access.notify_fallback
 branches.agent_pattern
 branches.check_interval
 branches.cleanup

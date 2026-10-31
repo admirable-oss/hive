@@ -50,7 +50,8 @@ const Version2 = "2"
 //	14 workflow automation: workflow.*, workflow.* events (M24)
 //	15 agent insights: insights.*, insights.* events (M25)
 //	16 plugin ecosystem 2: plugin trust and sandbox in plugin.list, observe.plugins (M26)
-const APILevel = 16
+//	17 team collaboration: access.*, access.changed, the member socket (M27)
+const APILevel = 17
 
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.

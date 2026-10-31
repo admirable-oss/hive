@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/logging"
+	"github.com/admirable-oss/hive/internal/presence"
 )
 
 // Event types. Data is the JSON of the named value.
@@ -38,11 +39,26 @@ type Event struct {
 	Type string          `json:"type"`
 	Time time.Time       `json:"time"`
 	Data json.RawMessage `json:"data,omitempty"`
+	// Actor is the member whose request caused it; absent for the
+	// runtime's own user and for what nobody asked for.
+	Actor *presence.Person `json:"actor,omitempty"`
 }
 
 // Publisher is what domain packages need from the bus.
 type Publisher interface {
 	Publish(typ string, data any)
+}
+
+// PublishContext publishes on p, naming the member whose request ctx
+// belongs to when p can (a Bus can).
+func PublishContext(ctx context.Context, p interface{ Publish(string, any) }, typ string, data any) {
+	if cp, ok := p.(interface {
+		PublishContext(context.Context, string, any)
+	}); ok {
+		cp.PublishContext(ctx, typ, data)
+		return
+	}
+	p.Publish(typ, data)
 }
 
 // Bus fans events out to subscribers.
@@ -62,7 +78,19 @@ func NewBus(log *slog.Logger) *Bus {
 
 // Publish sends an event to every subscriber whose filter accepts typ. It
 // never blocks: a full subscriber loses the event.
-func (b *Bus) Publish(typ string, data any) {
+func (b *Bus) Publish(typ string, data any) { b.publish(nil, typ, data) }
+
+// PublishContext is Publish for an event caused by the request ctx belongs
+// to: it names the member who made it (see presence.WithActor).
+func (b *Bus) PublishContext(ctx context.Context, typ string, data any) {
+	var actor *presence.Person
+	if who, ok := presence.ActorOf(ctx); ok {
+		actor = &who
+	}
+	b.publish(actor, typ, data)
+}
+
+func (b *Bus) publish(actor *presence.Person, typ string, data any) {
 	raw, err := json.Marshal(data)
 	if err != nil {
 		b.log.Error("event data cannot be encoded; dropped", "type", typ, "err", err)
@@ -71,7 +99,7 @@ func (b *Bus) Publish(typ string, data any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.seq++
-	ev := Event{Seq: b.seq, Type: typ, Time: b.now(), Data: raw}
+	ev := Event{Seq: b.seq, Type: typ, Time: b.now(), Data: raw, Actor: actor}
 	for s := range b.subs {
 		if !s.accepts(typ) {
 			continue

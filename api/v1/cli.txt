@@ -1,9 +1,21 @@
 command hive
+command hive access
+command hive access audit
+command hive access doctor
+command hive access grant
+command hive access invite
+command hive access list
+command hive access list (alias ls)
+command hive access renew
+command hive access revoke
+command hive access show
+command hive access whoami
 command hive agent
 command hive agent attach
 command hive agent explain
 command hive agent focus
 command hive agent get
+command hive agent handover
 command hive agent list
 command hive agent list (alias ls)
 command hive agent manifests
@@ -127,6 +139,7 @@ command hive observer status
 command hive observer validate
 command hive observer watch
 command hive pane
+command hive pane claim
 command hive pane close
 command hive pane focus
 command hive pane get
@@ -136,6 +149,7 @@ command hive pane list (alias ls)
 command hive pane move
 command hive pane popup
 command hive pane read
+command hive pane release
 command hive pane rename
 command hive pane report-agent
 command hive pane report-metadata
@@ -187,6 +201,7 @@ command hive plugin update
 command hive plugin validate
 command hive plugin view
 command hive plugin views
+command hive presence
 command hive process
 command hive process (alias ps)
 command hive process get
@@ -218,6 +233,7 @@ command hive task
 command hive task (alias plan)
 command hive task (alias tasks)
 command hive task approve
+command hive task assign
 command hive task cancel
 command hive task get
 command hive task get (alias show)
@@ -292,6 +308,19 @@ flag hive --session string
 flag hive --skill bool
 flag hive --template string
 flag hive --yes bool
+flag hive access audit --limit int
+flag hive access audit --member string
+flag hive access doctor --fix bool
+flag hive access grant --all bool
+flag hive access grant --env stringArray
+flag hive access grant --role string
+flag hive access invite --all bool
+flag hive access invite --env stringArray
+flag hive access invite --expires duration
+flag hive access invite --key string
+flag hive access invite --print bool
+flag hive access invite --role string
+flag hive access renew --expires duration
 flag hive agent list --all bool -a
 flag hive agent prompt --read int
 flag hive agent prompt --stall-timeout duration
@@ -434,6 +463,7 @@ flag hive observer validate --token-file string
 flag hive observer watch --ansi bool
 flag hive observer watch --interval duration
 flag hive observer watch --token-file string
+flag hive pane claim --force bool
 flag hive pane focus --direction string -d
 flag hive pane list --env string
 flag hive pane list --tab string
@@ -525,6 +555,7 @@ flag hive process logs --stderr bool
 flag hive process start --height uint16
 flag hive process start --terminal bool -t
 flag hive process start --width uint16
+flag hive proxy --member string
 flag hive proxy --observer bool
 flag hive session restore --fresh bool
 flag hive session stop --keep-agents bool
@@ -535,6 +566,7 @@ flag hive tab create --pane-name string
 flag hive tab create --view string
 flag hive task approve --deny bool
 flag hive task approve --note string
+flag hive task assign --to string
 flag hive task report --screen int
 flag hive task run --approve bool
 flag hive task run --base string

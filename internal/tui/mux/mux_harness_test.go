@@ -18,10 +18,18 @@ import (
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/pane"
+	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/runtime"
 )
 
-func TestMain(m *testing.M) { goleak.VerifyTestMain(m) }
+// TestMain is also the plugin sandbox's launcher for the daemons these
+// tests run, as the hive binary is for the real one.
+func TestMain(m *testing.M) {
+	if len(os.Args) > 1 && os.Args[1] == plugin.SandboxCommand {
+		os.Exit(plugin.SandboxMain(os.Args[2:]))
+	}
+	goleak.VerifyTestMain(m)
+}
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
