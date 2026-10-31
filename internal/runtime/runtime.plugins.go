@@ -25,6 +25,7 @@ import (
 	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/session"
+	"github.com/admirable-oss/hive/internal/terminal"
 	"github.com/admirable-oss/hive/internal/vt"
 )
 
@@ -186,6 +187,11 @@ func (h scopedHandler) Handle(ctx context.Context, req protocol.Request) protoco
 			msg = fmt.Sprintf("plugin %s may not call %s: it needs %s (`hive plugin grant %s %s`)", h.id, req.Method, need, h.id, need)
 		}
 		return protocol.Fail(req, protocol.NewError(protocol.ErrorCodePermissionDenied, errors.New(msg)))
+	}
+	// terminal.frames is a read, but its pipe carries keystrokes back: a
+	// plugin that may not type watches without typing.
+	if req.Method == "terminal.frames" && !plugin.Allowed("terminal.input", h.granted(h.id)) {
+		ctx = terminal.ReadOnly(ctx)
 	}
 	return h.router.Handle(plugin.WithCaller(ctx, h.id), req)
 }

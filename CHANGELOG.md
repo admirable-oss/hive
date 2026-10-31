@@ -62,6 +62,12 @@ Teammates in your runtime, over ssh, with a role ([RFC 0007](rfcs/0007-team-coll
   `pane.release`, `hive pane claim|release`, the `pane.floor` event, and
   `[✎ alice]` on the pane.
 
+### Fixes
+
+- A plugin holding `hive.read` but not `hive.input` could type into a
+  terminal through the `terminal.frames` pipe it may open. Its frames view
+  now drops what it types.
+
 ## v1.7.0 (unreleased): Plugin ecosystem 2 (M26)
 
 Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). In progress.
