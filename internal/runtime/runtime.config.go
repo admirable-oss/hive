@@ -66,6 +66,8 @@ type Config struct {
 	Images ImagesConfig
 	// Observers is the observer socket's policy.
 	Observers ObserversConfig
+	// Access is the member socket's policy.
+	Access AccessConfig
 	// Tasks is the [tasks] policy for plans.
 	Tasks TasksConfig
 	// Branches is the [branches] policy: naming, cleanup, gates, forges.

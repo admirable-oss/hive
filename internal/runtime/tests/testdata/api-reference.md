@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 16. Clients speak newline-delimited JSON over the daemon's unix
+API level 17. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -12,6 +12,84 @@ sends requests such as
 each answered by a `response` with the same `id` and a `result` or an `error`
 (`code`, `message`). Pipe methods answer, then carry a byte stream on the
 connection. Every name below is stable within 1.x (the compatibility policy).
+
+## access
+
+### `access.audit`
+
+| Param | Type | |
+|---|---|---|
+| `limit` | `integer` |  |
+| `member` | `string` |  |
+
+Result: [\[\]access.AuditEntry](#accessauditentry)
+
+### `access.doctor`
+
+| Param | Type | |
+|---|---|---|
+| `fix` | `boolean` |  |
+
+Result: [runtime.AccessDoctor](#runtimeaccessdoctor)
+
+### `access.get`
+
+| Param | Type | |
+|---|---|---|
+| `member` | `string` |  |
+
+Result: [runtime.AccessMember](#runtimeaccessmember)
+
+### `access.grant`
+
+| Param | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `member` | `string` |  |
+| `role` | `string` | observer, operator, owner, or none to take the role away |
+
+Result: [access.Member](#accessmember)
+
+### `access.invite`
+
+| Param | Type | |
+|---|---|---|
+| `grants` | [\[\]access.Grant](#accessgrant) |  |
+| `key` | `string` |  |
+| `name` | `string` |  |
+| `print` | `boolean` |  |
+| `ttl_seconds` | `integer` |  |
+
+Result: [runtime.AccessInvited](#runtimeaccessinvited)
+
+### `access.list`
+
+No params.
+
+Result: [runtime.AccessList](#runtimeaccesslist)
+
+### `access.renew`
+
+| Param | Type | |
+|---|---|---|
+| `member` | `string` |  |
+| `ttl_seconds` | `integer` |  |
+
+Result: [access.Member](#accessmember)
+
+### `access.revoke`
+
+| Param | Type | |
+|---|---|---|
+| `member` | `string` |  |
+
+Result: [access.Member](#accessmember)
+
+### `access.whoami`
+
+No params.
+
+Result: [runtime.WhoAmI](#runtimewhoami)
 
 ## agent
 
@@ -1375,6 +1453,42 @@ Result: [environment.Environment](#environmentenvironment)
 Result: [protocol.Empty](#protocolempty)
 
 ## Types
+
+### access.AuditEntry
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` |  |
+| `client` | `string` |  |
+| `detail` | `string` |  |
+| `from` | `string` |  |
+| `member` | `string` |  |
+| `method` | `string` |  |
+| `name` | `string` |  |
+| `time` | `string` |  |
+
+### access.Grant
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `role` | `string` |  |
+
+### access.Member
+
+| Field | Type | |
+|---|---|---|
+| `created_at` | `string` |  |
+| `expires_at` | `string` |  |
+| `fingerprint` | `string` |  |
+| `grants` | [\[\]access.Grant](#accessgrant) |  |
+| `id` | `string` |  |
+| `key` | `string` |  |
+| `last_seen_at` | `string` |  |
+| `managed` | `boolean` |  |
+| `name` | `string` |  |
+| `revoked_at` | `string` |  |
+| `state` | `string` |  |
 
 ### agent.Agent
 
@@ -3201,6 +3315,59 @@ An object.
 | `rollups` | [agent.Rollups](#agentrollups) |  |
 | `tabs` | [\[\]pane.Tab](#panetab) |  |
 
+### runtime.AccessDoctor
+
+| Field | Type | |
+|---|---|---|
+| `authorized_keys` | `string` |  |
+| `fixed` | `boolean` |  |
+| `problems` | `[]string` |  |
+
+### runtime.AccessInviteParams
+
+| Field | Type | |
+|---|---|---|
+| `grants` | [\[\]access.Grant](#accessgrant) |  |
+| `key` | `string` |  |
+| `name` | `string` |  |
+| `print` | `boolean` |  |
+| `ttl_seconds` | `integer` |  |
+
+### runtime.AccessInvited
+
+| Field | Type | |
+|---|---|---|
+| `authorized_keys` | `string` |  |
+| `line` | `string` |  |
+| `member` | [access.Member](#accessmember) |  |
+| `socket` | `string` |  |
+
+### runtime.AccessList
+
+| Field | Type | |
+|---|---|---|
+| `authorized_keys` | `string` |  |
+| `enabled` | `boolean` |  |
+| `members` | [\[\]runtime.AccessMember](#runtimeaccessmember) |  |
+| `socket` | `string` |  |
+
+### runtime.AccessMember
+
+| Field | Type | |
+|---|---|---|
+| `connections` | `integer` |  |
+| `created_at` | `string` |  |
+| `expires_at` | `string` |  |
+| `fingerprint` | `string` |  |
+| `grants` | [\[\]access.Grant](#accessgrant) |  |
+| `id` | `string` |  |
+| `key` | `string` |  |
+| `last_seen_at` | `string` |  |
+| `managed` | `boolean` |  |
+| `name` | `string` |  |
+| `revoked_at` | `string` |  |
+| `state` | `string` |  |
+
 ### runtime.AgentStartRequest
 
 | Field | Type | |
@@ -3314,6 +3481,14 @@ An object.
 | `started_at` | `string` |  |
 | `uptime_seconds` | `number` |  |
 
+### runtime.WhoAmI
+
+| Field | Type | |
+|---|---|---|
+| `from` | `string` |  |
+| `member` | [access.Member](#accessmember) |  |
+| `owner` | `boolean` |  |
+
 ### runtime.WorktreeCreateRequest
 
 | Field | Type | |
@@ -3352,6 +3527,40 @@ An object.
 | `force` | `boolean` |  |
 | `id` | `string` |  |
 | `path` | `string` |  |
+
+### runtime.accessAuditParams
+
+| Field | Type | |
+|---|---|---|
+| `limit` | `integer` |  |
+| `member` | `string` |  |
+
+### runtime.accessDoctorParams
+
+| Field | Type | |
+|---|---|---|
+| `fix` | `boolean` |  |
+
+### runtime.accessGrantParams
+
+| Field | Type | |
+|---|---|---|
+| `environment` | `string` |  |
+| `member` | `string` |  |
+| `role` | `string` | observer, operator, owner, or none to take the role away |
+
+### runtime.accessRef
+
+| Field | Type | |
+|---|---|---|
+| `member` | `string` |  |
+
+### runtime.accessRenewParams
+
+| Field | Type | |
+|---|---|---|
+| `member` | `string` |  |
+| `ttl_seconds` | `integer` |  |
 
 ### runtime.agentIDParams
 

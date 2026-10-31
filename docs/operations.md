@@ -17,7 +17,7 @@ observer's files are shared by every session, in `HIVE_HOME`.
 
 | Path | Holds | Private |
 |---|---|---|
-| `hive.sock`, `observer.sock`, `hive.pid` | The daemon's sockets and process ID | 0600 in a 0700 directory |
+| `hive.sock`, `observer.sock`, `member.sock`, `hive.pid` | The daemon's sockets and process ID | 0600 in a 0700 directory |
 | `session.json`, `snapshots/` | The workspace (environments, tabs, panes, layout, focus) and its last `session.keep_snapshots` versions | yes |
 | `environments/<env>/` | Each environment's record, layout and processes (`processes/<id>/stdout.log`) | yes; agents' output can hold secrets |
 | `history/` | Pane text kept for replay, only while `session.replay_history` is on | yes |
@@ -25,6 +25,7 @@ observer's files are shared by every session, in `HIVE_HOME`.
 | `logs/daemon.log`, `logs/daemon.stderr` | The daemon log and the last start's standard error | yes |
 | `plugins/` | Installed plugins, their record (`registry.json`), settings (`.config/`), data (`.data/`) and cache (`.cache/`) | yes |
 | `observers/` | Observer credentials (hashes only) and `audit.log` | yes |
+| `access/` | Members (`members.json`: names, public keys, roles, expiry) and their `audit.log` | yes |
 | `machines.json`, `identity.json` | Saved machines and this runtime's identity key | yes; `identity.json` is a private key |
 | `web/` | The web observer's runtimes, sign-ins and push subscriptions | yes |
 
@@ -130,6 +131,11 @@ a remote runtime, such as a build server or a cloud VM running agents:
   discovery (`discovery.advertise`) answers mDNS on UDP 5353 when you turn it
   on; leave it off on untrusted networks and on servers
   ([docs/discovery.md](discovery.md)).
+- **For teammates, use members** (`hive access invite`). Each gets a role
+  and their own key, restricted to the member socket in your
+  `authorized_keys`, and everything they do is audited
+  ([docs/teams.md](teams.md)). Never give them a login of their own on the
+  agents' account.
 - **For read-only access, use observers.** A dashboard or notifier gets an
   observer credential, scoped and expiring. To hold it to that, give it an
   ssh key restricted to the observer socket

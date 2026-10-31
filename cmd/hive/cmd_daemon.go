@@ -182,6 +182,12 @@ func runDaemon(ctx context.Context, a *app) error {
 			History:        a.cfg.Observers.HistoryEvents,
 			MaxConnections: a.cfg.Observers.MaxConnections,
 		},
+		Access: runtime.AccessConfig{
+			Disabled:       !a.cfg.Access.Enabled,
+			MaxConnections: a.cfg.Access.MaxConnections,
+			AuthorizedKeys: a.cfg.Access.AuthorizedKeys,
+			ProxyCommand:   a.memberProxyCommand(exe),
+		},
 		Images: runtime.ImagesConfig{
 			MaxBytes:    a.cfg.Images.MaxKB << 10,
 			MaxPixels:   a.cfg.Images.MaxMegapixels << 20,

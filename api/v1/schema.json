@@ -1,5 +1,109 @@
 {
   "$defs": {
+    "access.AuditEntry": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "client": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "time": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "time",
+        "action"
+      ],
+      "type": "object"
+    },
+    "access.Grant": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "environment",
+        "role"
+      ],
+      "type": "object"
+    },
+    "access.Member": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/access.Grant"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "last_seen_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revoked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "key",
+        "fingerprint",
+        "managed",
+        "grants",
+        "created_at",
+        "expires_at"
+      ],
+      "type": "object"
+    },
     "agent.Agent": {
       "properties": {
         "completion_seq": {
@@ -4924,6 +5028,162 @@
       ],
       "type": "object"
     },
+    "runtime.AccessDoctor": {
+      "properties": {
+        "authorized_keys": {
+          "type": "string"
+        },
+        "fixed": {
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "authorized_keys",
+        "problems"
+      ],
+      "type": "object"
+    },
+    "runtime.AccessInviteParams": {
+      "properties": {
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/access.Grant"
+          },
+          "type": "array"
+        },
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "print": {
+          "type": "boolean"
+        },
+        "ttl_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "key",
+        "grants"
+      ],
+      "type": "object"
+    },
+    "runtime.AccessInvited": {
+      "properties": {
+        "authorized_keys": {
+          "type": "string"
+        },
+        "line": {
+          "type": "string"
+        },
+        "member": {
+          "$ref": "#/$defs/access.Member"
+        },
+        "socket": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "member",
+        "line",
+        "socket"
+      ],
+      "type": "object"
+    },
+    "runtime.AccessList": {
+      "properties": {
+        "authorized_keys": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/runtime.AccessMember"
+          },
+          "type": "array"
+        },
+        "socket": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "socket",
+        "enabled",
+        "authorized_keys",
+        "members"
+      ],
+      "type": "object"
+    },
+    "runtime.AccessMember": {
+      "properties": {
+        "connections": {
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/access.Grant"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "last_seen_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revoked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "key",
+        "fingerprint",
+        "managed",
+        "grants",
+        "created_at",
+        "expires_at",
+        "connections"
+      ],
+      "type": "object"
+    },
     "runtime.AgentStartRequest": {
       "properties": {
         "args": {
@@ -5232,6 +5492,23 @@
       ],
       "type": "object"
     },
+    "runtime.WhoAmI": {
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "member": {
+          "$ref": "#/$defs/access.Member"
+        },
+        "owner": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "owner"
+      ],
+      "type": "object"
+    },
     "runtime.WorktreeCreateRequest": {
       "properties": {
         "base": {
@@ -5326,6 +5603,70 @@
           "type": "string"
         }
       },
+      "type": "object"
+    },
+    "runtime.accessAuditParams": {
+      "properties": {
+        "limit": {
+          "type": "integer"
+        },
+        "member": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "runtime.accessDoctorParams": {
+      "properties": {
+        "fix": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "runtime.accessGrantParams": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        },
+        "role": {
+          "description": "observer, operator, owner, or none to take the role away",
+          "type": "string"
+        }
+      },
+      "required": [
+        "member",
+        "environment",
+        "role"
+      ],
+      "type": "object"
+    },
+    "runtime.accessRef": {
+      "properties": {
+        "member": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "member"
+      ],
+      "type": "object"
+    },
+    "runtime.accessRenewParams": {
+      "properties": {
+        "member": {
+          "type": "string"
+        },
+        "ttl_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "member"
+      ],
       "type": "object"
     },
     "runtime.agentIDParams": {
@@ -7149,8 +7490,92 @@
       "type": "object"
     }
   },
-  "api_level": 16,
+  "api_level": 17,
   "methods": [
+    {
+      "name": "access.audit",
+      "params": {
+        "$ref": "#/$defs/runtime.accessAuditParams"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/access.AuditEntry"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "access.doctor",
+      "params": {
+        "$ref": "#/$defs/runtime.accessDoctorParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AccessDoctor"
+      }
+    },
+    {
+      "name": "access.get",
+      "params": {
+        "$ref": "#/$defs/runtime.accessRef"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AccessMember"
+      }
+    },
+    {
+      "name": "access.grant",
+      "params": {
+        "$ref": "#/$defs/runtime.accessGrantParams"
+      },
+      "result": {
+        "$ref": "#/$defs/access.Member"
+      }
+    },
+    {
+      "name": "access.invite",
+      "params": {
+        "$ref": "#/$defs/runtime.AccessInviteParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AccessInvited"
+      }
+    },
+    {
+      "name": "access.list",
+      "params": {
+        "$ref": "#/$defs/protocol.Empty"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AccessList"
+      }
+    },
+    {
+      "name": "access.renew",
+      "params": {
+        "$ref": "#/$defs/runtime.accessRenewParams"
+      },
+      "result": {
+        "$ref": "#/$defs/access.Member"
+      }
+    },
+    {
+      "name": "access.revoke",
+      "params": {
+        "$ref": "#/$defs/runtime.accessRef"
+      },
+      "result": {
+        "$ref": "#/$defs/access.Member"
+      }
+    },
+    {
+      "name": "access.whoami",
+      "params": {
+        "$ref": "#/$defs/protocol.Empty"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.WhoAmI"
+      }
+    },
     {
       "name": "agent.explain",
       "params": {

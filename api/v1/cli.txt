@@ -1,4 +1,15 @@
 command hive
+command hive access
+command hive access audit
+command hive access doctor
+command hive access grant
+command hive access invite
+command hive access list
+command hive access list (alias ls)
+command hive access renew
+command hive access revoke
+command hive access show
+command hive access whoami
 command hive agent
 command hive agent attach
 command hive agent explain
@@ -292,6 +303,19 @@ flag hive --session string
 flag hive --skill bool
 flag hive --template string
 flag hive --yes bool
+flag hive access audit --limit int
+flag hive access audit --member string
+flag hive access doctor --fix bool
+flag hive access grant --all bool
+flag hive access grant --env stringArray
+flag hive access grant --role string
+flag hive access invite --all bool
+flag hive access invite --env stringArray
+flag hive access invite --expires duration
+flag hive access invite --key string
+flag hive access invite --print bool
+flag hive access invite --role string
+flag hive access renew --expires duration
 flag hive agent list --all bool -a
 flag hive agent prompt --read int
 flag hive agent prompt --stall-timeout duration
@@ -525,6 +549,7 @@ flag hive process logs --stderr bool
 flag hive process start --height uint16
 flag hive process start --terminal bool -t
 flag hive process start --width uint16
+flag hive proxy --member string
 flag hive proxy --observer bool
 flag hive session restore --fresh bool
 flag hive session stop --keep-agents bool

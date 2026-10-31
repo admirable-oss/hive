@@ -187,12 +187,16 @@ var methodCapabilities = map[string]string{
 }
 
 // closedMethods are daemon methods no plugin may call, whatever it holds:
-// an observer credential a plugin made would outlive the plugin and its
-// grants, a push or a pull request is published only on a person's own
-// command, only a person decides which shared workflows run by
+// an observer credential or a member a plugin made would outlive the
+// plugin and its grants, a push or a pull request is published only on a
+// person's own command, only a person decides which shared workflows run by
 // themselves, and only a person lifts a budget's hold on spending.
 var closedMethods = []string{
 	"observer.audit", "observer.create", "observer.get", "observer.list", "observer.revoke", "observer.validate",
+	// Members are let in by a person, and a plugin acts for its user,
+	// never as a member.
+	"access.audit", "access.doctor", "access.get", "access.grant", "access.invite", "access.list",
+	"access.renew", "access.revoke", "access.whoami",
 	"branch.push", "branch.pr", "workflow.trust", "insights.resume",
 	// A click is a person's: a plugin runs its own actions directly.
 	"plugin.view.click",

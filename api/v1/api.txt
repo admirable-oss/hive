@@ -1,3 +1,21 @@
+access.audit params: runtime.accessAuditParams
+access.audit result: []access.AuditEntry
+access.doctor params: runtime.accessDoctorParams
+access.doctor result: runtime.AccessDoctor
+access.get params: runtime.accessRef
+access.get result: runtime.AccessMember
+access.grant params: runtime.accessGrantParams
+access.grant result: access.Member
+access.invite params: runtime.AccessInviteParams
+access.invite result: runtime.AccessInvited
+access.list params: protocol.Empty
+access.list result: runtime.AccessList
+access.renew params: runtime.accessRenewParams
+access.renew result: access.Member
+access.revoke params: runtime.accessRef
+access.revoke result: access.Member
+access.whoami params: protocol.Empty
+access.whoami result: runtime.WhoAmI
 agent.explain params: agent.idParams
 agent.explain result: agent.Explanation
 agent.focus params: runtime.agentIDParams
@@ -102,6 +120,15 @@ metadata.list params: object
 metadata.list result: []metadata.Entry
 metadata.report params: metadata.Report
 metadata.report result: metadata.Entry
+method access.audit
+method access.doctor
+method access.get
+method access.grant
+method access.invite
+method access.list
+method access.renew
+method access.revoke
+method access.whoami
 method agent.explain
 method agent.focus
 method agent.get
@@ -386,6 +413,30 @@ terminal.resize params: terminal.resizeParams
 terminal.resize result: protocol.Empty
 terminal.snapshot params: terminal.snapshotParams
 terminal.snapshot result: terminal.SnapshotResult
+type access.AuditEntry.action: string
+type access.AuditEntry.client: string
+type access.AuditEntry.detail: string
+type access.AuditEntry.from: string
+type access.AuditEntry.member: string
+type access.AuditEntry.method: string
+type access.AuditEntry.name: string
+type access.AuditEntry.time: string
+type access.AuditEntry: object
+type access.Grant.environment: string
+type access.Grant.role: string
+type access.Grant: object
+type access.Member.created_at: string
+type access.Member.expires_at: string
+type access.Member.fingerprint: string
+type access.Member.grants: []access.Grant
+type access.Member.id: string
+type access.Member.key: string
+type access.Member.last_seen_at: string
+type access.Member.managed: boolean
+type access.Member.name: string
+type access.Member.revoked_at: string
+type access.Member.state: string
+type access.Member: object
 type agent.Agent.completion_seq: integer
 type agent.Agent.environment_id: string
 type agent.Agent.id: string
@@ -1476,6 +1527,39 @@ type runtime.APISnapshot.processes: []process.Process
 type runtime.APISnapshot.rollups: agent.Rollups
 type runtime.APISnapshot.tabs: []pane.Tab
 type runtime.APISnapshot: object
+type runtime.AccessDoctor.authorized_keys: string
+type runtime.AccessDoctor.fixed: boolean
+type runtime.AccessDoctor.problems: []string
+type runtime.AccessDoctor: object
+type runtime.AccessInviteParams.grants: []access.Grant
+type runtime.AccessInviteParams.key: string
+type runtime.AccessInviteParams.name: string
+type runtime.AccessInviteParams.print: boolean
+type runtime.AccessInviteParams.ttl_seconds: integer
+type runtime.AccessInviteParams: object
+type runtime.AccessInvited.authorized_keys: string
+type runtime.AccessInvited.line: string
+type runtime.AccessInvited.member: access.Member
+type runtime.AccessInvited.socket: string
+type runtime.AccessInvited: object
+type runtime.AccessList.authorized_keys: string
+type runtime.AccessList.enabled: boolean
+type runtime.AccessList.members: []runtime.AccessMember
+type runtime.AccessList.socket: string
+type runtime.AccessList: object
+type runtime.AccessMember.connections: integer
+type runtime.AccessMember.created_at: string
+type runtime.AccessMember.expires_at: string
+type runtime.AccessMember.fingerprint: string
+type runtime.AccessMember.grants: []access.Grant
+type runtime.AccessMember.id: string
+type runtime.AccessMember.key: string
+type runtime.AccessMember.last_seen_at: string
+type runtime.AccessMember.managed: boolean
+type runtime.AccessMember.name: string
+type runtime.AccessMember.revoked_at: string
+type runtime.AccessMember.state: string
+type runtime.AccessMember: object
 type runtime.AgentStartRequest.args: []string
 type runtime.AgentStartRequest.base: string
 type runtime.AgentStartRequest.env: map[string]string
@@ -1545,6 +1629,10 @@ type runtime.Stats.open_fds: integer
 type runtime.Stats.started_at: string
 type runtime.Stats.uptime_seconds: number
 type runtime.Stats: object
+type runtime.WhoAmI.from: string
+type runtime.WhoAmI.member: access.Member
+type runtime.WhoAmI.owner: boolean
+type runtime.WhoAmI: object
 type runtime.WorktreeCreateRequest.base: string
 type runtime.WorktreeCreateRequest.branch: string
 type runtime.WorktreeCreateRequest.env: map[string]string
@@ -1568,6 +1656,20 @@ type runtime.WorktreeRemoveRequest.force: boolean
 type runtime.WorktreeRemoveRequest.id: string
 type runtime.WorktreeRemoveRequest.path: string
 type runtime.WorktreeRemoveRequest: object
+type runtime.accessAuditParams.limit: integer
+type runtime.accessAuditParams.member: string
+type runtime.accessAuditParams: object
+type runtime.accessDoctorParams.fix: boolean
+type runtime.accessDoctorParams: object
+type runtime.accessGrantParams.environment: string
+type runtime.accessGrantParams.member: string
+type runtime.accessGrantParams.role: string
+type runtime.accessGrantParams: object
+type runtime.accessRef.member: string
+type runtime.accessRef: object
+type runtime.accessRenewParams.member: string
+type runtime.accessRenewParams.ttl_seconds: integer
+type runtime.accessRenewParams: object
 type runtime.agentIDParams.id: string
 type runtime.agentIDParams: object
 type runtime.agentRenameParams.id: string

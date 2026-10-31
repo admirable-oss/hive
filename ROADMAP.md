@@ -1862,9 +1862,14 @@ interleaves. Every action is audited, and revoking access ends it at once.
 
 The design: [RFC 0007](rfcs/0007-team-collaboration.md).
 
-- [ ] Members and the member socket (delivery step 1): `hive access
-  invite|list|show|renew|revoke`, `hive proxy --member`, the managed
-  `authorized_keys` block, connections audited, revocation that ends them.
+- [x] Members and the member socket (delivery step 1): `hive access
+  invite|list|show|grant|renew|revoke|audit|doctor|whoami`, `hive proxy
+  --member` (only `hive proxy` served over ssh), the managed
+  `authorized_keys` block (unrestricted duplicates refused), the member
+  socket re-checking members per request, connections and denials audited,
+  revocation that ends them at once. Members reach only `access.whoami`
+  until roles land. API level 17 ([docs/teams.md](docs/teams.md);
+  `TestM27Members`, `TestServer`, `TestKeysFile`).
 - [ ] Roles per environment (delivery step 2): the role table, observer
   views below owner, operators' input to agent panes only, `access.whoami`,
   actions audited, `actor` on events.

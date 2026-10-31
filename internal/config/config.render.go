@@ -190,6 +190,15 @@ history_events = {{.Observers.HistoryEvents}}
 # Open observer connections allowed, all credentials together.
 max_connections = {{.Observers.MaxConnections}}
 
+[access]
+# Serve the member socket: teammates let in through ssh with a role
+# (` + "`hive access invite`" + `). Off, members are kept but nobody can connect.
+enabled = {{.Access.Enabled}}
+# Open member connections allowed, all members together.
+max_connections = {{.Access.MaxConnections}}
+# The file members' keys are kept in ("" is ~/.ssh/authorized_keys).
+authorized_keys = {{q .Access.AuthorizedKeys}}
+
 [web]
 # The web observer (` + "`hive web serve`" + `): read-only agent status in a browser.
 # Its HTTP address. Beyond this machine it needs TLS or a proxy that terminates it.

@@ -123,6 +123,14 @@ the defaults, so a typo never stops the daemon.
 | `history_events` | `2048` | Events kept for observers to catch up with after a reconnect. |
 | `max_connections` | `32` | Open observer connections allowed, all credentials together. |
 
+## `[access]`
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Serve the member socket: teammates let in through ssh with a role (`hive access invite`). Off, members are kept but nobody can connect. |
+| `max_connections` | `32` | Open member connections allowed, all members together. |
+| `authorized_keys` | `""` | The file members' keys are kept in ("" is ~/.ssh/authorized_keys). |
+
 ## `[web]`
 
 | Key | Default | Description |

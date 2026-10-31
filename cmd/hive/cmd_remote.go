@@ -222,6 +222,11 @@ func (a *app) ensureRemote(ctx context.Context) error {
 		}
 		return nil
 	}
+	if pe, ok := errors.AsType[*protocol.Error](err); ok && pe.Code == protocol.ErrorCodePermissionDenied {
+		// A daemon answered, and refused: a member's key, revoked or
+		// expired. Probing would only meet the key's restriction.
+		return err
+	}
 	p, perr := a.remote.Probe(ctx)
 	switch {
 	case perr != nil:

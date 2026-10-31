@@ -188,6 +188,8 @@ func NewModule(cfg Config) *Module {
 		},
 	})
 	server.Go(obs.run)
+	mems := newMembers(cfg, log.With("module", "access"), bus, router)
+	server.Go(mems.run)
 
 	Register(router, server)
 	environment.Register(router, guardedEnvs)
@@ -222,6 +224,7 @@ func NewModule(cfg Config) *Module {
 	registerPlugins(router, plugins, plugin.NewStore(cfg.pluginDir()))
 	registerDebug(router, server)
 	registerObservers(router, obs, guardedEnvs, panes)
+	registerAccess(router, mems, guardedEnvs)
 	registerAPI(router, server, guardedEnvs, panes, procs, agents) // last: it describes the others
 
 	return &Module{

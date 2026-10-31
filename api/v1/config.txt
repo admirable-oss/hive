@@ -1,3 +1,6 @@
+access.authorized_keys
+access.enabled
+access.max_connections
 branches.agent_pattern
 branches.check_interval
 branches.cleanup

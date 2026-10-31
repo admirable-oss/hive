@@ -4,6 +4,34 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.8.0 (unreleased): Team collaboration (M27)
+
+Teammates in your runtime, over ssh, with a role ([RFC 0007](rfcs/0007-team-collaboration.md)). In progress.
+
+### Members
+
+- `hive access invite <name> --key <file> --role <role> (--env <id>… | --all)`
+  lets a teammate in: their key goes into `~/.ssh/authorized_keys`, inside a
+  block Hive manages, forced to run `hive proxy --member <id>` with every
+  forwarding and the terminal off. It asks first; `--print` prints the line
+  instead. A key that already logs in unrestricted is refused.
+- Members connect with Hive as usual (`hive --remote`, saved machines). The
+  daemon's new member socket (`member.sock`) learns who they are from the
+  proxy, re-checks them before every request, and refuses anything else
+  their key is asked to run. Until roles are enforced (next step), a member
+  can only see who they are.
+- `hive access list | show | grant | renew | revoke | audit | doctor | whoami`.
+  Members expire (90 days by default); revoking one ends their connections
+  at once and removes their key.
+- `access/audit.log` records invitations, role changes, revocations,
+  `authorized_keys` changes, connections with where they came from,
+  refusals and denials, never what a member typed.
+- `[access] enabled`, `max_connections` and `authorized_keys`.
+- New methods `access.*` (closed to plugins) and the `access.changed`
+  event. API level 17.
+- A `--remote` client that a daemon refuses (a revoked member) now says
+  why, instead of offering to install Hive.
+
 ## v1.7.0 (unreleased): Plugin ecosystem 2 (M26)
 
 Richer plugins, safer by default ([RFC 0006](rfcs/0006-plugin-ecosystem-2.md)). In progress.
