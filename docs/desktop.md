@@ -83,6 +83,10 @@ with Homebrew, it still updates itself (the cask is marked `auto_updates`).
   - **Needs you** lists agents that are blocked, then those that are done.
   - Under it are your environments, with each one's git branch and tabs.
   - Click an item to open it.
+- **Shared runtimes.** On a runtime with members ([teams](teams.md)), the
+  sidebar names the others in each environment, and a pane shows who holds
+  its input (✎ alice), or else who is looking at it. What you type into a
+  pane someone else holds waits until they stop. Others see where you look.
 - **Tabs and panes.** Panes are laid out as the daemon arranges them. The
   window's size becomes the tab's size, so `hive ui` in a terminal and the app
   can share a tab. Whichever client typed last decides the size.
