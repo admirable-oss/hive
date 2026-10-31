@@ -231,6 +231,7 @@ func NewModule(cfg Config) *Module {
 	registerObservers(router, obs, guardedEnvs, panes)
 	registerAccess(router, mems, guardedEnvs)
 	registerPresence(router, input)
+	registerHandover(router, &handover{agents: agents, procs: procs, tasks: tasks.svc, reg: input.reg, members: mems.store, owner: input.owner, bus: bus})
 	registerAPI(router, server, guardedEnvs, panes, procs, agents) // last: it describes the others
 
 	return &Module{

@@ -1883,9 +1883,9 @@ The design: [RFC 0007](rfcs/0007-team-collaboration.md).
   both in the multiplexer (`TestOneTypistPerTerminal`,
   `TestMembersFocusIsTheirOwn`, `TestM27OneTypistAtATime`, `FuzzRegistry`).
 - [ ] Presence and the holder in the desktop app and the web observer.
-- [ ] Handing over (delivery step 4): `owner` on agents, tasks and plans,
-  `agent.handover`, `task.assign`, and `actor` on events a member caused
-  (moved from step 2: the event bus needs the caller first).
+- [x] Handing over (delivery step 4): `owner` on agents, tasks and plans,
+  `agent.handover`, `task.assign` (`hive agent handover`, `hive task
+  assign`), and `actor` on events a member caused (`TestHandingOver`).
 - [ ] Notifications routed by the daemon (delivery step 5), with the
   fallback.
 - [ ] The acceptance test, `docs/teams.md` and the threat model

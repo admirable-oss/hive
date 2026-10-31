@@ -15,6 +15,7 @@ command hive agent attach
 command hive agent explain
 command hive agent focus
 command hive agent get
+command hive agent handover
 command hive agent list
 command hive agent list (alias ls)
 command hive agent manifests
@@ -232,6 +233,7 @@ command hive task
 command hive task (alias plan)
 command hive task (alias tasks)
 command hive task approve
+command hive task assign
 command hive task cancel
 command hive task get
 command hive task get (alias show)
@@ -564,6 +566,7 @@ flag hive tab create --pane-name string
 flag hive tab create --view string
 flag hive task approve --deny bool
 flag hive task approve --note string
+flag hive task assign --to string
 flag hive task report --screen int
 flag hive task run --approve bool
 flag hive task run --base string

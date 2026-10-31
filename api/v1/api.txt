@@ -22,6 +22,8 @@ agent.focus params: runtime.agentIDParams
 agent.focus result: agent.Agent
 agent.get params: agent.idParams
 agent.get result: agent.Agent
+agent.handover params: runtime.handoverParams
+agent.handover result: runtime.AgentHandedOver
 agent.list params: agent.listParams
 agent.list result: agent.ListResult
 agent.manifests params: object
@@ -132,6 +134,7 @@ method access.whoami
 method agent.explain
 method agent.focus
 method agent.get
+method agent.handover
 method agent.list
 method agent.manifests
 method agent.prompt
@@ -243,6 +246,7 @@ method tab.list
 method tab.rename
 method tab.resize
 method task.approve
+method task.assign
 method task.cancel
 method task.get
 method task.list
@@ -399,6 +403,8 @@ tab.resize params: pane.tabResizeParams
 tab.resize result: pane.Tab
 task.approve params: task.ApproveParams
 task.approve result: task.Plan
+task.assign params: runtime.assignParams
+task.assign result: task.Plan
 task.cancel params: task.Ref
 task.cancel result: task.Plan
 task.get params: task.Ref
@@ -457,6 +463,7 @@ type agent.Agent.id: string
 type agent.Agent.kind: string
 type agent.Agent.last_output: string
 type agent.Agent.name: string
+type agent.Agent.owner: presence.Person
 type agent.Agent.pane_id: string
 type agent.Agent.pid: integer
 type agent.Agent.reason: string
@@ -1516,6 +1523,7 @@ type process.Process.exit_code: integer
 type process.Process.id: string
 type process.Process.log_dir: string
 type process.Process.lost: boolean
+type process.Process.owner: presence.Person
 type process.Process.pid: integer
 type process.Process.started_at: string
 type process.Process.status: string
@@ -1592,6 +1600,9 @@ type runtime.AccessMember.name: string
 type runtime.AccessMember.revoked_at: string
 type runtime.AccessMember.state: string
 type runtime.AccessMember: object
+type runtime.AgentHandedOver.agent: agent.Agent
+type runtime.AgentHandedOver.from: presence.Person
+type runtime.AgentHandedOver: object
 type runtime.AgentStartRequest.args: []string
 type runtime.AgentStartRequest.base: string
 type runtime.AgentStartRequest.env: map[string]string
@@ -1713,6 +1724,13 @@ type runtime.agentIDParams: object
 type runtime.agentRenameParams.id: string
 type runtime.agentRenameParams.name: string
 type runtime.agentRenameParams: object
+type runtime.assignParams.id: string
+type runtime.assignParams.task: string
+type runtime.assignParams.to: string
+type runtime.assignParams: object
+type runtime.handoverParams.id: string
+type runtime.handoverParams.to: string
+type runtime.handoverParams: object
 type runtime.observerAuditParams.credential: string
 type runtime.observerAuditParams.limit: integer
 type runtime.observerAuditParams: object
@@ -1772,6 +1790,7 @@ type task.Plan.id: string
 type task.Plan.kinds: map[string]integer
 type task.Plan.max_parallel: integer
 type task.Plan.name: string
+type task.Plan.owner: presence.Person
 type task.Plan.reason: string
 type task.Plan.rev: integer
 type task.Plan.schema: integer
@@ -1831,6 +1850,7 @@ type task.Summary.created_at: string
 type task.Summary.ended_at: string
 type task.Summary.id: string
 type task.Summary.name: string
+type task.Summary.owner: presence.Person
 type task.Summary.reason: string
 type task.Summary.rev: integer
 type task.Summary.state: string
@@ -1844,6 +1864,7 @@ type task.Task.ended_at: string
 type task.Task.environment_id: string
 type task.Task.log: []task.LogEntry
 type task.Task.machine: string
+type task.Task.owner: presence.Person
 type task.Task.pane_id: string
 type task.Task.path: string
 type task.Task.phase: string
@@ -1865,6 +1886,7 @@ type task.TaskView.id: string
 type task.TaskView.kind: string
 type task.TaskView.machine: string
 type task.TaskView.needs: []string
+type task.TaskView.owner: presence.Person
 type task.TaskView.pane_id: string
 type task.TaskView.plan_id: string
 type task.TaskView.reason: string

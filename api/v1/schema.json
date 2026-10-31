@@ -131,6 +131,9 @@
         "name": {
           "type": "string"
         },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
+        },
         "pane_id": {
           "type": "string"
         },
@@ -4896,6 +4899,9 @@
         "lost": {
           "type": "boolean"
         },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
+        },
         "pid": {
           "type": "integer"
         },
@@ -5265,6 +5271,20 @@
         "created_at",
         "expires_at",
         "connections"
+      ],
+      "type": "object"
+    },
+    "runtime.AgentHandedOver": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/agent.Agent"
+        },
+        "from": {
+          "$ref": "#/$defs/presence.Person"
+        }
+      },
+      "required": [
+        "agent"
       ],
       "type": "object"
     },
@@ -5814,6 +5834,44 @@
       ],
       "type": "object"
     },
+    "runtime.assignParams": {
+      "properties": {
+        "id": {
+          "description": "the plan's ID, or a unique prefix of it",
+          "type": "string"
+        },
+        "task": {
+          "description": "the task to assign; without it, the plan and its unfinished tasks",
+          "type": "string"
+        },
+        "to": {
+          "description": "who gets it: a member's name or ID, or owner for the runtime's own user",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "to"
+      ],
+      "type": "object"
+    },
+    "runtime.handoverParams": {
+      "properties": {
+        "id": {
+          "description": "the agent's ID, or its pane's",
+          "type": "string"
+        },
+        "to": {
+          "description": "who gets it: a member's name or ID, or owner for the runtime's own user",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "to"
+      ],
+      "type": "object"
+    },
     "runtime.observerAuditParams": {
       "properties": {
         "credential": {
@@ -6086,6 +6144,9 @@
         },
         "name": {
           "type": "string"
+        },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
         },
         "reason": {
           "type": "string"
@@ -6371,6 +6432,9 @@
         "name": {
           "type": "string"
         },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
+        },
         "reason": {
           "type": "string"
         },
@@ -6423,6 +6487,9 @@
         },
         "machine": {
           "type": "string"
+        },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
         },
         "pane_id": {
           "type": "string"
@@ -6498,6 +6565,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "owner": {
+          "$ref": "#/$defs/presence.Person"
         },
         "pane_id": {
           "type": "string"
@@ -7762,6 +7832,15 @@
       }
     },
     {
+      "name": "agent.handover",
+      "params": {
+        "$ref": "#/$defs/runtime.handoverParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AgentHandedOver"
+      }
+    },
+    {
       "name": "agent.list",
       "params": {
         "$ref": "#/$defs/agent.listParams"
@@ -8855,6 +8934,15 @@
       "name": "task.approve",
       "params": {
         "$ref": "#/$defs/task.ApproveParams"
+      },
+      "result": {
+        "$ref": "#/$defs/task.Plan"
+      }
+    },
+    {
+      "name": "task.assign",
+      "params": {
+        "$ref": "#/$defs/runtime.assignParams"
       },
       "result": {
         "$ref": "#/$defs/task.Plan"

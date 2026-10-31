@@ -10,6 +10,7 @@ method access.whoami: observer in none
 method agent.explain: observer in environment
 method agent.focus: observer in environment, the member's own focus
 method agent.get: observer in environment
+method agent.handover: operator in environment
 method agent.list: observer in filtered
 method agent.manifests: observer in none
 method agent.prompt: operator in environment, agents only below owner
@@ -123,6 +124,7 @@ method tab.list: observer in environment or filtered
 method tab.rename: owner in environment
 method tab.resize: owner in environment
 method task.approve: operator in environment, by the member
+method task.assign: operator in environment
 method task.cancel: owner in environment
 method task.get: observer in environment
 method task.list: observer in filtered

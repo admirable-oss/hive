@@ -12,6 +12,7 @@
 package presence
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -34,6 +35,21 @@ type Person struct {
 
 // Owner reports whether p is the runtime's own user.
 func (p Person) Owner() bool { return p.ID == OwnerID }
+
+type actorKey struct{}
+
+// WithActor marks ctx as a request made by who: a member. What the request
+// starts belongs to them, and the events it causes name them.
+func WithActor(ctx context.Context, who Person) context.Context {
+	return context.WithValue(ctx, actorKey{}, who)
+}
+
+// ActorOf returns who made the request ctx belongs to; ok is false for the
+// runtime's own user, and for work nobody asked for.
+func ActorOf(ctx context.Context) (Person, bool) {
+	who, ok := ctx.Value(actorKey{}).(Person)
+	return who, ok
+}
 
 // Spot is where a connection is looking.
 type Spot struct {

@@ -131,6 +131,7 @@ func (c *Client) AgentDirectory(ctx context.Context, all bool) (AgentList, error
 func (c *Client) Agents(ctx context.Context, all bool) ([]Agent, error)
 func (c *Client) ApproveTask(ctx context.Context, id, taskID string, opts ApproveOptions) (Plan, error)
 func (c *Client) Asks(ctx context.Context, q InsightsQuery, limit int) ([]Ask, error)
+func (c *Client) AssignTask(ctx context.Context, id, taskID, to string) (Plan, error)
 func (c *Client) Branch(ctx context.Context, ref string) (Branch, error)
 func (c *Client) BranchConflicts(ctx context.Context, ref, with string) (Conflicts, error)
 func (c *Client) BranchDiff(ctx context.Context, req DiffRequest) (Diff, error)
@@ -157,6 +158,7 @@ func (c *Client) FocusPane(ctx context.Context, id string, d Direction) (Pane, e
 func (c *Client) FocusTab(ctx context.Context, id string) (Tab, error)
 func (c *Client) Frames(ctx context.Context, processID string, width, height int) (*FrameStream, error)
 func (c *Client) Graphics(ctx context.Context, processID string, width, height int) (*GraphicsStream, error)
+func (c *Client) HandOverAgent(ctx context.Context, id, to string) (HandedOver, error)
 func (c *Client) Input(ctx context.Context, processID string, data []byte) error
 func (c *Client) InsightsSummary(ctx context.Context, q InsightsQuery) (InsightsSummary, error)
 func (c *Client) Manifests(ctx context.Context) ([]Manifest, error)
@@ -260,6 +262,7 @@ type Gate = branch.Gate
 type GateResult = branch.GateResult
 type GraphicsEvent = vt.GraphicsEvent
 type GraphicsStream = client.GraphicsStream
+type HandedOver = client.HandedOver
 type HistoryRequest = observer.HistoryRequest
 type ImageOp struct
 type InsightsQuery = insights.QueryParams
@@ -298,6 +301,7 @@ type OutputResult = observer.OutputResult
 type Overlap = branch.Overlap
 type OverlapEvent = branch.OverlapEvent
 type Pane = pane.Pane
+type Person = presence.Person
 type Plan = task.Plan
 type PlanSpec = task.PlanSpec
 type PlanState = task.PlanState

@@ -199,11 +199,11 @@ scripts never conflict with each other, so working alone is unchanged.
 **Handing over.** Agents and tasks gain an `owner`: the member who started
 them, or `owner` for you. Existing ones belong to you.
 
-- `agent.handover {agent, to}` gives an agent to another member, who must
-  be an operator or owner in its environment. Its pane's input goes with
-  it.
-- `task.assign {task, to}` does the same for a task, and for every task of
-  a plan with `plan`.
+- `agent.handover {id, to}` gives an agent to another member, who must
+  be an operator or owner in its environment. Its pane's input and its
+  task go with it.
+- `task.assign {id, task, to}` does the same for a task and its agent,
+  and, without `task`, for the plan and its unfinished tasks.
 - Operators may hand over only what they own. Owners may hand over
   anything in their environments.
 - Both are audited and shown in the agent's and task's details.

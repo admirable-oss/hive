@@ -32,6 +32,7 @@ import (
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/platform"
+	"github.com/admirable-oss/hive/internal/presence"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/session"
@@ -50,15 +51,18 @@ type (
 	Manifest     = agent.Manifest
 	PromptResult = agent.PromptResult
 	WaitResult   = agent.WaitResult
-	Environment  = environment.Environment
-	Tab          = pane.Tab
-	Pane         = pane.Pane
-	Spec         = pane.Spec
-	Process      = process.Process
-	Event        = event.Event
-	EventStream  = client.EventStream
-	Snapshot     = client.APISnapshot
-	Schema       = protocol.Schema
+	HandedOver   = client.HandedOver
+	// Person is who acts and owns: a member, or the runtime's own user.
+	Person      = presence.Person
+	Environment = environment.Environment
+	Tab         = pane.Tab
+	Pane        = pane.Pane
+	Spec        = pane.Spec
+	Process     = process.Process
+	Event       = event.Event
+	EventStream = client.EventStream
+	Snapshot    = client.APISnapshot
+	Schema      = protocol.Schema
 	// StartAgent starts an agent by its manifest; see Client.StartAgent.
 	StartAgent   = client.AgentStartRequest
 	AgentStarted = client.AgentStarted
@@ -285,6 +289,12 @@ func (c *Client) RenameAgent(ctx context.Context, id, name string) (Agent, error
 // FocusAgent shows an agent's pane in every client.
 func (c *Client) FocusAgent(ctx context.Context, id string) (Agent, error) {
 	return c.agents.Focus(ctx, id)
+}
+
+// HandOverAgent gives an agent, its task and its pane's input to another
+// member (by name or ID), or to "owner", the runtime's own user.
+func (c *Client) HandOverAgent(ctx context.Context, id, to string) (HandedOver, error) {
+	return c.agents.Handover(ctx, id, to)
 }
 
 // StopAgent stops an agent's process; its pane stays with its last screen.

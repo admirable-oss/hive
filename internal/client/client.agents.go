@@ -7,6 +7,7 @@ import (
 	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/pane"
+	"github.com/admirable-oss/hive/internal/presence"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 )
@@ -154,6 +155,19 @@ func (a Agents) SendKeys(ctx context.Context, id string, keys []string) error {
 // Rename renames an agent's pane.
 func (a Agents) Rename(ctx context.Context, id, name string) (agent.Agent, error) {
 	return agentCall[agent.Agent](ctx, a, "agent.rename", map[string]string{"id": id, "name": name})
+}
+
+// HandedOver is what Handover returns: the agent with its new owner, and
+// who had it (nil: the runtime's own user).
+type HandedOver struct {
+	Agent agent.Agent      `json:"agent"`
+	From  *presence.Person `json:"from,omitempty"`
+}
+
+// Handover gives an agent, its task and its pane's input to another
+// member (by name or ID), or to "owner", the runtime's own user.
+func (a Agents) Handover(ctx context.Context, id, to string) (HandedOver, error) {
+	return agentCall[HandedOver](ctx, a, "agent.handover", map[string]string{"id": id, "to": to})
 }
 
 // Focus shows an agent's pane in every client.

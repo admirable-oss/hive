@@ -16,6 +16,7 @@ import (
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/pane"
+	"github.com/admirable-oss/hive/internal/presence"
 	"github.com/admirable-oss/hive/internal/process"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/task"
@@ -164,6 +165,8 @@ var memberRules = map[string]roleRule{
 	"pane.claim":      typing(on(roleOperator, p("pane", targetPane))),
 	"pane.release":    on(roleOperator, p("pane", targetPane)),
 	"task.approve":    signed(on(roleOperator, p("id", targetPlan))),
+	"agent.handover":  on(roleOperator, p("id", targetAgent)),
+	"task.assign":     on(roleOperator, p("id", targetPlan)),
 	"branch.comment":  signed(on(roleOperator, p("ref", targetBranch))),
 	"branch.send":     on(roleOperator, p("ref", targetBranch)),
 	"issue.comment":   across(roleOperator),
@@ -271,6 +274,8 @@ func (g *memberGuard) Handle(ctx context.Context, req protocol.Request) protocol
 		g.record(c, req.Method, envs, err)
 		return protocol.Fail(req, err)
 	}
+	// What the member starts is theirs, and the events it causes name them.
+	ctx = presence.WithActor(ctx, presence.Person{ID: m.ID, Name: m.Name})
 	if rule.by {
 		req.Params = setParam(req.Params, "by", m.Name)
 	}
@@ -436,15 +441,25 @@ func (g *memberGuard) resolve(ctx context.Context, k targetKind, raw json.RawMes
 func planEnvironments(pl task.Plan) ([]string, error) {
 	var out []string
 	for _, t := range pl.Tasks {
-		if t.EnvironmentID == "" {
+		env := taskEnvironment(t)
+		if env == "" {
 			return nil, errOutOfScope
 		}
-		out = append(out, t.EnvironmentID)
+		out = append(out, env)
 	}
 	if len(out) == 0 {
 		return nil, errOutOfScope
 	}
 	return out, nil
+}
+
+// taskEnvironment is where a task runs, or, before it starts (waiting for
+// approval, say), the environment its spec names.
+func taskEnvironment(t task.Task) string {
+	if t.EnvironmentID != "" {
+		return t.EnvironmentID
+	}
+	return t.Spec.EnvironmentID
 }
 
 // isAgent reports whether the request's first target runs an agent that

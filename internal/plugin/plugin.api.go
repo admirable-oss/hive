@@ -179,6 +179,7 @@ var methodCapabilities = map[string]string{
 	"task.retry": CapHiveProcess, "task.approve": CapHiveProcess, "branch.ready": CapHiveProcess,
 	"branch.update": CapHiveProcess, "branch.clean": CapHiveProcess, "workflow.run": CapHiveProcess,
 	"workflow.rerun": CapHiveProcess, "workflow.cancel": CapHiveProcess, "workflow.fire": CapHiveProcess,
+	"agent.handover": CapHiveProcess, "task.assign": CapHiveProcess,
 	"workflow.trigger": CapHiveWrite,
 
 	// Administration.

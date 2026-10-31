@@ -13,9 +13,12 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/access"
+	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/runtime"
+	"github.com/admirable-oss/hive/internal/task"
 )
 
 func memberKey(seed byte) string {
@@ -281,5 +284,120 @@ func TestMembersFocusIsTheirOwn(t *testing.T) {
 			t.Fatalf("bob left but is still present: %+v", list.Presence)
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// TestHandingOver: what a member starts is theirs, events name who caused
+// them, and agents and tasks change hands only to operators and owners of
+// their environment, given by an owner or by whoever owns them.
+func TestHandingOver(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	o := newObserved(ctx, t)
+	carol := o.member(ctx, t, "carol", 3, access.Grant{Environment: access.AllEnvironments, Role: access.RoleOwner})
+	alice := o.member(ctx, t, "alice", 4, access.Grant{Environment: "dev", Role: access.RoleOperator})
+	o.member(ctx, t, "bob", 5, access.Grant{Environment: "dev", Role: access.RoleObserver})
+	o.member(ctx, t, "dave", 6, access.Grant{Environment: "other", Role: access.RoleOperator})
+	events, err := o.control.Events(ctx, "tab.created", runtime.EventAgentHandover)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer events.Close()
+	next := func(typ string) event.Event {
+		t.Helper()
+		for {
+			ev, err := events.Next()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ev.Type == typ {
+				return ev
+			}
+		}
+	}
+
+	// Carol's tab, and its process, are hers; the event says she made it.
+	var made struct {
+		Pane pane.Pane `json:"pane"`
+	}
+	if err := carol.Call(ctx, "tab.create", map[string]string{"environment_id": "dev", "name": "carols"}, &made); err != nil {
+		t.Fatal(err)
+	}
+	if ev := next("tab.created"); ev.Actor == nil || ev.Actor.Name != "carol" {
+		t.Fatalf("tab.created actor: %+v", ev.Actor)
+	}
+	var a agent.Agent
+	if err := o.control.Call(ctx, "agent.get", map[string]string{"id": made.Pane.ProcessID}, &a); err != nil || a.Owner == nil || a.Owner.Name != "carol" {
+		t.Fatalf("carol's agent: %+v %v", a.Owner, err)
+	}
+	var mine agent.Agent
+	if err := o.control.Call(ctx, "agent.get", map[string]string{"id": o.dev.ProcessID}, &mine); err != nil || mine.Owner != nil {
+		t.Fatalf("the owner's agent: %+v %v", mine.Owner, err)
+	}
+
+	// An operator gives away only what is hers; work goes only to
+	// operators and owners of its environment.
+	handover := func(c client.Client, id, to string) (runtime.AgentHandedOver, error) {
+		var res runtime.AgentHandedOver
+		err := c.Call(ctx, "agent.handover", map[string]string{"id": id, "to": to}, &res)
+		return res, err
+	}
+	if _, err := handover(alice, made.Pane.ProcessID, "alice"); code(err) != "permission_denied" {
+		t.Fatalf("alice taking carol's agent: %v", err)
+	}
+	for _, to := range []string{"bob", "dave"} {
+		if _, err := handover(carol, made.Pane.ProcessID, to); code(err) != "invalid_params" {
+			t.Fatalf("handing over to %s: %v", to, err)
+		}
+	}
+	if _, err := handover(carol, made.Pane.ProcessID, "nobody"); code(err) != "not_found" {
+		t.Fatalf("handing over to nobody: %v", err)
+	}
+	if err := carol.Call(ctx, "pane.claim", map[string]string{"pane": made.Pane.ID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	res, err := handover(carol, made.Pane.ProcessID, "alice")
+	if err != nil || res.Agent.Owner == nil || res.Agent.Owner.Name != "alice" || res.From == nil || res.From.Name != "carol" {
+		t.Fatalf("carol to alice: %+v %v", res, err)
+	}
+	var list runtime.PresenceList
+	if err := o.control.Call(ctx, "presence.list", nil, &list); err != nil || len(list.Holds) != 1 || list.Holds[0].Holder.Name != "alice" {
+		t.Fatalf("the pane's input after the handover: %+v %v", list.Holds, err)
+	}
+	if ev := next(runtime.EventAgentHandover); ev.Actor == nil || ev.Actor.Name != "carol" {
+		t.Fatalf("agent.handover actor: %+v", ev.Actor)
+	}
+	// Hers now, alice gives it back to the runtime's owner.
+	if res, err := handover(alice, made.Pane.ProcessID, "owner"); err != nil || res.Agent.Owner != nil {
+		t.Fatalf("alice to owner: %+v %v", res, err)
+	}
+
+	// Plans: carol's plan and tasks are hers; she assigns one to alice.
+	var plan task.Plan
+	run := map[string]any{"plan": map[string]any{"tasks": []map[string]any{
+		{"id": "fix", "prompt": "fix it", "kind": "claude", "environment_id": "dev", "approve": true},
+	}}}
+	if err := carol.Call(ctx, "task.run", run, &plan); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = o.control.Call(context.Background(), "task.cancel", map[string]string{"id": plan.ID}, nil) }()
+	if plan.Owner == nil || plan.Owner.Name != "carol" || plan.Tasks[0].Owner == nil || plan.Tasks[0].Owner.Name != "carol" {
+		t.Fatalf("carol's plan: %+v / %+v", plan.Owner, plan.Tasks[0].Owner)
+	}
+	assign := map[string]string{"id": plan.ID, "task": "fix", "to": "alice"}
+	if err := alice.Call(ctx, "task.assign", assign, nil); code(err) != "permission_denied" {
+		t.Fatalf("alice taking carol's task: %v", err)
+	}
+	if err := carol.Call(ctx, "task.assign", assign, &plan); err != nil {
+		t.Fatal(err)
+	}
+	fix := plan.Tasks[0]
+	if fix.Owner == nil || fix.Owner.Name != "alice" || plan.Owner.Name != "carol" || !strings.Contains(fix.Log[len(fix.Log)-1].Message, "assigned to alice by carol") {
+		t.Fatalf("assigned: %+v %+v", fix.Owner, fix.Log)
+	}
+	// An operator in dev decides on the task waiting there, which runs in
+	// dev though it has not started.
+	if err := alice.Call(ctx, "task.approve", map[string]any{"id": plan.ID, "task": "fix", "deny": true}, &plan); err != nil || plan.Tasks[0].State != task.StateCancelled {
+		t.Fatalf("alice deciding on her task: %v", err)
 	}
 }

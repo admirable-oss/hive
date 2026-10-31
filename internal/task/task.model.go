@@ -3,6 +3,8 @@ package task
 import (
 	"slices"
 	"time"
+
+	"github.com/admirable-oss/hive/internal/presence"
 )
 
 // schema is the plan file format this build writes (and the newest it reads).
@@ -195,6 +197,10 @@ type Plan struct {
 	// Reason says which.
 	Cancelled bool   `json:"cancelled,omitempty"`
 	Reason    string `json:"reason,omitempty"`
+	// Owner is the member who ran it, or who it was assigned to
+	// (task.assign without a task). Absent, it is the runtime's own
+	// user's.
+	Owner *presence.Person `json:"owner,omitempty"`
 }
 
 // Task is one task of a plan: what it asks for and how it went.
@@ -229,6 +235,10 @@ type Task struct {
 	EndedAt   time.Time `json:"ended_at,omitzero"`
 	Approval  *Approval `json:"approval,omitempty"`
 	Result    *Result   `json:"result,omitempty"`
+	// Owner is who the task belongs to: its plan's owner, or who it was
+	// assigned to (task.assign). Its agent belongs to them too. Absent,
+	// it is the runtime's own user's.
+	Owner *presence.Person `json:"owner,omitempty"`
 	// Reason says, in a few words, why it is in its state.
 	Reason string `json:"reason,omitempty"`
 	// Log is what happened to it, oldest first, at most MaxLog entries.
@@ -329,6 +339,8 @@ type Summary struct {
 	CreatedAt time.Time     `json:"created_at"`
 	EndedAt   time.Time     `json:"ended_at,omitzero"`
 	Reason    string        `json:"reason,omitempty"`
+	// Owner is the plan's (see Plan.Owner).
+	Owner *presence.Person `json:"owner,omitempty"`
 	// Attention lists the tasks waiting for a person: approvals and
 	// blocked agents.
 	Attention []TaskView `json:"attention,omitempty"`
@@ -353,6 +365,8 @@ type TaskView struct {
 	StartedAt   time.Time `json:"started_at,omitzero"`
 	EndedAt     time.Time `json:"ended_at,omitzero"`
 	Reason      string    `json:"reason,omitempty"`
+	// Owner is the task's (see Task.Owner).
+	Owner *presence.Person `json:"owner,omitempty"`
 }
 
 // View returns t without its result and log.
@@ -361,7 +375,7 @@ func (t *Task) View(p *Plan) TaskView {
 		PlanID: p.ID, Rev: p.Rev, ID: t.Spec.ID, Title: t.Spec.Title, Kind: t.Spec.Kind,
 		State: t.State, Attempt: t.Attempt, Machine: t.Machine, Environment: t.Spec.EnvironmentID,
 		AgentID: t.AgentID, PaneID: t.PaneID, Needs: t.Spec.Needs,
-		StartedAt: t.StartedAt, EndedAt: t.EndedAt, Reason: t.Reason,
+		StartedAt: t.StartedAt, EndedAt: t.EndedAt, Reason: t.Reason, Owner: t.Owner,
 	}
 }
 
@@ -370,6 +384,7 @@ func (p *Plan) Summary() Summary {
 	s := Summary{
 		ID: p.ID, Name: p.Name, State: p.State, Rev: p.Rev, Total: len(p.Tasks),
 		Counts: make(map[State]int, 4), CreatedAt: p.CreatedAt, EndedAt: p.EndedAt, Reason: p.Reason,
+		Owner: p.Owner,
 	}
 	for i := range p.Tasks {
 		t := &p.Tasks[i]

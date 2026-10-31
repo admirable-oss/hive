@@ -117,6 +117,15 @@ Result: [agent.Agent](#agentagent)
 
 Result: [agent.Agent](#agentagent)
 
+### `agent.handover`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` | the agent's ID, or its pane's |
+| `to` | `string` | who gets it: a member's name or ID, or owner for the runtime's own user |
+
+Result: [runtime.AgentHandedOver](#runtimeagenthandedover)
+
 ### `agent.list`
 
 | Param | Type | |
@@ -1197,6 +1206,16 @@ Result: [pane.Tab](#panetab)
 
 Result: [task.Plan](#taskplan)
 
+### `task.assign`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | the task to assign; without it, the plan and its unfinished tasks |
+| `to` | `string` | who gets it: a member's name or ID, or owner for the runtime's own user |
+
+Result: [task.Plan](#taskplan)
+
 ### `task.cancel`
 
 | Param | Type | |
@@ -1537,6 +1556,7 @@ Result: [protocol.Empty](#protocolempty)
 | `kind` | `string` |  |
 | `last_output` | `string` |  |
 | `name` | `string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `pane_id` | `string` |  |
 | `pid` | `integer` |  |
 | `reason` | `string` |  |
@@ -3304,6 +3324,7 @@ Result: [protocol.Empty](#protocolempty)
 | `id` | `string` |  |
 | `log_dir` | `string` |  |
 | `lost` | `boolean` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `pid` | `integer` |  |
 | `started_at` | `string` |  |
 | `status` | `string` |  |
@@ -3434,6 +3455,13 @@ An object.
 | `name` | `string` |  |
 | `revoked_at` | `string` |  |
 | `state` | `string` |  |
+
+### runtime.AgentHandedOver
+
+| Field | Type | |
+|---|---|---|
+| `agent` | [agent.Agent](#agentagent) |  |
+| `from` | [presence.Person](#presenceperson) |  |
 
 ### runtime.AgentStartRequest
 
@@ -3656,6 +3684,21 @@ An object.
 | `id` | `string` |  |
 | `name` | `string` |  |
 
+### runtime.assignParams
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` | the plan's ID, or a unique prefix of it |
+| `task` | `string` | the task to assign; without it, the plan and its unfinished tasks |
+| `to` | `string` | who gets it: a member's name or ID, or owner for the runtime's own user |
+
+### runtime.handoverParams
+
+| Field | Type | |
+|---|---|---|
+| `id` | `string` | the agent's ID, or its pane's |
+| `to` | `string` | who gets it: a member's name or ID, or owner for the runtime's own user |
+
 ### runtime.observerAuditParams
 
 | Field | Type | |
@@ -3783,6 +3826,7 @@ An object.
 | `kinds` | `map[string]integer` |  |
 | `max_parallel` | `integer` |  |
 | `name` | `string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `reason` | `string` |  |
 | `rev` | `integer` |  |
 | `schema` | `integer` |  |
@@ -3866,6 +3910,7 @@ An object.
 | `ended_at` | `string` |  |
 | `id` | `string` |  |
 | `name` | `string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `reason` | `string` |  |
 | `rev` | `integer` |  |
 | `state` | `string` |  |
@@ -3883,6 +3928,7 @@ An object.
 | `environment_id` | `string` |  |
 | `log` | [\[\]task.LogEntry](#tasklogentry) |  |
 | `machine` | `string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `pane_id` | `string` |  |
 | `path` | `string` |  |
 | `phase` | `string` |  |
@@ -3908,6 +3954,7 @@ An object.
 | `kind` | `string` |  |
 | `machine` | `string` |  |
 | `needs` | `[]string` |  |
+| `owner` | [presence.Person](#presenceperson) |  |
 | `pane_id` | `string` |  |
 | `plan_id` | `string` |  |
 | `reason` | `string` |  |

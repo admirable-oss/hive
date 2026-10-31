@@ -62,6 +62,21 @@ Teammates in your runtime, over ssh, with a role ([RFC 0007](rfcs/0007-team-coll
   `pane.release`, `hive pane claim|release`, the `pane.floor` event, and
   `[✎ alice]` on the pane.
 
+### Handing work over
+
+- Agents (and processes), plans and tasks have an `owner`: the member who
+  started them, or you when absent. A task's agent is its owner's.
+- `agent.handover` (`hive agent handover <agent> <member>`) gives an agent,
+  its task and its pane's input to another member; `task.assign`
+  (`hive task assign <plan> [task] --to <member>`) gives a task, or a plan
+  and its unfinished tasks, with their agents. Work goes only to operators
+  and owners of its environment; an operator gives away only their own.
+  The `agent.handover` event; `HandOverAgent` and `AssignTask` in the Go
+  SDK.
+- Events caused by a member's request carry `actor`.
+- A task waiting to start is in the environment its spec names, so an
+  operator there can approve it without a grant for every environment.
+
 ### Fixes
 
 - A plugin holding `hive.read` but not `hive.input` could type into a

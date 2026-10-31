@@ -13,7 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/logging"
+	"github.com/admirable-oss/hive/internal/presence"
 )
 
 // Machines is where tasks may run: this machine and the saved ones.
@@ -276,7 +278,7 @@ func (s *Service) schedule(ctx context.Context, mc *machineCache) time.Time {
 		}
 		deadline := p.CreatedAt.Add(time.Duration(p.TimeoutMS) * time.Millisecond)
 		if !now.Before(deadline) {
-			s.cancelLocked(p, "", fmt.Sprintf("its %s budget ran out", time.Duration(p.TimeoutMS)*time.Millisecond))
+			s.cancelLocked(ctx, p, "", fmt.Sprintf("its %s budget ran out", time.Duration(p.TimeoutMS)*time.Millisecond))
 			continue
 		}
 		if next.IsZero() || deadline.Before(next) {
@@ -292,7 +294,7 @@ func (s *Service) schedule(ctx context.Context, mc *machineCache) time.Time {
 		t := &p.Tasks[i]
 		t.Log = appendLog(t.Log, now, "resumed after the daemon restarted")
 		starts = append(starts, s.launchLocked(ctx, p, t, true))
-		s.commitLocked(p, i)
+		s.commitLocked(ctx, p, i)
 	}
 	if machines == nil && s.hasQueuedLocked() {
 		// A task became ready after the machines were (not) read: look
@@ -305,14 +307,14 @@ func (s *Service) schedule(ctx context.Context, mc *machineCache) time.Time {
 		if pl.reason != "" {
 			t.State, t.Reason, t.EndedAt = StateFailed, pl.reason, now
 			t.Log = appendLog(t.Log, now, pl.reason)
-			s.commitLocked(p, append([]int{i}, settle(p, now)...)...)
+			s.commitLocked(ctx, p, append([]int{i}, settle(p, now)...)...)
 			continue
 		}
 		t.State, t.Machine, t.Attempt = StateRunning, pl.machine, t.Attempt+1
 		t.StartedAt, t.EndedAt, t.Phase, t.Remote, t.WorkedMS, t.Reason = now, time.Time{}, "", "", 0, ""
 		t.Log = appendLog(t.Log, now, fmt.Sprintf("attempt %d on %s", t.Attempt, pl.machine))
 		starts = append(starts, s.launchLocked(ctx, p, t, false))
-		s.commitLocked(p, i)
+		s.commitLocked(ctx, p, i)
 	}
 	s.mu.Unlock()
 
@@ -350,11 +352,11 @@ func (s *Service) heldLocked(now time.Time) func(p *Plan, t *Task) bool {
 			case why != "" && t.Reason != why:
 				t.Reason = why
 				t.Log = appendLog(t.Log, now, why)
-				s.commitLocked(p, i)
+				s.commitLocked(context.Background(), p, i)
 			case why == "" && was:
 				t.Reason = ""
 				t.Log = appendLog(t.Log, now, "no longer held")
-				s.commitLocked(p, i)
+				s.commitLocked(context.Background(), p, i)
 			}
 		}
 	}
@@ -386,6 +388,9 @@ func (s *Service) hasQueuedLocked() bool {
 // moment it exists, and returns it to be started.
 func (s *Service) launchLocked(ctx context.Context, p *Plan, t *Task, resume bool) start {
 	key := taskKey{p.ID, t.Spec.ID}
+	if t.Owner != nil {
+		ctx = presence.WithActor(ctx, *t.Owner) // its agent is the task owner's
+	}
 	actx, cancel := context.WithCancelCause(ctx)
 	s.attempts[key] = &attempt{n: t.Attempt, cancel: cancel}
 	s.running.Add(1)
@@ -438,7 +443,7 @@ func (s *Service) progress(key taskKey, n int, pr Progress) {
 		t.Log, news = appendLog(t.Log, s.cfg.Now(), pr.Log), true
 	}
 	if news {
-		s.commitLocked(p, i)
+		s.commitLocked(context.Background(), p, i)
 		return
 	}
 	s.dirty[p.ID] = true
@@ -478,7 +483,7 @@ func (s *Service) finish(key taskKey, n int, out Outcome) {
 		t.State = out.State
 		t.Log = appendLog(t.Log, now, msg)
 	}
-	s.commitLocked(p, append([]int{i}, settle(p, now)...)...)
+	s.commitLocked(context.Background(), p, append([]int{i}, settle(p, now)...)...)
 	if p.State.Finished() {
 		s.log.Info("plan finished", "plan", p.ID, "status", p.State)
 		s.pruneLocked()
@@ -489,18 +494,18 @@ func (s *Service) finish(key taskKey, n int, out Outcome) {
 // commitLocked makes changes to p visible: a new revision, saved soon,
 // published now and woken waiters. Publishing under the lock keeps events
 // in revision order; the bus never blocks.
-func (s *Service) commitLocked(p *Plan, tasks ...int) {
+func (s *Service) commitLocked(ctx context.Context, p *Plan, tasks ...int) {
 	p.Rev++
 	s.dirty[p.ID] = true
 	for _, i := range tasks {
 		t := &p.Tasks[i]
 		v := t.View(p)
-		s.events.Publish(EventTask, v)
+		event.PublishContext(ctx, s.events, EventTask, v)
 		if t.State == StateApproval {
-			s.events.Publish(EventApproval, v)
+			event.PublishContext(ctx, s.events, EventApproval, v)
 		}
 	}
-	s.events.Publish(EventPlan, p.Summary())
+	event.PublishContext(ctx, s.events, EventPlan, p.Summary())
 	if ch := s.changed[p.ID]; ch != nil {
 		close(ch)
 		delete(s.changed, p.ID)
@@ -633,8 +638,11 @@ func (s *Service) Submit(ctx context.Context, spec PlanSpec) (Plan, error) {
 		MaxParallel: spec.MaxParallel, Kinds: spec.Kinds, TimeoutMS: spec.TimeoutMS,
 		CreatedAt: now, Tasks: make([]Task, len(tasks)),
 	}
+	if who, ok := presence.ActorOf(ctx); ok {
+		p.Owner = &who // a member's plan, and its tasks, are theirs
+	}
 	for i, t := range tasks {
-		p.Tasks[i] = Task{Spec: t, State: StateWaiting}
+		p.Tasks[i] = Task{Spec: t, State: StateWaiting, Owner: p.Owner}
 	}
 	changed := settle(p, now)
 	s.mu.Lock()
@@ -662,7 +670,7 @@ func (s *Service) Submit(ctx context.Context, spec PlanSpec) (Plan, error) {
 	defer s.mu.Unlock()
 	s.plans[p.ID] = p
 	s.order = append(s.order, p)
-	s.commitLocked(p, changed...)
+	s.commitLocked(ctx, p, changed...)
 	s.log.Info("plan submitted", "plan", p.ID, "tasks", len(p.Tasks))
 	signal(s.wake)
 	return *p.clone(), nil
@@ -793,12 +801,12 @@ func (s *Service) Cancel(ctx context.Context, id, taskID string) (Plan, error) {
 	} else if p.State.Finished() {
 		return Plan{}, fmt.Errorf("%w: plan %s is %s", ErrState, p.ID, p.State)
 	}
-	s.cancelLocked(p, taskID, "cancelled")
+	s.cancelLocked(ctx, p, taskID, "cancelled")
 	return *p.clone(), nil
 }
 
 // cancelLocked cancels one task of p, or (taskID "") the whole plan.
-func (s *Service) cancelLocked(p *Plan, taskID, reason string) {
+func (s *Service) cancelLocked(ctx context.Context, p *Plan, taskID, reason string) {
 	now := s.cfg.Now()
 	if taskID == "" {
 		p.Cancelled, p.Reason = true, reason
@@ -819,7 +827,7 @@ func (s *Service) cancelLocked(p *Plan, taskID, reason string) {
 		t.Log = appendLog(t.Log, now, reason)
 		changed = append(changed, i)
 	}
-	s.commitLocked(p, append(changed, settle(p, now)...)...)
+	s.commitLocked(ctx, p, append(changed, settle(p, now)...)...)
 	if p.State.Finished() {
 		s.pruneLocked()
 	}
@@ -874,7 +882,7 @@ func (s *Service) Retry(ctx context.Context, id, taskID string) (Plan, error) {
 		}
 		t.Log = appendLog(t.Log, now, "retry requested")
 	}
-	s.commitLocked(p, append(targets, settle(p, now)...)...)
+	s.commitLocked(ctx, p, append(targets, settle(p, now)...)...)
 	signal(s.wake)
 	return *p.clone(), nil
 }
@@ -942,12 +950,83 @@ func (s *Service) Approve(ctx context.Context, req ApproveRequest) (Plan, error)
 		t.State, t.Reason, t.EndedAt = StateCancelled, reason, now
 		t.Log = appendLog(t.Log, now, reason)
 	}
-	s.commitLocked(p, append([]int{i}, settle(p, now)...)...)
+	s.commitLocked(ctx, p, append([]int{i}, settle(p, now)...)...)
 	if p.State.Finished() {
 		s.pruneLocked()
 	}
 	signal(s.wake)
 	return *p.clone(), nil
+}
+
+// AssignRequest gives a task, or a whole plan, to another person.
+type AssignRequest struct {
+	ID string
+	// Task is the one to assign; empty assigns the plan and every task.
+	Task string
+	// To is who gets it: nil for the runtime's own user.
+	To *presence.Person
+	// By names who assigned it, for the tasks' logs.
+	By string
+}
+
+// Assigned is what Assign changed: the plan, and the agents of its tasks
+// that run now, which go with their tasks.
+type Assigned struct {
+	Plan   Plan
+	Agents []string
+}
+
+// Assign gives a task, or (Task "") a plan and its tasks, to req.To. A
+// plan's finished tasks keep their owner: there is nothing left to own.
+func (s *Service) Assign(ctx context.Context, req AssignRequest) (Assigned, error) {
+	if err := s.ready(ctx); err != nil {
+		return Assigned{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, err := s.resolveLocked(req.ID)
+	if err != nil {
+		return Assigned{}, err
+	}
+	if req.Task != "" && p.Task(req.Task) == nil {
+		return Assigned{}, fmt.Errorf("%w: plan %s has no task %q", ErrNotFound, p.ID, req.Task)
+	}
+	if req.Task == "" {
+		p.Owner = req.To
+	}
+	now := s.cfg.Now()
+	msg := "assigned to " + personName(req.To)
+	if req.By != "" {
+		msg += " by " + req.By
+	}
+	var (
+		changed []int
+		agents  []string
+	)
+	for i := range p.Tasks {
+		t := &p.Tasks[i]
+		if req.Task != "" && t.Spec.ID != req.Task || req.Task == "" && t.State.Finished() {
+			continue
+		}
+		t.Owner = req.To
+		t.Log = appendLog(t.Log, now, msg)
+		changed = append(changed, i)
+		if t.State.Active() && t.AgentID != "" && (t.Machine == "" || t.Machine == LocalMachine) {
+			agents = append(agents, t.AgentID)
+		}
+	}
+	s.commitLocked(ctx, p, changed...)
+	s.log.Info("plan assigned", "plan", p.ID, "task", req.Task, "to", personName(req.To))
+	return Assigned{Plan: *p.clone(), Agents: agents}, nil
+}
+
+// personName names who owns something in logs: a member, or "owner" for
+// the runtime's own user.
+func personName(p *presence.Person) string {
+	if p == nil {
+		return presence.OwnerID
+	}
+	return p.Name
 }
 
 // WaitUntil is what a wait waits for.

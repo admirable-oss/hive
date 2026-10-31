@@ -7,8 +7,8 @@ the daemon are all there is. The design is
 [RFC 0007](../rfcs/0007-team-collaboration.md).
 
 > **In progress (M27).** Members, roles, presence, one typist per pane,
-> the member socket, invitations, revocation and the audit log work today.
-> Handing work over and team notifications follow.
+> handing work over, the member socket, invitations, revocation and the
+> audit log work today. Team notifications follow.
 
 ```sh
 hive access invite alice --key alice.pub --role operator --env web
@@ -135,6 +135,28 @@ typing where. A connection's presence ends with it.
   never mixes with someone else's keys.
 - The holder is a person, not a connection: your TUI, desktop app and
   scripts never refuse each other, so working alone is unchanged.
+
+## Handing work over
+
+Agents, plans and tasks belong to someone: the member who started them, or
+you. What a member starts (a tab, a pane, an agent, a plan) is theirs, and
+a task's agent belongs to the task's owner. Agents and plans from before
+belong to you. `hive agent get` and `hive task get` show the owner.
+
+```sh
+hive agent handover <agent> alice       # its task and its pane's input go too
+hive task assign <plan> fix --to alice  # one task, and its agent
+hive task assign <plan> --to owner      # the plan and its unfinished tasks, back to you
+```
+
+- Work goes only to an operator or owner of its environment (`owner` is
+  you).
+- An operator hands over only what is theirs. An owner of the environment,
+  and you, hand over anything in it.
+- The task's log records who assigned it to whom, and the member's call is
+  in the audit log.
+- Events a member's request caused carry an `actor` naming them, so
+  clients and workflows can tell who did what.
 
 ## Expiry and revocation
 

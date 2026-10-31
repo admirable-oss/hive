@@ -124,3 +124,10 @@ func (c *Client) RetryPlan(ctx context.Context, id, taskID string) (Plan, error)
 func (c *Client) ApproveTask(ctx context.Context, id, taskID string, opts ApproveOptions) (Plan, error) {
 	return c.tasks.Approve(ctx, id, taskID, opts)
 }
+
+// AssignTask gives a task, or (taskID "") a plan and its unfinished tasks,
+// to another member (by name or ID), or to "owner", the runtime's own
+// user. The agents working on them go with them.
+func (c *Client) AssignTask(ctx context.Context, id, taskID, to string) (Plan, error) {
+	return c.tasks.Assign(ctx, id, taskID, to)
+}
