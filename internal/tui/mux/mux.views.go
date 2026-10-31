@@ -29,6 +29,8 @@ type view struct {
 	graphicsReset    bool // overflow: discard graphics state and stop retaining events
 	graphicsScrolled bool // scrollback changed: remove screen-anchored placements
 	graphicsState    graphicsViewState
+	lost             error // why typed input last failed to reach the agent, until said
+	unsized          bool  // a resize failed: the next one is sent again
 
 	ops    chan viewOp
 	cancel context.CancelFunc
@@ -178,10 +180,19 @@ func (v *view) run(ctx context.Context, c client.Client, wake func(), sz size) {
 			switch {
 			case op.resize != nil:
 				rctx, cancel := context.WithTimeout(ctx, callTimeout)
-				_ = fs.Resize(rctx, uint16(op.resize.w), uint16(op.resize.h))
+				err := fs.Resize(rctx, uint16(op.resize.w), uint16(op.resize.h))
 				cancel()
+				if err != nil {
+					v.mu.Lock()
+					v.unsized = true
+					v.mu.Unlock()
+				}
 			case len(op.data) > 0:
-				_, _ = fs.Write(op.data)
+				if _, err := fs.Write(op.data); err != nil {
+					v.mu.Lock()
+					v.lost = err
+					v.mu.Unlock()
+				}
 			}
 		case <-ctx.Done():
 			_ = fs.Close()
@@ -225,12 +236,21 @@ func (v *view) send(data []byte) bool {
 // resize asks for the agent's terminal to take sz while this view types.
 // A full queue leaves v.size as it was, so the next sync asks again.
 func (v *view) resize(sz size) {
-	if sz == v.size || sz.w <= 0 || sz.h <= 0 {
+	if sz.w <= 0 || sz.h <= 0 {
+		return
+	}
+	v.mu.Lock()
+	again := v.unsized
+	v.mu.Unlock()
+	if sz == v.size && !again {
 		return
 	}
 	select {
 	case v.ops <- viewOp{resize: &sz}:
 		v.size = sz
+		v.mu.Lock()
+		v.unsized = false
+		v.mu.Unlock()
 	default:
 	}
 }
@@ -256,6 +276,15 @@ func (v *view) clone() *vt.Screen {
 		return nil
 	}
 	return v.screen.Clone()
+}
+
+// takeLost is why typed input last failed to reach the agent, once.
+func (v *view) takeLost() error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	err := v.lost
+	v.lost = nil
+	return err
 }
 
 func (v *view) isEnded() bool {

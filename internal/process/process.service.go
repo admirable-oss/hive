@@ -249,7 +249,9 @@ func (s *service) Start(ctx context.Context, req StartRequest) (Process, error) 
 	p.PID, p.Status = handle.PID(), StatusRunning
 	if err := s.store.Update(ctx, p); err != nil {
 		log.Error("record started process; stopping it", "pid", p.PID, "err", err)
-		_ = handle.Kill()
+		if kerr := handle.Kill(); kerr != nil {
+			log.Error("stop the process that was not recorded", "pid", p.PID, "err", kerr)
+		}
 		return Process{}, err
 	}
 

@@ -115,6 +115,24 @@ func (s *Store) Recover() error {
 	return s.recoverLocked()
 }
 
+// undoLocked puts a transaction's directories back after err, and forgets
+// the transaction only when they all are: otherwise it stays for Recover,
+// which knows how far it got.
+func (s *Store) undoLocked(err error, steps ...func() error) error {
+	var failed []error
+	for _, step := range steps {
+		if e := step(); e != nil {
+			failed = append(failed, e)
+			break // a later step relies on this one
+		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("%w; undoing it failed too, so it is finished or undone when the plugin store is next opened: %w", err, errors.Join(failed...))
+	}
+	_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
+	return err
+}
+
 func (s *Store) recoverLocked() error {
 	path := filepath.Join(s.dir, ".transaction.json")
 	var tx storeTransaction
@@ -601,16 +619,13 @@ func (s *Store) Update(ctx context.Context, f *Fetched, hiveVersion string) (Ins
 		return Installed{}, err
 	}
 	if err := os.Rename(f.dir, s.Dir(old.ID)); err != nil {
-		_ = os.Rename(backup, s.Dir(old.ID))
-		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
-		return Installed{}, err
+		return Installed{}, s.undoLocked(err, func() error { return os.Rename(backup, s.Dir(old.ID)) })
 	}
 	list[i] = next
 	if err := s.saveLocked(list); err != nil {
-		_ = os.RemoveAll(s.Dir(old.ID))
-		_ = os.Rename(backup, s.Dir(old.ID))
-		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
-		return Installed{}, err
+		return Installed{}, s.undoLocked(err,
+			func() error { return os.RemoveAll(s.Dir(old.ID)) },
+			func() error { return os.Rename(backup, s.Dir(old.ID)) })
 	}
 	if err := os.Remove(filepath.Join(s.dir, ".transaction.json")); err != nil {
 		return Installed{}, fmt.Errorf("plugin updated but transaction cleanup failed: %w", err)
@@ -676,16 +691,13 @@ func (s *Store) Rollback(id string) (Installed, error) {
 		return Installed{}, err
 	}
 	if err := os.Rename(backup, s.Dir(id)); err != nil {
-		_ = os.Rename(currentDir, s.Dir(id))
-		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
-		return Installed{}, err
+		return Installed{}, s.undoLocked(err, func() error { return os.Rename(currentDir, s.Dir(id)) })
 	}
 	list[i] = next
 	if err := s.saveLocked(list); err != nil {
-		_ = os.Rename(s.Dir(id), backup)
-		_ = os.Rename(currentDir, s.Dir(id))
-		_ = os.Remove(filepath.Join(s.dir, ".transaction.json"))
-		return Installed{}, err
+		return Installed{}, s.undoLocked(err,
+			func() error { return os.Rename(s.Dir(id), backup) },
+			func() error { return os.Rename(currentDir, s.Dir(id)) })
 	}
 	if err := os.Remove(filepath.Join(s.dir, ".transaction.json")); err != nil {
 		return Installed{}, fmt.Errorf("plugin rolled back but transaction cleanup failed: %w", err)
