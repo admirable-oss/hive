@@ -32,8 +32,7 @@ func (g *envGuard) Create(ctx context.Context, req environment.CreateRequest) (e
 		return env, err
 	}
 	if g.git != nil {
-		g.git.watch(ctx, env.Path)
-		env.Git = g.git.status(env.Path)
+		env.Git = g.git.watch(ctx, env.Path)
 	}
 	if g.events != nil {
 		g.events.Publish(event.EnvironmentCreated, env)
