@@ -310,7 +310,7 @@ func (h *Hub) serve(ctx context.Context, c *hiveapi.Client) error {
 	h.mu.Lock()
 	h.self = self
 	h.mu.Unlock()
-	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "branch.", "workflow.run", "workflow.removed", "insights.alert", eventNotify, "events.")
+	events, err := c.Events(ctx, "agent.", "pane.", "tab.", "environment.", "process.", "task.plan", "task.removed", "branch.", "workflow.run", "workflow.removed", "insights.alert", eventNotify, "presence.", "events.")
 	if err != nil {
 		return err
 	}
@@ -394,6 +394,10 @@ func (h *Hub) refresh(ctx context.Context, c *hiveapi.Client, plans bool) error 
 		return err
 	}
 	ws := workspaceOf(snap)
+	h.mu.Lock()
+	self := h.self
+	h.mu.Unlock()
+	ws = withPresence(ws, readPresence(ctx, c), self)
 	if plans {
 		if list, err := c.Plans(ctx); err == nil {
 			ws.Plans = plansOf(list)
@@ -1048,7 +1052,13 @@ func (h *Hub) FocusPane(paneID string) error {
 	if err := validID(paneID); err != nil {
 		return err
 	}
-	return h.call(func(ctx context.Context, c *hiveapi.Client) error { _, err := c.FocusPane(ctx, paneID, ""); return err })
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		if _, err := c.FocusPane(ctx, paneID, ""); err != nil {
+			return err
+		}
+		h.lookAt(ctx, c, "", paneID)
+		return nil
+	})
 }
 
 // FocusNeighbour focuses the pane beside paneID that way (the focus-left,
@@ -1061,7 +1071,14 @@ func (h *Hub) FocusNeighbour(paneID, dir string) error {
 	if err != nil {
 		return err
 	}
-	return h.call(func(ctx context.Context, c *hiveapi.Client) error { _, err := c.FocusPane(ctx, paneID, d); return err })
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		pn, err := c.FocusPane(ctx, paneID, d)
+		if err != nil {
+			return err
+		}
+		h.lookAt(ctx, c, "", pn.ID)
+		return nil
+	})
 }
 
 // SwapPane exchanges two panes of one tab, through the layout API
@@ -1160,7 +1177,13 @@ func (h *Hub) FocusTab(tabID string) error {
 	if err := validID(tabID); err != nil {
 		return err
 	}
-	return h.call(func(ctx context.Context, c *hiveapi.Client) error { _, err := c.FocusTab(ctx, tabID); return err })
+	return h.call(func(ctx context.Context, c *hiveapi.Client) error {
+		if _, err := c.FocusTab(ctx, tabID); err != nil {
+			return err
+		}
+		h.lookAt(ctx, c, tabID, "")
+		return nil
+	})
 }
 
 // ResizeTab sets a tab's area to what the app has room for.

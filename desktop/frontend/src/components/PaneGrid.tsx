@@ -116,6 +116,7 @@ export function PaneGrid({ tab }: { tab: Tab }) {
               }}
             >
               <Terminal pane={p} cols={r.w} rows={r.h} cell={cell} focused={p.id === focused} onFocus={() => focus(p)} />
+              <Others pane={p} />
               {movable && !p.popup && (
                 <button
                   type="button"
@@ -142,6 +143,28 @@ export function PaneGrid({ tab }: { tab: Tab }) {
       {tiled.length === 0 && <div className="grid h-full place-items-center bg-background text-sm text-muted-foreground">This tab has no panes.</div>}
     </div>
     </div>
+  );
+}
+
+// Others shows who else is at a pane (RFC 0007): who holds its input, so
+// what is typed here is refused until they stop, else who is looking.
+export function Others({ pane }: { pane: Pane }) {
+  const watchers = pane.watchers ?? [];
+  if (!pane.typing && watchers.length === 0) return null;
+  const text = pane.typing ? `✎ ${pane.typing}` : watchers.join(", ");
+  const title = pane.typing ? `${pane.typing} is typing here: what you type waits until they stop` : `Also looking: ${watchers.join(", ")}`;
+  return (
+    <span
+      className={cn(
+        "pointer-events-none absolute top-1 right-1 z-20 max-w-[50%] truncate rounded-sm px-1 py-0.5 font-sans text-[11px] shadow-sm",
+        pane.typing ? "bg-amber-500/90 text-black" : "bg-card/80 text-muted-foreground",
+      )}
+      title={title}
+      role="status"
+      aria-label={title}
+    >
+      {text}
+    </span>
   );
 }
 

@@ -591,6 +591,11 @@ export class Environment {
      */
     "machine"?: string;
 
+    /**
+     * With are the others working in it now (RFC 0007), by name.
+     */
+    "with"?: string[];
+
     /** Creates a new Environment instance. */
     constructor($$source: Partial<Environment> = {}) {
         if (!("id" in $$source)) {
@@ -610,7 +615,11 @@ export class Environment {
      * Creates a new Environment instance from a string or object.
      */
     static createFrom($$source: any = {}): Environment {
+        const $$createField8_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("with" in $$parsedSource) {
+            $$parsedSource["with"] = $$createField8_0($$parsedSource["with"]);
+        }
         return new Environment($$parsedSource as Partial<Environment>);
     }
 }
@@ -1335,6 +1344,13 @@ export class Pane {
      */
     "agent"?: string;
 
+    /**
+     * Watchers are the others looking at it, and Typing who else holds
+     * its input: what is typed here is refused until they stop.
+     */
+    "watchers"?: string[];
+    "typing"?: string;
+
     /** Creates a new Pane instance. */
     constructor($$source: Partial<Pane> = {}) {
         if (!("id" in $$source)) {
@@ -1361,9 +1377,13 @@ export class Pane {
      */
     static createFrom($$source: any = {}): Pane {
         const $$createField5_0 = $$createType25;
+        const $$createField12_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rect" in $$parsedSource) {
             $$parsedSource["rect"] = $$createField5_0($$parsedSource["rect"]);
+        }
+        if ("watchers" in $$parsedSource) {
+            $$parsedSource["watchers"] = $$createField12_0($$parsedSource["watchers"]);
         }
         return new Pane($$parsedSource as Partial<Pane>);
     }
