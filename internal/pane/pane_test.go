@@ -630,17 +630,17 @@ func TestRespawnStartsAnEndedPaneInPlace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The shell answering proves it is up before it is called running, and
-	// before the split resizes it: a shell resized while it starts can exit
-	// (seen on Windows on Arm).
+	// The shell answering proves it is up before it is called running. It
+	// is asked before the split resizes it: a resized shell can exit on
+	// Windows, even after it answered.
 	w.runAndWait(t, first.ID, "echo up", `^up$`)
-	second, err := w.panes.Split(ctx, pane.SplitRequest{Pane: first.ID, Spec: pane.Spec{Command: []string{"sh", "-c", "exit 3"}}})
-	if err != nil {
-		t.Fatal(err)
-	}
 	if _, err := w.panes.Respawn(ctx, first.ID, pane.Spec{}); !errors.Is(err, pane.ErrRunning) {
 		p, _ := w.procs.Get(ctx, first.ProcessID)
 		t.Fatalf("respawning a running pane: %v (process %+v)", err, p)
+	}
+	second, err := w.panes.Split(ctx, pane.SplitRequest{Pane: first.ID, Spec: pane.Spec{Command: []string{"sh", "-c", "exit 3"}}})
+	if err != nil {
+		t.Fatal(err)
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for {
