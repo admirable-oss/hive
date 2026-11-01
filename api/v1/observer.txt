@@ -9,9 +9,11 @@ event metadata.changed
 event observer.resync
 event pane.closed
 event pane.created
+event pane.floor
 event pane.focused
 event pane.moved
 event pane.updated
+event presence.changed
 event process.exited
 event process.output
 event process.recovered
@@ -30,6 +32,7 @@ method observe.insights
 method observe.output
 method observe.pane
 method observe.plugins
+method observe.presence
 method observe.schema
 method observe.screen
 method observe.snapshot
@@ -48,6 +51,8 @@ observe.pane params: observer.PaneRequest
 observe.pane result: observer.PaneResult
 observe.plugins params: protocol.Empty
 observe.plugins result: []observer.Plugin
+observe.presence params: protocol.Empty
+observe.presence result: observer.Presence
 observe.schema params: protocol.Empty
 observe.schema result: protocol.Schema
 observe.screen params: observer.ScreenRequest
@@ -193,6 +198,12 @@ type observer.EventsRequest: object
 type observer.EventsResult.epoch: string
 type observer.EventsResult.seq: integer
 type observer.EventsResult: object
+type observer.Floor.environment: string
+type observer.Floor.holder: string
+type observer.Floor.pane: string
+type observer.Floor.since: string
+type observer.Floor.until: string
+type observer.Floor: object
 type observer.HistoryRequest.epoch: string
 type observer.HistoryRequest.limit: integer
 type observer.HistoryRequest.since: integer
@@ -282,6 +293,16 @@ type observer.Plugin: object
 type observer.PluginRevocation.advisory: string
 type observer.PluginRevocation.reason: string
 type observer.PluginRevocation: object
+type observer.Presence.floors: []observer.Floor
+type observer.Presence.people: []observer.Present
+type observer.Presence: object
+type observer.Present.environment: string
+type observer.Present.name: string
+type observer.Present.owner: boolean
+type observer.Present.pane: string
+type observer.Present.since: string
+type observer.Present.tab: string
+type observer.Present: object
 type observer.Process.ended_at: string
 type observer.Process.environment_id: string
 type observer.Process.exit_code: integer
@@ -320,6 +341,7 @@ type observer.ScreenRequest: object
 type observer.Snapshot.agents: []observer.Agent
 type observer.Snapshot.environments: []observer.Environment
 type observer.Snapshot.epoch: string
+type observer.Snapshot.floors: []observer.Floor
 type observer.Snapshot.metadata: []observer.Metadata
 type observer.Snapshot.panes: []observer.Pane
 type observer.Snapshot.plans: []observer.Plan

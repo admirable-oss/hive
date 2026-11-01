@@ -300,3 +300,25 @@ func TestServer(t *testing.T) {
 		t.Fatalf("audit = %s", got)
 	}
 }
+
+// TestAuditSaysAFailedWrite: an entry that cannot be written is not an
+// error for the caller, but Err says so until one is written again.
+func TestAuditSaysAFailedWrite(t *testing.T) {
+	a, err := OpenAudit(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Record(AuditEntry{Action: "pane.input"})
+	if err := a.Err(); err != nil {
+		t.Fatalf("a written entry: %v", err)
+	}
+	_ = a.f.Close()
+	a.Record(AuditEntry{Action: "pane.input"})
+	if err := a.Err(); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("an unwritten entry: %v", err)
+	}
+	var none *Audit
+	if none.Err() != nil {
+		t.Fatal("no audit log has no error")
+	}
+}

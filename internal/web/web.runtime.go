@@ -72,6 +72,16 @@ type conn struct {
 	// plugins are read for pages that see the whole runtime, and kept for
 	// pluginsEvery (under insightsMu).
 	plugins pluginsRead
+	// presence is who is where, as last read for a page (under
+	// insightsMu).
+	presence presenceRead
+}
+
+// presenceRead is presence as read at a time; nil when the runtime shows
+// none (or did not answer).
+type presenceRead struct {
+	at time.Time
+	p  *observer.Presence
 }
 
 // insightsRead is insights as read at a time; nil when the runtime keeps
@@ -237,6 +247,38 @@ func (c *conn) Insights(within *observer.Scope) *observer.Insights {
 	c.insights[key] = insightsRead{at: now, in: in}
 	c.insightsMu.Unlock()
 	return in
+}
+
+// presenceEvery is how long presence read for a page stands.
+const presenceEvery = 5 * time.Second
+
+// Presence is who is where of what the credential sees, read at most every
+// presenceEvery; nil while it is not connected, or for a runtime older
+// than 1.8.
+func (c *conn) Presence() *observer.Presence {
+	now := c.now()
+	c.insightsMu.Lock()
+	got := c.presence
+	c.insightsMu.Unlock()
+	if !got.at.IsZero() && now.Sub(got.at) < presenceEvery {
+		return got.p
+	}
+	cl := c.current()
+	if cl == nil {
+		return got.p
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), insightsWait)
+	defer cancel()
+	var p *observer.Presence
+	if res, err := cl.Presence(ctx); err == nil {
+		p = &res
+	} else {
+		c.log.Debug("no presence (a runtime older than 1.8?)", "err", err)
+	}
+	c.insightsMu.Lock()
+	c.presence = presenceRead{at: now, p: p}
+	c.insightsMu.Unlock()
+	return p
 }
 
 // webAsks is how many of the latest asks a page shows.

@@ -43,6 +43,12 @@ jobs:
           - ./internal/plugin:FuzzParseManifest
           - ./internal/agent:FuzzParseManifest
           - ./internal/discovery:FuzzParseMessage
+          - ./internal/vt:FuzzTitleFilter
+          - ./internal/task:FuzzParsePlan
+          - ./internal/workflow:FuzzParseWorkflow
+          - ./internal/workflow:FuzzExpressions
+          - ./internal/presence:FuzzRegistry
+          - ./internal/insights:FuzzReadTranscript
     runs-on: ubuntu-latest
     timeout-minutes: 355
     steps:

@@ -32,13 +32,15 @@ FUZZ_TARGETS := \
 	./internal/config:FuzzParse \
 	./internal/vt:FuzzDecodeFrame \
 	./internal/vt:FuzzKittyGraphicsParser \
+	./internal/vt:FuzzTitleFilter \
 	./internal/plugin:FuzzParseManifest \
 	./internal/agent:FuzzParseManifest \
 	./internal/discovery:FuzzParseMessage \
 	./internal/task:FuzzParsePlan \
 	./internal/workflow:FuzzParseWorkflow \
 	./internal/workflow:FuzzExpressions \
-	./internal/presence:FuzzRegistry
+	./internal/presence:FuzzRegistry \
+	./internal/insights:FuzzReadTranscript
 
 .DEFAULT_GOAL := help
 

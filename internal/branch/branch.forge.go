@@ -108,8 +108,8 @@ func DefaultForges(run Exec) *Forges {
 	return f
 }
 
-// Register adds a forge, or replaces the one of the same name. It is how
-// plugins add forges.
+// Register adds a forge, or replaces the one of the same name. Plugins'
+// forges are not registered: Lookup finds them.
 func (f *Forges) Register(forge Forge) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
