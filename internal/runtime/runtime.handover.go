@@ -140,7 +140,9 @@ func (h *handover) give(ctx context.Context, a agent.Agent, to *presence.Person)
 		who = *to
 	}
 	if holder, held := h.reg.Holder(a.ID); held && holder.ID != who.ID {
-		_, _ = h.reg.Claim(a.ID, a.PaneID, a.EnvironmentID, who, true)
+		if _, err := h.reg.Claim(a.ID, a.PaneID, a.EnvironmentID, who, true); err != nil {
+			return AgentHandedOver{}, fmt.Errorf("agent %s is %s's, but its pane's input stays %s's: %w", a.ID, who.Name, holder.Name, err)
+		}
 	}
 	res := AgentHandedOver{From: a.Owner}
 	res.Agent, _ = h.agents.Get(ctx, a.ID)
@@ -194,11 +196,23 @@ func (h *handover) Assign(ctx context.Context, p assignParams) (task.Plan, error
 	if err != nil {
 		return task.Plan{}, task.WireError(err)
 	}
-	// The agents working on its tasks go with them.
+	// The agents working on its tasks go with them; one left behind is
+	// said, as the plan is given already.
+	var left []error
 	for _, id := range res.Agents {
-		if a, err := h.agents.Get(ctx, id); err == nil {
-			_, _ = h.give(ctx, a, to)
+		a, err := h.agents.Get(ctx, id)
+		if errors.Is(err, agent.ErrNotFound) {
+			continue // it ended meanwhile
 		}
+		if err == nil {
+			_, err = h.give(ctx, a, to)
+		}
+		if err != nil {
+			left = append(left, fmt.Errorf("agent %s: %w", id, err))
+		}
+	}
+	if len(left) > 0 {
+		return task.Plan{}, protocol.NewError(protocol.ErrorCodeInternal, fmt.Errorf("plan %s was assigned, but not all its agents went with it: %w", pl.ID, errors.Join(left...)))
 	}
 	return res.Plan, nil
 }

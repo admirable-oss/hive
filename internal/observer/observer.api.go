@@ -237,6 +237,7 @@ func (s *Server) register(r *protocol.Router) {
 	r.MustRegister(methodEvents, protocol.PipeMethod(s.events))
 	r.MustRegister(methodWatch, protocol.PipeMethod(s.watch))
 	r.MustRegister(methodInsights, protocol.Method(s.insights))
+	r.MustRegister(methodPresence, protocol.Method(s.presence))
 	r.MustRegister(methodPlugins, protocol.Method(s.plugins))
 }
 
@@ -400,6 +401,13 @@ func (s *Server) snapshot(ctx context.Context, scope Scope) (Snapshot, error) {
 		for _, p := range src.Plans.All(ctx) {
 			if v, ok := PlanView(p, scope); ok {
 				snap.Plans = append(snap.Plans, v)
+			}
+		}
+	}
+	if src.Presence != nil {
+		for _, h := range src.Presence.Holds() {
+			if f := FloorView(h); scope.Sees(f.target()) {
+				snap.Floors = append(snap.Floors, f)
 			}
 		}
 	}

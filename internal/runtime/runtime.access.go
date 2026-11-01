@@ -186,12 +186,18 @@ func (m *members) run(ctx context.Context) {
 	wg.Go(func() {
 		t := time.NewTicker(keysSweep)
 		defer t.Stop()
+		var last error
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				_ = m.syncKeys()
+				// Said once per new failure, not every sweep.
+				err := m.syncKeys()
+				if err != nil && (last == nil || err.Error() != last.Error()) {
+					m.log.Warn("authorized_keys not brought up to date", "err", err)
+				}
+				last = err
 			}
 		}
 	})
@@ -495,6 +501,11 @@ func (m *members) doctor(fix bool) (AccessDoctor, error) {
 				out.Problems = append(out.Problems, fmt.Sprintf("member %s's key also logs in outside Hive's block, without restriction: remove that line", mem.Name))
 			}
 		}
+	}
+	if a := m.auditLog(); a == nil {
+		out.Problems = append(out.Problems, "the audit log cannot be opened: members' actions are not recorded")
+	} else if err := a.Err(); err != nil {
+		out.Problems = append(out.Problems, fmt.Sprintf("the audit log cannot be written (%v): members' actions are not recorded", err))
 	}
 	slices.Sort(out.Problems)
 	if fix {

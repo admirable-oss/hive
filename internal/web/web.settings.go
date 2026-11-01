@@ -162,7 +162,12 @@ func (s *Server) pushUnsubscribe(w http.ResponseWriter, r *http.Request, sess Se
 	var body struct {
 		Endpoint string `json:"endpoint"`
 	}
-	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&body)
+	// An empty endpoint removes every device of the session, so a body
+	// that cannot be read removes none.
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&body); err != nil {
+		http.Error(w, "a JSON body with the endpoint", http.StatusBadRequest)
+		return
+	}
 	n, err := s.store.Unsubscribe(sess.ID, body.Endpoint)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

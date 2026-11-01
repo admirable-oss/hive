@@ -107,7 +107,7 @@ The fun part: a full multiplexer UI you'll enjoy living in — soon your daily t
 6. **Pickers & prompts** — fuzzy Goto picker over agents and panes with state filters, toasts, rename prompts, confirm-close.
 7. **Themes** — catppuccin, catppuccin-latte, tokyo-night, gruvbox, nord, `terminal`, plus `[theme.custom]` and auto light/dark. Pick your favorite.
 
-**✅ Acceptance:** you can use Hive daily as a tmux replacement. `teatest` goldens cover each mode. Input latency stays under 10 ms p99 with 16 visible panes.
+**✅ Acceptance:** you can use Hive daily as a tmux replacement. Harness goldens (`internal/tui/mux/testdata`) cover each mode. Input latency stays under 10 ms p99 with 16 visible panes.
 
 ---
 
@@ -120,7 +120,7 @@ Hive learns what your agents are doing, so you only look when one needs you.
 3. **Tooling** — `hive agent list | get | explain | manifests`, `hive server reload-agent-manifests`, user manifests in `~/.config/hive/agent-detection/`.
 4. **Integrations** — `hive integration install | uninstall | status <agent>`: Claude `settings.json` and Codex `hooks.json` hooks call `hive pane report-agent`. Writes are idempotent, back up the original file, and are fully reversible.
 5. **`notify`** — toasts, terminal notifications (OSC 9/777, which work over SSH), system notifications (osascript or notify-send) and sounds for done and blocked, configurable per agent and never for the focused pane.
-6. **UI** — sidebar state icons, the Overview's running/awaiting/complete counts from real states, and `next_agent`, `focus_agent_N`, `open_notification_target`.
+6. **UI** — sidebar state icons, the Overview's running/awaiting/complete counts from real states, and `next-agent`, `focus-agent-N`, `open-notification-target`.
 
 **✅ Acceptance:** on the fixture corpus, classification is at least 98 % correct for the top 4 agents. A blocked prompt raises a notification within 500 ms. 100 agents at idle use under 1 % CPU.
 
@@ -149,7 +149,7 @@ Reboots happen. Hive should shrug them off and pick up right where you left off.
 1. **`persist`** — `session.json` snapshots, debounced on change, keeping the last 48 rotated, with backups of corrupt files and a schema version.
 2. **Restore after host reboot** — envs, tabs, panes, cwd, layout and focus; agents resume through their native IDs (`claude --resume <id>`, `codex resume <id>`) with a staggered start (`session.resume_agents_on_restore`).
 3. **Pane history replay** — optional, off by default, with secret-safety docs.
-4. **Shutdown safety** — Linux logind delay inhibitor; on macOS, snapshot on `NSWorkspaceWillPowerOff` via a signal path, or on a timer.
+4. **Shutdown safety** — Linux logind delay inhibitor; on macOS, launchd's SIGTERM at shutdown, and a snapshot every 30 s.
 5. **Housekeeping** — log rotation, retention config, `hive gc`.
 6. **Self-update** — `hive update` swaps the binary and restarts the daemon; shims keep running, giving zero-downtime upgrades.
 
@@ -190,7 +190,7 @@ The final stretch: freeze the APIs, polish the rough edges, and ship a 1.0 we ca
 
 1. **API freeze** — audit `api/v1`, `pkg/hiveapi` and the config keys; write a compatibility policy doc.
 2. **Performance** — run the benchmark suite; reach 100 panes with p99 frame under 16 ms and idle CPU under 1 %; profile with pprof, available behind `hive debug pprof`.
-3. **Reliability** — fuzzers run 24 h in nightly CI, a 72 h chaos soak (kill shims and the daemon, drop the network), and fd and goroutine leak checks.
+3. **Reliability** — every fuzzer runs 5 h in nightly CI (the hosted runners' limit), a chaos soak (5 h nightly; the 72 h run is dispatched by hand on a self-hosted runner) (kill shims and the daemon, drop the network), and fd and goroutine leak checks.
 4. **Security** — socket perms 0600 with peer-cred UID checks (`SO_PEERCRED`/`getpeereid`), signed manifest and update verification, a plugin trust prompt, `gosec`, and an updated `SECURITY.md`.
 5. **Distribution** — goreleaser for darwin and linux on amd64 and arm64, `install.sh`, a Homebrew tap, a Nix flake, `hive update`, stable/preview channels.
 6. **Docs** — quick start, concepts, keybindings, the config reference generated from `config` structs, the API reference generated from the schema, agent guides, and the herdr→Hive migration guide (including importing herdr config and keys).
@@ -200,8 +200,8 @@ The final stretch: freeze the APIs, polish the rough edges, and ship a 1.0 we ca
 
 ## M10 · Plugin App Store — `v1.0.1` - **LIVE**
 
-**Status: in progress.** Registry-backed discovery and initial installation
-exist, but the exit criteria below are not met.
+**Status:** the CLI side is done; publishing the examples and the
+storefront's checks remain (below).
 
 ### Extend Hive. Make it yours.
 
@@ -340,15 +340,18 @@ target from one machine, which keeps the release flow reproducible.
   entry point for contributors and CI.
 - [x] Add `hive plugin init`, expand validation fixtures, and finish
   release/submission documentation and automation.
-- [x] Align storefront validation and registry records with the CLI contract;
-  the existing `hive-pulse@0.1.0` tag matches its pinned commit.
-- [ ] Publish and seed official catalog releases. The official examples still
-  need immutable remote release tags before they can be listed as installable.
-- [x] Keep the plugin TUI extension claim gated on a daemon contribution API
-  and TUI consumer; current plugin runtime supports actions and popups, while
-  contributed commands/views/keybindings are not wired through the core.
-- [ ] Verify non-interactive install policy, progress/errors, and registry
-  outage behavior across CLI and storefront.
+- [x] Align storefront validation and registry records with the CLI contract.
+- [ ] Publish and seed official catalog releases. auto-tab-title and
+  hive-explorer are listed (`registry/official-releases.json`, tags
+  `v0.1.0` and `v0.2.0`); the examples (`pr-status`, `spawn-reviewer`) are
+  not, and CI-status and issue-tracking examples do not exist yet.
+- [x] The plugin TUI extension claim: contributed commands, views and
+  keybindings are wired through the core since M12 (`hive plugin views`,
+  pane views, `docs/plugins/api.md`).
+- [x] Non-interactive install policy, progress/errors and registry outage
+  behaviour in the CLI (`--yes`, policy denial, `TestM10*` outage cases).
+- [ ] The same checks in the storefront (hive.admir-saheta.com, not in
+  this repository).
 
 ---
 
@@ -501,7 +504,7 @@ Windows support should extend Hive’s existing runtime model rather than
 introduce a separate, incompatible implementation.
 
 1. **Platform architecture**
-   - Introduce `platform/windows` implementations for process management,
+   - Introduce Windows implementations (`*_windows.go` in `internal/platform` and `internal/pgroup`) for process management,
      terminal sessions, sockets, and platform-specific lifecycle operations.
    - Integrate ConPTY for pseudoterminal support.
    - Define Windows-specific runtime directories, configuration paths, logging,
@@ -985,15 +988,15 @@ Checked against the Wails repository and documentation on 2026-10-19.
 6. **Distribution and updates**
    - Build on native runners for each platform (macOS arm64 and amd64, Windows
      amd64, Linux amd64 and arm64), in a separate `desktop.yml` workflow that
-     runs only when `desktop/` or `pkg/hiveapi` changes.
+     runs when `desktop/`, the packages it builds on (`pkg/`, `internal/`, `cmd/hive/`) or `go.mod` change.
    - macOS: a `.app` in a DMG, signed with Developer ID and notarized, plus a
      Homebrew cask.
    - Windows: an NSIS installer or MSIX, signed.
    - Linux: AppImage, DEB and RPM (GTK4 and WebKitGTK 6.0), with signed
      packages.
-   - Release the app with the same tag and `checksums.txt` as the CLI, signed
+   - Release the app with the same tag as the CLI, with its own signed `desktop-checksums.txt`, signed
      with the release key (`tools/release-sign`).
-   - In-app updates with the Wails updater, from GitHub Releases. An update is
+   - In-app updates with the app's own updater (`desktop/internal/updater`), from GitHub Releases. An update is
      installed only after its checksum and ed25519 signature are checked, as
      `hive update` does. Keep the previous version for rollback.
    - Keep the app and the bundled `hive` CLI on one version. Upgrading the app
@@ -1073,8 +1076,8 @@ Checked against the Wails repository and documentation on 2026-10-19.
   - the Homebrew cask;
   - attaching packages to tagged releases with `checksums.txt` and the
     release signature.
-- [ ] In-app updates (Wails updater), with signature verification and
-  rollback.
+- [x] In-app updates (the app's own updater), with signature verification
+  and rollback: done in M21.
 - [x] Machines (M7, M17) in the app:
   - every enabled, trusted machine's agents in the sidebar, reached through
     `hive machine proxy`;
@@ -1380,7 +1383,7 @@ second thought, and brings it under the compatibility policy.
      `checksums.txt` and its signature.
 
 2. **In-app updates**
-   - The Wails updater, from GitHub Releases. An update installs only after
+   - The app's own updater, from GitHub Releases. An update installs only after
      its checksum and signature are checked, keeps the previous version, and
      rolls back if the app does not start.
    - The bundled `hive` and the app always move together. Updating never
@@ -1418,10 +1421,13 @@ How the app is released and updated: [docs/releasing.md](docs/releasing.md#the-d
 - [x] In-app updates: verified against the release key, the previous version
   kept, rolled back when the new one does not start, agents untouched
   (tested with a real signed bundle: staged, swapped and still valid).
-- [x] Latency, idle CPU and memory measured in CI (macOS and Linux) and
-  within M18's budgets: p99 17.3 ms, 0.00 % of a core, 14.4 MB of heap with
-  16 panes on a developer machine. CI's shared runners are held to 50 ms of
-  latency. The binary frame channel is not needed.
+- [x] Latency, idle CPU and Go heap measured in CI (macOS and Linux): p99
+  17.3 ms, 0.00 % of a core, 14.4 MB of heap with 16 panes on a developer
+  machine. CI's shared runners are held to 50 ms of latency (the best of
+  three rounds). The binary frame channel is not needed.
+- [ ] The rest of M18's budgets: the whole app's memory (250 MB), 16
+  streaming panes at 60 fps without dropped input, and the same on
+  Windows.
 - [x] Drag and drop of panes (`pane.swap`), environment windows, `[keys]`
   in the app (`hive config keys`), and Goto over agents, panes, tabs,
   environments and actions.
@@ -1506,7 +1512,8 @@ How plans work: [docs/tasks.md](docs/tasks.md). The design:
   across 2 machines within `max_parallel` and capacity, through a daemon
   restart, a blocked agent and an approval, and a failed check retried
   without disturbing the others. Every task's result is in the report.
-- [ ] Spend budgets, once agents report usage (M25).
+- [x] Spend budgets: M25's `per = "plan"` budgets hold a plan's queued
+  tasks ([docs/insights.md](docs/insights.md#budgets)).
 - [ ] RFC 0002 discussed and accepted; then tag `v1.3.0`.
 
 ---
@@ -1588,7 +1595,8 @@ How branches work: [docs/branches.md](docs/branches.md). The design:
   reported before merging, each diff reviewed, readiness gated on tests,
   a pull request opened only on request, the merged worktree cleaned up,
   and the unmerged work kept (and saved when forced).
-- [ ] Forges from plugins, once Plugin API 2 can contribute them (M26).
+- [x] Forges from plugins: M26's `contributes.forges`, looked up after the
+  configured hosts and before the built-in forges (`TestM26PluginForgeAndTracker`).
 - [ ] RFC 0003 discussed and accepted; then tag `v1.4.0`.
 
 ---
@@ -1679,7 +1687,7 @@ How workflows work: [docs/workflows.md](docs/workflows.md). The design:
 
 ---
 
-## M25 · Agent Insights — `v1.6.0` — **PROPOSED**
+## M25 · Agent Insights — `v1.6.0` — **IN PROGRESS**
 
 Know what your agents cost and where their time goes, on your machine.
 
@@ -1713,6 +1721,20 @@ insight without sending anything anywhere.
 **✅ Acceptance:** after a day of work, Hive shows time in state and the
 reported usage of each agent kind, raises a budget alert, and exports the
 data. Nothing leaves the machine unless it is exported.
+
+### M25 progress
+
+- [x] Time in state and waits on you, per agent, task, environment and day
+  (`internal/insights`).
+- [x] Usage reported by agents, with its source; unknown when not reported.
+- [x] Budgets per day, plan or environment that warn and hold new work
+  (`hive insights budgets`, pause and resume).
+- [x] Export as CSV or JSON; `observe.insights` for scoped dashboards.
+- [x] Views: `hive insights`, the TUI's Overview panel, the desktop app and
+  the web observer.
+- [x] The acceptance test (`TestM25Insights`).
+- [x] A user guide ([docs/insights.md](docs/insights.md)).
+- [ ] An RFC, or a note in RFC 0002, for the design; then tag `v1.6.0`.
 
 ---
 
@@ -1882,15 +1904,16 @@ The design: [RFC 0007](rfcs/0007-team-collaboration.md).
   everyone (`pane.claim|release`, `[access] input_idle`, `pane.floor`), and
   both in the multiplexer (`TestOneTypistPerTerminal`,
   `TestMembersFocusIsTheirOwn`, `TestM27OneTypistAtATime`, `FuzzRegistry`).
-- [ ] Presence and the holder in the desktop app and the web observer.
+- [x] Presence and the holder in the desktop app and the web observer
+  (`observe.presence`, `pane.floor`, `floors` in snapshots; `TestPresenceIsScoped`).
 - [x] Handing over (delivery step 4): `owner` on agents, tasks and plans,
   `agent.handover`, `task.assign` (`hive agent handover`, `hive task
   assign`), and `actor` on events a member caused (`TestHandingOver`).
 - [x] Notifications routed by the daemon (delivery step 5): `notify`
   events to the work's owner, else `[access] notify_fallback`, followed by
   the multiplexer and the desktop app (`TestNotificationRecipients`).
-- [ ] The acceptance test, `docs/teams.md` and the threat model
-  (delivery step 6).
+- [x] The acceptance test (`TestM27TeamRuntime`), `docs/teams.md` and the
+  threat model (delivery step 6).
 - [ ] RFC 0007 discussed and accepted; then tag `v1.8.0`.
 
 ---

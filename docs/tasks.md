@@ -161,6 +161,14 @@ and `$HIVE_TASK_ID`. A task's agent is stopped when the task ends, unless
 | 4 | `--timeout` passed |
 | 5 | with `--until attention`: a task waits for approval, or its agent is blocked |
 
+## Spend
+
+A plan's `timeout` limits its time. To limit what its agents spend, a
+budget with `per = "plan"` counts each plan's reported cost, tokens or
+working time over its life, and a `pause` budget holds the plan's queued
+tasks once it is over ([insights](insights.md#budgets)). Tasks already
+running go on.
+
 ## Configuration
 
 ```toml

@@ -143,6 +143,14 @@ func (c *Client) Plugins(ctx context.Context) ([]Plugin, error) {
 	return out, err
 }
 
+// Presence returns who is where, and who holds which pane's input, of
+// what the credential sees.
+func (c *Client) Presence(ctx context.Context) (Presence, error) {
+	var p Presence
+	err := c.Call(ctx, methodPresence, nil, &p)
+	return p, err
+}
+
 // Schema describes the observer API.
 func (c *Client) Schema(ctx context.Context) (protocol.Schema, error) {
 	var s protocol.Schema
