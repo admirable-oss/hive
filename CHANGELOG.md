@@ -6,7 +6,7 @@ All notable changes to Hive. From 1.0.0 the project follows
 
 ## v1.11.0 (unreleased): Projects as code (M30)
 
-A repository's Hive setup in its `hive.toml` ([RFC 0009](rfcs/0009-projects-as-code.md)). In progress.
+A repository's Hive setup in its `hive.toml` ([RFC 0009](rfcs/0009-projects-as-code.md), [docs/projects.md](docs/projects.md)).
 
 ### Project files
 
@@ -15,35 +15,61 @@ A repository's Hive setup in its `hive.toml` ([RFC 0009](rfcs/0009-projects-as-c
   preference, in a worktree of their own with `isolate`) and the variables
   they need. Checked strictly, with errors at their line; `version = 1`.
 - `[vars]` holds plain settings and refuses values that look like secrets;
-  `[env] required | optional` names what the project needs, with values
-  from `hive.local.toml` or the shell that runs `hive up`.
-- `hive.local.toml` beside it holds a person's own values, agent kinds,
-  arguments and `start = false`.
+  `[env] required | optional` names what the project needs.
+- `hive.local.toml` beside it holds a person's own values, secrets,
+  toolchain, agent kinds, arguments and `start = false`.
+- `hive project schema` prints the JSON Schema of both files, for editors.
 
 ### Up and down
 
 - `hive up [dir]` makes the workspace match the file: it creates missing
-  environments, sets their variables, opens missing tabs and starts missing
-  agents (again, if they exited), and leaves what runs alone. `--plan`
-  shows the steps first. Problems (a missing required variable, an
-  environment elsewhere, an agent kind not installed) stop it before it
-  changes anything.
+  environments, sets their variables, opens missing tabs, starts missing
+  agents (again, if they exited) and installs missing plugins from the
+  catalog, and leaves what runs alone. `--plan` shows the steps first.
+  Problems (a missing required variable, an environment elsewhere, an agent
+  kind or a toolchain not installed) stop it before it changes anything.
 - `hive down [dir]` stops the agents and closes the tabs the file declares,
   and keeps its environments and worktrees. The next `hive up` starts each
   agent in its kept worktree again (`HIVE_PROJECT_AGENT`).
+- `hive project diff` shows what is missing, extra or changed; `hive project
+  save` writes the tabs you opened back to the file, after asking.
 - `hive project check` checks a file without a daemon, for CI and editors.
+
+### Toolchains and secrets
+
+- `toolchain = "auto" | "nix" | "devcontainer" | "mise" | "direnv"`: panes
+  start in `nix develop`'s, mise's or direnv's environment, learned once
+  through `hive __env` and cached by the toolchain's files
+  (`projects/toolchains/`), or inside the devcontainer.
+- `[secrets]` references values in the person's own store: `keychain:`,
+  `secret-service:`, `pass:` and `op://`. They are read when panes start and
+  given only to those processes, never to plans, files or logs.
+
+### Gates, workflows, plugins and templates
+
+- `[[gate]]` adds branch gates for the project's repository, and
+  `workflows` brings workflow files that fire while the project is trusted
+  (their text is part of its digest).
+- `plugins` lists the plugins a project needs.
+- `hive project init [--from blank | agents | test-watcher | monorepo |
+  <plugin>/<template> | <file>]` writes a `hive.toml` fitted to the
+  repository (its tests, dev server, toolchain and packages), and adds
+  `hive.local.toml` to `.gitignore`. Plugins ship templates with
+  `[[contributes.templates]]`, under any plugin API.
 
 ### Trust
 
 - A project file runs only while it has the text a person trusted
-  (`hive project trust`, `projects/trust.json`). The first `hive up`, and
-  the first after the file changes, shows every command, directory and
-  agent, and asks; `--yes` answers in scripts.
+  (`hive project trust`, `projects/trust.json`), workflows included. The
+  first `hive up`, and the first after a change, shows every command,
+  directory, agent, gate and workflow, and asks; `--yes` answers in
+  scripts.
 - `hive project show | list`, and `trust --revoke`.
-- New methods `project.get | list | trust | plan | up | down`;
-  `project.trust` is closed to plugins and members, and the others need
-  the owner role. The Go SDK's `Project`, `Projects`, `ProjectPlan`,
-  `ProjectUp`, `ProjectDown` and `ParseProject`. API level 18.
+- New methods `project.get | list | trust | plan | up | down | diff | save`;
+  `project.trust` and `project.save` are closed to plugins and members, and
+  the others need the owner role. Workflows gain `project`. The Go SDK's
+  `Project`, `Projects`, `ProjectPlan`, `ProjectUp`, `ProjectDown`,
+  `DiffProject` and `ParseProject`. API level 18.
 
 ## v1.8.0 (unreleased): Team collaboration (M27)
 

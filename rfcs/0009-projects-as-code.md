@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Authors:** @admirsaheta
 - **Discussion:** <!-- the pull request -->
-- **Affects:** wire API (`project.*`), CLI (`hive up`, `hive down`, `hive project`), Go SDK, on-disk state (`projects/trust.json`), branch gates and workflow sources, the threat model
+- **Affects:** wire API (`project.*`), CLI (`hive up`, `hive down`, `hive project`), Go SDK, plugin manifests (`[[contributes.templates]]`), on-disk state (`projects/trust.json`, `projects/toolchains/`), branch gates and workflow sources, the threat model
 
 ## Summary
 
@@ -11,8 +11,8 @@ M30 puts a project's Hive setup in its repository:
 
 - **`hive.toml`**, a versioned file at the repository root. It declares the
   project's environments, their tabs and panes, the agents they start, the
-  variables they need, and later its gates, workflows, plugins and
-  toolchain.
+  variables and secrets they need, the toolchain panes start in, and its
+  branch gates, workflows and plugins.
 - **`hive up`** makes the running workspace match the file. It creates what
   is missing, leaves what runs alone, and does nothing the second time.
   `hive up --plan` says what it would do first. **`hive down`** stops the
@@ -156,14 +156,14 @@ again, rather than in another new worktree.
 
 Matching by name means a person can rename or close what `hive up` made,
 and the next `hive up` makes it again. Changing a tab that exists is not
-`hive up`'s job: `hive project diff` and `hive project save` (delivery
-step 3) handle the layout.
+`hive up`'s job: `hive project diff` and `hive project save` (below) handle
+the layout.
 
 ### Trust
 
-A project file is trusted at its current text: its SHA-256, and that of a
-tracked `hive.local.toml`, recorded by `hive project trust` in
-`projects/trust.json`. `hive up` on an untrusted file shows what the file
+A project file is trusted at its current text: a SHA-256 over it, a
+tracked `hive.local.toml` and the workflow files it lists, recorded by
+`hive project trust` in `projects/trust.json`. `hive up` on an untrusted file shows what the file
 declares (environments, every command, every agent) and asks once. `--yes`
 accepts in scripts. Off a terminal without `--yes`, it refuses and says to
 run `hive project trust`. When the file changes, its trust no longer
@@ -184,35 +184,95 @@ API level 18 adds:
 | `project.plan` | `{dir, down, vars}` | `Plan`: actions and problems |
 | `project.up` | `{dir, vars}` | `Applied`: the plan and what was done |
 | `project.down` | `{dir}` | `Applied` |
+| `project.diff` | `{dir, vars}` | `Diff`: changes and problems |
+| `project.save` | `{dir, write}` | `Saved`: the text, its changes, whether written |
 
 `vars` carries the values of the declared `[env]` names from the client's
 own environment, and nothing else. `dir` is absolute, on the daemon's
 machine, so `--remote` and `--machine` work as for every other command.
 
-Members (M27): `project.trust` is closed. `project.up` and `project.down`
-need the owner role across all environments, like `layout.apply`.
-`project.get`, `project.list` and `project.plan` need the owner role too,
-because they read files at a path the caller chooses. Plugins:
-`project.trust` is closed, `project.up` and `project.down` need
-`hive:process`, and the reads need `hive:read`.
+Members (M27): `project.trust` and `project.save` are closed. `project.up`
+and `project.down` need the owner role across all environments, like
+`layout.apply`. `project.get`, `project.list`, `project.plan` and
+`project.diff` need the owner role too, because they read files at a path
+the caller chooses. Plugins: `project.trust` and `project.save` are
+closed, `project.up` and `project.down` need `hive:process`, and the reads
+need `hive:read`.
 
-### Later steps
+### Gates, workflows and plugins
 
-These are part of M30 and are designed with this file in mind. Each comes
-with an amendment to this RFC:
+```toml
+workflows = [".hive/workflows"]   # directories and files, inside the repository
+plugins = ["pr-status"]
 
-- `[[gate]]`: branch gates for the project's repository, added to
-  `[[branches.gate]]` while the file is trusted.
-- `workflows = [".hive/workflows"]`: workflow directories, trusted with the
-  file at their current text.
-- `plugins = ["pr-status"]`: plugins the project needs, installed from the
-  catalog by `hive up` after a confirmation.
-- `toolchain = "auto" | "nix" | "devcontainer" | "mise" | "direnv" | "none"`:
-  panes start inside the project's toolchain, with the environment cached.
-- `secrets`: values by reference to the person's own store (Keychain,
-  Secret Service, `pass`, the 1Password CLI).
-- `hive project diff`, `hive project save`, `hive project init --from`, and
-  a JSON Schema for editors.
+[[gate]]
+name = "test"
+command = ["go", "test", "./..."]
+timeout = "10m"
+```
+
+- `[[gate]]`s are branch gates for the project's repository. The branch
+  service asks for them beside `[[branches.gate]]` while the file is
+  trusted.
+- `workflows` lists workflow files, which the workflow service reads beside
+  `[workflows] paths`. Their text is part of the project's digest, so they
+  fire while the project is trusted, with no `hive workflow trust` of their
+  own, and changing one untrusts the project.
+- `plugins` lists plugins the project needs. A plan names the missing ones;
+  the CLI installs them from the catalog (with the usual preview and yes)
+  before `project.up`, which refuses while any is missing.
+
+### Toolchains
+
+`toolchain = "none" | "auto" | "nix" | "devcontainer" | "mise" | "direnv"`,
+for the project or per environment, and in `hive.local.toml` for the
+person. The marker (`flake.nix`, `.devcontainer/devcontainer.json`,
+`mise.toml`/`.tool-versions`, `.envrc`) is found from the environment's
+directory up to the project's root, and `auto` takes the first kind found.
+
+- **Nix, mise, direnv:** the daemon runs `hive __env` inside the toolchain
+  (`nix develop <dir> --command`, `mise exec --`, `direnv exec <dir>`),
+  keeps the variables it sets that differ from its own, and starts panes and
+  agents with them. They are cached in `projects/toolchains/<key>.json`,
+  keyed on the kind, the directory and the toolchain's files, so panes open
+  at once after the first time and a changed `flake.lock` makes them again.
+- **Devcontainer:** `devcontainer up` before the tabs, and each pane's
+  command run through `devcontainer exec --workspace-folder <dir>`. Agents
+  run on the host, where their states can be read.
+
+A toolchain that is named and missing, or not installed, is a plan problem.
+Toolchains are made before anything changes.
+
+### Secrets
+
+```toml
+[secrets]                      # in hive.toml or hive.local.toml
+DATABASE_URL = "pass:shop/db"  # keychain:, secret-service:, pass:, op://
+```
+
+A reference names a value in the person's own store, read with the store's
+tool (`security`, `secret-tool`, `pass`, `op`). Plans never read a store;
+`hive up` reads each reference once, before anything changes, and gives the
+values to the panes and agents it starts, not to the environment's
+variables. A required name is met by a reference.
+
+### Diff and save
+
+`project.diff` lists what is missing (what `hive up` would make), what is
+extra (tabs and agents the file does not declare) and what changed
+(declared tabs whose panes differ). `project.save` writes the extra tabs and
+the changed panes back to the file, in its canonical form; it removes
+nothing, and a trusted file stays trusted at its new text. Comments are not
+kept, which the CLI says before it writes.
+
+### Templates and the schema
+
+`hive project init [--from <template>]` writes a `hive.toml` fitted to the
+directory: built-in templates (`blank`, `agents`, `test-watcher`,
+`monorepo`), a plugin's (`[[contributes.templates]]`, `<plugin>/<name>`, any
+plugin API), or another project's file. `hive project schema` prints the
+JSON Schema of `hive.toml` and `hive.local.toml` for editors; a test keeps
+it equal to what the parser accepts.
 
 ## Compatibility
 
@@ -241,7 +301,11 @@ makes it untrusted.
   `hive.local.toml` or the shell.
 - `vars` on the wire carries only the declared names, from the caller's own
   environment to its own daemon.
-- Plugins and members cannot trust a project.
+- Workflow files a project lists are part of its digest, so they cannot
+  change under a trusted project.
+- Secret references name values in the person's store; the values reach
+  only the processes started with them, and never plans, files or logs.
+- Plugins and members cannot trust or save a project.
 
 [docs/threat-model.md](../docs/threat-model.md) gains a row for project
 files.
@@ -251,11 +315,17 @@ files.
 - Unit tests for parsing (every error with its line), the main
   environment's defaults, paths outside the repository, secret-looking
   values, `hive.local.toml` layering, and the plan against fake workspaces.
-- A fuzz target for the parser.
-- An end-to-end test of the acceptance: an untrusted file refused, trusted
-  once, `hive up` twice with the second changing nothing, `--plan` matching
-  what ran, `hive down` keeping the worktrees, and a changed file asking
-  again.
+- Fuzz targets for the parser and for rendering (parse, render, parse
+  again gives the same project).
+- Toolchains and secret stores against fake runners; gates, workflows and
+  plugins against the service; a test that the JSON Schema matches the
+  parser.
+- End-to-end tests of the acceptance through the CLI and a real daemon:
+  an untrusted file refused, trusted once, `hive up` twice with the second
+  changing nothing, `--plan` matching what ran, a toolchain and a secret
+  reaching a pane, a workflow and a gate from the file, `hive down` keeping
+  the worktrees' work, a changed file asking again; and, on every system
+  with Windows included, `init`, `diff`, `save` and up and down.
 
 ## Alternatives
 
@@ -280,14 +350,15 @@ files.
 Each step is a pull request that links this RFC:
 
 1. The file, `hive.local.toml`, trust, `project.*`, `hive up | down`,
-   `hive project check | show | trust | list`.
-2. Gates, workflows and required plugins from the file.
-3. `hive project diff` and `hive project save`.
-4. Toolchains, with their environment cached.
-5. Secrets by reference.
-6. Templates (`hive project init --from`) and the JSON Schema.
-7. The acceptance test on macOS, Linux and Windows, and `docs/projects.md`;
-   then tag `v1.11.0`.
+   `hive project check | show | trust | list`. Done.
+2. Gates, workflows and required plugins from the file. Done.
+3. `hive project diff` and `hive project save`. Done.
+4. Toolchains, with their environment cached. Done.
+5. Secrets by reference. Done.
+6. Templates (`hive project init --from`), plugin templates and the JSON
+   Schema. Done.
+7. The acceptance tests on macOS, Linux and Windows, and
+   `docs/projects.md`. Done; then this RFC's discussion, and tag `v1.11.0`.
 
 ## Decision
 

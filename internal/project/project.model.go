@@ -51,7 +51,46 @@ type Spec struct {
 	Environments []Environment `json:"environments"`
 	// Local says a hive.local.toml is layered over the file.
 	Local bool `json:"local,omitempty"`
+	// Toolchain is where panes start by default: none, auto or one kind.
+	Toolchain Toolchain `json:"toolchain,omitempty"`
+	// Gates are branch gates for the project's repository.
+	Gates []Gate `json:"gates,omitempty"`
+	// Workflows are directories and files of workflows, relative to the
+	// root, trusted with the file.
+	Workflows []string `json:"workflows,omitempty"`
+	// Plugins are the plugins the project needs, by ID.
+	Plugins []string `json:"plugins,omitempty"`
+
+	// file is the project file as written, which save and templates
+	// render again.
+	file fileProject
 }
+
+// Gate is a branch gate a project declares: a command that must pass in a
+// branch's worktree before the branch is ready.
+type Gate struct {
+	Name    string   `json:"name"`
+	Command []string `json:"command"`
+	// TimeoutMS bounds it; 0 is the branch service's default.
+	TimeoutMS int64 `json:"timeout_ms,omitempty"`
+}
+
+// Toolchain is where a project's panes start: inside a Nix dev shell, a
+// devcontainer, mise's or direnv's environment, or none.
+type Toolchain string
+
+// The toolchains.
+const (
+	ToolchainNone         Toolchain = "none"
+	ToolchainAuto         Toolchain = "auto"
+	ToolchainNix          Toolchain = "nix"
+	ToolchainDevcontainer Toolchain = "devcontainer"
+	ToolchainMise         Toolchain = "mise"
+	ToolchainDirenv       Toolchain = "direnv"
+)
+
+// ToolchainKinds are the toolchains a file may name.
+var ToolchainKinds = []Toolchain{ToolchainNone, ToolchainAuto, ToolchainNix, ToolchainDevcontainer, ToolchainMise, ToolchainDirenv}
 
 // Environment is one environment a project declares.
 type Environment struct {
@@ -66,8 +105,13 @@ type Environment struct {
 	// hive.local.toml or the shell that runs hive up.
 	Required []string `json:"required,omitempty"`
 	Optional []string `json:"optional,omitempty"`
-	Tabs     []Tab    `json:"tabs,omitempty"`
-	Agents   []Agent  `json:"agents,omitempty"`
+	// Secrets are references to the person's secret store, by variable
+	// (keychain:, secret-service:, pass:, op://); never values.
+	Secrets map[string]string `json:"secrets,omitempty"`
+	// Toolchain is the environment's own, or the project's.
+	Toolchain Toolchain `json:"toolchain,omitempty"`
+	Tabs      []Tab     `json:"tabs,omitempty"`
+	Agents    []Agent   `json:"agents,omitempty"`
 }
 
 // Split is how a tab's panes share it.
@@ -164,6 +208,13 @@ type Action struct {
 	// In is the worktree environment an agent starts in again: the one an
 	// earlier hive up made for it, which hive down kept.
 	In string `json:"in,omitempty"`
+	// Toolchain is the one a new tab's panes or an agent start in, and
+	// ToolchainCached says its environment is ready.
+	Toolchain       Toolchain `json:"toolchain,omitempty"`
+	ToolchainCached bool      `json:"toolchain_cached,omitempty"`
+	// Secrets name the variables read from the person's secret store for
+	// a new tab's panes or an agent.
+	Secrets []string `json:"secrets,omitempty"`
 
 	// What applying needs, kept off the wire.
 	values map[string]string
@@ -171,6 +222,10 @@ type Action struct {
 	agent  *Agent
 	// tabID is the tab a stopped agent runs in, which down closes.
 	tabID string
+	// tc and refs are the toolchain and the secret references (by
+	// variable) new panes start with.
+	tc   Resolved
+	refs map[string]string
 }
 
 // Plan is what makes the workspace match a project file, or, for down,
@@ -181,6 +236,9 @@ type Plan struct {
 	Actions []Action `json:"actions"`
 	// Present counts what the file declares and already runs.
 	Present int `json:"present"`
+	// Plugins are the plugins the project needs that are not installed:
+	// hive up installs them from the catalog first.
+	Plugins []string `json:"plugins,omitempty"`
 	// Problems stop the plan: nothing is changed while there are any.
 	Problems []string `json:"problems,omitempty"`
 }

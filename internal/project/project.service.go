@@ -22,13 +22,16 @@ type Workspace interface {
 	State(ctx context.Context) (State, error)
 	CreateEnvironment(ctx context.Context, id, root string, vars map[string]string) error
 	SetVars(ctx context.Context, id string, vars map[string]string) error
-	CreateTab(ctx context.Context, envID string, t Tab) error
+	// CreateTab opens a tab whose panes get env on top of the
+	// environment's, and run through wrap when it is set.
+	CreateTab(ctx context.Context, envID string, t Tab, env map[string]string, wrap []string) error
 	// StartAgent starts a project's agent in envID, or, when in is set, in
-	// that worktree environment of it. An agent started in a new worktree
-	// marks its environment with EnvProjectAgent.
-	StartAgent(ctx context.Context, envID string, a Agent, kind, in string) error
+	// that worktree environment of it, with env on top of the
+	// environment's. An agent started in a new worktree marks its
+	// environment with EnvProjectAgent.
+	StartAgent(ctx context.Context, envID string, a Agent, kind, in string, env map[string]string) error
 	// RestartAgent starts an exited agent again, in its own pane.
-	RestartAgent(ctx context.Context, id string, a Agent) error
+	RestartAgent(ctx context.Context, id string, a Agent, env map[string]string) error
 	CloseTab(ctx context.Context, id string) error
 }
 
@@ -40,6 +43,13 @@ type Config struct {
 	// Tracked says whether git tracks name in dir, which puts a
 	// hive.local.toml under trust; nil tracks nothing.
 	Tracked func(dir, name string) bool
+	// Toolchains make the environments panes start in; nil starts every
+	// pane without one.
+	Toolchains *Toolchains
+	// Secrets reads secret references; nil refuses them.
+	Secrets SecretStore
+	// Changed runs after a project's trust changes (nil: nothing).
+	Changed func()
 }
 
 // Service reads, trusts, plans and applies project files.
@@ -110,12 +120,23 @@ func (s *Service) load(dir string) (loaded, error) {
 			h.Write(local)
 		}
 	}
-	l.Digest = hex.EncodeToString(h.Sum(nil))
 	spec, loc, err := Parse(data, local, root)
 	if err != nil {
+		l.Digest = hex.EncodeToString(h.Sum(nil))
 		l.Error, l.err = err.Error(), err
 		return l, nil
 	}
+	// The workflows the file brings are trusted with it, at their text.
+	for _, path := range WorkflowPaths(root, spec) {
+		wf, err := readFile(path)
+		if err != nil {
+			return loaded{}, err
+		}
+		rel, _ := filepath.Rel(root, path)
+		fmt.Fprintf(h, "\x00workflow\x00%s\x00%d\x00", filepath.ToSlash(rel), len(wf))
+		h.Write(wf)
+	}
+	l.Digest = hex.EncodeToString(h.Sum(nil))
 	l.spec, l.local, l.Spec = spec, loc, &spec
 	return l, nil
 }
@@ -190,6 +211,9 @@ func (s *Service) Trust(_ context.Context, dir string, revoke bool) (Project, er
 	if err := s.store.Save(trust); err != nil {
 		return Project{}, err
 	}
+	if s.cfg.Changed != nil {
+		s.cfg.Changed()
+	}
 	l.Trusted = !revoke
 	return l.Project, nil
 }
@@ -201,7 +225,7 @@ func (s *Service) Plan(ctx context.Context, dir string, down bool, vars map[stri
 	if err != nil {
 		return Plan{}, err
 	}
-	st, err := s.cfg.Workspace.State(ctx)
+	st, err := s.state(ctx)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -241,7 +265,7 @@ func (s *Service) apply(ctx context.Context, dir string, plan func(loaded, State
 		}
 		return Applied{}, fmt.Errorf("%w: %s %s: read it, then run hive project trust", ErrUntrusted, l.File, what)
 	}
-	st, err := s.cfg.Workspace.State(ctx)
+	st, err := s.state(ctx)
 	if err != nil {
 		return Applied{}, err
 	}
@@ -249,8 +273,17 @@ func (s *Service) apply(ctx context.Context, dir string, plan func(loaded, State
 	if len(res.Plan.Problems) > 0 {
 		return res, fmt.Errorf("%w: %s", ErrState, strings.Join(res.Plan.Problems, "; "))
 	}
-	for _, a := range res.Plan.Actions {
-		if err := s.do(ctx, a); err != nil {
+	if len(res.Plan.Plugins) > 0 {
+		return res, fmt.Errorf("%w: the project needs plugins that are not installed: %s (hive up installs them, or hive plugin install)", ErrState, strings.Join(res.Plan.Plugins, ", "))
+	}
+	// Toolchains and secrets are made and read before anything changes,
+	// so a failure leaves the workspace as it was.
+	prep, err := s.prepare(ctx, res.Plan.Actions)
+	if err != nil {
+		return res, err
+	}
+	for i, a := range res.Plan.Actions {
+		if err := s.do(ctx, a, prep[i]); err != nil {
 			return res, fmt.Errorf("%s %s%s (after %d of %d steps): %w", a.Op, a.Environment, nameSuffix(a.Name), res.Done, len(res.Plan.Actions), err)
 		}
 		res.Done++
@@ -265,7 +298,64 @@ func nameSuffix(name string) string {
 	return "/" + name
 }
 
-func (s *Service) do(ctx context.Context, a Action) error {
+// state is the workspace as plans see it.
+func (s *Service) state(ctx context.Context) (State, error) {
+	st, err := s.cfg.Workspace.State(ctx)
+	if err != nil {
+		return State{}, err
+	}
+	if s.cfg.Toolchains != nil {
+		st.Toolchain = s.cfg.Toolchains.Resolve
+	}
+	return st, nil
+}
+
+// prepare makes each step's toolchain and reads its secrets: what its new
+// panes start with, by the step's index.
+func (s *Service) prepare(ctx context.Context, actions []Action) ([]Prepared, error) {
+	out := make([]Prepared, len(actions))
+	made := map[string]Prepared{}
+	values := map[string]string{}
+	for i, a := range actions {
+		if a.tc.Kind != "" && a.tc.Kind != ToolchainNone {
+			k := string(a.tc.Kind) + "\x00" + a.tc.Dir
+			p, ok := made[k]
+			if !ok {
+				if s.cfg.Toolchains == nil {
+					return nil, fmt.Errorf("%w: toolchains do not run in this daemon", ErrState)
+				}
+				var err error
+				if p, err = s.cfg.Toolchains.Prepare(ctx, a.tc); err != nil {
+					return nil, fmt.Errorf("environment %s: %w", a.Environment, err)
+				}
+				made[k] = p
+			}
+			out[i] = Prepared{Env: maps.Clone(p.Env), Wrap: p.Wrap}
+		}
+		for _, name := range slices.Sorted(maps.Keys(a.refs)) {
+			ref := a.refs[name]
+			v, ok := values[ref]
+			if !ok {
+				if s.cfg.Secrets == nil {
+					return nil, fmt.Errorf("%w: secrets are not read in this daemon", ErrState)
+				}
+				var err error
+				if v, err = s.cfg.Secrets.Resolve(ctx, ref); err != nil {
+					// The error names the reference, never a value.
+					return nil, fmt.Errorf("environment %s: secret %s (%s): %w", a.Environment, name, ref, err)
+				}
+				values[ref] = v
+			}
+			if out[i].Env == nil {
+				out[i].Env = map[string]string{}
+			}
+			out[i].Env[name] = v
+		}
+	}
+	return out, nil
+}
+
+func (s *Service) do(ctx context.Context, a Action, p Prepared) error {
 	w := s.cfg.Workspace
 	switch a.Op {
 	case OpCreateEnvironment:
@@ -273,17 +363,192 @@ func (s *Service) do(ctx context.Context, a Action) error {
 	case OpSetVars:
 		return w.SetVars(ctx, a.Environment, a.values)
 	case OpCreateTab:
-		return w.CreateTab(ctx, a.Environment, *a.tab)
+		return w.CreateTab(ctx, a.Environment, *a.tab, p.Env, p.Wrap)
 	case OpStartAgent:
-		return w.StartAgent(ctx, a.Environment, *a.agent, a.Kind, a.In)
+		return w.StartAgent(ctx, a.Environment, *a.agent, a.Kind, a.In, p.Env)
 	case OpRestartAgent:
-		return w.RestartAgent(ctx, a.ID, *a.agent)
+		return w.RestartAgent(ctx, a.ID, *a.agent, p.Env)
 	case OpStopAgent:
 		return w.CloseTab(ctx, a.tabID)
 	case OpCloseTab:
 		return w.CloseTab(ctx, a.ID)
 	}
 	return fmt.Errorf("unknown step %q", a.Op)
+}
+
+// Diff says how the running workspace differs from the project file.
+func (s *Service) Diff(ctx context.Context, dir string, vars map[string]string) (Diff, error) {
+	l, err := s.parsed(dir)
+	if err != nil {
+		return Diff{}, err
+	}
+	st, err := s.state(ctx)
+	if err != nil {
+		return Diff{}, err
+	}
+	return DiffState(l.spec, l.local, vars, st), nil
+}
+
+// Saved is what project.save wrote, or would write.
+type Saved struct {
+	Project Project  `json:"project"`
+	Text    string   `json:"text"`
+	Changes []Change `json:"changes"`
+	Written bool     `json:"written"`
+}
+
+// Save writes the running tabs back to the project file (see SaveText);
+// without write it only says what it would write. A file trusted before
+// stays trusted at its new text: the person asked for it.
+func (s *Service) Save(ctx context.Context, dir string, write bool) (Saved, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	l, err := s.parsed(dir)
+	if err != nil {
+		return Saved{}, err
+	}
+	st, err := s.state(ctx)
+	if err != nil {
+		return Saved{}, err
+	}
+	text, changes := SaveText(l.spec, st)
+	res := Saved{Project: l.Project, Text: string(text), Changes: changes}
+	if changes == nil {
+		res.Changes = []Change{}
+	}
+	if !write || len(changes) == 0 {
+		return res, nil
+	}
+	trust, err := s.store.Load()
+	if err != nil {
+		return Saved{}, err
+	}
+	wasTrusted := trust[l.Root] == l.Digest
+	if err := writeAtomic(l.File, text); err != nil {
+		return Saved{}, err
+	}
+	res.Written = true
+	n, err := s.load(l.Root)
+	if err != nil {
+		return Saved{}, err
+	}
+	if n.err != nil {
+		return Saved{}, fmt.Errorf("the written file does not check (a bug): %w", n.err)
+	}
+	if wasTrusted {
+		trust = maps.Clone(trust)
+		trust[n.Root] = n.Digest
+		if err := s.store.Save(trust); err != nil {
+			return Saved{}, err
+		}
+		n.Trusted = true
+	}
+	res.Project = n.Project
+	return res, nil
+}
+
+// writeAtomic replaces path with data, keeping its mode.
+func writeAtomic(path string, data []byte) error {
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".hive.toml-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
+// WorkflowFile is a workflow file a trusted project brings, at the digest
+// trusted with it.
+type WorkflowFile struct {
+	Path    string
+	Digest  string
+	Project string
+}
+
+// WorkflowPaths are the workflow files spec declares, absolute and in
+// order: each directory's *.toml, and files as named. Missing ones are
+// left out.
+func WorkflowPaths(root string, spec Spec) []string {
+	var out []string
+	for _, w := range spec.Workflows {
+		p := filepath.Join(root, filepath.FromSlash(w))
+		info, err := os.Stat(p)
+		switch {
+		case err != nil:
+			continue
+		case info.IsDir():
+			matches, _ := filepath.Glob(filepath.Join(p, "*.toml"))
+			slices.Sort(matches)
+			for _, m := range matches {
+				if !slices.Contains(out, m) {
+					out = append(out, m)
+				}
+			}
+		case !slices.Contains(out, p):
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// trusted are the projects trusted at their current text.
+func (s *Service) trusted() []loaded {
+	trust, err := s.store.Load()
+	if err != nil {
+		return nil
+	}
+	var out []loaded
+	for _, root := range slices.Sorted(maps.Keys(trust)) {
+		l, err := s.load(root)
+		if err != nil || l.err != nil || l.Root != root || trust[root] != l.Digest {
+			continue
+		}
+		out = append(out, l)
+	}
+	return out
+}
+
+// WorkflowFiles are the workflows trusted projects bring, with their
+// digests: the workflow service lets them fire while they have that text.
+func (s *Service) WorkflowFiles() []WorkflowFile {
+	var out []WorkflowFile
+	for _, l := range s.trusted() {
+		for _, path := range WorkflowPaths(l.Root, l.spec) {
+			data, err := readFile(path)
+			if err != nil {
+				continue
+			}
+			sum := sha256.Sum256(data)
+			out = append(out, WorkflowFile{Path: path, Digest: hex.EncodeToString(sum[:]), Project: l.Root})
+		}
+	}
+	return out
+}
+
+// Gates are the gates the trusted project whose root is repo declares,
+// and that root.
+func (s *Service) Gates(repo string) ([]Gate, string) {
+	for _, l := range s.trusted() {
+		if samePath(l.Root, repo) {
+			return l.spec.Gates, l.Root
+		}
+	}
+	return nil, ""
 }
 
 // parsed loads the project at dir and refuses one that does not check.

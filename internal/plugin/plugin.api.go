@@ -155,7 +155,7 @@ var methodCapabilities = map[string]string{
 	"workflow.wait": CapHiveRead, "insights.summary": CapHiveRead, "insights.asks": CapHiveRead,
 	"insights.budgets": CapHiveRead, "insights.export": CapHiveRead,
 	"presence.list": CapHiveRead,
-	"project.get": CapHiveRead, "project.list": CapHiveRead, "project.plan": CapHiveRead,
+	"project.get":   CapHiveRead, "project.list": CapHiveRead, "project.plan": CapHiveRead, "project.diff": CapHiveRead,
 
 	// Changing the workspace.
 	"agent.focus": CapHiveWrite, "agent.rename": CapHiveWrite, "agent.seen": CapHiveWrite, "agent.report": CapHiveWrite,
@@ -204,8 +204,8 @@ var closedMethods = []string{
 	// Presence is a person's: a plugin is nowhere.
 	"presence.set",
 	"branch.push", "branch.pr", "workflow.trust", "insights.resume",
-	// Only a person decides which project files run.
-	"project.trust",
+	// Only a person decides which project files run, and rewrites one.
+	"project.trust", "project.save",
 	// A click is a person's: a plugin runs its own actions directly.
 	"plugin.view.click",
 	// A plugin closes no tracker's work: issues close when a task merges,

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -28,11 +29,22 @@ var (
 type fileProject struct {
 	Version     int               `toml:"version"`
 	Name        string            `toml:"name"`
+	Toolchain   string            `toml:"toolchain"`
+	Workflows   []string          `toml:"workflows"`
+	Plugins     []string          `toml:"plugins"`
 	Vars        map[string]string `toml:"vars"`
+	Secrets     map[string]string `toml:"secrets"`
 	Env         fileEnv           `toml:"env"`
+	Gate        []fileGate        `toml:"gate"`
 	Tab         []fileTab         `toml:"tab"`
 	Agent       []fileAgent       `toml:"agent"`
 	Environment []fileEnvironment `toml:"environment"`
+}
+
+type fileGate struct {
+	Name    string `toml:"name"`
+	Command any    `toml:"command"`
+	Timeout string `toml:"timeout"`
 }
 
 type fileEnv struct {
@@ -41,12 +53,14 @@ type fileEnv struct {
 }
 
 type fileEnvironment struct {
-	ID    string            `toml:"id"`
-	Path  string            `toml:"path"`
-	Vars  map[string]string `toml:"vars"`
-	Env   fileEnv           `toml:"env"`
-	Tab   []fileTab         `toml:"tab"`
-	Agent []fileAgent       `toml:"agent"`
+	ID        string            `toml:"id"`
+	Path      string            `toml:"path"`
+	Toolchain string            `toml:"toolchain"`
+	Vars      map[string]string `toml:"vars"`
+	Secrets   map[string]string `toml:"secrets"`
+	Env       fileEnv           `toml:"env"`
+	Tab       []fileTab         `toml:"tab"`
+	Agent     []fileAgent       `toml:"agent"`
 }
 
 type fileTab struct {
@@ -71,9 +85,11 @@ type fileAgent struct {
 }
 
 type fileLocal struct {
-	Version int                       `toml:"version"`
-	Vars    map[string]string         `toml:"vars"`
-	Agent   map[string]fileLocalAgent `toml:"agent"`
+	Version   int                       `toml:"version"`
+	Toolchain string                    `toml:"toolchain"`
+	Vars      map[string]string         `toml:"vars"`
+	Secrets   map[string]string         `toml:"secrets"`
+	Agent     map[string]fileLocalAgent `toml:"agent"`
 }
 
 type fileLocalAgent struct {
@@ -84,8 +100,12 @@ type fileLocalAgent struct {
 
 // Local is hive.local.toml: the person's own values and preferences.
 type Local struct {
-	// Vars are values for every environment, over the project's.
-	Vars map[string]string
+	// Vars are values for every environment, over the project's; Secrets
+	// are references to the person's store, by variable.
+	Vars    map[string]string
+	Secrets map[string]string
+	// Toolchain replaces every environment's, when set.
+	Toolchain Toolchain
 }
 
 // Parse reads a project file at root (the directory it is in, absolute)
@@ -100,6 +120,7 @@ func Parse(data, local []byte, root string) (Spec, Local, error) {
 	if err != nil {
 		return Spec{}, Local{}, fmt.Errorf("%s: %w", FileName, err)
 	}
+	spec.file = f
 	var loc Local
 	if local != nil {
 		var lf fileLocal
@@ -167,8 +188,37 @@ func (f fileProject) spec(root string) (Spec, error) {
 	if err := checkNames(f.Env, "env"); err != nil {
 		return Spec{}, err
 	}
+	if err := checkSecrets(f.Secrets, "secrets"); err != nil {
+		return Spec{}, err
+	}
+	tc, err := toolchain(f.Toolchain, "toolchain")
+	if err != nil {
+		return Spec{}, err
+	}
 	main := fileEnvironment{ID: name, Path: ".", Tab: f.Tab, Agent: f.Agent}
-	s := Spec{Version: f.Version, Name: name}
+	s := Spec{Version: f.Version, Name: name, Toolchain: tc}
+	if s.Gates, err = gates(f.Gate); err != nil {
+		return Spec{}, err
+	}
+	for i, w := range f.Workflows {
+		p, err := localPath(w)
+		if err != nil {
+			return Spec{}, invalid("workflows[%d]: %v", i, err)
+		}
+		if slices.Contains(s.Workflows, p) {
+			return Spec{}, invalid("workflows: %q is named twice", p)
+		}
+		s.Workflows = append(s.Workflows, p)
+	}
+	for _, id := range f.Plugins {
+		if !kindPattern.MatchString(id) {
+			return Spec{}, invalid("plugins: %q is not a plugin ID (hive plugin search)", id)
+		}
+		if slices.Contains(s.Plugins, id) {
+			return Spec{}, invalid("plugins: %s is named twice", id)
+		}
+		s.Plugins = append(s.Plugins, id)
+	}
 	ids, paths := map[string]bool{}, map[string]string{}
 	panes := 0
 	for i, fe := range append([]fileEnvironment{main}, f.Environment...) {
@@ -197,6 +247,18 @@ func (f fileProject) spec(root string) (Spec, error) {
 		if len(vars) > 0 {
 			e.Vars = vars
 		}
+		secrets := maps.Clone(f.Secrets)
+		if secrets == nil {
+			secrets = map[string]string{}
+		}
+		maps.Copy(secrets, e.Secrets)
+		e.Secrets = nil
+		if len(secrets) > 0 {
+			e.Secrets = secrets
+		}
+		if e.Toolchain == "" {
+			e.Toolchain = s.Toolchain
+		}
 		e.Required = union(f.Env.Required, e.Required)
 		e.Optional = slices.DeleteFunc(union(f.Env.Optional, e.Optional), func(n string) bool { return slices.Contains(e.Required, n) })
 		for _, t := range e.Tabs {
@@ -222,10 +284,11 @@ func (fe fileEnvironment) environment(root, where string, main bool) (Environmen
 		case fe.Path == "":
 			return Environment{}, invalid("%s: path is required (a directory of the repository)", where)
 		}
-		var err error
-		if e.Path, err = localPath(fe.Path); err != nil {
+		p, err := localPath(fe.Path)
+		if err != nil {
 			return Environment{}, invalid("%s: path %v", where, err)
 		}
+		e.Path = p
 		where = "environment " + fe.ID
 	}
 	e.Root = filepath.Join(root, filepath.FromSlash(e.Path))
@@ -235,8 +298,18 @@ func (fe fileEnvironment) environment(root, where string, main bool) (Environmen
 	if err := checkNames(fe.Env, where+": env"); err != nil {
 		return Environment{}, err
 	}
+	if err := checkSecrets(fe.Secrets, where+": secrets"); err != nil {
+		return Environment{}, err
+	}
+	var err error
+	if e.Toolchain, err = toolchain(fe.Toolchain, where+": toolchain"); err != nil {
+		return Environment{}, err
+	}
 	if len(fe.Vars) > 0 {
 		e.Vars = maps.Clone(fe.Vars)
+	}
+	if len(fe.Secrets) > 0 {
+		e.Secrets = maps.Clone(fe.Secrets)
 	}
 	e.Required, e.Optional = fe.Env.Required, fe.Env.Optional
 	names := map[string]string{}
@@ -333,6 +406,13 @@ func (lf fileLocal) apply(s *Spec) (Local, error) {
 			return Local{}, invalid("vars: %q is not a variable name", k)
 		}
 	}
+	if err := checkSecrets(lf.Secrets, "secrets"); err != nil {
+		return Local{}, err
+	}
+	tc, err := toolchain(lf.Toolchain, "toolchain")
+	if err != nil {
+		return Local{}, err
+	}
 	for _, name := range slices.Sorted(maps.Keys(lf.Agent)) {
 		la := lf.Agent[name]
 		kinds, err := kindList(la.Kind)
@@ -362,7 +442,7 @@ func (lf fileLocal) apply(s *Spec) (Local, error) {
 			return Local{}, invalid("agent.%s: %s declares no agent of that name", name, FileName)
 		}
 	}
-	return Local{Vars: lf.Vars}, nil
+	return Local{Vars: lf.Vars, Secrets: lf.Secrets, Toolchain: tc}, nil
 }
 
 // NameFromDir is the name of a project whose file gives none: its
@@ -519,4 +599,60 @@ func secretLike(name, value string) string {
 		}
 	}
 	return ""
+}
+
+func toolchain(v, where string) (Toolchain, error) {
+	t := Toolchain(v)
+	if v == "" || slices.Contains(ToolchainKinds, t) {
+		return t, nil
+	}
+	names := make([]string, len(ToolchainKinds))
+	for i, x := range ToolchainKinds {
+		names[i] = string(x)
+	}
+	return "", invalid("%s %q: one of %s", where, v, strings.Join(names, ", "))
+}
+
+func gates(fg []fileGate) ([]Gate, error) {
+	var out []Gate
+	for i, g := range fg {
+		where := fmt.Sprintf("gate[%d]", i)
+		switch {
+		case g.Name == "":
+			return nil, invalid("%s: name is required", where)
+		case strings.TrimSpace(g.Name) != g.Name || strings.ContainsAny(g.Name, "\n\r\t"):
+			return nil, invalid("%s: name %q has surrounding spaces or control characters", where, g.Name)
+		case slices.ContainsFunc(out, func(x Gate) bool { return x.Name == g.Name }):
+			return nil, invalid("gate %q: the name is used twice", g.Name)
+		}
+		cmd, err := command(g.Command)
+		if err != nil {
+			return nil, invalid("gate %s: command %v", g.Name, err)
+		}
+		if len(cmd) == 0 {
+			return nil, invalid("gate %s: command is required", g.Name)
+		}
+		gate := Gate{Name: g.Name, Command: cmd}
+		if g.Timeout != "" {
+			d, err := time.ParseDuration(g.Timeout)
+			if err != nil || d < time.Second || d > 24*time.Hour {
+				return nil, invalid("gate %s: timeout %q: a duration from 1s to 24h, such as \"10m\"", g.Name, g.Timeout)
+			}
+			gate.TimeoutMS = d.Milliseconds()
+		}
+		out = append(out, gate)
+	}
+	return out, nil
+}
+
+func checkSecrets(refs map[string]string, where string) error {
+	for _, k := range slices.Sorted(maps.Keys(refs)) {
+		if !varPattern.MatchString(k) {
+			return invalid("%s: %q is not a variable name", where, k)
+		}
+		if err := CheckSecretRef(refs[k]); err != nil {
+			return invalid("%s: %s: %v", where, k, err)
+		}
+	}
+	return nil
 }

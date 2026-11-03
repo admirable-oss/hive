@@ -9,7 +9,8 @@ import (
 
 // Projects: a repository's Hive setup in its hive.toml, brought up and
 // down as a whole (`hive up`, `hive down`, `hive project`). Trusting a
-// project file is left to a person: `hive project trust`. Directories
+// project file, and rewriting one, is left to a person: `hive project
+// trust` and `hive project save`. Directories
 // are absolute, on the daemon's machine; the project file is found there
 // or above it.
 //
@@ -25,6 +26,10 @@ type (
 	ProjectPlan        = project.Plan
 	ProjectAction      = project.Action
 	ProjectApplied     = project.Applied
+	ProjectGate        = project.Gate
+	ProjectToolchain   = project.Toolchain
+	ProjectDiff        = project.Diff
+	ProjectChange      = project.Change
 )
 
 // The steps of project plans.
@@ -64,6 +69,12 @@ func (c *Client) ProjectPlan(ctx context.Context, dir string, down bool, vars ma
 // ProjectUp makes the workspace match a trusted project file.
 func (c *Client) ProjectUp(ctx context.Context, dir string, vars map[string]string) (ProjectApplied, error) {
 	return c.projects().Up(ctx, dir, vars)
+}
+
+// DiffProject says how the running workspace differs from the project
+// file: what is missing, extra or changed.
+func (c *Client) DiffProject(ctx context.Context, dir string, vars map[string]string) (ProjectDiff, error) {
+	return c.projects().Diff(ctx, dir, vars)
 }
 
 // ProjectDown stops the agents and closes the tabs a project file declares.

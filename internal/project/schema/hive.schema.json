@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hive.admir-saheta.com/schema/hive.toml.json",
+  "title": "Hive project file (hive.toml)",
+  "description": "The Hive setup a repository is worked with. hive up starts it; hive down stops it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version"
+  ],
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "the project format this file is written for"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "description": "the main environment's ID (default: the directory's name)"
+    },
+    "toolchain": {
+      "$ref": "#/$defs/toolchain"
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "a path inside the repository, relative to hive.toml",
+        "not": {
+          "pattern": "^(/|[A-Za-z]:)"
+        }
+      },
+      "uniqueItems": true,
+      "description": "workflow directories and files, trusted with this file"
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+      },
+      "uniqueItems": true,
+      "description": "plugins the project needs, by ID: hive up installs them from the catalog"
+    },
+    "vars": {
+      "$ref": "#/$defs/vars"
+    },
+    "secrets": {
+      "$ref": "#/$defs/secrets"
+    },
+    "env": {
+      "$ref": "#/$defs/env"
+    },
+    "gate": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gate"
+      },
+      "description": "branch gates for this repository"
+    },
+    "tab": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/tab"
+      }
+    },
+    "agent": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/agent"
+      }
+    },
+    "environment": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/environment"
+      },
+      "description": "more environments, each in a directory of the repository"
+    }
+  },
+  "$defs": {
+    "toolchain": {
+      "type": "string",
+      "enum": [
+        "none",
+        "auto",
+        "nix",
+        "devcontainer",
+        "mise",
+        "direnv"
+      ],
+      "description": "where panes start: inside a Nix dev shell, a devcontainer, mise's or direnv's environment, or none (auto: whichever the directory has)"
+    },
+    "vars": {
+      "type": "object",
+      "description": "plain settings for every pane; values that look like secrets are refused",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "description": "variables read from your secret store when panes start, by reference",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(keychain:|secret-service:|pass:|op://)",
+        "description": "a reference to your secret store: keychain:<service>[/<account>], secret-service:<attr>=<value>[,\u2026], pass:<path>, op://<vault>/<item>/<field>"
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "variables the project needs, by name; values come from hive.local.toml or your shell",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "uniqueItems": true
+        },
+        "optional": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "pane": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "a list of arguments, run without a shell: [\"npm\", \"run\", \"dev\"]"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "a path inside the repository, relative to hive.toml",
+          "not": {
+            "pattern": "^(/|[A-Za-z]:)"
+          }
+        }
+      }
+    },
+    "tab": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "pane"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "split": {
+          "type": "string",
+          "enum": [
+            "horizontal",
+            "vertical"
+          ],
+          "description": "horizontal: side by side (the default); vertical: stacked"
+        },
+        "pane": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pane"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "kinds": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "minItems": 1
+        }
+      ],
+      "description": "an agent kind (hive agent manifests), or a list in order of preference"
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "kind": {
+          "$ref": "#/$defs/kinds"
+        },
+        "isolate": {
+          "type": "boolean",
+          "description": "start it in a worktree of its own"
+        },
+        "worktree": {
+          "type": "string",
+          "description": "start it in a worktree on this branch"
+        },
+        "base": {
+          "type": "string",
+          "description": "where a new worktree's branch starts"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "command"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "a list of arguments, run without a shell: [\"npm\", \"run\", \"dev\"]"
+        },
+        "timeout": {
+          "type": "string",
+          "description": "a duration from 1s to 24h, such as \"10m\""
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "path": {
+          "type": "string",
+          "description": "a path inside the repository, relative to hive.toml",
+          "not": {
+            "pattern": "^(/|[A-Za-z]:)"
+          }
+        },
+        "toolchain": {
+          "$ref": "#/$defs/toolchain"
+        },
+        "vars": {
+          "$ref": "#/$defs/vars"
+        },
+        "secrets": {
+          "$ref": "#/$defs/secrets"
+        },
+        "env": {
+          "$ref": "#/$defs/env"
+        },
+        "tab": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tab"
+          }
+        },
+        "agent": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/agent"
+          }
+        }
+      }
+    }
+  }
+}

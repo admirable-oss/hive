@@ -2120,14 +2120,27 @@ How projects work: [docs/projects.md](docs/projects.md). The design:
   (`TestM30ProjectsAsCode`): untrusted refused, trusted once, up twice
   with the second changing nothing, the plan matching what ran, down
   keeping the worktree's work, a changed file asking again.
-- [ ] Branch gates, workflows and required plugins from the file.
-- [ ] `hive project diff` and `hive project save`.
-- [ ] Toolchains (Nix, devcontainers, mise, direnv), with the environment
-  cached.
-- [ ] Secrets by reference to the person's own store.
-- [ ] Templates (`hive project init --from`) and a JSON Schema for editors.
-- [ ] The acceptance on Windows too; RFC 0009 discussed and accepted; then
-  tag `v1.11.0`.
+- [x] Branch gates (`[[gate]]`, beside `[[branches.gate]]` while trusted),
+  workflows (`workflows`, trusted with the file at their text) and required
+  plugins (`plugins`, installed from the catalog by `hive up`).
+- [x] `hive project diff` (missing, extra, changed) and `hive project save`
+  (the tabs you opened written back, still trusted), with a canonical
+  renderer that round-trips (fuzzed).
+- [x] Toolchains (`auto`, `nix`, `devcontainer`, `mise`, `direnv`): panes
+  start in the toolchain's environment, learned through `hive __env` and
+  cached by its files, or inside the devcontainer.
+- [x] Secrets by reference to the person's own store (`keychain:`,
+  `secret-service:`, `pass:`, `op://`), read when panes start and given only
+  to them.
+- [x] Templates (`hive project init --from blank | agents | test-watcher |
+  monorepo | <plugin>/<template> | <file>`), fitted to the repository;
+  `[[contributes.templates]]` in plugins; the JSON Schema of both files
+  (`hive project schema`), kept equal to the parser by a test.
+- [x] The acceptance on every system: `TestM30ProjectsAsCode` (macOS and
+  Linux, with agents, a toolchain, a secret, a workflow and a gate) and
+  `TestM30ProjectsEverywhere` (Windows too: init, trust, up twice, diff,
+  save, down, a change asking again).
+- [ ] RFC 0009 discussed and accepted; then tag `v1.11.0`.
 
 ---
 

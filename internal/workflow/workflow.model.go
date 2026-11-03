@@ -505,6 +505,12 @@ type Workflow struct {
 	// file (from [workflows] paths) fires only while Trusted.
 	Own     bool `json:"own,omitempty"`
 	Trusted bool `json:"trusted"`
+	// Project is the root of the trusted project file (hive.toml) that
+	// brings this workflow: it fires while it has the text trusted with
+	// that file.
+	Project string `json:"project,omitempty"`
+	// vouched is the digest the project trusts it at.
+	vouched string
 	// Error is why the file does not parse; it never runs then.
 	Error string `json:"error,omitempty"`
 	// Problems are its plugin steps that do not fit what the installed
@@ -532,6 +538,14 @@ type TriggerInfo struct {
 
 // Fires reports whether the workflow's triggers may fire.
 func (w Workflow) Fires() bool { return w.Error == "" && (w.Own || w.Trusted) }
+
+// ProjectFile is a workflow file a trusted project brings, at the digest
+// the project trusts it at.
+type ProjectFile struct {
+	Path    string
+	Digest  string
+	Project string
+}
 
 // --- Views and events ---
 

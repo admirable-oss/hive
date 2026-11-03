@@ -113,7 +113,7 @@ func pluginForges(host *plugin.Host) func(string) (branch.Forge, bool) {
 
 // newBranches builds the branch service over this daemon's worktrees,
 // environments, processes and agents; plugins add forges.
-func newBranches(cfg Config, envs environment.Service, procs process.Service, agents *agent.Service, wts *worktrees, plugins *plugin.Host, issues branch.Issues, bus event.Publisher, log *slog.Logger) *branch.Service {
+func newBranches(cfg Config, envs environment.Service, procs process.Service, agents *agent.Service, wts *worktrees, plugins *plugin.Host, issues branch.Issues, moreGates func(string) []branch.Gate, bus event.Publisher, log *slog.Logger) *branch.Service {
 	bc := cfg.Branches
 	forges := bc.forges()
 	forges.Lookup(pluginForges(plugins))
@@ -121,7 +121,7 @@ func newBranches(cfg Config, envs environment.Service, procs process.Service, ag
 		BaseDir: cfg.root(),
 		Service: branch.Config{
 			Logger: log, Interval: bc.Interval, Cleanup: branch.Cleanup(bc.Cleanup),
-			DeleteMerged: bc.DeleteMerged, Keep: bc.Keep, Gates: bc.Gates,
+			DeleteMerged: bc.DeleteMerged, Keep: bc.Keep, Gates: bc.Gates, MoreGates: moreGates,
 		},
 	}, branch.Ports{
 		Git:       git.New(),

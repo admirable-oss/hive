@@ -34,6 +34,12 @@ type UpParams struct {
 	Vars map[string]string `json:"vars,omitempty" desc:"the caller's values for the variables the project declares in [env]"`
 }
 
+// SaveParams is project.save's request.
+type SaveParams struct {
+	Dir   string `json:"dir" desc:"a directory of the project (absolute)"`
+	Write bool   `json:"write,omitempty" desc:"write the file; without it, only say what would be written"`
+}
+
 // Register exposes the service on the wire as project.*.
 func Register(r *protocol.Router, s *Service) {
 	m := func(name string, h protocol.Handler) { r.MustRegister(name, h) }
@@ -60,6 +66,14 @@ func Register(r *protocol.Router, s *Service) {
 	}))
 	m("project.down", protocol.Method(func(ctx context.Context, p DirParams) (Applied, error) {
 		res, err := s.Down(ctx, p.Dir)
+		return res, wireError(err)
+	}))
+	m("project.diff", protocol.Method(func(ctx context.Context, p UpParams) (Diff, error) {
+		d, err := s.Diff(ctx, p.Dir, p.Vars)
+		return d, wireError(err)
+	}))
+	m("project.save", protocol.Method(func(ctx context.Context, p SaveParams) (Saved, error) {
+		res, err := s.Save(ctx, p.Dir, p.Write)
 		return res, wireError(err)
 	}))
 }

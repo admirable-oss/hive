@@ -209,7 +209,7 @@ var memberRules = map[string]roleRule{
 	// Projects read files at paths the caller names, and start what they
 	// declare.
 	"project.get": across(roleOwner), "project.list": across(roleOwner), "project.plan": across(roleOwner),
-	"project.up": across(roleOwner), "project.down": across(roleOwner),
+	"project.up": across(roleOwner), "project.down": across(roleOwner), "project.diff": across(roleOwner),
 }
 
 // memberClosed are the methods no member may call, whatever its role:
@@ -223,7 +223,7 @@ var memberClosed = []string{
 	"process.logs.stream",
 	"agent.reload", "agent.report", "insights.usage", "insights.resume", "issue.close",
 	"workflow.reload", "workflow.trust", "workflow.trigger",
-	"project.trust",
+	"project.trust", "project.save",
 	"plugin.cancel", "plugin.card", "plugin.config", "plugin.config.set", "plugin.ready", "plugin.reload",
 	"plugin.request", "plugin.run", "plugin.status", "plugin.view.set", "plugin.view.clear",
 }

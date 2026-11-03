@@ -18,6 +18,10 @@ type State struct {
 	// programs are found.
 	Known     []string
 	Installed []string
+	// Plugins are the installed plugins' IDs.
+	Plugins []string
+	// Toolchain finds an environment's toolchain (nil: none).
+	Toolchain func(kind Toolchain, dir, root string) Resolved
 }
 
 // EnvState is an environment that exists.
@@ -31,10 +35,13 @@ type EnvState struct {
 	Branch       string
 }
 
-// TabState is a tab that exists.
+// TabState is a tab that exists: its panes in order, and how the first
+// split divides it.
 type TabState struct {
-	ID   string
-	Name string
+	ID    string
+	Name  string
+	Split Split
+	Panes []Pane
 }
 
 // AgentState is an agent that has a pane.
@@ -52,12 +59,36 @@ type AgentState struct {
 // own. Values that are needed and missing are problems.
 func PlanUp(spec Spec, local Local, vars map[string]string, st State) Plan {
 	plan := Plan{Root: spec.Environments[0].Root}
+	for _, id := range spec.Plugins {
+		if !slices.Contains(st.Plugins, id) {
+			plan.Plugins = append(plan.Plugins, id)
+		}
+	}
 	for i := range spec.Environments {
 		e := &spec.Environments[i]
-		values := resolveVars(*e, local, vars)
+		values, refs := resolveVars(*e, local, vars)
 		for _, n := range e.Required {
-			if values[n] == "" {
+			if values[n] == "" && refs[n] == "" {
 				plan.Problems = append(plan.Problems, fmt.Sprintf("environment %s needs %s: set it in %s or in your shell", e.ID, n, LocalFileName))
+			}
+		}
+		kind := e.Toolchain
+		if local.Toolchain != "" {
+			kind = local.Toolchain
+		}
+		tc := Resolved{Kind: ToolchainNone}
+		if st.Toolchain != nil {
+			tc = st.Toolchain(kind, e.Root, spec.Environments[0].Root)
+		}
+		if tc.Problem != "" && (len(e.Tabs) > 0 || len(e.Agents) > 0) {
+			plan.Problems = append(plan.Problems, fmt.Sprintf("environment %s: %s", e.ID, tc.Problem))
+		}
+		starts := func(a *Action) {
+			if tc.Kind != ToolchainNone && (tc.Kind != ToolchainDevcontainer || a.Op == OpCreateTab) {
+				a.Toolchain, a.ToolchainCached, a.tc = tc.Kind, tc.Cached, tc
+			}
+			if len(refs) > 0 {
+				a.Secrets, a.refs = slices.Sorted(maps.Keys(refs)), refs
 			}
 		}
 		have, ok := st.environment(e.ID)
@@ -92,7 +123,9 @@ func PlanUp(spec Spec, local Local, vars map[string]string, st State) Plan {
 				plan.Present++
 				continue
 			}
-			plan.Actions = append(plan.Actions, Action{Op: OpCreateTab, Environment: e.ID, Name: t.Name, Commands: commands(*t), tab: t})
+			act := Action{Op: OpCreateTab, Environment: e.ID, Name: t.Name, Commands: commands(*t), tab: t}
+			starts(&act)
+			plan.Actions = append(plan.Actions, act)
 		}
 		for j := range e.Agents {
 			a := &e.Agents[j]
@@ -107,7 +140,9 @@ func PlanUp(spec Spec, local Local, vars map[string]string, st State) Plan {
 			case exists && !found.Exited:
 				plan.Present++
 			case exists:
-				plan.Actions = append(plan.Actions, Action{Op: OpRestartAgent, Environment: e.ID, Name: a.Name, ID: found.ID, Kind: found.Kind, agent: a})
+				act := Action{Op: OpRestartAgent, Environment: e.ID, Name: a.Name, ID: found.ID, Kind: found.Kind, agent: a}
+				starts(&act)
+				plan.Actions = append(plan.Actions, act)
 			default:
 				kind, problem := chooseKind(*a, st)
 				if problem != "" {
@@ -123,6 +158,7 @@ func PlanUp(spec Spec, local Local, vars map[string]string, st State) Plan {
 						act.In, act.Worktree, act.Isolate = w.ID, w.Branch, false
 					}
 				}
+				starts(&act)
 				plan.Actions = append(plan.Actions, act)
 			}
 		}
@@ -153,20 +189,36 @@ func PlanDown(spec Spec, st State) Plan {
 	return plan
 }
 
-// resolveVars are an environment's values: the project's settings, then
-// the caller's shell for declared names, then hive.local.toml.
-func resolveVars(e Environment, local Local, vars map[string]string) map[string]string {
-	out := maps.Clone(e.Vars)
-	if out == nil {
-		out = map[string]string{}
+// resolveVars are an environment's values and secret references. Later
+// sources win: the project's settings, its secrets, the caller's shell
+// (for declared names), the person's secrets, then hive.local.toml's
+// values. Values go to the environment; secrets are read when panes start.
+func resolveVars(e Environment, local Local, vars map[string]string) (values, refs map[string]string) {
+	values, refs = maps.Clone(e.Vars), map[string]string{}
+	if values == nil {
+		values = map[string]string{}
 	}
-	for _, n := range append(slices.Clone(e.Required), e.Optional...) {
-		if v, ok := vars[n]; ok && v != "" {
-			out[n] = v
+	secret := func(m map[string]string) {
+		for k, r := range m {
+			refs[k] = r
+			delete(values, k)
 		}
 	}
-	maps.Copy(out, local.Vars)
-	return out
+	value := func(k, v string) {
+		values[k] = v
+		delete(refs, k)
+	}
+	secret(e.Secrets)
+	for _, n := range append(slices.Clone(e.Required), e.Optional...) {
+		if v, ok := vars[n]; ok && v != "" {
+			value(n, v)
+		}
+	}
+	secret(local.Secrets)
+	for k, v := range local.Vars {
+		value(k, v)
+	}
+	return values, refs
 }
 
 func chooseKind(a Agent, st State) (string, string) {

@@ -19,6 +19,9 @@ type fakeWorkspace struct {
 	st    project.State
 	calls []string
 	fail  string // a call that fails, by its first word and name
+	// envs and wraps are what new panes got, in order.
+	envs  []map[string]string
+	wraps [][]string
 }
 
 func newFake() *fakeWorkspace {
@@ -62,7 +65,9 @@ func (w *fakeWorkspace) SetVars(_ context.Context, id string, vars map[string]st
 	return nil
 }
 
-func (w *fakeWorkspace) CreateTab(_ context.Context, envID string, t project.Tab) error {
+func (w *fakeWorkspace) CreateTab(_ context.Context, envID string, t project.Tab, env map[string]string, wrap []string) error {
+	w.envs = append(w.envs, env)
+	w.wraps = append(w.wraps, wrap)
 	if err := w.record("tab " + t.Name); err != nil {
 		return err
 	}
@@ -70,7 +75,8 @@ func (w *fakeWorkspace) CreateTab(_ context.Context, envID string, t project.Tab
 	return nil
 }
 
-func (w *fakeWorkspace) StartAgent(_ context.Context, envID string, a project.Agent, kind, in string) error {
+func (w *fakeWorkspace) StartAgent(_ context.Context, envID string, a project.Agent, kind, in string, vars map[string]string) error {
+	w.envs = append(w.envs, vars)
 	if err := w.record(fmt.Sprintf("agent %s %s in=%s", a.Name, kind, in)); err != nil {
 		return err
 	}
@@ -96,7 +102,8 @@ func (w *fakeWorkspace) StartAgent(_ context.Context, envID string, a project.Ag
 	return nil
 }
 
-func (w *fakeWorkspace) RestartAgent(_ context.Context, id string, a project.Agent) error {
+func (w *fakeWorkspace) RestartAgent(_ context.Context, id string, a project.Agent, env map[string]string) error {
+	w.envs = append(w.envs, env)
 	if err := w.record("restart " + a.Name); err != nil {
 		return err
 	}

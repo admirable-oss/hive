@@ -219,6 +219,49 @@ func newPluginValidateCmd(a *app) *cobra.Command {
 	}
 }
 
+// installCatalogPlugin installs a catalog plugin by its ID: its latest
+// release this hive runs, verified, after the usual preview and yes.
+func (a *app) installCatalogPlugin(ctx context.Context, id string) error {
+	store := a.plugins()
+	catalog, err := a.pluginRegistry().Fetch(ctx)
+	if err != nil {
+		return fmt.Errorf("%w (Git installation remains available: `hive plugin install <git-url>`)", err)
+	}
+	entry, ok := catalog.Get(id)
+	if !ok {
+		return fmt.Errorf("plugin %q is not in the registry (search with `hive plugin search`)", id)
+	}
+	if err := entry.SupportsHive(buildinfo.Get().Version); err != nil {
+		return err
+	}
+	release, ok := entry.LatestFor(buildinfo.Get().Version)
+	switch {
+	case !ok && entry.Releases[0].Revoked != nil && !slices.ContainsFunc(entry.Releases, func(r plugin.Release) bool { return r.Revoked == nil }):
+		return fmt.Errorf("every release of %s is revoked (%s); it cannot be installed", entry.ID, revocationText(*entry.Releases[0].Revoked))
+	case !ok:
+		return fmt.Errorf("no release of %s runs on this hive %s (plugin API %s); update hive (`hive update`)", entry.ID, buildinfo.Get().Version, pluginAPIs())
+	}
+	if err := a.checkReleaseSignature(catalog, entry, release); err != nil {
+		return err
+	}
+	a.warnListing(entry)
+	fmt.Fprintf(a.errOut, "Fetching catalog plugin %s@%s…\n", entry.ID, release.Version)
+	f, err := store.FetchSubdir(ctx, entry.Repository, release.Ref, release.Subdir)
+	if err != nil {
+		return err
+	}
+	if err := f.VerifyArchiveChecksum(ctx, release.Checksum); err != nil {
+		f.Discard()
+		return fmt.Errorf("verify plugin %s@%s: %w", entry.ID, release.Version, err)
+	}
+	if f.Manifest.ID != entry.ID || strings.TrimPrefix(f.Manifest.Version, "v") != strings.TrimPrefix(release.Version, "v") || !strings.EqualFold(f.Commit, release.Commit) {
+		f.Discard()
+		return fmt.Errorf("registry release %s@%s does not match its manifest or pinned source revision", entry.ID, release.Version)
+	}
+	f.Version, f.Checksum, f.Registry, f.Trust = release.Version, release.Checksum, true, plugin.TrustOf(entry, release)
+	return a.installFetchedPlugin(ctx, store, f, &entry)
+}
+
 func newPluginInstallCmd(a *app) *cobra.Command {
 	var ref, subdir string
 	cmd := &cobra.Command{
@@ -228,7 +271,6 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 		RunE: withTimeout(pluginTimeout, func(ctx context.Context, _ *cobra.Command, args []string) error {
 			store := a.plugins()
 			source := args[0]
-			var listing *plugin.Listing
 			if isPluginID(source) {
 				if _, statErr := os.Stat(source); errors.Is(statErr, os.ErrNotExist) {
 					if ref != "" {
@@ -237,45 +279,7 @@ func newPluginInstallCmd(a *app) *cobra.Command {
 					if subdir != "" {
 						return errors.New("--subdir applies to Git installs; catalog releases declare their package path")
 					}
-					catalog, err := a.pluginRegistry().Fetch(ctx)
-					if err != nil {
-						return fmt.Errorf("%w (Git installation remains available: `hive plugin install <git-url>`)", err)
-					}
-					entry, ok := catalog.Get(source)
-					if !ok {
-						return fmt.Errorf("plugin %q is not in the registry (search with `hive plugin search`)", source)
-					}
-					if err := entry.SupportsHive(buildinfo.Get().Version); err != nil {
-						return err
-					}
-					release, ok := entry.LatestFor(buildinfo.Get().Version)
-					switch {
-					case !ok && entry.Releases[0].Revoked != nil && !slices.ContainsFunc(entry.Releases, func(r plugin.Release) bool { return r.Revoked == nil }):
-						return fmt.Errorf("every release of %s is revoked (%s); it cannot be installed", entry.ID, revocationText(*entry.Releases[0].Revoked))
-					case !ok:
-						return fmt.Errorf("no release of %s runs on this hive %s (plugin API %s); update hive (`hive update`)", entry.ID, buildinfo.Get().Version, pluginAPIs())
-					}
-					if err := a.checkReleaseSignature(catalog, entry, release); err != nil {
-						return err
-					}
-					a.warnListing(entry)
-					listing = &entry
-					source, ref = entry.Repository, release.Ref
-					fmt.Fprintf(a.errOut, "Fetching catalog plugin %s@%s…\n", entry.ID, release.Version)
-					f, err := store.FetchSubdir(ctx, source, ref, release.Subdir)
-					if err != nil {
-						return err
-					}
-					if err := f.VerifyArchiveChecksum(ctx, release.Checksum); err != nil {
-						f.Discard()
-						return fmt.Errorf("verify plugin %s@%s: %w", entry.ID, release.Version, err)
-					}
-					if f.Manifest.ID != entry.ID || strings.TrimPrefix(f.Manifest.Version, "v") != strings.TrimPrefix(release.Version, "v") || !strings.EqualFold(f.Commit, release.Commit) {
-						f.Discard()
-						return fmt.Errorf("registry release %s@%s does not match its manifest or pinned source revision", entry.ID, release.Version)
-					}
-					f.Version, f.Checksum, f.Registry, f.Trust = release.Version, release.Checksum, true, plugin.TrustOf(entry, release)
-					return a.installFetchedPlugin(ctx, store, f, listing)
+					return a.installCatalogPlugin(ctx, source)
 				}
 			}
 			fmt.Fprintln(a.errOut, "Fetching plugin source…")

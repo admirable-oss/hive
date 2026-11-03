@@ -100,6 +100,9 @@ func (m *Manifest) checkSurfaces() error {
 	if err := m.checkV2Contributions(seen); err != nil {
 		return err
 	}
+	if err := m.checkTemplates(); err != nil {
+		return err
+	}
 	for c, reason := range m.Permissions.Reasons {
 		if !seen[c] {
 			return fmt.Errorf("permissions.reasons: %s is not requested", c)

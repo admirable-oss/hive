@@ -46,6 +46,17 @@ func (p Projects) Up(ctx context.Context, dir string, vars map[string]string) (p
 	return projectCall[project.Applied](ctx, p, "project.up", project.UpParams{Dir: dir, Vars: vars})
 }
 
+// Diff says how the running workspace differs from the project file.
+func (p Projects) Diff(ctx context.Context, dir string, vars map[string]string) (project.Diff, error) {
+	return projectCall[project.Diff](ctx, p, "project.diff", project.UpParams{Dir: dir, Vars: vars})
+}
+
+// Save writes the running tabs back to the project file, or with write
+// false says what it would write.
+func (p Projects) Save(ctx context.Context, dir string, write bool) (project.Saved, error) {
+	return projectCall[project.Saved](ctx, p, "project.save", project.SaveParams{Dir: dir, Write: write})
+}
+
 // Down stops the project's agents and closes its tabs.
 func (p Projects) Down(ctx context.Context, dir string) (project.Applied, error) {
 	return projectCall[project.Applied](ctx, p, "project.down", project.DirParams{Dir: dir})

@@ -155,6 +155,7 @@ func (c *Client) CloseTab(ctx context.Context, id string) error
 func (c *Client) CommentBranch(ctx context.Context, req CommentRequest) (Branch, error)
 func (c *Client) CreateEnvironment(ctx context.Context, id, dir string, vars map[string]string) (Environment, error)
 func (c *Client) CreateTab(ctx context.Context, req CreateTabRequest) (TabCreated, error)
+func (c *Client) DiffProject(ctx context.Context, dir string, vars map[string]string) (ProjectDiff, error)
 func (c *Client) Environments(ctx context.Context) ([]Environment, error)
 func (c *Client) Events(ctx context.Context, types ...string) (*EventStream, error)
 func (c *Client) Explain(ctx context.Context, id string) (Explanation, error)
@@ -331,11 +332,15 @@ type Project = project.Project
 type ProjectAction = project.Action
 type ProjectAgent = project.Agent
 type ProjectApplied = project.Applied
+type ProjectChange = project.Change
+type ProjectDiff = project.Diff
 type ProjectEnvironment = project.Environment
+type ProjectGate = project.Gate
 type ProjectPane = project.Pane
 type ProjectPlan = project.Plan
 type ProjectSpec = project.Spec
 type ProjectTab = project.Tab
+type ProjectToolchain = project.Toolchain
 type PromptOptions = client.PromptOptions
 type PromptResult = agent.PromptResult
 type PullRequest = branch.PullRequest

@@ -214,8 +214,12 @@ command hive process stop
 command hive project
 command hive project (alias projects)
 command hive project check
+command hive project diff
+command hive project init
 command hive project list
 command hive project list (alias ls)
+command hive project save
+command hive project schema
 command hive project show
 command hive project trust
 command hive proxy
@@ -565,6 +569,11 @@ flag hive process logs --stderr bool
 flag hive process start --height uint16
 flag hive process start --terminal bool -t
 flag hive process start --width uint16
+flag hive project init --force bool
+flag hive project init --from string
+flag hive project init --list bool
+flag hive project save --print bool
+flag hive project schema --local bool
 flag hive project trust --revoke bool
 flag hive proxy --member string
 flag hive proxy --observer bool

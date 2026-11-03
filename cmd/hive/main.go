@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/admirable-oss/hive/internal/plugin"
+	"github.com/admirable-oss/hive/internal/project"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/shim"
 )
@@ -50,6 +51,11 @@ func execute(args []string, stdout, stderr io.Writer, getenv func(string) string
 	// inside its Linux sandbox (Landlock, the network proxy).
 	if len(args) > 0 && args[0] == plugin.SandboxCommand {
 		return plugin.SandboxMain(args[1:])
+	}
+	// `hive __env` prints its environment as JSON: what a project's
+	// toolchain (nix develop, direnv exec, mise exec) gives its programs.
+	if len(args) == 1 && args[0] == project.EnvCommand {
+		return project.PrintEnv(stdout)
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

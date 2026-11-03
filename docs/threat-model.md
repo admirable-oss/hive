@@ -95,14 +95,21 @@ ssh. Other machines are reached through the user's ssh.
    enforced only under strict isolation (`sandbox-exec` on macOS, `bwrap` on
    Linux).
 10. **Project files.** A repository's `hive.toml` can start any command and
-    any agent, so `hive up` runs it only while it has the exact text the
-    user trusted: its SHA-256, and that of a `hive.local.toml` that git
-    tracks, in `projects/trust.json`. The trust prompt shows every command,
-    directory and agent first, and a pull that changes the file makes it
-    untrusted. Its paths may not leave the repository, and values that look
-    like secrets are refused in it. Plugins and members cannot trust a
-    project. Trusting one is trusting what it runs, with the user's
-    authority.
+    any agent, run its toolchain (`nix develop`, `direnv exec`, `mise exec`,
+    `devcontainer up`), add branch gates and bring workflows that fire by
+    themselves. So `hive up` runs it, and its gates and workflows apply,
+    only while it has the exact text the user trusted: a SHA-256 over the
+    file, a `hive.local.toml` that git tracks, and the workflow files it
+    lists, in `projects/trust.json`. The trust prompt shows every command,
+    directory, agent, gate and workflow first, and a pull that changes any
+    of them makes the project untrusted. Its paths may not leave the
+    repository, and values that look like secrets are refused in it.
+    Secrets are references to the user's own store, read by the daemon with
+    the store's own tool when panes start, given only to those processes,
+    and kept only where a process's variables are kept (`HIVE_HOME`); plans,
+    project files and logs name them, never their values. Plugins and
+    members cannot trust or save a project. Trusting one is trusting what
+    it runs, with the user's authority.
 
 ## Non-goals and limits
 

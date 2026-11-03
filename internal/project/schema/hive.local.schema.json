@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hive.admir-saheta.com/schema/hive.local.toml.json",
+  "title": "Hive project file, your own (hive.local.toml)",
+  "description": "Your own values and preferences, layered over hive.toml. Git should ignore it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "toolchain": {
+      "type": "string",
+      "enum": [
+        "none",
+        "auto",
+        "nix",
+        "devcontainer",
+        "mise",
+        "direnv"
+      ],
+      "description": "where panes start: inside a Nix dev shell, a devcontainer, mise's or direnv's environment, or none (auto: whichever the directory has)"
+    },
+    "vars": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "values for [env] names, and your own settings"
+    },
+    "secrets": {
+      "type": "object",
+      "description": "variables read from your secret store when panes start, by reference",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(keychain:|secret-service:|pass:|op://)",
+        "description": "a reference to your secret store: keychain:<service>[/<account>], secret-service:<attr>=<value>[,\u2026], pass:<path>, op://<vault>/<item>/<field>"
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "an agent kind (hive agent manifests), or a list in order of preference"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "start": {
+            "type": "boolean",
+            "description": "false: never start this agent here"
+          }
+        }
+      }
+    }
+  }
+}

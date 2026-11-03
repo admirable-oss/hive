@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -15,13 +16,15 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/admirable-oss/hive/internal/buildinfo"
 	"github.com/admirable-oss/hive/internal/client"
 	"github.com/admirable-oss/hive/internal/project"
 	"github.com/admirable-oss/hive/internal/protocol"
 )
 
-// upTimeout bounds hive up and down, which start and stop agents.
-const upTimeout = 3 * time.Minute
+// upTimeout bounds hive up and down, which start and stop agents, install
+// plugins and make toolchains (a flake's first nix develop can take long).
+const upTimeout = 20 * time.Minute
 
 const projectTimeout = 30 * time.Second
 
@@ -67,6 +70,9 @@ or from your shell.`,
 				if p, err = a.trustProject(ctx, p, vars); err != nil {
 					return err
 				}
+			}
+			if err := a.installProjectPlugins(ctx, dir, vars); err != nil {
+				return err
 			}
 			res, err := projects.Up(ctx, dir, vars)
 			if err != nil {
@@ -138,7 +144,282 @@ A project file runs only while it has the text you trusted.`,
   hive project trust
   hive project list`,
 	}
-	cmd.AddCommand(newProjectCheckCmd(a), newProjectShowCmd(a), newProjectTrustCmd(a), newProjectListCmd(a))
+	cmd.AddCommand(newProjectInitCmd(a), newProjectCheckCmd(a), newProjectShowCmd(a), newProjectTrustCmd(a),
+		newProjectListCmd(a), newProjectDiffCmd(a), newProjectSaveCmd(a), newProjectSchemaCmd(a))
+	return cmd
+}
+
+func newProjectInitCmd(a *app) *cobra.Command {
+	var (
+		from  string
+		force bool
+		list  bool
+	)
+	cmd := &cobra.Command{
+		Use:   "init [dir]",
+		Short: "Write a hive.toml from a template",
+		Long: `Write hive.toml in dir (default: here) from a template, fitted to what is
+there: the language's test and dev commands, the toolchain, the packages of a
+monorepo. Read it, change it, then hive up.
+
+--from names the template:
+  a built-in one: blank (the default), agents, test-watcher, monorepo;
+  a plugin's: <plugin>/<template> ([[contributes.templates]]);
+  or a file: another project's hive.toml, or a directory with one.
+
+It also adds hive.local.toml to .gitignore, since that file is yours.`,
+		Example: `  hive project init
+  hive project init --from agents
+  hive project init --from monorepo
+  hive project init --from team-templates/service
+  hive project init --list`,
+		Args: rangeArgs(0, 1),
+		RunE: withTimeout(projectTimeout, func(ctx context.Context, _ *cobra.Command, args []string) error {
+			if list {
+				return a.listProjectTemplates(ctx)
+			}
+			if a.remote != nil {
+				return errors.New("hive project init writes files on this machine; run it there")
+			}
+			dir, err := absDir(cmpStr(firstArg(args), "."))
+			if err != nil {
+				return err
+			}
+			target := filepath.Join(dir, project.FileName)
+			if _, err := os.Stat(target); err == nil && !force {
+				return fmt.Errorf("%s exists (--force writes over it)", target)
+			}
+			from = cmpStr(from, "blank")
+			text, err := a.projectTemplate(ctx, from, dir)
+			if err != nil {
+				return err
+			}
+			spec, _, err := project.Parse(text, nil, dir)
+			if err != nil {
+				return fmt.Errorf("template %s: %w", from, err)
+			}
+			if err := os.WriteFile(target, text, 0o644); err != nil {
+				return err
+			}
+			ignored, err := ignoreLocalFile(ctx, dir)
+			if err != nil {
+				return err
+			}
+			return a.emit(map[string]any{"file": target, "template": from, "gitignore": ignored, "spec": spec}, func() error {
+				fmt.Fprintf(a.out, "wrote %s from %s: %s\n", target, from, countSpec(spec))
+				if ignored {
+					fmt.Fprintf(a.out, "added %s to .gitignore\n", project.LocalFileName)
+				}
+				fmt.Fprintln(a.out, "next: read it, then hive up --plan")
+				return nil
+			})
+		}),
+	}
+	cmd.Flags().StringVar(&from, "from", "", "the template: blank, agents, test-watcher, monorepo, <plugin>/<template> or a file")
+	cmd.Flags().BoolVar(&force, "force", false, "write over an existing hive.toml")
+	cmd.Flags().BoolVar(&list, "list", false, "list the templates")
+	return cmd
+}
+
+// projectTemplate is the text of the template from names, for a project
+// at dir.
+func (a *app) projectTemplate(ctx context.Context, from, dir string) ([]byte, error) {
+	if slices.ContainsFunc(project.Templates, func(t project.TemplateInfo) bool { return t.Name == from }) {
+		return project.Template(from, dir)
+	}
+	if info, err := os.Stat(from); err == nil {
+		path := from
+		if info.IsDir() {
+			path = filepath.Join(from, project.FileName)
+		}
+		return os.ReadFile(path)
+	}
+	id, name, ok := strings.Cut(from, "/")
+	if !ok || !isPluginID(id) {
+		return nil, fmt.Errorf("no template %q: a built-in one (hive project init --list), <plugin>/<template>, or a file", from)
+	}
+	p, err := a.plugins().Get(ctx, id, buildinfo.Get().Version)
+	if err != nil {
+		return nil, fmt.Errorf("template %s: %w (install the plugin: hive plugin install %s)", from, err, id)
+	}
+	if p.Manifest == nil {
+		return nil, fmt.Errorf("template %s: plugin %s has no manifest: %s", from, id, p.Problem)
+	}
+	for _, t := range p.Manifest.Contributes.Templates {
+		if t.Name == name {
+			return os.ReadFile(filepath.Join(p.Dir, filepath.FromSlash(t.File)))
+		}
+	}
+	return nil, fmt.Errorf("plugin %s has no template %q (hive project init --list)", id, name)
+}
+
+func (a *app) listProjectTemplates(ctx context.Context) error {
+	type row struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	var rows []row
+	for _, t := range project.Templates {
+		rows = append(rows, row{t.Name, t.Description})
+	}
+	if plugins, err := a.plugins().List(ctx, buildinfo.Get().Version); err == nil {
+		for _, p := range plugins {
+			if p.Manifest == nil {
+				continue
+			}
+			for _, t := range p.Manifest.Contributes.Templates {
+				rows = append(rows, row{p.ID + "/" + t.Name, cmpStr(t.Title, "from the plugin "+p.ID)})
+			}
+		}
+	}
+	return a.emit(rows, func() error {
+		tw := a.table()
+		fmt.Fprintln(tw, "TEMPLATE\tWHAT")
+		for _, r := range rows {
+			fmt.Fprintf(tw, "%s\t%s\n", r.Name, r.Description)
+		}
+		return tw.Flush()
+	})
+}
+
+// ignoreLocalFile adds hive.local.toml to dir's .gitignore in a git
+// repository, and says whether it did.
+func ignoreLocalFile(ctx context.Context, dir string) (bool, error) {
+	if err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--git-dir").Run(); err != nil {
+		return false, nil // not a repository
+	}
+	path := filepath.Join(dir, ".gitignore")
+	data, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return false, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if l := strings.TrimSpace(line); l == project.LocalFileName || l == "/"+project.LocalFileName {
+			return false, nil
+		}
+	}
+	text := string(data)
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	return true, os.WriteFile(path, []byte(text+project.LocalFileName+"\n"), 0o644) //nolint:gosec // the .gitignore of the directory the person named
+}
+
+func newProjectDiffCmd(a *app) *cobra.Command {
+	return needsDaemon(&cobra.Command{
+		Use:   "diff [dir]",
+		Short: "Show how the running workspace differs from the project file",
+		Long: `Show what hive up would make (missing), what runs that the file does not
+declare (extra: hive project save adds the tabs), and tabs whose panes differ
+from their declaration (changed).`,
+		Args: rangeArgs(0, 1),
+		RunE: withTimeout(projectTimeout, func(ctx context.Context, _ *cobra.Command, args []string) error {
+			dir, err := a.projectDir(args)
+			if err != nil {
+				return err
+			}
+			p, err := a.loadProject(ctx, dir)
+			if err != nil {
+				return err
+			}
+			d, err := client.NewProjects(a.client).Diff(ctx, dir, projectVars(p.Spec, a.getenv))
+			if err != nil {
+				return projectErr(err)
+			}
+			return a.emit(d, func() error {
+				if len(d.Changes) == 0 && len(d.Problems) == 0 {
+					fmt.Fprintln(a.out, "no differences: what runs is what the file says")
+					return nil
+				}
+				printChanges(a.out, d.Changes)
+				for _, pr := range d.Problems {
+					fmt.Fprintf(a.out, "! %s\n", pr)
+				}
+				return nil
+			})
+		}),
+	})
+}
+
+func printChanges(w io.Writer, changes []project.Change) {
+	for _, c := range changes {
+		what := c.What + " " + c.Environment
+		if c.Name != "" {
+			what += "/" + c.Name
+		}
+		line := fmt.Sprintf("%-8s %s", c.Kind, what)
+		if c.Detail != "" {
+			line += ": " + c.Detail
+		}
+		fmt.Fprintln(w, line)
+	}
+}
+
+func newProjectSaveCmd(a *app) *cobra.Command {
+	var printOnly bool
+	cmd := needsDaemon(&cobra.Command{
+		Use:   "save [dir]",
+		Short: "Write the running tabs back to the project file",
+		Long: `Write the tabs you opened, and the panes of declared tabs that you changed,
+back to hive.toml. Nothing is removed from it. The file is written in its
+canonical form, so comments in it are not kept: it asks first (--yes answers
+yes), and --print shows the new text without writing it. A trusted file stays
+trusted at the text you saved.`,
+		Args: rangeArgs(0, 1),
+		RunE: withTimeout(projectTimeout, func(ctx context.Context, _ *cobra.Command, args []string) error {
+			dir, err := a.projectDir(args)
+			if err != nil {
+				return err
+			}
+			projects := client.NewProjects(a.client)
+			preview, err := projects.Save(ctx, dir, false)
+			if err != nil {
+				return projectErr(err)
+			}
+			if printOnly {
+				return a.emit(preview, func() error {
+					fmt.Fprint(a.out, preview.Text)
+					return nil
+				})
+			}
+			if len(preview.Changes) == 0 {
+				return a.done(map[string]any{"saved": preview}, "nothing to save: %s already says what runs", preview.Project.File)
+			}
+			if !a.json {
+				printChanges(a.errOut, preview.Changes)
+			}
+			if !a.confirm(fmt.Sprintf("Write these to %s? Comments in it are not kept.", preview.Project.File)) {
+				return errors.New("not saved (--yes saves; --print shows the text)")
+			}
+			saved, err := projects.Save(ctx, dir, true)
+			if err != nil {
+				return projectErr(err)
+			}
+			return a.done(map[string]any{"saved": saved}, "wrote %s (trusted: %s)", saved.Project.File, trustText(saved.Project))
+		}),
+	})
+	cmd.Flags().BoolVar(&printOnly, "print", false, "print the new text, and write nothing")
+	return cmd
+}
+
+func newProjectSchemaCmd(a *app) *cobra.Command {
+	var local bool
+	cmd := &cobra.Command{
+		Use:   "schema",
+		Short: "Print the JSON Schema of hive.toml, for editors",
+		Long: `Print the JSON Schema of hive.toml (or, with --local, of hive.local.toml).
+Editors with a TOML language server use it for completion and checks: save it
+in the repository and point the editor at it, for example with a
+"#:schema ./.hive/hive.schema.json" line at the top of hive.toml (Taplo, Even
+Better TOML).`,
+		Example: `  hive project schema > .hive/hive.schema.json`,
+		Args:    noArgs,
+		RunE: func(*cobra.Command, []string) error {
+			_, err := a.out.Write(project.Schema(local))
+			return err
+		},
+	}
+	cmd.Flags().BoolVar(&local, "local", false, "the schema of hive.local.toml")
 	return cmd
 }
 
@@ -320,6 +601,28 @@ func (a *app) trustProject(ctx context.Context, p project.Project, vars map[stri
 	return p, nil
 }
 
+// installProjectPlugins installs the plugins the project needs and lacks,
+// from the catalog, each after its preview and a yes.
+func (a *app) installProjectPlugins(ctx context.Context, dir string, vars map[string]string) error {
+	pl, err := client.NewProjects(a.client).Plan(ctx, dir, false, vars)
+	if err != nil {
+		return projectErr(err)
+	}
+	if len(pl.Plugins) == 0 {
+		return nil
+	}
+	if a.remote != nil {
+		return fmt.Errorf("the project needs plugins %s on %s: install them there (hive plugin install)", strings.Join(pl.Plugins, ", "), a.remoteName)
+	}
+	for _, id := range pl.Plugins {
+		fmt.Fprintf(a.errOut, "The project needs the plugin %s.\n", id)
+		if err := a.installCatalogPlugin(ctx, id); err != nil {
+			return fmt.Errorf("plugin %s: %w", id, err)
+		}
+	}
+	return nil
+}
+
 // projectVars are the shell's values for the names the project declares,
 // and nothing else.
 func projectVars(spec *project.Spec, getenv func(string) string) map[string]string {
@@ -381,13 +684,16 @@ func (a *app) emitApplied(res project.Applied, p project.Project, failed error) 
 // printProjectPlan writes one line a step: + creates, ~ changes, - stops, and !
 // is a problem.
 func printProjectPlan(w io.Writer, pl project.Plan) {
+	for _, id := range pl.Plugins {
+		fmt.Fprintf(w, "+ plugin %s, from the catalog\n", id)
+	}
 	for _, act := range pl.Actions {
 		fmt.Fprintln(w, actionText(act))
 	}
 	for _, p := range pl.Problems {
 		fmt.Fprintf(w, "! %s\n", p)
 	}
-	if len(pl.Actions) == 0 && len(pl.Problems) == 0 {
+	if len(pl.Actions) == 0 && len(pl.Problems) == 0 && len(pl.Plugins) == 0 {
 		if pl.Down {
 			fmt.Fprintln(w, "nothing to stop")
 		} else {
@@ -397,6 +703,31 @@ func printProjectPlan(w io.Writer, pl project.Plan) {
 }
 
 func actionText(act project.Action) string {
+	return actionHead(act) + startsText(act)
+}
+
+// startsText says what a new pane starts in: its toolchain and secrets.
+func startsText(act project.Action) string {
+	var parts []string
+	switch {
+	case act.Toolchain == "":
+	case act.Toolchain == project.ToolchainDevcontainer:
+		parts = append(parts, "in the devcontainer")
+	case act.ToolchainCached:
+		parts = append(parts, "in "+string(act.Toolchain)+"'s environment")
+	default:
+		parts = append(parts, "in "+string(act.Toolchain)+"'s environment, made first")
+	}
+	if len(act.Secrets) > 0 {
+		parts = append(parts, "with secrets "+strings.Join(act.Secrets, ", "))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, "; ") + ")"
+}
+
+func actionHead(act project.Action) string {
 	at := act.Environment + "/" + act.Name
 	switch act.Op {
 	case project.OpCreateEnvironment:
@@ -448,8 +779,27 @@ func describeProject(w io.Writer, p project.Project) {
 	if p.Spec.Local {
 		fmt.Fprintf(w, "  with %s\n", project.LocalFileName)
 	}
+	if len(p.Spec.Plugins) > 0 {
+		fmt.Fprintf(w, "  plugins: %s\n", strings.Join(p.Spec.Plugins, ", "))
+	}
+	for _, g := range p.Spec.Gates {
+		fmt.Fprintf(w, "  gate %s: %s\n", g.Name, project.CommandLine(g.Command))
+	}
+	if len(p.Spec.Workflows) > 0 {
+		fmt.Fprintf(w, "  workflows (they fire while this file is trusted): %s\n", strings.Join(p.Spec.Workflows, ", "))
+	}
 	for _, e := range p.Spec.Environments {
 		fmt.Fprintf(w, "  environment %s at %s\n", e.ID, e.Path)
+		if e.Toolchain != "" && e.Toolchain != project.ToolchainNone {
+			fmt.Fprintf(w, "    toolchain: %s\n", e.Toolchain)
+		}
+		if len(e.Secrets) > 0 {
+			var refs []string
+			for _, k := range slices.Sorted(maps.Keys(e.Secrets)) {
+				refs = append(refs, k+" from "+e.Secrets[k])
+			}
+			fmt.Fprintf(w, "    secrets: %s\n", strings.Join(refs, ", "))
+		}
 		if len(e.Vars) > 0 {
 			fmt.Fprintf(w, "    vars: %s\n", strings.Join(slices.Sorted(maps.Keys(e.Vars)), ", "))
 		}

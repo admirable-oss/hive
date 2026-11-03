@@ -45,7 +45,7 @@ type WorkflowsConfig struct {
 
 // newWorkflows builds the workflow service over this daemon's tasks,
 // environments, agents and plugins.
-func newWorkflows(cfg Config, tasks *task.Service, envs environment.Service, agents *agent.Service, plugins *plugin.Host, bus event.Publisher, log *slog.Logger) *workflow.Service {
+func newWorkflows(cfg Config, tasks *task.Service, envs environment.Service, agents *agent.Service, plugins *plugin.Host, projects func() []workflow.ProjectFile, bus event.Publisher, log *slog.Logger) *workflow.Service {
 	wc := cfg.Workflows
 	own := cfg.Home
 	if own == "" {
@@ -56,6 +56,7 @@ func newWorkflows(cfg Config, tasks *task.Service, envs environment.Service, age
 		Service: workflow.Config{
 			Logger: log, OwnDir: workflow.Dir(own), Paths: wc.Paths, Home: wc.UserHome,
 			MaxRuns: wc.MaxRuns, Keep: wc.Keep, KeepAge: wc.KeepAge, Interval: wc.Interval,
+			Projects: projects,
 		},
 	}, workflow.Ports{
 		Tasks:     tasks,

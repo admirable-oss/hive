@@ -152,6 +152,7 @@
     "process.get",
     "process.list",
     "process.logs",
+    "project.diff",
     "project.get",
     "project.list",
     "project.plan",
