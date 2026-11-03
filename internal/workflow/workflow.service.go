@@ -36,6 +36,9 @@ type Config struct {
 	// Interval is how often workflow files and watched repositories are
 	// read again (default DefaultInterval).
 	Interval time.Duration
+	// Projects lists the workflow files trusted projects bring (nil:
+	// none).
+	Projects func() []ProjectFile
 }
 
 func (c Config) withDefaults() Config {

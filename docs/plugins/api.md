@@ -558,6 +558,24 @@ command = ["./bin/linear"]
   `issue` is named in the default body of its branch's pull request, and
   `close_issue = true` closes the issue when the branch merges.
 
+### Project templates
+
+Any plugin, with any plugin API, can ship templates for project files
+([docs/projects.md](../projects.md#templates)):
+
+```toml
+[[contributes.templates]]
+name = "service"
+title = "A Go service with a reviewer"
+file = "templates/service.toml"   # a hive.toml, inside the plugin
+```
+
+`hive project init --from <plugin>/service` writes the file into a
+repository, after checking it as `hive up` would read it, and `hive
+project init --list` lists them. A template is data: Hive never runs
+anything of the plugin's for it. At most 16, with names of lower-case
+letters, digits and dashes.
+
 ## Lifecycle and health
 
 | State | Meaning |

@@ -142,6 +142,8 @@ A split or popup starts in the directory its pane is working in (after a `cd`, t
 | `hive daemon install \| uninstall` | Run the daemon as a launchd agent (macOS) or systemd user service (Linux) |
 | `hive session save \| restore [--fresh]` | Snapshot the workspace now; start panes lost to a reboot again (the daemon does both by itself) |
 | `hive --remote <host> …` · `hive --machine <name> …` | Run any command (or the multiplexer) against Hive on another machine over SSH; installs it there after asking |
+| `hive up [--plan]` · `hive down` | Start a repository's Hive setup from its `hive.toml` (environments, tabs, agents, toolchain, secrets), and stop it ([projects](docs/projects.md)) |
+| `hive project init \| check \| show \| trust \| list \| diff \| save \| schema` | Write a project file from a template, check and trust it, and keep it in step with what runs ([projects](docs/projects.md)) |
 | `hive task run \| list \| get \| wait \| approve \| cancel \| retry \| report` | Run plans of tasks for many agents, with dependencies, limits, approvals and results ([plans](docs/tasks.md)) |
 | `hive branch list \| get \| diff \| conflicts \| update \| ready \| comment \| send \| push \| pr \| clean` | Follow agents' branches: overlaps and conflicts, review, gates, and publishing on your command ([branches](docs/branches.md)) |
 | `hive workflow list \| show \| run [--headless] \| runs \| status \| wait \| report \| cancel \| rerun \| fire \| trust` | Run workflows by trigger or by hand, the same way every time, and in CI ([workflows](docs/workflows.md)) |

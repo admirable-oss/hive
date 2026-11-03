@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 17. Clients speak newline-delimited JSON over the daemon's unix
+API level 18. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -1083,6 +1083,76 @@ Result: [process.Process](#processprocess)
 | `id` | `string` |  |
 
 Result: [protocol.Empty](#protocolempty)
+
+## project
+
+### `project.diff`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `vars` | `map[string]string` | the caller's values for the variables the project declares in [env] |
+
+Result: [project.Diff](#projectdiff)
+
+### `project.down`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project, absolute on the daemon's machine; hive.toml is found there or above it |
+
+Result: [project.Applied](#projectapplied)
+
+### `project.get`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project, absolute on the daemon's machine; hive.toml is found there or above it |
+
+Result: [project.Project](#projectproject)
+
+### `project.list`
+
+No params.
+
+Result: [\[\]project.Project](#projectproject)
+
+### `project.plan`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `down` | `boolean` | plan hive down instead of hive up |
+| `vars` | `map[string]string` | the caller's values for the variables the project declares in [env] |
+
+Result: [project.Plan](#projectplan)
+
+### `project.save`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `write` | `boolean` | write the file; without it, only say what would be written |
+
+Result: [project.Saved](#projectsaved)
+
+### `project.trust`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `revoke` | `boolean` | revoke the trust instead |
+
+Result: [project.Project](#projectproject)
+
+### `project.up`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `vars` | `map[string]string` | the caller's values for the variables the project declares in [env] |
+
+Result: [project.Applied](#projectapplied)
 
 ## runtime
 
@@ -2859,6 +2929,7 @@ Result: [protocol.Empty](#protocolempty)
 | `palette` | [\[\]plugin.PaletteEntry](#pluginpaletteentry) |  |
 | `status` | [\[\]plugin.StatusIndicator](#pluginstatusindicator) |  |
 | `steps` | [\[\]plugin.StepDecl](#pluginstepdecl) |  |
+| `templates` | [\[\]plugin.TemplateDecl](#plugintemplatedecl) |  |
 | `trackers` | [\[\]plugin.TrackerDecl](#plugintrackerdecl) |  |
 | `triggers` | [\[\]plugin.TriggerDecl](#plugintriggerdecl) |  |
 | `views` | [\[\]plugin.ViewDecl](#pluginviewdecl) |  |
@@ -3181,6 +3252,14 @@ Result: [protocol.Empty](#protocolempty)
 | `outputs` | [map[string]plugin.ParamSpec](#pluginparamspec) |  |
 | `timeout` | `string` |  |
 
+### plugin.TemplateDecl
+
+| Field | Type | |
+|---|---|---|
+| `file` | `string` |  |
+| `name` | `string` |  |
+| `title` | `string` |  |
+
 ### plugin.TestSpec
 
 | Field | Type | |
@@ -3362,6 +3441,181 @@ Result: [protocol.Empty](#protocolempty)
 |---|---|---|
 | `logs` | `string` |  |
 | `truncated` | `boolean` |  |
+
+### project.Action
+
+| Field | Type | |
+|---|---|---|
+| `commands` | `[]string` |  |
+| `environment` | `string` |  |
+| `id` | `string` |  |
+| `in` | `string` |  |
+| `isolate` | `boolean` |  |
+| `kind` | `string` |  |
+| `name` | `string` |  |
+| `op` | `string` |  |
+| `root` | `string` |  |
+| `secrets` | `[]string` |  |
+| `toolchain` | `string` |  |
+| `toolchain_cached` | `boolean` |  |
+| `vars` | `[]string` |  |
+| `worktree` | `string` |  |
+
+### project.Agent
+
+| Field | Type | |
+|---|---|---|
+| `args` | `[]string` |  |
+| `base` | `string` |  |
+| `isolate` | `boolean` |  |
+| `kinds` | `[]string` |  |
+| `name` | `string` |  |
+| `skip` | `boolean` |  |
+| `worktree` | `string` |  |
+
+### project.Applied
+
+| Field | Type | |
+|---|---|---|
+| `done` | `integer` |  |
+| `plan` | [project.Plan](#projectplan) |  |
+
+### project.Change
+
+| Field | Type | |
+|---|---|---|
+| `detail` | `string` |  |
+| `environment` | `string` |  |
+| `kind` | `string` |  |
+| `name` | `string` |  |
+| `what` | `string` |  |
+
+### project.Diff
+
+| Field | Type | |
+|---|---|---|
+| `changes` | [\[\]project.Change](#projectchange) |  |
+| `problems` | `[]string` |  |
+| `root` | `string` |  |
+
+### project.DirParams
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project, absolute on the daemon's machine; hive.toml is found there or above it |
+
+### project.Environment
+
+| Field | Type | |
+|---|---|---|
+| `agents` | [\[\]project.Agent](#projectagent) |  |
+| `id` | `string` |  |
+| `optional` | `[]string` |  |
+| `path` | `string` |  |
+| `required` | `[]string` |  |
+| `root` | `string` |  |
+| `secrets` | `map[string]string` |  |
+| `tabs` | [\[\]project.Tab](#projecttab) |  |
+| `toolchain` | `string` |  |
+| `vars` | `map[string]string` |  |
+
+### project.Gate
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `name` | `string` |  |
+| `timeout_ms` | `integer` |  |
+
+### project.Pane
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `cwd` | `string` |  |
+| `name` | `string` |  |
+
+### project.Plan
+
+| Field | Type | |
+|---|---|---|
+| `actions` | [\[\]project.Action](#projectaction) |  |
+| `down` | `boolean` |  |
+| `plugins` | `[]string` |  |
+| `present` | `integer` |  |
+| `problems` | `[]string` |  |
+| `root` | `string` |  |
+
+### project.PlanParams
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `down` | `boolean` | plan hive down instead of hive up |
+| `vars` | `map[string]string` | the caller's values for the variables the project declares in [env] |
+
+### project.Project
+
+| Field | Type | |
+|---|---|---|
+| `digest` | `string` |  |
+| `error` | `string` |  |
+| `file` | `string` |  |
+| `local_file` | `string` |  |
+| `root` | `string` |  |
+| `spec` | [project.Spec](#projectspec) |  |
+| `trusted` | `boolean` |  |
+
+### project.SaveParams
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `write` | `boolean` | write the file; without it, only say what would be written |
+
+### project.Saved
+
+| Field | Type | |
+|---|---|---|
+| `changes` | [\[\]project.Change](#projectchange) |  |
+| `project` | [project.Project](#projectproject) |  |
+| `text` | `string` |  |
+| `written` | `boolean` |  |
+
+### project.Spec
+
+| Field | Type | |
+|---|---|---|
+| `environments` | [\[\]project.Environment](#projectenvironment) |  |
+| `gates` | [\[\]project.Gate](#projectgate) |  |
+| `local` | `boolean` |  |
+| `name` | `string` |  |
+| `plugins` | `[]string` |  |
+| `toolchain` | `string` |  |
+| `version` | `integer` |  |
+| `workflows` | `[]string` |  |
+
+### project.Tab
+
+| Field | Type | |
+|---|---|---|
+| `name` | `string` |  |
+| `panes` | [\[\]project.Pane](#projectpane) |  |
+| `split` | `string` |  |
+
+### project.TrustParams
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `revoke` | `boolean` | revoke the trust instead |
+
+### project.UpParams
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `vars` | `map[string]string` | the caller's values for the variables the project declares in [env] |
 
 ### protocol.Empty
 
@@ -4349,6 +4603,7 @@ An object.
 | `own` | `boolean` |  |
 | `path` | `string` |  |
 | `problems` | `[]string` |  |
+| `project` | `string` |  |
 | `spec` | [workflow.Spec](#workflowspec) |  |
 | `steps` | `integer` |  |
 | `text` | `string` |  |

@@ -119,6 +119,9 @@ checks this both ways.
 | `branches.json` (`v1.4.0`) | 1 | no branch is loaded, and the file is never written over | moved to `*.corrupt-<time>`; worktree environments are followed again from scratch |
 | `workflows/runs/<run>.json` (`v1.5.0`) | 1 | that run is not loaded, file left as is | moved to `*.corrupt-<time>`; the other runs load |
 | `workflows/trust.json`, `workflows/state.json` (`v1.5.0`) | 1 | nothing is trusted (or remembered), and the file is never written over | moved to `*.corrupt-<time>`; shared workflows need trusting again, and git triggers start from the references they see |
+| `projects/trust.json` (`v1.11.0`) | 1 | nothing is trusted, and the file is never written over | moved to `*.corrupt-<time>`; project files need trusting again |
+| `projects/toolchains/<key>.json` (`v1.11.0`) | 1 | not used: the toolchain's environment is made again | not used, and made again |
+| `hive.toml`, `hive.local.toml` (`v1.11.0`, in repositories) | `version = 1` | refused with a hint to update hive | refused, with the line |
 | `identity.json` | 1 | refused, file left as is (`v1.0.10`) | refused (`ErrBadIdentity`); never replaced by a new identity |
 | `web/access.json`, `web/runtimes.json`, `web/push.json` | 1 | refused, file left as is (`v1.0.10`) | refused |
 

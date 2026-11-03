@@ -24,6 +24,9 @@ type fileStamp struct {
 type sourceFile struct {
 	path string
 	own  bool
+	// project and vouched name the trusted project that brings the file,
+	// and the digest it trusts the file at.
+	project, vouched string
 }
 
 // sources lists the workflow files: the person's own first, then the
@@ -61,6 +64,20 @@ func (s *Service) sources() []sourceFile {
 			add(p, false)
 		}
 	}
+	if s.cfg.Projects != nil {
+		for _, f := range s.cfg.Projects() {
+			path := f.Path
+			if abs, err := filepath.Abs(path); err == nil {
+				path = abs
+			}
+			if i := slices.IndexFunc(out, func(x sourceFile) bool { return x.path == path }); i >= 0 {
+				out[i].project, out[i].vouched = f.Project, f.Digest
+				continue
+			}
+			seen[path] = true
+			out = append(out, sourceFile{path: path, project: f.Project, vouched: f.Digest})
+		}
+	}
 	return out
 }
 
@@ -96,7 +113,7 @@ func (s *Service) reload(ctx context.Context) []string {
 			c := *w
 			w = &c
 		}
-		w.Own = f.own
+		w.Own, w.Project, w.vouched = f.own, f.project, f.vouched
 		if prev := defs[w.Name]; prev != nil {
 			w.Error = fmt.Sprintf("another workflow is called %s (%s)", w.Name, prev.Path)
 			w.Name = NameFromSource(f.path) + "@" + shortDigest(w.Digest)
@@ -105,7 +122,7 @@ func (s *Service) reload(ctx context.Context) []string {
 	}
 	var changed []string
 	for name, w := range defs {
-		if o := old[name]; o == nil || o.Digest != w.Digest || o.Path != w.Path || o.Error != w.Error || o.Own != w.Own {
+		if o := old[name]; o == nil || o.Digest != w.Digest || o.Path != w.Path || o.Error != w.Error || o.Own != w.Own || o.vouched != w.vouched {
 			changed = append(changed, name)
 		}
 	}
@@ -170,7 +187,7 @@ func readWorkflow(path string) *Workflow {
 // and its next scheduled time; full adds its spec and text.
 func (s *Service) viewLocked(w *Workflow, full bool) Workflow {
 	v := *w
-	v.Trusted = w.Digest != "" && s.trust[w.Path] == w.Digest
+	v.Trusted = w.Digest != "" && (s.trust[w.Path] == w.Digest || w.vouched == w.Digest)
 	if !full {
 		v.Spec, v.Text = nil, ""
 	} else {
@@ -287,7 +304,7 @@ func (s *Service) Trust(ctx context.Context, name string, revoke bool) (Workflow
 
 // firesLocked reports whether a definition's triggers may fire now.
 func (s *Service) firesLocked(w *Workflow) bool {
-	return w.Error == "" && w.Spec != nil && (w.Own || s.trust[w.Path] == w.Digest)
+	return w.Error == "" && w.Spec != nil && (w.Own || s.trust[w.Path] == w.Digest || w.Digest != "" && w.vouched == w.Digest)
 }
 
 // Validate parses the text of a workflow file.

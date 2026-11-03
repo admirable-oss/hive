@@ -11,7 +11,53 @@
 > **Hive** — AI infrastructure for always-working agents.  
 > Site: [https://hive.admir-saheta.com](https://hive.admir-saheta.com)
 
-Each milestone ships a tagged release and has clear acceptance criteria, so you always know when it's truly done. Hive 1.0 is in release candidates (`v1.0.0-rc.1`); the 1.0 train (M10–M19) is on `main` and ships as `v1.0.10`. M20–M30 are the proposed 1.x train, one minor release each, open for comment in [RFC 0001](rfcs/0001-after-1.0.10.md). 🚀
+Each milestone ships a tagged release and has clear acceptance criteria, so you always know when it's truly done. Hive 1.0 is in release candidates (`v1.0.0-rc.1`); the 1.0 train (M10–M19) is on `main` and ships as `v1.0.10`. M20–M40 are the proposed 1.x train, one minor release each, open for comment in [RFC 0001](rfcs/0001-after-1.0.10.md). 🚀
+
+### At a glance
+
+| Milestone | Release | Status |
+|---|---|---|
+| M0 Foundations & Debt | `v0.2` | ✅ Live |
+| M1 Terminal Core | `v0.3` | ✅ Live |
+| M2 Workspace Model | `v0.4` | ✅ Live |
+| M3 Multiplexer TUI | `v0.5` | ✅ Live |
+| M4 Agent Intelligence | `v0.6` | ✅ Live |
+| M5 Agents Operating Agents | `v0.7` | ✅ Live |
+| M6 Persistence & Resume | `v0.8` | ✅ Live |
+| M7 Remote & Multi-Machine | `v0.9` | ✅ Live |
+| M8 Extensibility | `v0.10` | ✅ Live |
+| M9 Hardening | `v1.0.0` | ✅ Live |
+| M10 Plugin App Store | `v1.0.1` | ✅ Live |
+| M11 Visual Terminal Workflows | `v1.0.3` | ✅ Live |
+| M12 Plugin Runtime Surfaces | `v1.0.2` | ✅ Live |
+| M13 Windows Foundation | `v1.0.4` | ✅ Live |
+| M14 Observer API | `v1.0.5` | ✅ Live |
+| M15 Web Observer | `v1.0.6` | ✅ Live |
+| M16 Mobile Observer | `v1.0.7` | ✅ Live |
+| M17 Local Discovery | `v1.0.8` | ✅ Live |
+| M18 Desktop App | `v1.0.9` | In progress (preview) |
+| M19 Release Quality | `v1.0.10` | In progress |
+| M20 Trusted Distribution | `v1.1.0` | In progress |
+| M21 Desktop App 1.0 | `v1.2.0` | In progress |
+| M22 Parallel Agent Orchestration | `v1.3.0` | In progress |
+| M23 Git-Native Development | `v1.4.0` | In progress |
+| M24 Workflow Automation | `v1.5.0` | In progress |
+| M25 Agent Insights | `v1.6.0` | In progress |
+| M26 Plugin Ecosystem 2 | `v1.7.0` | In progress |
+| M27 Team Collaboration | `v1.8.0` | In progress |
+| M28 Runtime Fleet Management | `v1.9.0` | Proposed |
+| M29 Hosted Foundations | `v1.10.0` | Proposed |
+| M30 Projects as Code | `v1.11.0` | In progress |
+| M31 Editor Integrations | `v1.12.0` | Proposed |
+| M32 Checkpoints and Undo | `v1.13.0` | Proposed |
+| M33 Recording and Replay | `v1.14.0` | Proposed |
+| M34 Tracing and Debugging | `v1.15.0` | Proposed |
+| M35 Shared Agent Context | `v1.16.0` | Proposed |
+| M36 Testing Toolkit and SDKs | `v1.17.0` | Proposed |
+| M37 Performance II | `v1.18.0` | Proposed |
+| M38 Smart Scheduling | `v1.19.0` | Proposed |
+| M39 Everyday Ergonomics | `v1.20.0` | Proposed |
+| M40 1.x LTS and the Road to 2.0 | `v1.21.0` | Proposed |
 
 ---
 
@@ -82,7 +128,7 @@ Now for the heart of the system: a rock-solid terminal core that survives anythi
 
 ---
 
-## M2 · Workspace Model — `v0.4`  — **LIVE**
+## ✅ M2 · Workspace Model — `v0.4` — **LIVE**
 
 Let's make it feel like home: named sessions, environments, and a flexible layout that adapts to how you work.
 
@@ -95,7 +141,7 @@ Let's make it feel like home: named sessions, environments, and a flexible layou
 
 ---
 
-## M3 · Multiplexer TUI — `v0.5`  — **LIVE**
+## ✅ M3 · Multiplexer TUI — `v0.5` — **LIVE**
 
 The fun part: a full multiplexer UI you'll enjoy living in — soon your daily tmux replacement.
 
@@ -111,7 +157,7 @@ The fun part: a full multiplexer UI you'll enjoy living in — soon your daily t
 
 ---
 
-## M4 · Agent Intelligence — `v0.6` - **LIVE**
+## ✅ M4 · Agent Intelligence — `v0.6` — **LIVE**
 
 Hive learns what your agents are doing, so you only look when one needs you.
 
@@ -126,7 +172,7 @@ Hive learns what your agents are doing, so you only look when one needs you.
 
 ---
 
-## M5 · Agents Operating Agents — `v0.7` - **LIVE**
+## ✅ M5 · Agents Operating Agents — `v0.7` — **LIVE**
 
 Now it gets really cool: agents driving other agents, through a clean CLI, a Go SDK, and MCP.
 
@@ -142,7 +188,7 @@ Now it gets really cool: agents driving other agents, through a clean CLI, a Go 
 
 ---
 
-## M6 · Persistence & Resume — `v0.8`  — **LIVE**
+## ✅ M6 · Persistence & Resume — `v0.8` — **LIVE**
 
 Reboots happen. Hive should shrug them off and pick up right where you left off.
 
@@ -157,7 +203,7 @@ Reboots happen. Hive should shrug them off and pick up right where you left off.
 
 ---
 
-## M7 · Remote & Multi-Machine — `v0.9` - **LIVE**
+## ✅ M7 · Remote & Multi-Machine — `v0.9` — **LIVE**
 
 Go beyond one machine: SSH in and manage a whole fleet of agents from wherever you are.
 
@@ -171,7 +217,7 @@ Go beyond one machine: SSH in and manage a whole fleet of agents from wherever y
 
 ---
 
-## M8 · Extensibility — `v0.10` - **LIVE**
+## ✅ M8 · Extensibility — `v0.10` — **LIVE**
 
 Make Hive yours: plugins, custom commands, and hooks for whatever your workflow needs.
 
@@ -184,7 +230,7 @@ Make Hive yours: plugins, custom commands, and hooks for whatever your workflow 
 
 ---
 
-## M9 · Hardening → `v1.0.0` — **LIVE**
+## ✅ M9 · Hardening → `v1.0.0` — **LIVE**
 
 The final stretch: freeze the APIs, polish the rough edges, and ship a 1.0 we can all be proud of. 🎉
 
@@ -198,7 +244,7 @@ The final stretch: freeze the APIs, polish the rough edges, and ship a 1.0 we ca
 
 ---
 
-## M10 · Plugin App Store — `v1.0.1` - **LIVE**
+## ✅ M10 · Plugin App Store — `v1.0.1` — **LIVE**
 
 **Status:** the CLI side is done; publishing the examples and the
 storefront's checks remain (below).
@@ -355,7 +401,7 @@ target from one machine, which keeps the release flow reproducible.
 
 ---
 
-## M11 · Visual Terminal Workflows — `v1.0.3` — **LIVE**
+## ✅ M11 · Visual Terminal Workflows — `v1.0.3` — **LIVE**
 
 Give agents the context they need.
 
@@ -416,7 +462,7 @@ to work normally.
 
 ---
 
-## M12 · Plugin Runtime Surfaces — `v1.0.2` — **LIVE**
+## ✅ M12 · Plugin Runtime Surfaces — `v1.0.2` — **LIVE**
 
 Plugins become first-class citizens.
 
@@ -492,7 +538,7 @@ configuration, and declared capabilities.
 
 ---
 
-## M13 · Windows Foundation — `v1.0.4` — **LIVE**
+## ✅ M13 · Windows Foundation — `v1.0.4` — **LIVE**
 
 Bring Hive to Windows.
 
@@ -556,7 +602,7 @@ CI coverage.
 
 ---
 
-## M14 · Observer API — `v1.0.5` — **LIVE**
+## ✅ M14 · Observer API — `v1.0.5` — **LIVE**
 
 Observe without taking control.
 
@@ -624,7 +670,7 @@ alter layouts, launch processes, or inspect unrelated sessions.
 
 ---
 
-## M15 · Web Observer — `v1.0.6` — **LIVE**
+## ✅ M15 · Web Observer — `v1.0.6` — **LIVE**
 
 Check on your agents from anywhere.
 
@@ -693,7 +739,7 @@ through the read-only API.
 
 ---
 
-## M16 · Mobile Observer — `v1.0.7` — **LIVE**
+## ✅ M16 · Mobile Observer — `v1.0.7` — **LIVE**
 
 Your agents don’t stop when you leave your desk.
 
@@ -755,7 +801,7 @@ or completed session without receiving unintended control permissions.
 
 ---
 
-## M17 · Local Discovery — `v1.0.8` — **LIVE**
+## ✅ M17 · Local Discovery — `v1.0.8` — **LIVE**
 
 Find your machines. Trust them explicitly.
 
@@ -1280,10 +1326,10 @@ major-version roadmap is published with community input.
 
 ---
 
-## The 1.x train (M20 to M30) — **PROPOSED**
+## The 1.x train (M20 to M40) — **PROPOSED**
 
 After `v1.0.10`, each milestone is a minor release: `v1.1.0` for M20 through
-`v1.11.0` for M30. They are proposed in
+`v1.21.0` for M40. They are proposed in
 [RFC 0001](rfcs/0001-after-1.0.10.md) and open for comment: the order and
 the scope change with what users and plugin authors say, and the accepted
 version replaces this section ([GOVERNANCE.md](GOVERNANCE.md#feedback-and-the-roadmap)).
@@ -1294,8 +1340,14 @@ an RFC.
 
 The order: finish what 1.0 left open (M20, M21), then the agent workflows
 the runtime is built for (M22 to M25), then the ecosystem (M26), then
-working with others and more machines (M27 to M29), and last the road to
-2.0 (M30).
+working with others and more machines (M27 to M29). After that comes
+developer experience: the project in its repository and in the editor (M30,
+M31), safety and visibility for what agents do (M32 to M34), shared context
+and tools for people who build on Hive (M35, M36), then speed and cost (M37,
+M38) and everyday polish (M39). Last is the road to 2.0 (M40).
+
+M30 to M39 were added in a revision of RFC 0001 on 2026-11-03. The 1.x LTS,
+which was M30, is now M40, so it stays the last 1.x release.
 
 ---
 
@@ -1989,7 +2041,557 @@ runtime keeps working with the hosted service switched off.
 
 ---
 
-## M30 · 1.x LTS and the Road to 2.0 — `v1.11.0` — **PROPOSED**
+## M30 · Projects as Code — `v1.11.0` — **IN PROGRESS**
+
+One file in the repository, the same Hive for everyone who clones it.
+
+Today each person builds their setup by hand, in their own config and
+session: environments, layouts, the agents a repository needs, its gates
+(M23) and its workflows (M24). This milestone puts a project's Hive setup in
+the repository, next to its code. A new contributor runs `git clone` and one
+command, and has the same workspace as everyone else.
+
+1. **`hive.toml`**
+   - A versioned project file at the repository root. It declares:
+     - environments, tabs and layouts, in the `layout.export` format (M2);
+     - the agents each environment starts, with their kinds and worktrees;
+     - branch gates (M23), workflows (M24) and the plugins the project
+       needs (M10);
+     - environment variables by name, never by value.
+   - Checked strictly, with errors that point at the line, and a JSON
+     Schema that editors use for completion.
+   - Trusted the way shared workflows are (M24): nothing in it runs until
+     the person trusts its current text, and any change asks again.
+
+2. **`hive up` and `hive down`**
+   - `hive up` creates what is missing and leaves what already runs, so
+     running it twice changes nothing. `hive down` stops the project's
+     agents and keeps its worktrees.
+   - `hive up --plan` shows what it would create, start and install before
+     doing any of it.
+   - `hive project diff` shows where the running workspace differs from the
+     file, and `hive project save` writes the running layout back to it.
+
+3. **Toolchains**
+   - Panes start inside the project's toolchain: a Nix flake's dev shell, a
+     devcontainer, `mise` or `direnv`. Hive detects which one and caches the
+     environment, so after the first time a pane opens in under 100 ms.
+   - Secrets come from the person's own store (Keychain, Secret Service,
+     `pass`, the 1Password CLI) by reference. They are injected at start and
+     redacted like every other secret.
+
+4. **Templates**
+   - `hive project init --from <template>` for common shapes: a reviewer
+     and a fixer, a test watcher, a monorepo with one agent per package.
+   - Templates are registry packages (M26), and a project can publish its
+     own.
+
+5. **Personal overrides**
+   - `hive.local.toml`, which git ignores, and `[projects]` in
+     `config.toml` hold a person's own keys, theme and preferred agent
+     kinds, layered over the project's file.
+
+**✅ Acceptance:** a fresh clone of a repository with a `hive.toml` gives,
+after one trust prompt and one `hive up`, the same environments, layout,
+agents, gates and workflows on macOS, Linux and Windows. A second `hive up`
+changes nothing, and `hive up --plan` matches what runs. No secret value is
+ever written to the file.
+
+### M30 progress
+
+How projects work: [docs/projects.md](docs/projects.md). The design:
+[RFC 0009](rfcs/0009-projects-as-code.md).
+
+- [x] The project file (`internal/project`): versioned TOML, checked
+  strictly with errors at their line and fuzzed; a main environment and
+  more in subdirectories, tabs of panes, agents by kind in order of
+  preference (`isolate`, `worktree`), `[vars]` that refuse secrets and
+  `[env]` names; paths kept inside the repository.
+- [x] `hive.local.toml`: the person's own values, agent kinds, arguments
+  and `start = false`, outside trust unless git tracks it.
+- [x] Trust at the file's current text (`hive project trust | show | list`),
+  asked once by `hive up` with every command shown; closed to plugins and
+  members.
+- [x] `hive up` and `hive down`, with `--plan`: idempotent, stopping on
+  problems before changing anything, agents started again in the worktrees
+  `hive down` kept. `hive project check` without a daemon.
+- [x] Wire API `project.*` at API level 18, `pkg/hiveapi` support, roles
+  and plugin capabilities, frozen surfaces; the end-to-end test
+  (`TestM30ProjectsAsCode`): untrusted refused, trusted once, up twice
+  with the second changing nothing, the plan matching what ran, down
+  keeping the worktree's work, a changed file asking again.
+- [x] Branch gates (`[[gate]]`, beside `[[branches.gate]]` while trusted),
+  workflows (`workflows`, trusted with the file at their text) and required
+  plugins (`plugins`, installed from the catalog by `hive up`).
+- [x] `hive project diff` (missing, extra, changed) and `hive project save`
+  (the tabs you opened written back, still trusted), with a canonical
+  renderer that round-trips (fuzzed).
+- [x] Toolchains (`auto`, `nix`, `devcontainer`, `mise`, `direnv`): panes
+  start in the toolchain's environment, learned through `hive __env` and
+  cached by its files, or inside the devcontainer.
+- [x] Secrets by reference to the person's own store (`keychain:`,
+  `secret-service:`, `pass:`, `op://`), read when panes start and given only
+  to them.
+- [x] Templates (`hive project init --from blank | agents | test-watcher |
+  monorepo | <plugin>/<template> | <file>`), fitted to the repository;
+  `[[contributes.templates]]` in plugins; the JSON Schema of both files
+  (`hive project schema`), kept equal to the parser by a test.
+- [x] The acceptance on every system: `TestM30ProjectsAsCode` (macOS and
+  Linux, with agents, a toolchain, a secret, a workflow and a gate) and
+  `TestM30ProjectsEverywhere` (Windows too: init, trust, up twice, diff,
+  save, down, a change asking again).
+- [ ] RFC 0009 discussed and accepted; then tag `v1.11.0`.
+
+---
+
+## M31 · Editor Integrations — `v1.12.0` — **PROPOSED**
+
+Your agents, where your code is.
+
+Most people read diffs and write code in an editor, not a terminal. This
+milestone brings Hive into VS Code, the JetBrains IDEs, Neovim and Zed, as
+clients of the same daemon, with nothing new to trust.
+
+1. **One editor bridge**
+   - `hive editor serve`: a stdio server over `pkg/hiveapi` that every
+     extension speaks, so all editors share one tested implementation, the
+     way language servers do. Its protocol is designed in an RFC and frozen
+     in `api/v1`.
+   - The same trust as the CLI: the local socket, peer credentials, no
+     network listener.
+
+2. **In the editor**
+   - Agents and tasks with live states in a side panel, blocked ones first,
+     and notifications that open the agent.
+   - An agent's terminal in an editor panel, drawn from frames by the
+     desktop app's renderer, shared rather than rewritten.
+   - Send a selection, a file, a diagnostic or a failing test to an agent
+     as a prompt, with its path and lines.
+   - `path:line` in an agent's output opens that file at that line.
+
+3. **Review where you edit**
+   - A branch's diff (M23) in the editor's own diff view. Comments go back
+     to the agent as prompts, and gate results show as diagnostics.
+   - Accept or reject an agent's change hunk by hunk. It applies through
+     git in the agent's worktree, never to the person's branch without
+     asking.
+
+4. **Agents' edits, visible**
+   - Files an agent is changing are marked in the file tree and the tab
+     bar, live, with which agent and which task.
+   - A warning before you edit a file that an agent is editing in the same
+     worktree.
+
+5. **Distribution**
+   - The VS Code Marketplace and Open VSX, the JetBrains Marketplace, a
+     Neovim plugin in Lua and a Zed extension. All are released with Hive's
+     tag and provenance (M20).
+
+**✅ Acceptance:** in VS Code, one JetBrains IDE and Neovim, a developer
+starts an agent from a selection, follows it in an editor panel, reviews
+its diff hunk by hunk with a comment sent back, and is warned before
+editing a file the agent is changing. Closing the editor leaves every agent
+running.
+
+---
+
+## M32 · Checkpoints and Undo — `v1.13.0` — **PROPOSED**
+
+Let agents try things. Take back what they did.
+
+Worktrees keep agents away from each other, but not from their own
+mistakes. This milestone records an agent's worktree around every turn, so
+that any step can be inspected, compared or undone.
+
+1. **Checkpoints**
+   - A checkpoint before each prompt and after each turn (when the agent
+     goes idle or done), covering tracked and untracked files.
+   - Stored as git objects under `refs/hive/checkpoints/`, beside M23's
+     `refs/hive/saved/`. They add no commits to the branch and do not touch
+     the index.
+   - Cheap: content-addressed, so an unchanged file costs nothing, with
+     reflinks for large untracked files on APFS, btrfs and XFS.
+   - Kept by the retention settings, and pruned by `hive gc`.
+
+2. **Undo**
+   - `hive undo [agent]` puts the worktree back as it was before the last
+     turn. `hive checkpoint list | diff | restore <id>` reaches any other.
+   - Restoring never loses work: the current state is checkpointed first,
+     and restoring over a person's own uncommitted changes asks.
+   - Optionally, the agent is told what was undone, as a prompt.
+
+3. **A timeline**
+   - Each turn shows its prompt, the files it changed, the commands the
+     agent ran (where its hooks report them), its time and its reported
+     usage (M25).
+   - In the TUI, the desktop app and the editor (M31), and read-only in the
+     web observer.
+
+4. **Trying again from any point**
+   - `hive checkpoint fork <id>` starts a new agent in a new worktree from
+     any checkpoint, to try another prompt from the same place.
+
+5. **Outside git**
+   - Folders that are not repositories get checkpoints in a private object
+     store, so agents working in them can be undone too.
+
+**✅ Acceptance:** an agent makes five turns of changes in a worktree.
+`hive undo` reverts the last one byte for byte, untracked files included. A
+fork from turn 2 starts a second agent at exactly that state. A person's
+own uncommitted edits are never lost. Checkpointing adds under 50 ms to a
+turn in a repository of 10,000 files.
+
+---
+
+## M33 · Recording and Replay — `v1.14.0` — **PROPOSED**
+
+See exactly what happened, after it happened.
+
+Pane history replay (M6) restores screens after a restart; it does not let
+anyone review a run. This milestone records sessions as data that can be
+scrubbed, searched, shared and tested against.
+
+1. **Recordings**
+   - Per pane, task or workflow run: the terminal stream with its timing,
+     input marked apart from output, resizes, and agent states. The format
+     is documented and exports to asciicast v2.
+   - Off by default, and turned on per environment, task or workflow
+     (`record = true`), since terminal contents can hold secrets (M6's
+     safety notes apply).
+   - Compressed in blocks with zstd, and bounded by size and age.
+
+2. **Replay**
+   - `hive replay <recording>` in the TUI: play, pause, change speed, and
+     jump to a state change, a prompt or a search match. Screens are rebuilt
+     from keyframes, so a jump is instant.
+   - In the desktop app, and in the web observer within the credential's
+     scope.
+
+3. **Redaction and sharing**
+   - Secrets are redacted on export: known token formats, environment
+     values, and patterns from config, with a preview first.
+   - `hive replay export --html` writes one self-contained page to share.
+     Nothing is uploaded anywhere.
+
+4. **Recordings as fixtures**
+   - `hive agent manifests test <recording>` checks a manifest's
+     classifications against a real session, so manifest and plugin authors
+     test against real agent output, as M4's corpus does.
+   - A task's report (M22) links its recording.
+
+5. **Search**
+   - Full-text search across the recordings on a machine, from a local
+     index.
+
+**✅ Acceptance:** a recorded two-hour task replays with any jump taking
+under 100 ms, exports redacted to asciicast and to HTML, and serves as a
+manifest test. Recording 16 busy panes costs under 5 % of a core and stays
+within its size budget.
+
+---
+
+## M34 · Tracing and Debugging — `v1.15.0` — **PROPOSED**
+
+Know why a plan was slow, and where it failed.
+
+Insights (M25) say where each agent's time goes. This milestone follows
+one piece of work from end to end: through tasks, workflow steps, plugins,
+machines and the daemon itself.
+
+1. **Traces**
+   - Every plan, task, workflow run and step, plugin action and remote call
+     becomes a span, with its parent, start, end, outcome and attributes.
+     Spans never hold terminal contents.
+   - `hive trace <plan|run>` draws a waterfall in the terminal, with the
+     critical path highlighted and time spent waiting on a person shown
+     apart.
+
+2. **OpenTelemetry, opt in**
+   - OTLP export to a collector the person names
+     (`[tracing] otlp_endpoint`). It is off by default and never sends to
+     the project. Metrics go too: queue depths, frame latency and bytes per
+     pane.
+   - `TRACEPARENT` in each agent's environment, so an agent's own tools can
+     join the trace.
+
+3. **The daemon, explained**
+   - `hive top`: live CPU, memory, bytes per second, frame rate and
+     subscribers per pane, time per plugin, and queue depths.
+   - `hive debug bundle`: logs, config with secrets removed, versions, state
+     schemas, a goroutine dump and a short CPU profile in one archive for a
+     bug report. It lists what it will include before writing anything.
+   - Every error carries a stable code, and `hive error <code>` explains its
+     causes and fixes.
+
+4. **Stepping through workflows**
+   - `hive workflow run --step`: pause before each step, show its resolved
+     inputs and expressions, then continue, skip or stop. A step can set
+     `pause_before = true` to act as a breakpoint.
+   - `hive workflow eval '${{ … }}' --run <id>` evaluates an expression
+     against a recorded run's context.
+
+5. **Bottlenecks, pointed out**
+   - After each plan, a short list: tasks that waited on concurrency
+     limits, machines that were full, the steps retried most, and the
+     longest approvals.
+
+**✅ Acceptance:** a 10-task plan across 2 machines produces one trace with
+every task, step and remote call, exported to a local OpenTelemetry
+collector, with its critical path shown by `hive trace`. A workflow is
+stepped through and an expression evaluated against its recorded context.
+`hive debug bundle` contains none of the secrets seeded in a test setup.
+With export off, nothing leaves the machine.
+
+---
+
+## M35 · Shared Agent Context — `v1.16.0` — **PROPOSED**
+
+Tell every agent once.
+
+Each agent kind reads its own instructions file (`CLAUDE.md`, `AGENTS.md`,
+`GEMINI.md`, Cursor rules), and each task starts with nothing the last
+agent learned. In keeping with an agent-agnostic core, this milestone keeps
+one source of context and gives each agent what it needs.
+
+1. **One source of instructions**
+   - `.hive/context/` in the repository: instructions, conventions, and the
+     commands that build and test it, written once.
+   - `hive context sync` writes each installed agent kind's own file from
+     it, marked as generated, and `--check` fails CI when one is stale.
+     Manifests (M4) declare each kind's file and format.
+   - Files written by hand are never overwritten. `hive context import`
+     turns them into the source.
+
+2. **Handoffs that carry context**
+   - When a task depends on another (M22) or an agent is handed over (M27),
+     the next agent receives the first one's summary, changed files and
+     open questions in its prompt, through a template the project can
+     change.
+
+3. **Project notes**
+   - A small, local, append-only store of notes per repository, which
+     agents read and write through MCP tools (`context_note`,
+     `context_search`): decisions, pitfalls, what was tried.
+   - People review and prune it, retention applies, and it can be exported.
+     It is never shared between repositories unless asked.
+
+4. **A prompt library**
+   - Named prompts with typed parameters (`hive prompt run review --path
+     src/`), in the person's config or the project's.
+   - Usable from the CLI, MCP, tasks, workflows and the editor (M31).
+
+5. **Context size**
+   - `hive context size` estimates, per agent kind, how much of the context
+     window the instructions and the injected context take, and warns past
+     a limit.
+
+**✅ Acceptance:** one `.hive/context/` source produces correct instruction
+files for Claude Code, Codex and Gemini, checked in CI. A dependent task
+receives its dependency's summary without a person copying it. A note
+written by one agent kind is found by another through MCP. Files written by
+hand are never overwritten.
+
+---
+
+## M36 · Testing Toolkit and SDKs — `v1.17.0` — **PROPOSED**
+
+Build on Hive with the confidence its own tests give it.
+
+Hive's end-to-end tests use fake agents, a temporary `HIVE_HOME` and a
+real daemon. This milestone hands the same tools to people who write
+plugins, workflows, plans and integrations, along with client SDKs in the
+languages they use.
+
+1. **`hivetest`**
+   - A Go package, and `hive test-daemon` for other languages, that starts
+     an isolated daemon with fake agents scripted by a small file ("print
+     this, block on this prompt, go done after 3 seconds"). Recordings
+     (M33) can play agents too.
+   - Helpers that wait on states, events and screens, and print the screen
+     when an assertion fails.
+
+2. **Dry runs**
+   - `hive task run --dry-run` and `hive workflow run --dry-run` simulate
+     the DAG, its order, placement, budgets and approvals with fake agents
+     in seconds, so a plan's shape is tested before it spends anything.
+   - `hive workflow test` asserts on a workflow's steps and outputs for
+     given trigger inputs, in CI.
+
+3. **Client SDKs**
+   - TypeScript, Python and Rust clients for the control API (the SDKs in
+     `sdk/` today are for plugins). They are generated from
+     `hive api schema`, type streams and events, and are tested against the
+     golden frames in `sdk/protocol/fixtures`.
+   - Published with provenance (M20), at Hive's version.
+
+4. **A playground**
+   - `hive api repl`: call any method with completion from the schema,
+     subscribe to events, and see the raw frames.
+   - `hive api schema --json-schema` for other tools.
+
+5. **A plugin dev loop**
+   - `hive plugin dev` reloads a linked plugin when it changes, shows its
+     logs and capability denials inline, and runs its `[test]` on save.
+
+**✅ Acceptance:** a plugin, a workflow and a 5-task plan are each tested in
+CI with `hivetest` and dry runs, with no real agents, in under a minute.
+The TypeScript, Python and Rust clients pass the same conformance suite and
+each drives an agent through start, prompt and wait.
+
+---
+
+## M37 · Performance II — `v1.18.0` — **PROPOSED**
+
+Faster at a thousand panes than 1.0 was at a hundred.
+
+M9 set budgets for 100 panes, and agents multiply faster than that. This
+milestone profiles the hot paths end to end, makes them cheaper, and keeps
+them that way with gates.
+
+1. **Benchmarks that gate**
+   - `make bench-compare` on every pull request, on the dedicated runner
+     (M20) so the numbers are stable. A regression past a set threshold
+     fails the check; an intended one needs a label and a reason.
+   - Benchmark results kept per commit and published, so trends are
+     visible.
+
+2. **The terminal core**
+   - A fast path in the VT parser for runs of printable text, and fewer
+     allocations per frame (pooled cells and rows), measured on the
+     recorded corpus.
+   - Scrollback compressed in blocks away from the viewport, cutting the
+     memory of an idle pane by half or more.
+   - The opt-in Zig module over cgo, under M10's rule (one package owns
+     `import "C"`, the default build stays pure Go), only where a profile
+     proves the need.
+
+3. **The wire**
+   - `frames/3`: a per-stream table of styles and links, so runs send an
+     index instead of repeating attributes, negotiated beside `frames/1`
+     and `frames/2`.
+   - zstd with a trained dictionary for remote frame streams, offered beside
+     deflate.
+   - Each frame encoded once and shared when many clients watch one pane.
+
+4. **Start and idle**
+   - `hive` to the first frame in under 50 ms on a running daemon, and a
+     daemon start in under 150 ms with 100 panes to restore, restoring
+     panes out of view lazily.
+   - Idle panes cost nothing: no timers, no wakeups, and detection only on
+     damage (M4).
+
+5. **Memory**
+   - A memory budget per pane, shown in `hive top` (M34), with scrollback
+     trimmed under memory pressure.
+
+**✅ Acceptance:** 1,000 panes, 100 of them streaming, with p99 frame time
+under 16 ms, idle CPU under 1 % and the daemon under 1 GB of memory. A
+busy remote pane uses 30 % less bandwidth than M7's budget. Benchmarks gate
+every pull request, and the default build stays pure Go.
+
+---
+
+## M38 · Smart Scheduling — `v1.19.0` — **PROPOSED**
+
+Spend less and wait less, for the same result.
+
+Plans (M22) run within their limits, but do not yet choose well. This
+milestone uses what Hive already knows from insights (M25) and gates (M23)
+to run work cheaper and sooner.
+
+1. **Warm agents**
+   - A pool of started, idle agents per kind and project (`[pool]`), handed
+     to tasks at once with a fresh worktree. A task starts in under a
+     second instead of several.
+   - Pools shrink when idle and count against budgets.
+
+2. **Choosing the agent**
+   - A task says what it needs: a kind, or "the cheapest that passes the
+     gates". Hive chooses among the installed kinds by their past pass
+     rate and reported cost, shows why, and lets the person override.
+   - Cost is never guessed: an agent that does not report usage counts as
+     unknown.
+
+3. **Best of N**
+   - `attempts = 3` on a task: three agents try in parallel worktrees, the
+     gates decide, the first to pass wins, and the others are stopped and
+     cleaned up (M23), within a budget cap.
+
+4. **Not doing work twice**
+   - A task's result is cached by its prompt, agent kind, base commit and
+     declared inputs. Rerunning with the same inputs reuses the result
+     unless asked otherwise (`--fresh`).
+   - Command steps in workflows can set `cache = true`, keyed by the files
+     they declare, like a build system.
+   - A gate is skipped when the tree it would test passed already.
+
+5. **Limits that adapt**
+   - Concurrency follows a machine's CPU and memory, and backs off on the
+     rate-limit responses an agent reports, before tasks fail.
+   - Placement prefers machines with a warm pool or the repository already
+     cloned.
+
+**✅ Acceptance:** a 20-task plan with a warm pool starts every task within
+a second. A best-of-3 task keeps the first passing attempt and cleans up the
+others. Rerunning an unchanged plan reuses its cached results and spends
+nothing. Under a simulated rate limit, concurrency backs off with no task
+failing. Every scheduling decision is in the plan's report with its reason.
+
+---
+
+## M39 · Everyday Ergonomics — `v1.20.0` — **PROPOSED**
+
+The first hour as good as the hundredth.
+
+Hive has many surfaces now. This milestone makes them easy to find, quick
+to learn, and helpful when something goes wrong.
+
+1. **The first run**
+   - The first `hive` finds the installed agents, offers their integrations
+     (M4), a theme and a prefix key, imports tmux or herdr settings, and
+     opens a short interactive tour in a real tab, built on `hive demo`.
+   - `hive doctor` checks the whole install (daemon, socket, shell, agents
+     and their hooks, plugins, machines, paths, terminal capabilities) and
+     says what to fix, with the command that fixes it.
+
+2. **Discoverable**
+   - One command palette in the TUI, the desktop app and the editor (M31),
+     listing every action with its key and its CLI equivalent, and ranking
+     what the person uses most.
+   - Hints of the next keys after the prefix, which stop once learned.
+   - A mistyped command suggests the right one, and every error says what
+     to do next (`hive error`, M34).
+
+3. **Configuration without hunting**
+   - `hive config edit` validates on save, and everything that can reload
+     does so at once (themes, keys, notifications, the status bar), with no
+     daemon restart.
+   - `hive config get | set` with completion from the config schema, and a
+     settings view in the TUI and the desktop app generated from that same
+     schema.
+
+4. **Shell integration**
+   - Prompt marks (OSC 133): jump between commands in scrollback, select
+     one command's output, and see its exit status beside it.
+   - A prompt segment for zsh, bash, fish and PowerShell that shows blocked
+     agents.
+   - Completions in those shells for live names: agents, panes, branches
+     and plans.
+
+5. **Accessible**
+   - A screen-reader mode for the TUI that announces changes instead of
+     redrawing them, reduced motion, and high-contrast themes, checked with
+     people who rely on them.
+
+**✅ Acceptance:** on a fresh machine, people new to Hive go from install to
+an agent working in a worktree in under five minutes, without opening the
+docs. `hive doctor` finds and fixes each of a set of deliberately broken
+setups. Configuration changes apply without a restart. The core workflow
+works in the TUI with a screen reader.
+
+---
+
+## M40 · 1.x LTS and the Road to 2.0 — `v1.21.0` — **PROPOSED**
 
 A long-term 1.x, and a 2.0 nobody has to fear.
 
@@ -1998,7 +2600,7 @@ dependable release to stay on, and a planned path to the next major
 version.
 
 1. **Long-term support**
-   - `v1.11` designated LTS: security fixes for a published period after 2.0
+   - `v1.21` designated LTS: security fixes for a published period after 2.0
      ships.
    - Its support window written into [SECURITY.md](SECURITY.md) and the
      compatibility matrix.
@@ -2010,7 +2612,8 @@ version.
 
 3. **Migration tooling**
    - `hive migrate --check` lists every deprecated surface a setup uses
-     (config, plugins, scripts through their API calls) and how to move.
+     (config, plugins, `hive.toml` files, scripts through their API calls)
+     and how to move.
    - `hive migrate` applies what can be applied automatically.
 
 4. **Release quality**
@@ -2025,7 +2628,7 @@ least one minor release ahead.
 
 ---
 
-## Beyond M30
+## Beyond M40
 
 Ideas without a milestone yet. Each needs an RFC that shows who asks for it.
 

@@ -112,6 +112,9 @@ type Config struct {
 	Keep int
 	// Gates are checked before a branch is ready.
 	Gates []Gate
+	// MoreGates returns more gates for a repository: those of its trusted
+	// project file (nil: none).
+	MoreGates func(repo string) []Gate
 }
 
 // DefaultKeep is how many closed branches are remembered by default.

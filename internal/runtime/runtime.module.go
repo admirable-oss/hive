@@ -25,6 +25,7 @@ import (
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/process"
+	"github.com/admirable-oss/hive/internal/project"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/shim"
 	"github.com/admirable-oss/hive/internal/task"
@@ -165,11 +166,23 @@ func NewModule(cfg Config) *Module {
 	branchLog := log.With("module", "branch")
 	issues := newIssues(plugins, bus)
 	links := &issueLinks{issues: issues} // tasks are set once built
-	branches := newBranches(cfg, guardedEnvs, procs, agents, wts, plugins, links, bus, branchLog)
+	var projects *project.Service        // built below, after the agents it starts
+	branches := newBranches(cfg, guardedEnvs, procs, agents, wts, plugins, links, func(repo string) []branch.Gate {
+		if projects == nil {
+			return nil
+		}
+		return projectGates(projects, repo)
+	}, bus, branchLog)
 	wts.branches = branches
 	server.Go(branches.Run)
 	server.Go(func(ctx context.Context) { feedBranches(ctx, branches, guardedEnvs, wts, bus, branchLog) })
 	ops := &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs, pattern: cfg.Branches.agentPattern()}
+	var workflows *workflow.Service
+	projects = newProjects(cfg, guardedEnvs, panes, agents, ops, plugins, func() {
+		if workflows != nil {
+			workflows.Reload(context.Background())
+		}
+	})
 	insightTasks := &insightsTasks{}
 	ins := newInsights(cfg, agents, insightTasks, bus, log.With("module", "insights"))
 	server.Go(ins.Run)
@@ -179,7 +192,7 @@ func NewModule(cfg Config) *Module {
 	links.tasks = tasks.svc
 	server.Go(func(ctx context.Context) { closeMergedIssues(ctx, bus, links, log.With("module", "issue")) })
 	server.Go(tasks.run)
-	workflows := newWorkflows(cfg, tasks.svc, guardedEnvs, agents, plugins, bus, log.With("module", "workflow"))
+	workflows = newWorkflows(cfg, tasks.svc, guardedEnvs, agents, plugins, func() []workflow.ProjectFile { return projectWorkflows(projects) }, bus, log.With("module", "workflow"))
 	server.Go(workflows.Run)
 	server.Go(func(ctx context.Context) { feedWorkflows(ctx, workflows, bus) })
 	obs := newObservers(cfg, log.With("module", "observer"), bus, guardedEnvs, panes, observer.Sources{
@@ -230,6 +243,7 @@ func NewModule(cfg Config) *Module {
 	task.Register(router, tasks.svc)
 	branch.Register(router, branches)
 	workflow.Register(router, workflows)
+	project.Register(router, projects)
 	issue.Register(router, issues)
 	registerWorkflowTriggers(router, plugins, workflows)
 	insights.Register(router, ins)

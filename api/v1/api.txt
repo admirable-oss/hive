@@ -232,6 +232,14 @@ method process.logs
 method process.logs.stream
 method process.start
 method process.stop
+method project.diff
+method project.down
+method project.get
+method project.list
+method project.plan
+method project.save
+method project.trust
+method project.up
 method runtime.gc
 method runtime.ping
 method runtime.shutdown
@@ -377,6 +385,22 @@ process.start params: process.StartRequest
 process.start result: process.Process
 process.stop params: process.idParams
 process.stop result: protocol.Empty
+project.diff params: project.UpParams
+project.diff result: project.Diff
+project.down params: project.DirParams
+project.down result: project.Applied
+project.get params: project.DirParams
+project.get result: project.Project
+project.list params: object
+project.list result: []project.Project
+project.plan params: project.PlanParams
+project.plan result: project.Plan
+project.save params: project.SaveParams
+project.save result: project.Saved
+project.trust params: project.TrustParams
+project.trust result: project.Project
+project.up params: project.UpParams
+project.up result: project.Applied
 runtime.gc params: persist.GCRequest
 runtime.gc result: persist.GCReport
 runtime.ping params: object
@@ -1234,6 +1258,7 @@ type plugin.Contributes.links: []plugin.Link
 type plugin.Contributes.palette: []plugin.PaletteEntry
 type plugin.Contributes.status: []plugin.StatusIndicator
 type plugin.Contributes.steps: []plugin.StepDecl
+type plugin.Contributes.templates: []plugin.TemplateDecl
 type plugin.Contributes.trackers: []plugin.TrackerDecl
 type plugin.Contributes.triggers: []plugin.TriggerDecl
 type plugin.Contributes.views: []plugin.ViewDecl
@@ -1440,6 +1465,10 @@ type plugin.StepDecl.name: string
 type plugin.StepDecl.outputs: map[string]plugin.ParamSpec
 type plugin.StepDecl.timeout: string
 type plugin.StepDecl: object
+type plugin.TemplateDecl.file: string
+type plugin.TemplateDecl.name: string
+type plugin.TemplateDecl.title: string
+type plugin.TemplateDecl: object
 type plugin.TestSpec.command: []string
 type plugin.TestSpec.timeout: string
 type plugin.TestSpec: object
@@ -1546,6 +1575,109 @@ type process.listParams: object
 type process.logsResult.logs: string
 type process.logsResult.truncated: boolean
 type process.logsResult: object
+type project.Action.commands: []string
+type project.Action.environment: string
+type project.Action.id: string
+type project.Action.in: string
+type project.Action.isolate: boolean
+type project.Action.kind: string
+type project.Action.name: string
+type project.Action.op: string
+type project.Action.root: string
+type project.Action.secrets: []string
+type project.Action.toolchain: string
+type project.Action.toolchain_cached: boolean
+type project.Action.vars: []string
+type project.Action.worktree: string
+type project.Action: object
+type project.Agent.args: []string
+type project.Agent.base: string
+type project.Agent.isolate: boolean
+type project.Agent.kinds: []string
+type project.Agent.name: string
+type project.Agent.skip: boolean
+type project.Agent.worktree: string
+type project.Agent: object
+type project.Applied.done: integer
+type project.Applied.plan: project.Plan
+type project.Applied: object
+type project.Change.detail: string
+type project.Change.environment: string
+type project.Change.kind: string
+type project.Change.name: string
+type project.Change.what: string
+type project.Change: object
+type project.Diff.changes: []project.Change
+type project.Diff.problems: []string
+type project.Diff.root: string
+type project.Diff: object
+type project.DirParams.dir: string
+type project.DirParams: object
+type project.Environment.agents: []project.Agent
+type project.Environment.id: string
+type project.Environment.optional: []string
+type project.Environment.path: string
+type project.Environment.required: []string
+type project.Environment.root: string
+type project.Environment.secrets: map[string]string
+type project.Environment.tabs: []project.Tab
+type project.Environment.toolchain: string
+type project.Environment.vars: map[string]string
+type project.Environment: object
+type project.Gate.command: []string
+type project.Gate.name: string
+type project.Gate.timeout_ms: integer
+type project.Gate: object
+type project.Pane.command: []string
+type project.Pane.cwd: string
+type project.Pane.name: string
+type project.Pane: object
+type project.Plan.actions: []project.Action
+type project.Plan.down: boolean
+type project.Plan.plugins: []string
+type project.Plan.present: integer
+type project.Plan.problems: []string
+type project.Plan.root: string
+type project.Plan: object
+type project.PlanParams.dir: string
+type project.PlanParams.down: boolean
+type project.PlanParams.vars: map[string]string
+type project.PlanParams: object
+type project.Project.digest: string
+type project.Project.error: string
+type project.Project.file: string
+type project.Project.local_file: string
+type project.Project.root: string
+type project.Project.spec: project.Spec
+type project.Project.trusted: boolean
+type project.Project: object
+type project.SaveParams.dir: string
+type project.SaveParams.write: boolean
+type project.SaveParams: object
+type project.Saved.changes: []project.Change
+type project.Saved.project: project.Project
+type project.Saved.text: string
+type project.Saved.written: boolean
+type project.Saved: object
+type project.Spec.environments: []project.Environment
+type project.Spec.gates: []project.Gate
+type project.Spec.local: boolean
+type project.Spec.name: string
+type project.Spec.plugins: []string
+type project.Spec.toolchain: string
+type project.Spec.version: integer
+type project.Spec.workflows: []string
+type project.Spec: object
+type project.Tab.name: string
+type project.Tab.panes: []project.Pane
+type project.Tab.split: string
+type project.Tab: object
+type project.TrustParams.dir: string
+type project.TrustParams.revoke: boolean
+type project.TrustParams: object
+type project.UpParams.dir: string
+type project.UpParams.vars: map[string]string
+type project.UpParams: object
 type protocol.Empty: object
 type protocol.LinkReport.budget: integer
 type protocol.LinkReport.rtt_us: integer
@@ -2145,6 +2277,7 @@ type workflow.Workflow.next: string
 type workflow.Workflow.own: boolean
 type workflow.Workflow.path: string
 type workflow.Workflow.problems: []string
+type workflow.Workflow.project: string
 type workflow.Workflow.spec: workflow.Spec
 type workflow.Workflow.steps: integer
 type workflow.Workflow.text: string

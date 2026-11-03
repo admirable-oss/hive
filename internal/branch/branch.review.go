@@ -488,13 +488,17 @@ func (s *Service) runGates(ctx context.Context, path, name, base string, gates [
 	return results, after.Tree, nil
 }
 
-// gatesFor returns the configured gates for a repository.
+// gatesFor returns the configured gates for a repository, then those of
+// its trusted project file.
 func (s *Service) gatesFor(repo string) []Gate {
 	var out []Gate
 	for _, g := range s.cfg.Gates {
 		if g.Repo == "" || samePath(g.Repo, repo) || within(repo, g.Repo) {
 			out = append(out, g)
 		}
+	}
+	if s.cfg.MoreGates != nil {
+		out = append(out, s.cfg.MoreGates(repo)...)
 	}
 	return out
 }

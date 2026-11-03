@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -135,6 +136,47 @@ type Contributes struct {
 	Trackers []TrackerDecl `toml:"trackers" json:"trackers,omitempty"`
 	Steps    []StepDecl    `toml:"steps" json:"steps,omitempty"`
 	Triggers []TriggerDecl `toml:"triggers" json:"triggers,omitempty"`
+
+	// Templates are project files (hive.toml) to start projects from,
+	// with hive project init --from <plugin>/<name>. Any plugin API.
+	Templates []TemplateDecl `toml:"templates" json:"templates,omitempty"`
+}
+
+// TemplateDecl is a project template a plugin ships
+// ([[contributes.templates]]): a hive.toml in its package.
+type TemplateDecl struct {
+	Name  string `toml:"name" json:"name"`
+	Title string `toml:"title" json:"title,omitempty"`
+	// File is the template, relative to the plugin's directory.
+	File string `toml:"file" json:"file"`
+}
+
+// MaxTemplates bounds a plugin's project templates.
+const MaxTemplates = 16
+
+// checkTemplates checks [[contributes.templates]]: named, bounded, and
+// each a file inside the plugin.
+func (m *Manifest) checkTemplates() error {
+	ts := m.Contributes.Templates
+	if len(ts) > MaxTemplates {
+		return fmt.Errorf("contributes.templates: at most %d", MaxTemplates)
+	}
+	seen := map[string]bool{}
+	for i := range ts {
+		t := &ts[i]
+		switch {
+		case !idPattern.MatchString(t.Name):
+			return fmt.Errorf("contributes.templates: %q: lower-case letters, digits and dashes", t.Name)
+		case seen[t.Name]:
+			return fmt.Errorf("contributes.templates: %q twice", t.Name)
+		case t.File == "" || !filepath.IsLocal(filepath.FromSlash(t.File)) || strings.HasPrefix(t.File, "/"):
+			return fmt.Errorf("contributes.templates %s: file %q: a file inside the plugin", t.Name, t.File)
+		case utf8.RuneCountInString(t.Title) > MaxTitle:
+			return fmt.Errorf("contributes.templates %s: title of at most %d characters", t.Name, MaxTitle)
+		}
+		seen[t.Name] = true
+	}
+	return nil
 }
 
 // Card is a sidebar card, about the focused environment or agent.

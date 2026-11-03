@@ -39,6 +39,8 @@ FUZZ_TARGETS := \
 	./internal/task:FuzzParsePlan \
 	./internal/workflow:FuzzParseWorkflow \
 	./internal/workflow:FuzzExpressions \
+	./internal/project:FuzzParseProject \
+	./internal/project:FuzzRenderRoundTrip \
 	./internal/presence:FuzzRegistry \
 	./internal/insights:FuzzReadTranscript
 
