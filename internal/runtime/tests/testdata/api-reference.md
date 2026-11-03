@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 17. Clients speak newline-delimited JSON over the daemon's unix
+API level 18. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -1083,6 +1083,58 @@ Result: [process.Process](#processprocess)
 | `id` | `string` |  |
 
 Result: [protocol.Empty](#protocolempty)
+
+## project
+
+### `project.down`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project, absolute on the daemon's machine; hive.toml is found there or above it |
+
+Result: [project.Applied](#projectapplied)
+
+### `project.get`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project, absolute on the daemon's machine; hive.toml is found there or above it |
+
+Result: [project.Project](#projectproject)
+
+### `project.list`
+
+No params.
+
+Result: [\[\]project.Project](#projectproject)
+
+### `project.plan`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `down` | `boolean` | plan hive down instead of hive up |
+| `vars` | `map[string]string` | the caller's values for the variables the project declares in [env] |
+
+Result: [project.Plan](#projectplan)
+
+### `project.trust`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `revoke` | `boolean` | revoke the trust instead |
+
+Result: [project.Project](#projectproject)
+
+### `project.up`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `vars` | `map[string]string` | the caller's values for the variables the project declares in [env] |
+
+Result: [project.Applied](#projectapplied)
 
 ## runtime
 
@@ -3362,6 +3414,129 @@ Result: [protocol.Empty](#protocolempty)
 |---|---|---|
 | `logs` | `string` |  |
 | `truncated` | `boolean` |  |
+
+### project.Action
+
+| Field | Type | |
+|---|---|---|
+| `commands` | `[]string` |  |
+| `environment` | `string` |  |
+| `id` | `string` |  |
+| `in` | `string` |  |
+| `isolate` | `boolean` |  |
+| `kind` | `string` |  |
+| `name` | `string` |  |
+| `op` | `string` |  |
+| `root` | `string` |  |
+| `vars` | `[]string` |  |
+| `worktree` | `string` |  |
+
+### project.Agent
+
+| Field | Type | |
+|---|---|---|
+| `args` | `[]string` |  |
+| `base` | `string` |  |
+| `isolate` | `boolean` |  |
+| `kinds` | `[]string` |  |
+| `name` | `string` |  |
+| `skip` | `boolean` |  |
+| `worktree` | `string` |  |
+
+### project.Applied
+
+| Field | Type | |
+|---|---|---|
+| `done` | `integer` |  |
+| `plan` | [project.Plan](#projectplan) |  |
+
+### project.DirParams
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project, absolute on the daemon's machine; hive.toml is found there or above it |
+
+### project.Environment
+
+| Field | Type | |
+|---|---|---|
+| `agents` | [\[\]project.Agent](#projectagent) |  |
+| `id` | `string` |  |
+| `optional` | `[]string` |  |
+| `path` | `string` |  |
+| `required` | `[]string` |  |
+| `root` | `string` |  |
+| `tabs` | [\[\]project.Tab](#projecttab) |  |
+| `vars` | `map[string]string` |  |
+
+### project.Pane
+
+| Field | Type | |
+|---|---|---|
+| `command` | `[]string` |  |
+| `cwd` | `string` |  |
+| `name` | `string` |  |
+
+### project.Plan
+
+| Field | Type | |
+|---|---|---|
+| `actions` | [\[\]project.Action](#projectaction) |  |
+| `down` | `boolean` |  |
+| `present` | `integer` |  |
+| `problems` | `[]string` |  |
+| `root` | `string` |  |
+
+### project.PlanParams
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `down` | `boolean` | plan hive down instead of hive up |
+| `vars` | `map[string]string` | the caller's values for the variables the project declares in [env] |
+
+### project.Project
+
+| Field | Type | |
+|---|---|---|
+| `digest` | `string` |  |
+| `error` | `string` |  |
+| `file` | `string` |  |
+| `local_file` | `string` |  |
+| `root` | `string` |  |
+| `spec` | [project.Spec](#projectspec) |  |
+| `trusted` | `boolean` |  |
+
+### project.Spec
+
+| Field | Type | |
+|---|---|---|
+| `environments` | [\[\]project.Environment](#projectenvironment) |  |
+| `local` | `boolean` |  |
+| `name` | `string` |  |
+| `version` | `integer` |  |
+
+### project.Tab
+
+| Field | Type | |
+|---|---|---|
+| `name` | `string` |  |
+| `panes` | [\[\]project.Pane](#projectpane) |  |
+| `split` | `string` |  |
+
+### project.TrustParams
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `revoke` | `boolean` | revoke the trust instead |
+
+### project.UpParams
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | a directory of the project (absolute) |
+| `vars` | `map[string]string` | the caller's values for the variables the project declares in [env] |
 
 ### protocol.Empty
 

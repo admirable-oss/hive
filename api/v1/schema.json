@@ -5011,6 +5011,351 @@
       ],
       "type": "object"
     },
+    "project.Action": {
+      "properties": {
+        "commands": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "in": {
+          "type": "string"
+        },
+        "isolate": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "vars": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "worktree": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "environment"
+      ],
+      "type": "object"
+    },
+    "project.Agent": {
+      "properties": {
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "base": {
+          "type": "string"
+        },
+        "isolate": {
+          "type": "boolean"
+        },
+        "kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "skip": {
+          "type": "boolean"
+        },
+        "worktree": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "kinds"
+      ],
+      "type": "object"
+    },
+    "project.Applied": {
+      "properties": {
+        "done": {
+          "type": "integer"
+        },
+        "plan": {
+          "$ref": "#/$defs/project.Plan"
+        }
+      },
+      "required": [
+        "plan",
+        "done"
+      ],
+      "type": "object"
+    },
+    "project.DirParams": {
+      "properties": {
+        "dir": {
+          "description": "a directory of the project, absolute on the daemon's machine; hive.toml is found there or above it",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dir"
+      ],
+      "type": "object"
+    },
+    "project.Environment": {
+      "properties": {
+        "agents": {
+          "items": {
+            "$ref": "#/$defs/project.Agent"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "optional": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "path": {
+          "type": "string"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "root": {
+          "type": "string"
+        },
+        "tabs": {
+          "items": {
+            "$ref": "#/$defs/project.Tab"
+          },
+          "type": "array"
+        },
+        "vars": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "root"
+      ],
+      "type": "object"
+    },
+    "project.Pane": {
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "project.Plan": {
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/project.Action"
+          },
+          "type": "array"
+        },
+        "down": {
+          "type": "boolean"
+        },
+        "present": {
+          "type": "integer"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "root": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "root",
+        "actions",
+        "present"
+      ],
+      "type": "object"
+    },
+    "project.PlanParams": {
+      "properties": {
+        "dir": {
+          "description": "a directory of the project (absolute)",
+          "type": "string"
+        },
+        "down": {
+          "description": "plan hive down instead of hive up",
+          "type": "boolean"
+        },
+        "vars": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "the caller's values for the variables the project declares in [env]",
+          "type": "object"
+        }
+      },
+      "required": [
+        "dir"
+      ],
+      "type": "object"
+    },
+    "project.Project": {
+      "properties": {
+        "digest": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "local_file": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/project.Spec"
+        },
+        "trusted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "root",
+        "file",
+        "digest",
+        "trusted"
+      ],
+      "type": "object"
+    },
+    "project.Spec": {
+      "properties": {
+        "environments": {
+          "items": {
+            "$ref": "#/$defs/project.Environment"
+          },
+          "type": "array"
+        },
+        "local": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "name",
+        "environments"
+      ],
+      "type": "object"
+    },
+    "project.Tab": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "panes": {
+          "items": {
+            "$ref": "#/$defs/project.Pane"
+          },
+          "type": "array"
+        },
+        "split": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "split",
+        "panes"
+      ],
+      "type": "object"
+    },
+    "project.TrustParams": {
+      "properties": {
+        "dir": {
+          "description": "a directory of the project (absolute)",
+          "type": "string"
+        },
+        "revoke": {
+          "description": "revoke the trust instead",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dir"
+      ],
+      "type": "object"
+    },
+    "project.UpParams": {
+      "properties": {
+        "dir": {
+          "description": "a directory of the project (absolute)",
+          "type": "string"
+        },
+        "vars": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "the caller's values for the variables the project declares in [env]",
+          "type": "object"
+        }
+      },
+      "required": [
+        "dir"
+      ],
+      "type": "object"
+    },
     "protocol.Empty": {
       "properties": {},
       "type": "object"
@@ -7722,7 +8067,7 @@
       "type": "object"
     }
   },
-  "api_level": 17,
+  "api_level": 18,
   "methods": [
     {
       "name": "access.audit",
@@ -8811,6 +9156,64 @@
       },
       "result": {
         "$ref": "#/$defs/protocol.Empty"
+      }
+    },
+    {
+      "name": "project.down",
+      "params": {
+        "$ref": "#/$defs/project.DirParams"
+      },
+      "result": {
+        "$ref": "#/$defs/project.Applied"
+      }
+    },
+    {
+      "name": "project.get",
+      "params": {
+        "$ref": "#/$defs/project.DirParams"
+      },
+      "result": {
+        "$ref": "#/$defs/project.Project"
+      }
+    },
+    {
+      "name": "project.list",
+      "params": {
+        "properties": {},
+        "type": "object"
+      },
+      "result": {
+        "items": {
+          "$ref": "#/$defs/project.Project"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "name": "project.plan",
+      "params": {
+        "$ref": "#/$defs/project.PlanParams"
+      },
+      "result": {
+        "$ref": "#/$defs/project.Plan"
+      }
+    },
+    {
+      "name": "project.trust",
+      "params": {
+        "$ref": "#/$defs/project.TrustParams"
+      },
+      "result": {
+        "$ref": "#/$defs/project.Project"
+      }
+    },
+    {
+      "name": "project.up",
+      "params": {
+        "$ref": "#/$defs/project.UpParams"
+      },
+      "result": {
+        "$ref": "#/$defs/project.Applied"
       }
     },
     {

@@ -4,6 +4,47 @@ All notable changes to Hive. From 1.0.0 the project follows
 [semantic versioning](https://semver.org) and the
 [compatibility policy](https://hive.admir-saheta.com/docs/ref/compatibility/).
 
+## v1.11.0 (unreleased): Projects as code (M30)
+
+A repository's Hive setup in its `hive.toml` ([RFC 0009](rfcs/0009-projects-as-code.md)). In progress.
+
+### Project files
+
+- `hive.toml` at a repository's root declares its environments, their tabs
+  and panes, the agents they start (one kind or a list in order of
+  preference, in a worktree of their own with `isolate`) and the variables
+  they need. Checked strictly, with errors at their line; `version = 1`.
+- `[vars]` holds plain settings and refuses values that look like secrets;
+  `[env] required | optional` names what the project needs, with values
+  from `hive.local.toml` or the shell that runs `hive up`.
+- `hive.local.toml` beside it holds a person's own values, agent kinds,
+  arguments and `start = false`.
+
+### Up and down
+
+- `hive up [dir]` makes the workspace match the file: it creates missing
+  environments, sets their variables, opens missing tabs and starts missing
+  agents (again, if they exited), and leaves what runs alone. `--plan`
+  shows the steps first. Problems (a missing required variable, an
+  environment elsewhere, an agent kind not installed) stop it before it
+  changes anything.
+- `hive down [dir]` stops the agents and closes the tabs the file declares,
+  and keeps its environments and worktrees. The next `hive up` starts each
+  agent in its kept worktree again (`HIVE_PROJECT_AGENT`).
+- `hive project check` checks a file without a daemon, for CI and editors.
+
+### Trust
+
+- A project file runs only while it has the text a person trusted
+  (`hive project trust`, `projects/trust.json`). The first `hive up`, and
+  the first after the file changes, shows every command, directory and
+  agent, and asks; `--yes` answers in scripts.
+- `hive project show | list`, and `trust --revoke`.
+- New methods `project.get | list | trust | plan | up | down`;
+  `project.trust` is closed to plugins and members, and the others need
+  the owner role. The Go SDK's `Project`, `Projects`, `ProjectPlan`,
+  `ProjectUp`, `ProjectDown` and `ParseProject`. API level 18.
+
 ## v1.8.0 (unreleased): Team collaboration (M27)
 
 Teammates in your runtime, over ssh, with a role ([RFC 0007](rfcs/0007-team-collaboration.md)). In progress.

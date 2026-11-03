@@ -69,6 +69,7 @@ command hive debug
 command hive debug pprof
 command hive debug stats
 command hive demo
+command hive down
 command hive environment
 command hive environment (alias env)
 command hive environment create
@@ -210,6 +211,13 @@ command hive process list (alias ls)
 command hive process logs
 command hive process start
 command hive process stop
+command hive project
+command hive project (alias projects)
+command hive project check
+command hive project list
+command hive project list (alias ls)
+command hive project show
+command hive project trust
 command hive proxy
 command hive session
 command hive session list
@@ -250,6 +258,7 @@ command hive terminal resize
 command hive terminal snapshot
 command hive ui
 command hive ui (alias tui)
+command hive up
 command hive update
 command hive version
 command hive web
@@ -380,6 +389,7 @@ flag hive daemon stop --keep-agents bool
 flag hive debug pprof --output string -o
 flag hive debug pprof --profile string
 flag hive debug pprof --seconds int
+flag hive down --plan bool
 flag hive environment create --cwd string
 flag hive environment create --env stringArray -e
 flag hive environment create --managed bool
@@ -555,6 +565,7 @@ flag hive process logs --stderr bool
 flag hive process start --height uint16
 flag hive process start --terminal bool -t
 flag hive process start --width uint16
+flag hive project trust --revoke bool
 flag hive proxy --member string
 flag hive proxy --observer bool
 flag hive session restore --fresh bool
@@ -592,6 +603,7 @@ flag hive task wait --until string
 flag hive terminal snapshot --ansi bool
 flag hive terminal snapshot --scrollback int
 flag hive ui --env string
+flag hive up --plan bool
 flag hive update --channel string
 flag hive update --check bool
 flag hive update --force bool

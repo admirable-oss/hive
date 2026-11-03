@@ -94,6 +94,15 @@ ssh. Other machines are reached through the user's ssh.
    socket (Hive API calls). Filesystem, network and process access are
    enforced only under strict isolation (`sandbox-exec` on macOS, `bwrap` on
    Linux).
+10. **Project files.** A repository's `hive.toml` can start any command and
+    any agent, so `hive up` runs it only while it has the exact text the
+    user trusted: its SHA-256, and that of a `hive.local.toml` that git
+    tracks, in `projects/trust.json`. The trust prompt shows every command,
+    directory and agent first, and a pull that changes the file makes it
+    untrusted. Its paths may not leave the repository, and values that look
+    like secrets are refused in it. Plugins and members cannot trust a
+    project. Trusting one is trusting what it runs, with the user's
+    authority.
 
 ## Non-goals and limits
 

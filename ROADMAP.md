@@ -47,7 +47,7 @@ Each milestone ships a tagged release and has clear acceptance criteria, so you 
 | M27 Team Collaboration | `v1.8.0` | In progress |
 | M28 Runtime Fleet Management | `v1.9.0` | Proposed |
 | M29 Hosted Foundations | `v1.10.0` | Proposed |
-| M30 Projects as Code | `v1.11.0` | Proposed |
+| M30 Projects as Code | `v1.11.0` | In progress |
 | M31 Editor Integrations | `v1.12.0` | Proposed |
 | M32 Checkpoints and Undo | `v1.13.0` | Proposed |
 | M33 Recording and Replay | `v1.14.0` | Proposed |
@@ -2041,7 +2041,7 @@ runtime keeps working with the hosted service switched off.
 
 ---
 
-## M30 · Projects as Code — `v1.11.0` — **PROPOSED**
+## M30 · Projects as Code — `v1.11.0` — **IN PROGRESS**
 
 One file in the repository, the same Hive for everyone who clones it.
 
@@ -2096,6 +2096,38 @@ after one trust prompt and one `hive up`, the same environments, layout,
 agents, gates and workflows on macOS, Linux and Windows. A second `hive up`
 changes nothing, and `hive up --plan` matches what runs. No secret value is
 ever written to the file.
+
+### M30 progress
+
+How projects work: [docs/projects.md](docs/projects.md). The design:
+[RFC 0009](rfcs/0009-projects-as-code.md).
+
+- [x] The project file (`internal/project`): versioned TOML, checked
+  strictly with errors at their line and fuzzed; a main environment and
+  more in subdirectories, tabs of panes, agents by kind in order of
+  preference (`isolate`, `worktree`), `[vars]` that refuse secrets and
+  `[env]` names; paths kept inside the repository.
+- [x] `hive.local.toml`: the person's own values, agent kinds, arguments
+  and `start = false`, outside trust unless git tracks it.
+- [x] Trust at the file's current text (`hive project trust | show | list`),
+  asked once by `hive up` with every command shown; closed to plugins and
+  members.
+- [x] `hive up` and `hive down`, with `--plan`: idempotent, stopping on
+  problems before changing anything, agents started again in the worktrees
+  `hive down` kept. `hive project check` without a daemon.
+- [x] Wire API `project.*` at API level 18, `pkg/hiveapi` support, roles
+  and plugin capabilities, frozen surfaces; the end-to-end test
+  (`TestM30ProjectsAsCode`): untrusted refused, trusted once, up twice
+  with the second changing nothing, the plan matching what ran, down
+  keeping the worktree's work, a changed file asking again.
+- [ ] Branch gates, workflows and required plugins from the file.
+- [ ] `hive project diff` and `hive project save`.
+- [ ] Toolchains (Nix, devcontainers, mise, direnv), with the environment
+  cached.
+- [ ] Secrets by reference to the person's own store.
+- [ ] Templates (`hive project init --from`) and a JSON Schema for editors.
+- [ ] The acceptance on Windows too; RFC 0009 discussed and accepted; then
+  tag `v1.11.0`.
 
 ---
 

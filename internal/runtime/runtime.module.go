@@ -25,6 +25,7 @@ import (
 	"github.com/admirable-oss/hive/internal/pane"
 	"github.com/admirable-oss/hive/internal/plugin"
 	"github.com/admirable-oss/hive/internal/process"
+	"github.com/admirable-oss/hive/internal/project"
 	"github.com/admirable-oss/hive/internal/protocol"
 	"github.com/admirable-oss/hive/internal/shim"
 	"github.com/admirable-oss/hive/internal/task"
@@ -170,6 +171,7 @@ func NewModule(cfg Config) *Module {
 	server.Go(branches.Run)
 	server.Go(func(ctx context.Context) { feedBranches(ctx, branches, guardedEnvs, wts, bus, branchLog) })
 	ops := &agentOps{agents: agents, panes: panes, envs: guardedEnvs, worktrees: wts, procs: procs, pattern: cfg.Branches.agentPattern()}
+	projects := newProjects(cfg, guardedEnvs, panes, agents, ops)
 	insightTasks := &insightsTasks{}
 	ins := newInsights(cfg, agents, insightTasks, bus, log.With("module", "insights"))
 	server.Go(ins.Run)
@@ -230,6 +232,7 @@ func NewModule(cfg Config) *Module {
 	task.Register(router, tasks.svc)
 	branch.Register(router, branches)
 	workflow.Register(router, workflows)
+	project.Register(router, projects)
 	issue.Register(router, issues)
 	registerWorkflowTriggers(router, plugins, workflows)
 	insights.Register(router, ins)

@@ -90,6 +90,9 @@ Data lives in ~/.hive (set HIVE_HOME to change it). Configuration is read from
 		newDemoCmd(a),
 	)
 	add("workspace",
+		newUpCmd(a),
+		newDownCmd(a),
+		newProjectCmd(a),
 		newEnvironmentCmd(a),
 		newTabCmd(a),
 		newPaneCmd(a),

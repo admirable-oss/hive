@@ -232,6 +232,12 @@ method process.logs
 method process.logs.stream
 method process.start
 method process.stop
+method project.down
+method project.get
+method project.list
+method project.plan
+method project.trust
+method project.up
 method runtime.gc
 method runtime.ping
 method runtime.shutdown
@@ -377,6 +383,18 @@ process.start params: process.StartRequest
 process.start result: process.Process
 process.stop params: process.idParams
 process.stop result: protocol.Empty
+project.down params: project.DirParams
+project.down result: project.Applied
+project.get params: project.DirParams
+project.get result: project.Project
+project.list params: object
+project.list result: []project.Project
+project.plan params: project.PlanParams
+project.plan result: project.Plan
+project.trust params: project.TrustParams
+project.trust result: project.Project
+project.up params: project.UpParams
+project.up result: project.Applied
 runtime.gc params: persist.GCRequest
 runtime.gc result: persist.GCReport
 runtime.ping params: object
@@ -1546,6 +1564,77 @@ type process.listParams: object
 type process.logsResult.logs: string
 type process.logsResult.truncated: boolean
 type process.logsResult: object
+type project.Action.commands: []string
+type project.Action.environment: string
+type project.Action.id: string
+type project.Action.in: string
+type project.Action.isolate: boolean
+type project.Action.kind: string
+type project.Action.name: string
+type project.Action.op: string
+type project.Action.root: string
+type project.Action.vars: []string
+type project.Action.worktree: string
+type project.Action: object
+type project.Agent.args: []string
+type project.Agent.base: string
+type project.Agent.isolate: boolean
+type project.Agent.kinds: []string
+type project.Agent.name: string
+type project.Agent.skip: boolean
+type project.Agent.worktree: string
+type project.Agent: object
+type project.Applied.done: integer
+type project.Applied.plan: project.Plan
+type project.Applied: object
+type project.DirParams.dir: string
+type project.DirParams: object
+type project.Environment.agents: []project.Agent
+type project.Environment.id: string
+type project.Environment.optional: []string
+type project.Environment.path: string
+type project.Environment.required: []string
+type project.Environment.root: string
+type project.Environment.tabs: []project.Tab
+type project.Environment.vars: map[string]string
+type project.Environment: object
+type project.Pane.command: []string
+type project.Pane.cwd: string
+type project.Pane.name: string
+type project.Pane: object
+type project.Plan.actions: []project.Action
+type project.Plan.down: boolean
+type project.Plan.present: integer
+type project.Plan.problems: []string
+type project.Plan.root: string
+type project.Plan: object
+type project.PlanParams.dir: string
+type project.PlanParams.down: boolean
+type project.PlanParams.vars: map[string]string
+type project.PlanParams: object
+type project.Project.digest: string
+type project.Project.error: string
+type project.Project.file: string
+type project.Project.local_file: string
+type project.Project.root: string
+type project.Project.spec: project.Spec
+type project.Project.trusted: boolean
+type project.Project: object
+type project.Spec.environments: []project.Environment
+type project.Spec.local: boolean
+type project.Spec.name: string
+type project.Spec.version: integer
+type project.Spec: object
+type project.Tab.name: string
+type project.Tab.panes: []project.Pane
+type project.Tab.split: string
+type project.Tab: object
+type project.TrustParams.dir: string
+type project.TrustParams.revoke: boolean
+type project.TrustParams: object
+type project.UpParams.dir: string
+type project.UpParams.vars: map[string]string
+type project.UpParams: object
 type protocol.Empty: object
 type protocol.LinkReport.budget: integer
 type protocol.LinkReport.rtt_us: integer

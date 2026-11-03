@@ -110,6 +110,12 @@ method process.logs.stream: closed
 method process.logs: observer in environment
 method process.start: owner in environment
 method process.stop: owner in environment
+method project.down: owner in all environments
+method project.get: owner in all environments
+method project.list: owner in all environments
+method project.plan: owner in all environments
+method project.trust: closed
+method project.up: owner in all environments
 method runtime.gc: closed
 method runtime.ping: observer in none
 method runtime.shutdown: closed
