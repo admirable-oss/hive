@@ -1,6 +1,7 @@
 # RFC 0009: Projects as code
 
-- **Status:** Draft
+- **Status:** Proposed. Open for comment; the council decides after the
+  discussion period ([process](README.md#process)).
 - **Authors:** @admirsaheta
 - **Discussion:** <!-- the pull request -->
 - **Affects:** wire API (`project.*`), CLI (`hive up`, `hive down`, `hive project`), Go SDK, plugin manifests (`[[contributes.templates]]`), on-disk state (`projects/trust.json`, `projects/toolchains/`), branch gates and workflow sources, the threat model
