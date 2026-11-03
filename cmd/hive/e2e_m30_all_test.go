@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -23,10 +24,10 @@ func TestM30ProjectsEverywhere(t *testing.T) {
 		c.exe = filepath.Join(c.home, "bin", "hive.exe")
 		copyFile(t, os.Args[0], c.exe)
 		pane = []string{"cmd.exe", "/q", "/k", "echo pane-up"}
-	} else {
-		c.withShell()
+	} else if err := os.WriteFile(c.cfg, []byte("[terminal]\nshell = \"/bin/sh\"\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	repo := newRepo(t, filepath.Join(t.TempDir(), "notes"))
+	repo := m30Repo(t, filepath.Join(t.TempDir(), "notes"))
 	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module notes\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +106,21 @@ func TestM30ProjectsEverywhere(t *testing.T) {
 	if _, errOut, code := c.run("up", repo); code == 0 || !strings.Contains(errOut, "is not trusted") {
 		t.Fatalf("up after a change: exit %d\n%s", code, errOut)
 	}
+}
+
+// m30Repo makes a repository with one commit at dir, on every system (the
+// other end-to-end tests' helpers are built for macOS and Linux only).
+func m30Repo(t *testing.T, dir string) string {
+	t.Helper()
+	for _, args := range [][]string{
+		{"init", "-q", "-b", "main", dir},
+		{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "init"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	return dir
 }
 
 func tomlArray(argv []string) string {
