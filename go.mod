@@ -19,7 +19,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/tetratelabs/wazero v1.12.0
 	go.uber.org/goleak v1.3.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 	maragu.dev/gomponents v1.4.0
 )
