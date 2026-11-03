@@ -42,7 +42,7 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}
         run: git fetch --no-tags origin "$BASE_REF"
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
       - name: Validate submission and governance records
