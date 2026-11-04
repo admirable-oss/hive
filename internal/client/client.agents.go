@@ -123,6 +123,11 @@ func (a Agents) Start(ctx context.Context, req AgentStartRequest) (AgentStarted,
 	return agentCall[AgentStarted](ctx, a, "agent.start", req)
 }
 
+// Resume starts a new pane that continues an agent's previous session.
+func (a Agents) Resume(ctx context.Context, id string) (AgentStarted, error) {
+	return agentCall[AgentStarted](ctx, a, "agent.resume", map[string]string{"id": id})
+}
+
 // Prompt sends an agent a prompt.
 func (a Agents) Prompt(ctx context.Context, id, text string, o PromptOptions) (agent.PromptResult, error) {
 	return agentCall[agent.PromptResult](ctx, a, "agent.prompt", map[string]any{

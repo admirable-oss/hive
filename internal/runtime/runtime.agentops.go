@@ -59,6 +59,35 @@ type AgentStarted struct {
 
 var errNoPane = errors.New("the agent has no pane")
 
+// Resume starts a fresh pane in the agent's environment using the manifest's
+// session-resume command and the session ID the agent last reported.
+func (o *agentOps) Resume(ctx context.Context, id string) (AgentStarted, error) {
+	a, err := o.agents.Get(ctx, id)
+	if err != nil {
+		return AgentStarted{}, err
+	}
+	if a.State == agent.StateWorking || a.State == agent.StateBlocked || a.State == agent.StateIdle {
+		return AgentStarted{}, fmt.Errorf("%w: agent %q is still active", agent.ErrInvalid, id)
+	}
+	proc, err := o.procs.Get(ctx, a.ID)
+	if err != nil {
+		return AgentStarted{}, err
+	}
+	var m *agent.Manifest
+	for _, candidate := range o.agents.Manifests() {
+		if candidate.ID == a.Kind { m = candidate; break }
+	}
+	if m == nil {
+		return AgentStarted{}, fmt.Errorf("%w: no agent manifest %q", agent.ErrInvalid, a.Kind)
+	}
+	argv := append([]string{proc.Command}, proc.Args...)
+	command, ok := m.ResumeCommand(argv, a.SessionID)
+	if !ok {
+		return AgentStarted{}, fmt.Errorf("%w: manifest %q has no resume command", agent.ErrInvalid, a.Kind)
+	}
+	return o.startCommand(ctx, AgentStartRequest{Kind: a.Kind, EnvironmentID: a.EnvironmentID, Name: a.Name}, command)
+}
+
 func (o *agentOps) Start(ctx context.Context, req AgentStartRequest) (AgentStarted, error) {
 	return o.start(ctx, req, false)
 }
@@ -108,19 +137,25 @@ func (o *agentOps) start(ctx context.Context, req AgentStartRequest, reuse bool)
 			return AgentStarted{}, err
 		}
 	}
-	name := req.Name
-	if name == "" {
-		name = m.ID
-	}
-	vars := map[string]string{agent.EnvAgent: m.ID}
-	for k, v := range req.Env {
-		vars[k] = v
-	}
+	
 	command := append(append([]string{}, m.Start.Command...), req.Args...)
+		req.EnvironmentID = env.ID
+	return o.startCommand(ctx, req, command)
+}
+
+func (o *agentOps) startCommand(ctx context.Context, req AgentStartRequest, command []string) (AgentStarted, error) {
+	env, err := o.envs.Get(ctx, req.EnvironmentID)
+	if err != nil { return AgentStarted{}, err }
+	name := req.Name
+	if name == "" { name = req.Kind }
+	vars := map[string]string{agent.EnvAgent: req.Kind}
+	for k, v := range req.Env { vars[k] = v }
+	
 	tab, p, err := o.panes.CreateTab(ctx, pane.CreateTabRequest{
 		EnvironmentID: env.ID, Name: name,
 		Pane: pane.Spec{Name: name, Command: command, Env: vars},
 	})
+	
 	if err != nil {
 		return AgentStarted{}, err
 	}
@@ -128,7 +163,7 @@ func (o *agentOps) start(ctx context.Context, req AgentStartRequest, reuse bool)
 	if err != nil {
 		return AgentStarted{}, err
 	}
-	if env.Worktree != nil && o.worktrees != nil {
+	if env.Worktree != nil && o.worktrees != nil && req.Worktree != "" {
 		o.worktrees.track(ctx, env, env.Worktree.Repo, env.Worktree.Branch, req.Base, ownerOf(a, req.Env))
 	}
 	return AgentStarted{Agent: a, Tab: tab, Pane: p, Environment: env}, nil
@@ -192,6 +227,10 @@ type agentIDParams struct {
 func registerAgentOps(r *protocol.Router, o *agentOps) {
 	r.MustRegister("agent.start", protocol.Method(func(ctx context.Context, p AgentStartRequest) (AgentStarted, error) {
 		res, err := o.Start(ctx, p)
+		return res, agentOpsError(err)
+	}))
+	r.MustRegister("agent.resume", protocol.Method(func(ctx context.Context, p agentIDParams) (AgentStarted, error) {
+		res, err := o.Resume(ctx, p.ID)
 		return res, agentOpsError(err)
 	}))
 	r.MustRegister("agent.rename", protocol.Method(func(ctx context.Context, p agentRenameParams) (agent.Agent, error) {

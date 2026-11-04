@@ -189,6 +189,7 @@ var memberRules = map[string]roleRule{
 	"pane.swap":       on(roleOwner, p("id", targetPane), p("with", targetPane)),
 	"layout.apply":    across(roleOwner),
 	"agent.start":     on(roleOwner, p("environment_id", targetEnv)),
+	"agent.resume":    on(roleOwner, p("id", targetAgent)),
 	"agent.stop":      on(roleOwner, p("id", targetAgent)),
 	"agent.rename":    on(roleOwner, p("id", targetAgent)),
 	"process.start":   on(roleOwner, p("environment_id", targetEnv)),
