@@ -1,9 +1,7 @@
 package core
 
 import (
-	"strconv"
-	"strings"
-
+	"github.com/admirable-oss/hive/internal/termview"
 	"github.com/admirable-oss/hive/pkg/hiveapi"
 )
 
@@ -86,82 +84,32 @@ type Run struct {
 	Link string `json:"l,omitempty"`
 }
 
-func colorString(c hiveapi.Color) string {
-	if c.IsDefault() {
-		return ""
-	}
-	if i, ok := c.Index(); ok {
-		return strconv.Itoa(int(i))
-	}
-	if r, g, b, ok := c.RGB(); ok {
-		const hex = "0123456789abcdef"
-		return string([]byte{'#', hex[r>>4], hex[r&15], hex[g>>4], hex[g&15], hex[b>>4], hex[b&15]})
-	}
-	return ""
-}
+// The encoding is internal/termview's, which the editor bridge sends too;
+// these types stay here because the frontend's bindings are made from
+// them.
+
+func colorString(c hiveapi.Color) string { return termview.ColorString(c) }
 
 // encodeLine turns a line of cells into runs, dropping trailing blanks.
-func encodeLine(y int, cells []hiveapi.Cell) Line {
-	end := len(cells)
-	for end > 0 && cells[end-1].IsBlank() {
-		end--
+func encodeLine(y int, cells []hiveapi.Cell) Line { return lineOf(termview.EncodeLine(y, cells)) }
+
+func lineOf(l termview.Line) Line {
+	ln := Line{Y: l.Y, Runs: make([]Run, len(l.Runs))}
+	for i, r := range l.Runs {
+		ln.Runs[i] = Run(r)
 	}
-	ln := Line{Y: y, Runs: []Run{}}
-	var cur *Run
-	var text strings.Builder
-	flush := func() {
-		if cur != nil {
-			cur.Text = text.String()
-			ln.Runs = append(ln.Runs, *cur)
-			cur = nil
-			text.Reset()
-		}
-	}
-	for _, c := range cells[:end] {
-		if c.Width == 0 {
-			continue // the right half of a wide character
-		}
-		r := Run{
-			Fg: colorString(c.Style.Fg), Bg: colorString(c.Style.Bg),
-			Attrs: uint16(c.Style.Attrs) | uint16(c.Style.Underline)<<8, Link: c.Link,
-		}
-		if cur == nil || cur.Fg != r.Fg || cur.Bg != r.Bg || cur.Attrs != r.Attrs || cur.Link != r.Link {
-			flush()
-			cur = &r
-		}
-		content := c.Content
-		if content == "" {
-			content = " "
-		}
-		text.WriteString(content)
-		cur.Width += max(int(c.Width), 1)
-	}
-	flush()
 	return ln
 }
 
-var cursorShapes = map[hiveapi.CursorShape]string{0: "block", 1: "underline", 2: "bar"}
-
 // update encodes lines ys of screen s (all of them with full).
 func update(pane string, seq uint64, s *hiveapi.TerminalScreen, full bool, ys []int) ScreenUpdate {
-	u := ScreenUpdate{
-		Pane: pane, Seq: seq, Full: full, Cols: s.Cols, Rows: s.Rows, Modes: uint32(s.Modes), Title: s.Title,
-		Cursor: CursorState{X: s.Cursor.X, Y: s.Cursor.Y, Visible: !s.Cursor.Hidden, Shape: cursorShapes[s.Cursor.Shape], Blink: s.Cursor.Blink},
-		Lines:  []Line{},
+	u := termview.Encode(pane, seq, s, full, ys)
+	out := ScreenUpdate{
+		Pane: u.Pane, Seq: u.Seq, Full: u.Full, Cols: u.Cols, Rows: u.Rows, Cursor: CursorState(u.Cursor),
+		Modes: u.Modes, Title: u.Title, Lines: make([]Line, len(u.Lines)), Ended: u.Ended,
 	}
-	if u.Cursor.Shape == "" {
-		u.Cursor.Shape = "block"
+	for i, l := range u.Lines {
+		out.Lines[i] = lineOf(l)
 	}
-	if full {
-		ys = ys[:0]
-		for y := range s.Lines {
-			ys = append(ys, y)
-		}
-	}
-	for _, y := range ys {
-		if y >= 0 && y < len(s.Lines) {
-			u.Lines = append(u.Lines, encodeLine(y, s.Lines[y]))
-		}
-	}
-	return u
+	return out
 }

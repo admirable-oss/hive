@@ -813,6 +813,13 @@
         "rev": {
           "type": "integer"
         },
+        "reviews": {
+          "description": "hunks a person accepted or rejected",
+          "items": {
+            "$ref": "#/$defs/branch.HunkReview"
+          },
+          "type": "array"
+        },
         "saved": {
           "description": "the ref keeping uncommitted work discarded with its worktree",
           "type": "string"
@@ -1153,6 +1160,91 @@
       ],
       "type": "object"
     },
+    "branch.HunkRequest": {
+      "properties": {
+        "action": {
+          "description": "accept (record the verdict) or reject (take the hunk out of the worktree)",
+          "type": "string"
+        },
+        "by": {
+          "description": "who decided",
+          "type": "string"
+        },
+        "context": {
+          "description": "the lines of context the diff was read with (default 3)",
+          "type": "integer"
+        },
+        "force": {
+          "description": "reject even while an agent works or waits in the worktree",
+          "type": "boolean"
+        },
+        "hunk": {
+          "description": "the hunk's ID, from the branch's diff",
+          "type": "string"
+        },
+        "path": {
+          "description": "the file, relative to the repository (its path in the branch)",
+          "type": "string"
+        },
+        "ref": {
+          "description": "the branch: its ID, environment, agent, plan/task or name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "path",
+        "hunk",
+        "action"
+      ],
+      "type": "object"
+    },
+    "branch.HunkResult": {
+      "properties": {
+        "branch": {
+          "$ref": "#/$defs/branch.Branch"
+        },
+        "review": {
+          "$ref": "#/$defs/branch.HunkReview"
+        }
+      },
+      "required": [
+        "branch",
+        "review"
+      ],
+      "type": "object"
+    },
+    "branch.HunkReview": {
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "by": {
+          "description": "who gave it",
+          "type": "string"
+        },
+        "hunk": {
+          "description": "the hunk's ID",
+          "type": "string"
+        },
+        "path": {
+          "description": "the file, relative to the repository",
+          "type": "string"
+        },
+        "verdict": {
+          "description": "accepted or rejected",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "hunk",
+        "verdict",
+        "at"
+      ],
+      "type": "object"
+    },
     "branch.ListRequest": {
       "properties": {
         "all": {
@@ -1386,6 +1478,104 @@
       "required": [
         "branch"
       ],
+      "type": "object"
+    },
+    "edits.Edit": {
+      "properties": {
+        "agent": {
+          "description": "the agent's ID",
+          "type": "string"
+        },
+        "deleted": {
+          "description": "the agent deleted it",
+          "type": "boolean"
+        },
+        "environment_id": {
+          "description": "the agent's environment",
+          "type": "string"
+        },
+        "kind": {
+          "description": "the agent's kind",
+          "type": "string"
+        },
+        "last": {
+          "description": "when it last changed it",
+          "format": "date-time",
+          "type": "string"
+        },
+        "name": {
+          "description": "the agent's name",
+          "type": "string"
+        },
+        "pane_id": {
+          "description": "the agent's pane",
+          "type": "string"
+        },
+        "path": {
+          "description": "the file (absolute)",
+          "type": "string"
+        },
+        "rel": {
+          "description": "its path in the working tree, with forward slashes",
+          "type": "string"
+        },
+        "since": {
+          "description": "when the agent first changed it",
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "description": "the agent's state now",
+          "type": "string"
+        },
+        "worktree": {
+          "description": "the working tree it is in",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "worktree",
+        "rel",
+        "agent",
+        "kind",
+        "environment_id",
+        "state",
+        "since",
+        "last"
+      ],
+      "type": "object"
+    },
+    "edits.Files": {
+      "properties": {
+        "files": {
+          "description": "files agents are changing, by path, then agent",
+          "items": {
+            "$ref": "#/$defs/edits.Edit"
+          },
+          "type": "array"
+        },
+        "worktree": {
+          "description": "the working tree (in an agent.files event)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "files"
+      ],
+      "type": "object"
+    },
+    "edits.ListRequest": {
+      "properties": {
+        "dir": {
+          "description": "only files under this directory (absolute)",
+          "type": "string"
+        },
+        "environment_id": {
+          "description": "only the working tree of this environment",
+          "type": "string"
+        }
+      },
       "type": "object"
     },
     "environment.CreateRequest": {
@@ -8254,7 +8444,7 @@
       "type": "object"
     }
   },
-  "api_level": 18,
+  "api_level": 19,
   "methods": [
     {
       "name": "access.audit",
@@ -8347,6 +8537,15 @@
       },
       "result": {
         "$ref": "#/$defs/agent.Explanation"
+      }
+    },
+    {
+      "name": "agent.files",
+      "params": {
+        "$ref": "#/$defs/edits.ListRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/edits.Files"
       }
     },
     {
@@ -8576,6 +8775,15 @@
       },
       "result": {
         "$ref": "#/$defs/branch.Branch"
+      }
+    },
+    {
+      "name": "branch.hunk",
+      "params": {
+        "$ref": "#/$defs/branch.HunkRequest"
+      },
+      "result": {
+        "$ref": "#/$defs/branch.HunkResult"
       }
     },
     {

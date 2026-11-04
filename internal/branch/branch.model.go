@@ -95,6 +95,9 @@ type Branch struct {
 	Pushed      *Push        `json:"pushed,omitempty" desc:"its last push, made on request"`
 	PullRequest *PullRequest `json:"pull_request,omitempty" desc:"the pull request opened for it, on request"`
 
+	// Reviews are the verdicts people gave its hunks (branch.hunk).
+	Reviews []HunkReview `json:"reviews,omitempty" desc:"hunks a person accepted or rejected"`
+
 	// Cleanup says why a merged branch's worktree is still there.
 	Cleanup string `json:"cleanup,omitempty" desc:"why a merged branch's worktree was not removed"`
 	// Saved is the ref holding uncommitted work that was discarded with
@@ -189,6 +192,32 @@ type Comment struct {
 	SentTo string     `json:"sent_to,omitempty"`
 }
 
+// HunkReview is a person's verdict on one hunk of a branch's diff.
+type HunkReview struct {
+	Path string `json:"path" desc:"the file, relative to the repository"`
+	// Hunk is the hunk's ID (git.HunkID): its file and lines, not where
+	// it is.
+	Hunk    string    `json:"hunk" desc:"the hunk's ID"`
+	Verdict Verdict   `json:"verdict" desc:"accepted or rejected"`
+	By      string    `json:"by,omitempty" desc:"who gave it"`
+	At      time.Time `json:"at"`
+}
+
+// Verdict is what a person decided about a hunk.
+type Verdict string
+
+// Verdicts.
+const (
+	// VerdictAccepted records that a person accepted a hunk; nothing
+	// changes in the worktree.
+	VerdictAccepted Verdict = "accepted"
+	// VerdictRejected means the hunk was taken out of the worktree.
+	VerdictRejected Verdict = "rejected"
+)
+
+// MaxReviews bounds a branch's verdicts; the oldest go first.
+const MaxReviews = 500
+
 // MaxComments bounds a branch's comments; the oldest sent ones go first.
 const MaxComments = 200
 
@@ -280,6 +309,7 @@ func (b *Branch) clone() Branch {
 	}
 	c.Gates = slices.Clone(b.Gates)
 	c.Comments = slices.Clone(b.Comments)
+	c.Reviews = slices.Clone(b.Reviews)
 	if b.Owner != nil {
 		o := *b.Owner
 		c.Owner = &o

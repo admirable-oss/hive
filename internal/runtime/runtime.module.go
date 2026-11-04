@@ -14,6 +14,7 @@ import (
 
 	"github.com/admirable-oss/hive/internal/agent"
 	"github.com/admirable-oss/hive/internal/branch"
+	"github.com/admirable-oss/hive/internal/edits"
 	"github.com/admirable-oss/hive/internal/environment"
 	"github.com/admirable-oss/hive/internal/event"
 	"github.com/admirable-oss/hive/internal/git"
@@ -132,6 +133,9 @@ func NewModule(cfg Config) *Module {
 	server.Go(func(ctx context.Context) { closeFinishedPopups(ctx, bus, panes, log) })
 	server.Go(agents.Run)
 	server.Go(func(ctx context.Context) { markSeen(ctx, bus, agents, agentLog) })
+	agentEdits := newEdits(guardedEnvs, agents, bus, log.With("module", "edits"))
+	server.Go(agentEdits.Run)
+	server.Go(func(ctx context.Context) { feedEdits(ctx, agentEdits, bus) })
 	if p := cfg.Persist; p != nil && p.Restore {
 		server.Go(func(ctx context.Context) {
 			if _, err := keep.restore(ctx, p.ResumeAgents); err != nil && ctx.Err() == nil {
@@ -238,6 +242,7 @@ func NewModule(cfg Config) *Module {
 	event.Register(router, bus)
 	pane.Register(router, panes)
 	agent.Register(router, agents)
+	edits.Register(router, agentEdits)
 	registerWorktrees(router, wts)
 	registerAgentOps(router, ops)
 	task.Register(router, tasks.svc)

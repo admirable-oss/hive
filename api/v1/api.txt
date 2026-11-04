@@ -18,6 +18,8 @@ access.whoami params: protocol.Empty
 access.whoami result: runtime.WhoAmI
 agent.explain params: agent.idParams
 agent.explain result: agent.Explanation
+agent.files params: edits.ListRequest
+agent.files result: edits.Files
 agent.focus params: runtime.agentIDParams
 agent.focus result: agent.Agent
 agent.get params: agent.idParams
@@ -64,6 +66,8 @@ branch.diff params: branch.DiffRequest
 branch.diff result: branch.Diff
 branch.get params: branch.Ref
 branch.get result: branch.Branch
+branch.hunk params: branch.HunkRequest
+branch.hunk result: branch.HunkResult
 branch.list params: branch.ListRequest
 branch.list result: []branch.Branch
 branch.pr params: branch.PullRequestRequest
@@ -132,6 +136,7 @@ method access.renew
 method access.revoke
 method access.whoami
 method agent.explain
+method agent.files
 method agent.focus
 method agent.get
 method agent.handover
@@ -155,6 +160,7 @@ method branch.comment
 method branch.conflicts
 method branch.diff
 method branch.get
+method branch.hunk
 method branch.list
 method branch.pr
 method branch.push
@@ -640,6 +646,7 @@ type branch.Branch.ready_at: string
 type branch.Branch.ready_tree: string
 type branch.Branch.repo: string
 type branch.Branch.rev: integer
+type branch.Branch.reviews: []branch.HunkReview
 type branch.Branch.saved: string
 type branch.Branch.started: boolean
 type branch.Branch.state: string
@@ -712,6 +719,23 @@ type branch.GateResult.output: []string
 type branch.GateResult.passed: boolean
 type branch.GateResult.skipped: boolean
 type branch.GateResult: object
+type branch.HunkRequest.action: string
+type branch.HunkRequest.by: string
+type branch.HunkRequest.context: integer
+type branch.HunkRequest.force: boolean
+type branch.HunkRequest.hunk: string
+type branch.HunkRequest.path: string
+type branch.HunkRequest.ref: string
+type branch.HunkRequest: object
+type branch.HunkResult.branch: branch.Branch
+type branch.HunkResult.review: branch.HunkReview
+type branch.HunkResult: object
+type branch.HunkReview.at: string
+type branch.HunkReview.by: string
+type branch.HunkReview.hunk: string
+type branch.HunkReview.path: string
+type branch.HunkReview.verdict: string
+type branch.HunkReview: object
 type branch.ListRequest.all: boolean
 type branch.ListRequest.repo: string
 type branch.ListRequest: object
@@ -759,6 +783,25 @@ type branch.UpdateRequest: object
 type branch.UpdateResult.branch: branch.Branch
 type branch.UpdateResult.conflicts: []string
 type branch.UpdateResult: object
+type edits.Edit.agent: string
+type edits.Edit.deleted: boolean
+type edits.Edit.environment_id: string
+type edits.Edit.kind: string
+type edits.Edit.last: string
+type edits.Edit.name: string
+type edits.Edit.pane_id: string
+type edits.Edit.path: string
+type edits.Edit.rel: string
+type edits.Edit.since: string
+type edits.Edit.state: string
+type edits.Edit.worktree: string
+type edits.Edit: object
+type edits.Files.files: []edits.Edit
+type edits.Files.worktree: string
+type edits.Files: object
+type edits.ListRequest.dir: string
+type edits.ListRequest.environment_id: string
+type edits.ListRequest: object
 type environment.CreateRequest.env: map[string]string
 type environment.CreateRequest.id: string
 type environment.CreateRequest.root: string

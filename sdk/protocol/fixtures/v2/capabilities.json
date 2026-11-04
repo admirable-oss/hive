@@ -115,6 +115,7 @@
   ],
   "methods": [
     "agent.explain",
+    "agent.files",
     "agent.focus",
     "agent.get",
     "agent.list",

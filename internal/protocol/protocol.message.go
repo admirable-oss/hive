@@ -52,7 +52,8 @@ const Version2 = "2"
 //	16 plugin ecosystem 2: plugin trust and sandbox in plugin.list, observe.plugins (M26)
 //	17 team collaboration: access.*, access.changed, the member socket (M27)
 //	18 projects as code: project.* (M30)
-const APILevel = 18
+//	19 editor integrations: agent.files (method and event), branch.hunk (M31)
+const APILevel = 19
 
 // CheckVersion reports whether v is a protocol-1 envelope version this side
 // speaks.

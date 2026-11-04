@@ -15,6 +15,7 @@ const CodePermissionDenied
 const CodeTimeout
 const CodeUnavailable
 const Down
+const EventAgentFiles
 const EventBranchOverlap
 const EventBranchRemoved
 const EventBranchUpdated
@@ -24,6 +25,8 @@ const EventWorkflowChanged
 const EventWorkflowRemoved
 const EventWorkflowRun
 const EventWorkflowStep
+const HunkAccept
+const HunkReject
 const ImageClear
 const ImageDelete
 const ImagePlace
@@ -102,6 +105,8 @@ const Up
 const UsageFromReport
 const UsageFromStatusline
 const UsageFromTranscript
+const VerdictAccepted
+const VerdictRejected
 const WorkflowCancelled
 const WorkflowFailed
 const WorkflowQueued
@@ -135,6 +140,7 @@ field PopupOptions.TabID string
 field PopupOptions.WidthPct int
 func (c *Client) Agent(ctx context.Context, id string) (Agent, error)
 func (c *Client) AgentDirectory(ctx context.Context, all bool) (AgentList, error)
+func (c *Client) AgentFiles(ctx context.Context, req AgentFilesRequest) (AgentFiles, error)
 func (c *Client) Agents(ctx context.Context, all bool) ([]Agent, error)
 func (c *Client) ApproveTask(ctx context.Context, id, taskID string, opts ApproveOptions) (Plan, error)
 func (c *Client) Asks(ctx context.Context, q InsightsQuery, limit int) ([]Ask, error)
@@ -196,6 +202,7 @@ func (c *Client) ResizePane(ctx context.Context, id string, d Direction, cells i
 func (c *Client) ResizeTab(ctx context.Context, id string, width, height int) (Tab, error)
 func (c *Client) ResumeBudget(ctx context.Context, budget, key string) ([]BudgetStatus, error)
 func (c *Client) RetryPlan(ctx context.Context, id, taskID string) (Plan, error)
+func (c *Client) ReviewHunk(ctx context.Context, req HunkRequest) (HunkResult, error)
 func (c *Client) RunInPane(ctx context.Context, id, command string) error
 func (c *Client) RunPlan(ctx context.Context, spec PlanSpec) (Plan, error)
 func (c *Client) RunPlanFile(ctx context.Context, toml, source string) (Plan, error)
@@ -232,11 +239,15 @@ func New(c client.Client) *Client
 func NewReport(p Plan) Report
 func NewWorkflowReport(r WorkflowRun) WorkflowReport
 func Observe(ctx context.Context, opts ObserverOptions) (*Observer, error)
+func ParsePatch(patch string) []FilePatch
 func ParsePlan(data []byte, source string) (PlanSpec, error)
 func ParseProject(data, local []byte, root string) (ProjectSpec, error)
 func ParseWorkflow(data []byte, source string) (WorkflowSpec, error)
 func PluginTierMeaning(tier string) string
 type Agent = agent.Agent
+type AgentEdit = edits.Edit
+type AgentFiles = edits.Files
+type AgentFilesRequest = edits.ListRequest
 type AgentList = agent.ListResult
 type AgentStarted = client.AgentStarted
 type AgentStatus = agent.Status
@@ -270,6 +281,7 @@ type Event = event.Event
 type EventStream = client.EventStream
 type EventsRequest = observer.EventsRequest
 type Explanation = agent.Explanation
+type FilePatch = git.FilePatch
 type Frame = vt.Frame
 type FrameStream = client.FrameStream
 type Gate = branch.Gate
@@ -278,6 +290,10 @@ type GraphicsEvent = vt.GraphicsEvent
 type GraphicsStream = client.GraphicsStream
 type HandedOver = client.HandedOver
 type HistoryRequest = observer.HistoryRequest
+type Hunk = git.Hunk
+type HunkRequest = branch.HunkRequest
+type HunkResult = branch.HunkResult
+type HunkReview = branch.HunkReview
 type ImageOp struct
 type InsightsQuery = insights.QueryParams
 type InsightsRecord = insights.Record
@@ -374,6 +390,7 @@ type UpdateRequest = branch.UpdateRequest
 type UpdateResult = branch.UpdateResult
 type UsageReport = insights.UsageParams
 type UsageResult = insights.UsageResult
+type Verdict = branch.Verdict
 type WaitOptions = client.WaitOptions
 type WaitResult = agent.WaitResult
 type WatchRequest = observer.WatchRequest

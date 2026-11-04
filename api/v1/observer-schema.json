@@ -1,5 +1,5 @@
 {
-  "api_level": 18,
+  "api_level": 19,
   "methods": [
     {
       "name": "observe.auth",

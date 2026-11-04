@@ -156,6 +156,7 @@ var methodCapabilities = map[string]string{
 	"insights.budgets": CapHiveRead, "insights.export": CapHiveRead,
 	"presence.list": CapHiveRead,
 	"project.get":   CapHiveRead, "project.list": CapHiveRead, "project.plan": CapHiveRead, "project.diff": CapHiveRead,
+	"agent.files": CapHiveRead,
 
 	// Changing the workspace.
 	"agent.focus": CapHiveWrite, "agent.rename": CapHiveWrite, "agent.seen": CapHiveWrite, "agent.report": CapHiveWrite,
@@ -182,6 +183,7 @@ var methodCapabilities = map[string]string{
 	"workflow.rerun": CapHiveProcess, "workflow.cancel": CapHiveProcess, "workflow.fire": CapHiveProcess,
 	"agent.handover": CapHiveProcess, "task.assign": CapHiveProcess,
 	"project.up": CapHiveProcess, "project.down": CapHiveProcess,
+	"branch.hunk":      CapHiveProcess,
 	"workflow.trigger": CapHiveWrite,
 
 	// Administration.

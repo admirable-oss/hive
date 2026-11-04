@@ -81,6 +81,10 @@ func Register(r *protocol.Router, s *Service) {
 		b, err := s.Send(ctx, p.Ref)
 		return b, wireError(err)
 	}))
+	m("branch.hunk", protocol.Method(func(ctx context.Context, p HunkRequest) (HunkResult, error) {
+		res, err := s.Hunk(ctx, p)
+		return res, wireError(err)
+	}))
 	m("branch.push", protocol.Method(func(ctx context.Context, p PushRequest) (Branch, error) {
 		b, err := s.Push(ctx, p)
 		return b, wireError(err)

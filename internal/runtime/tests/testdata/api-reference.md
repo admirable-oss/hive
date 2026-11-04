@@ -3,7 +3,7 @@
 <!-- Generated from the daemon's api.schema; do not edit by hand. Rewrite it
 with: HIVE_UPDATE_SURFACE=1 go test ./internal/runtime/tests -run Frozen -->
 
-API level 18. Clients speak newline-delimited JSON over the daemon's unix
+API level 19. Clients speak newline-delimited JSON over the daemon's unix
 socket (`hive api schema` prints this as JSON Schema; `pkg/hiveapi` is the Go SDK;
 the README's "Wire protocol" section has the framing). A protocol-2 client
 opens with `{"type":"hello","version":"2","params":{"client":"my-tool"}}`, then
@@ -100,6 +100,15 @@ Result: [runtime.WhoAmI](#runtimewhoami)
 | `id` | `string` |  |
 
 Result: [agent.Explanation](#agentexplanation)
+
+### `agent.files`
+
+| Param | Type | |
+|---|---|---|
+| `dir` | `string` | only files under this directory (absolute) |
+| `environment_id` | `string` | only the working tree of this environment |
+
+Result: [edits.Files](#editsfiles)
 
 ### `agent.focus`
 
@@ -322,6 +331,20 @@ Result: [branch.Diff](#branchdiff)
 | `ref` | `string` | the branch: its ID, environment, agent, plan/task or name |
 
 Result: [branch.Branch](#branchbranch)
+
+### `branch.hunk`
+
+| Param | Type | |
+|---|---|---|
+| `action` | `string` | accept (record the verdict) or reject (take the hunk out of the worktree) |
+| `by` | `string` | who decided |
+| `context` | `integer` | the lines of context the diff was read with (default 3) |
+| `force` | `boolean` | reject even while an agent works or waits in the worktree |
+| `hunk` | `string` | the hunk's ID, from the branch's diff |
+| `path` | `string` | the file, relative to the repository (its path in the branch) |
+| `ref` | `string` | the branch: its ID, environment, agent, plan/task or name |
+
+Result: [branch.HunkResult](#branchhunkresult)
 
 ### `branch.list`
 
@@ -1871,6 +1894,7 @@ Result: [protocol.Empty](#protocolempty)
 | `ready_tree` | `string` | the files its gates passed on (a git tree) |
 | `repo` | `string` | the repository (its main working tree) |
 | `rev` | `integer` |  |
+| `reviews` | [\[\]branch.HunkReview](#branchhunkreview) | hunks a person accepted or rejected |
 | `saved` | `string` | the ref keeping uncommitted work discarded with its worktree |
 | `started` | `boolean` | an agent has worked there |
 | `state` | `string` | created, working, ready, merged, cleaned or removed |
@@ -1987,6 +2011,35 @@ Result: [protocol.Empty](#protocolempty)
 | `passed` | `boolean` |  |
 | `skipped` | `boolean` |  |
 
+### branch.HunkRequest
+
+| Field | Type | |
+|---|---|---|
+| `action` | `string` | accept (record the verdict) or reject (take the hunk out of the worktree) |
+| `by` | `string` | who decided |
+| `context` | `integer` | the lines of context the diff was read with (default 3) |
+| `force` | `boolean` | reject even while an agent works or waits in the worktree |
+| `hunk` | `string` | the hunk's ID, from the branch's diff |
+| `path` | `string` | the file, relative to the repository (its path in the branch) |
+| `ref` | `string` | the branch: its ID, environment, agent, plan/task or name |
+
+### branch.HunkResult
+
+| Field | Type | |
+|---|---|---|
+| `branch` | [branch.Branch](#branchbranch) |  |
+| `review` | [branch.HunkReview](#branchhunkreview) |  |
+
+### branch.HunkReview
+
+| Field | Type | |
+|---|---|---|
+| `at` | `string` |  |
+| `by` | `string` | who gave it |
+| `hunk` | `string` | the hunk's ID |
+| `path` | `string` | the file, relative to the repository |
+| `verdict` | `string` | accepted or rejected |
+
 ### branch.ListRequest
 
 | Field | Type | |
@@ -2077,6 +2130,37 @@ Result: [protocol.Empty](#protocolempty)
 |---|---|---|
 | `branch` | [branch.Branch](#branchbranch) |  |
 | `conflicts` | `[]string` |  |
+
+### edits.Edit
+
+| Field | Type | |
+|---|---|---|
+| `agent` | `string` | the agent's ID |
+| `deleted` | `boolean` | the agent deleted it |
+| `environment_id` | `string` | the agent's environment |
+| `kind` | `string` | the agent's kind |
+| `last` | `string` | when it last changed it |
+| `name` | `string` | the agent's name |
+| `pane_id` | `string` | the agent's pane |
+| `path` | `string` | the file (absolute) |
+| `rel` | `string` | its path in the working tree, with forward slashes |
+| `since` | `string` | when the agent first changed it |
+| `state` | `string` | the agent's state now |
+| `worktree` | `string` | the working tree it is in |
+
+### edits.Files
+
+| Field | Type | |
+|---|---|---|
+| `files` | [\[\]edits.Edit](#editsedit) | files agents are changing, by path, then agent |
+| `worktree` | `string` | the working tree (in an agent.files event) |
+
+### edits.ListRequest
+
+| Field | Type | |
+|---|---|---|
+| `dir` | `string` | only files under this directory (absolute) |
+| `environment_id` | `string` | only the working tree of this environment |
 
 ### environment.CreateRequest
 

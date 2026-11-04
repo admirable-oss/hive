@@ -199,6 +199,7 @@ var memberRules = map[string]roleRule{
 	"task.retry":      on(roleOwner, p("id", targetPlan)),
 	"branch.ready":    on(roleOwner, p("ref", targetBranch)),
 	"branch.update":   on(roleOwner, p("ref", targetBranch)),
+	"branch.hunk":     on(roleOwner, p("ref", targetBranch)),
 	"branch.clean":    on(roleOwner, p("ref", targetBranch)),
 	"branch.push":     on(roleOwner, p("ref", targetBranch)),
 	"branch.pr":       on(roleOwner, p("ref", targetBranch)),
@@ -210,6 +211,8 @@ var memberRules = map[string]roleRule{
 	// declare.
 	"project.get": across(roleOwner), "project.list": across(roleOwner), "project.plan": across(roleOwner),
 	"project.up": across(roleOwner), "project.down": across(roleOwner), "project.diff": across(roleOwner),
+	// Which files agents change, in every environment.
+	"agent.files": across(roleOwner),
 }
 
 // memberClosed are the methods no member may call, whatever its role:
