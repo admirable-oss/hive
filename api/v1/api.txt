@@ -38,6 +38,8 @@ agent.rename params: runtime.agentRenameParams
 agent.rename result: agent.Agent
 agent.report params: agent.reportParams
 agent.report result: agent.Agent
+agent.resume params: runtime.agentIDParams
+agent.resume result: runtime.AgentStarted
 agent.seen params: agent.idParams
 agent.seen result: map[string]boolean
 agent.send_keys params: agent.KeysParams
@@ -142,6 +144,7 @@ method agent.read
 method agent.reload
 method agent.rename
 method agent.report
+method agent.resume
 method agent.seen
 method agent.send_keys
 method agent.start

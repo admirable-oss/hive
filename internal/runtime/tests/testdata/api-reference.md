@@ -193,6 +193,14 @@ Result: [agent.Agent](#agentagent)
 
 Result: [agent.Agent](#agentagent)
 
+### `agent.resume`
+
+| Param | Type | |
+|---|---|---|
+| `id` | `string` |  |
+
+Result: [runtime.AgentStarted](#runtimeagentstarted)
+
 ### `agent.seen`
 
 | Param | Type | |

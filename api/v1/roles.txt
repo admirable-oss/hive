@@ -18,6 +18,7 @@ method agent.read: observer in environment
 method agent.reload: closed
 method agent.rename: owner in environment
 method agent.report: closed
+method agent.resume: owner in environment
 method agent.seen: operator in environment
 method agent.send_keys: operator in environment, agents only below owner
 method agent.start: owner in environment

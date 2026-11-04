@@ -174,7 +174,7 @@ var methodCapabilities = map[string]string{
 	"branch.send": CapHiveInput, "pane.claim": CapHiveInput, "pane.release": CapHiveInput,
 
 	// Starting and stopping programs, and removing what holds work.
-	"agent.start": CapHiveProcess, "agent.stop": CapHiveProcess, "process.start": CapHiveProcess,
+	"agent.start": CapHiveProcess, "agent.resume": CapHiveProcess, "agent.stop": CapHiveProcess, "process.start": CapHiveProcess,
 	"process.stop": CapHiveProcess, "pane.run": CapHiveProcess, "environment.remove": CapHiveProcess,
 	"worktree.remove": CapHiveProcess, "task.run": CapHiveProcess, "task.cancel": CapHiveProcess,
 	"task.retry": CapHiveProcess, "task.approve": CapHiveProcess, "branch.ready": CapHiveProcess,

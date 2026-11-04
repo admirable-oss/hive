@@ -8448,6 +8448,15 @@
       }
     },
     {
+      "name": "agent.resume",
+      "params": {
+        "$ref": "#/$defs/runtime.agentIDParams"
+      },
+      "result": {
+        "$ref": "#/$defs/runtime.AgentStarted"
+      }
+    },
+    {
       "name": "agent.seen",
       "params": {
         "$ref": "#/$defs/agent.idParams"

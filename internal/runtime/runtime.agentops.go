@@ -75,7 +75,10 @@ func (o *agentOps) Resume(ctx context.Context, id string) (AgentStarted, error) 
 	}
 	var m *agent.Manifest
 	for _, candidate := range o.agents.Manifests() {
-		if candidate.ID == a.Kind { m = candidate; break }
+		if candidate.ID == a.Kind {
+			m = candidate
+			break
+		}
 	}
 	if m == nil {
 		return AgentStarted{}, fmt.Errorf("%w: no agent manifest %q", agent.ErrInvalid, a.Kind)
@@ -137,25 +140,31 @@ func (o *agentOps) start(ctx context.Context, req AgentStartRequest, reuse bool)
 			return AgentStarted{}, err
 		}
 	}
-	
+
 	command := append(append([]string{}, m.Start.Command...), req.Args...)
-		req.EnvironmentID = env.ID
+	req.EnvironmentID = env.ID
 	return o.startCommand(ctx, req, command)
 }
 
 func (o *agentOps) startCommand(ctx context.Context, req AgentStartRequest, command []string) (AgentStarted, error) {
 	env, err := o.envs.Get(ctx, req.EnvironmentID)
-	if err != nil { return AgentStarted{}, err }
+	if err != nil {
+		return AgentStarted{}, err
+	}
 	name := req.Name
-	if name == "" { name = req.Kind }
+	if name == "" {
+		name = req.Kind
+	}
 	vars := map[string]string{agent.EnvAgent: req.Kind}
-	for k, v := range req.Env { vars[k] = v }
-	
+	for k, v := range req.Env {
+		vars[k] = v
+	}
+
 	tab, p, err := o.panes.CreateTab(ctx, pane.CreateTabRequest{
 		EnvironmentID: env.ID, Name: name,
 		Pane: pane.Spec{Name: name, Command: command, Env: vars},
 	})
-	
+
 	if err != nil {
 		return AgentStarted{}, err
 	}
