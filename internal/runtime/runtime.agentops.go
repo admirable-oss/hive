@@ -164,7 +164,6 @@ func (o *agentOps) startCommand(ctx context.Context, req AgentStartRequest, comm
 		EnvironmentID: env.ID, Name: name,
 		Pane: pane.Spec{Name: name, Command: command, Env: vars},
 	})
-
 	if err != nil {
 		return AgentStarted{}, err
 	}
