@@ -96,6 +96,12 @@ func (l *Launcher) Connect(ctx context.Context, id string) (*Remote, error) {
 	}
 	st, err := readState(dir)
 	if err != nil {
+		// A torn or corrupt state file (a crash mid-write, a full disk) does
+		// not mean the shim is gone: it answers for itself when it is alive.
+		// Declaring it gone would kill its agent and leave the shim behind.
+		if r, derr := l.dial(ctx, dir, id); derr == nil {
+			return r, nil
+		}
 		return nil, fmt.Errorf("%w: no state (%w)", ErrShimGone, err)
 	}
 	switch st.Status {

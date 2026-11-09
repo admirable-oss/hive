@@ -260,6 +260,38 @@ func TestShim_AgentSurvivesTheDaemonAndIsAdopted(t *testing.T) {
 	stop(t, l, adopted)
 }
 
+// A corrupt state file must not make a live shim count as gone: the next
+// daemon would kill its agent and leave the shim running untracked.
+func TestShim_LiveShimIsAdoptedDespiteCorruptState(t *testing.T) {
+	l := newLauncher(t)
+	r := openAgent(t, l, "a6", `echo "pid $$"; while :; do sleep 1; done`)
+	waitScreen(t, r, "pid")
+	pid := r.Pid()
+	var st shim.State
+	if err := jsonfile.Read(filepath.Join(l.Dir("a6"), "state.json"), &st); err != nil {
+		t.Fatal(err)
+	}
+	// Leave nothing running if adoption fails.
+	t.Cleanup(func() { _ = syscall.Kill(-pid, syscall.SIGKILL); _ = syscall.Kill(st.ShimPID, syscall.SIGKILL) })
+	r.Detach()
+	if err := r.Wait(); !errors.Is(err, shim.ErrDetached) {
+		t.Fatalf("Wait after Detach = %v, want ErrDetached", err)
+	}
+	if err := os.WriteFile(filepath.Join(l.Dir("a6"), "state.json"), []byte(`{"schema":1,"stat`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	adopted, err := l.Connect(context.Background(), "a6")
+	if err != nil {
+		t.Fatalf("Connect over a corrupt state file: %v", err)
+	}
+	if adopted.Pid() != pid {
+		t.Fatalf("adopted PID %d, want %d", adopted.Pid(), pid)
+	}
+	checkShimStderr(t, l, "a6")
+	stop(t, l, adopted)
+}
+
 func TestShim_ExitWhileNoDaemonIsWatching(t *testing.T) {
 	l := newLauncher(t)
 	r := openAgent(t, l, "a3", `sleep 0.3; exit 3`)
