@@ -163,6 +163,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.wg.Add(1)
 	go s.accept(serveCtx, ln)
+	if fi, err := os.Lstat(s.cfg.SocketPath); err == nil {
+		s.wg.Add(1)
+		go s.watchSocket(serveCtx, fi)
+	}
 	for _, w := range s.workers {
 		s.workerWG.Add(1)
 		go func() {
