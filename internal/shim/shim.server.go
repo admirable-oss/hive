@@ -78,6 +78,11 @@ func Run(ctx context.Context, dir string) error {
 		_ = ln.Close()
 		return s.fail(err)
 	}
+	// Agents run for weeks; a /tmp cleaner may delete the socket meanwhile,
+	// and the next daemon could then never re-attach.
+	ln = platform.KeepListening(ln, sock, func() (net.Listener, error) {
+		return lc.Listen(context.WithoutCancel(ctx), "unix", sock)
+	}, log)
 
 	if err := s.start(ctx); err != nil {
 		_ = ln.Close()

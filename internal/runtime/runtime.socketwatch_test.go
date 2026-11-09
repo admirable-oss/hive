@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/admirable-oss/hive/internal/client"
+	"github.com/admirable-oss/hive/internal/platform"
 )
 
 func startWatched(t *testing.T) (string, *Module) {
 	t.Helper()
-	old := socketCheckInterval
-	socketCheckInterval = 20 * time.Millisecond
-	t.Cleanup(func() { socketCheckInterval = old })
+	old := platform.SocketCheckInterval
+	platform.SocketCheckInterval = 20 * time.Millisecond
+	t.Cleanup(func() { platform.SocketCheckInterval = old })
 	dir, err := os.MkdirTemp("", "hv") // short: macOS's 104-byte socket limit
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +83,7 @@ func TestServer_LeavesAReplacedSocketPathAlone(t *testing.T) {
 	if err := os.WriteFile(path, []byte("someone else's"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(10 * socketCheckInterval)
+	time.Sleep(10 * platform.SocketCheckInterval)
 	data, err := os.ReadFile(path)
 	if err != nil || string(data) != "someone else's" {
 		t.Fatalf("the daemon touched a file it does not own: %q %v", data, err)

@@ -521,3 +521,39 @@ func TestShim_FrozenShimIsUnresponsiveNotGone(t *testing.T) {
 	}
 	stop(t, l, adopted)
 }
+
+// A shim whose socket is deleted (a /tmp cleaner, while its agent runs for
+// weeks) puts it back, so the next daemon can still re-attach.
+func TestShim_RecreatesItsRemovedSocket(t *testing.T) {
+	l := newLauncher(t)
+	r := openAgent(t, l, "a9", `echo "pid $$"; while :; do sleep 1; done`)
+	waitScreen(t, r, "pid")
+	pid := r.Pid()
+	var st shim.State
+	if err := jsonfile.Read(filepath.Join(l.Dir("a9"), "state.json"), &st); err != nil {
+		t.Fatal(err)
+	}
+	// Leave nothing running if it fails.
+	t.Cleanup(func() { _ = syscall.Kill(-pid, syscall.SIGKILL); _ = syscall.Kill(st.ShimPID, syscall.SIGKILL) })
+	r.Detach()
+	_ = r.Wait()
+	sock := platform.SocketPath(l.Dir("a9"), "shim.sock")
+	if err := os.Remove(sock); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(8 * time.Second)
+	for {
+		adopted, err := l.Connect(context.Background(), "a9")
+		if err == nil {
+			if adopted.Pid() != pid {
+				t.Fatalf("adopted PID %d, want %d", adopted.Pid(), pid)
+			}
+			stop(t, l, adopted)
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("shim unreachable after its socket was removed: %v", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
