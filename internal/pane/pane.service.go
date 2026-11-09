@@ -326,8 +326,48 @@ func (s *Service) startLocked(ctx context.Context, env environment.Environment, 
 	return s.procs.Start(ctx, process.StartRequest{
 		EnvironmentID: env.ID, Command: argv[0], Args: argv[1:], Cwd: spec.Cwd, Env: vars,
 		Terminal: true, Width: uint16(max(r.W, 1)), Height: uint16(max(r.H, 1)),
-		Replay: spec.Replay,
+		Replay: spec.Replay, ForPane: paneID,
 	})
+}
+
+// StopUnshown stops the processes started for a pane that does not exist:
+// the daemon died between starting a new pane's program and saving the
+// pane, so the client was told it failed while the program runs on unseen.
+// It holds the pane lock, so no pane is half-created meanwhile. list returns
+// every process. It returns the IDs of those it stopped.
+func (s *Service) StopUnshown(ctx context.Context, list func(context.Context) ([]process.Process, error)) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.loadAllLocked(ctx); err != nil {
+		return nil, err
+	}
+	panes, shown := map[string]bool{}, map[string]bool{}
+	for _, st := range s.states {
+		for _, p := range st.Panes {
+			panes[p.ID] = true
+			if p.ProcessID != "" {
+				shown[p.ProcessID] = true
+			}
+		}
+	}
+	procs, err := list(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var stopped []string
+	var errs []error
+	for _, p := range procs {
+		if !p.Active() || p.ForPane == "" || panes[p.ForPane] || shown[p.ID] {
+			continue
+		}
+		s.log.Warn("stopping a process started for a pane that was never saved", "process", p.ID, "pane", p.ForPane)
+		if err := s.procs.Stop(ctx, p.ID); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		stopped = append(stopped, p.ID)
+	}
+	return stopped, errors.Join(errs...)
 }
 
 // --- tabs ---

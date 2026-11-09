@@ -139,6 +139,12 @@ func NewModule(cfg Config) *Module {
 			}
 		})
 	}
+	server.Go(func(ctx context.Context) {
+		list := func(ctx context.Context) ([]process.Process, error) { return procs.List(ctx, "") }
+		if _, err := panes.StopUnshown(ctx, list); err != nil && ctx.Err() == nil {
+			log.Warn("stop processes of unsaved panes", "err", err)
+		}
+	})
 	server.Go(keep.run)
 	server.Go(keep.runGC)
 	server.OnShutdown(keep.save)

@@ -396,3 +396,26 @@ func TestService_StopAllEndsUnresponsiveRetries(t *testing.T) {
 	}
 }
 
+// A daemon that died between launching a process and recording it leaves
+// it "starting" with no PID; re-attaching it completes the record.
+func TestService_AdoptCompletesAnUnrecordedStart(t *testing.T) {
+	root := t.TempDir()
+	envs := newEnv(t, root, "env")
+	store := process.NewFilesystemStore(root)
+	rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", Status: process.StatusStarting, StartedAt: time.Now()}
+	if err := store.Create(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+	exit := make(chan struct{})
+	defer close(exit)
+	handle := &fakeHandle{pid: 777, wait: func() error { <-exit; return nil }}
+	svc := process.NewService(store, envs, &fakeRunner{}, nil,
+		process.WithAdopter(fakeAdopter{adopt: func(process.Process) (process.Handle, error) { return handle, nil }}))
+	if err := svc.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := svc.Get(context.Background(), rec.ID)
+	if got.Status != process.StatusRunning || got.PID != 777 {
+		t.Fatalf("status %s pid %d, want running 777", got.Status, got.PID)
+	}
+}

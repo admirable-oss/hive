@@ -241,6 +241,7 @@ func (s *service) Start(ctx context.Context, req StartRequest) (Process, error) 
 		WorkingDir:    cwd,
 		Env:           req.Env,
 		Terminal:      req.Terminal,
+		ForPane:       req.ForPane,
 		Status:        StatusStarting,
 		StartedAt:     time.Now(),
 	}
@@ -647,6 +648,7 @@ func (s *service) recoverOne(ctx context.Context, p Process, rebooted bool) erro
 	log := s.log.With("process", p.ID, "env", p.EnvironmentID, "pid", p.PID)
 	handle, err := s.adopt(ctx, p)
 	if err == nil {
+		p = s.settleAdopted(ctx, p, handle)
 		s.supervise(p, handle) //nolint:contextcheck // supervision outlives recovery by design
 		log.Info("re-attached to a process that outlived the previous daemon")
 		s.events.Publish(EventRecovered, p)
@@ -730,6 +732,7 @@ func (s *service) retryAdopt(p Process) {
 				delete(s.pending, p.ID)
 				s.live[p.ID] = lp
 				s.mu.Unlock()
+				p = s.settleAdopted(ctx, p, handle)
 				go s.monitor(p, lp)
 				log.Info("re-attached to a process whose shim answers again")
 				s.events.Publish(EventRecovered, p)
@@ -747,6 +750,23 @@ func (s *service) retryAdopt(p Process) {
 			}
 		}
 	})
+}
+
+// settleAdopted completes the record of a re-attached process whose daemon
+// died between launching it and recording it (still "starting", no PID).
+func (s *service) settleAdopted(ctx context.Context, p Process, handle Handle) Process {
+	pid := handle.PID()
+	if p.Status == StatusRunning && (pid <= 0 || pid == p.PID) {
+		return p
+	}
+	if pid > 0 {
+		p.PID = pid
+	}
+	p.Status = StatusRunning
+	if err := s.store.Update(context.WithoutCancel(ctx), p); err != nil {
+		s.log.Warn("complete the record of a re-attached process", "process", p.ID, "err", err)
+	}
+	return p
 }
 
 // takePending cancels the retries matching ids (all when ids is nil),

@@ -678,3 +678,45 @@ func TestRespawnStartsAnEndedPaneInPlace(t *testing.T) {
 		t.Fatalf("stored state = %+v, %v", st, err)
 	}
 }
+
+// A program started for a pane that was never saved (the daemon died in
+// between) is stopped; panes' own programs and commands that only name a
+// pane (key commands) are left alone.
+func TestStopUnshownStopsProgramsOfUnsavedPanes(t *testing.T) {
+	w := newWorld(t, t.TempDir())
+	w.env(t, "dev")
+	ctx := context.Background()
+	_, shownPane, err := w.panes.CreateTab(ctx, pane.CreateTabRequest{EnvironmentID: "dev", Pane: pane.Spec{Command: []string{"sh", "-c", "sleep 60"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := w.procs.Get(ctx, shownPane.ProcessID); p.ForPane != shownPane.ID {
+		t.Fatalf("a pane's program records ForPane %q, want %q", p.ForPane, shownPane.ID)
+	}
+	start := func(req process.StartRequest) process.Process {
+		t.Helper()
+		req.EnvironmentID, req.Command, req.Args, req.Terminal, req.Width, req.Height = "dev", "sh", []string{"-c", "sleep 60"}, true, 80, 24
+		p, err := w.procs.Start(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	unsaved := start(process.StartRequest{ForPane: "pgone", Env: map[string]string{"HIVE_PANE_ID": "pgone"}})
+	keyCommand := start(process.StartRequest{Env: map[string]string{"HIVE_PANE_ID": "pgone"}})
+
+	list := func(ctx context.Context) ([]process.Process, error) { return w.procs.List(ctx, "") }
+	stopped, err := w.panes.StopUnshown(ctx, list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stopped) != 1 || stopped[0] != unsaved.ID {
+		t.Fatalf("stopped %v, want only %s", stopped, unsaved.ID)
+	}
+	waitStatus(t, w, unsaved.ID, process.StatusKilled)
+	for _, id := range []string{shownPane.ProcessID, keyCommand.ID} {
+		if p, _ := w.procs.Get(ctx, id); p.Status != process.StatusRunning {
+			t.Fatalf("process %s is %s, want running", id, p.Status)
+		}
+	}
+}
