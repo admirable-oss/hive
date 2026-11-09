@@ -140,6 +140,18 @@ func shimAlive(st State) bool {
 	return d > -2*time.Second && d < 30*time.Second
 }
 
+// Describe returns what the shim of agent id was started with and its last
+// recorded state, for rebuilding a lost record of the agent.
+func (l *Launcher) Describe(id string) (Spec, State, error) {
+	dir := l.Dir(id)
+	var spec Spec
+	if err := jsonfile.Read(specPath(dir), &spec); err != nil {
+		return Spec{}, State{}, err
+	}
+	st, err := readState(dir)
+	return spec, st, err
+}
+
 // Discard removes the directory of a shim whose result was recorded.
 func (l *Launcher) Discard(id string) error { return removeDir(l.Dir(id)) }
 

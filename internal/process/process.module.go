@@ -32,6 +32,8 @@ type Config struct {
 	LogMaxBytes int64
 	// LogGraphics keeps image data (Kitty graphics) in output logs.
 	LogGraphics bool
+	// Salvage rebuilds unreadable process records (FilesystemStore.Salvage).
+	Salvage func(envID, id string) (Process, bool)
 }
 
 type Module struct {
@@ -40,6 +42,7 @@ type Module struct {
 
 func NewModule(cfg Config, envs Environments, terms Terminals) *Module {
 	store := NewFilesystemStore(filepath.Join(cfg.BaseDir, "environments"))
+	store.Salvage, store.Log = cfg.Salvage, cfg.Logger
 	runner := cfg.Runner
 	if runner == nil {
 		runner = NewExecRunner(cfg.StopGrace)

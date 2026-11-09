@@ -95,6 +95,7 @@ func NewModule(cfg Config) *Module {
 		termCfg.Factory = launcher
 		procCfg.Runner = shimRunner{launcher}
 		procCfg.Adopter = shimRunner{launcher}
+		procCfg.Salvage = shimRunner{launcher}.salvage
 	}
 	envs := environment.NewModule(environment.Config{BaseDir: root}).Service
 	terms := terminal.NewModule(termCfg).Service

@@ -419,3 +419,44 @@ func TestService_AdoptCompletesAnUnrecordedStart(t *testing.T) {
 		t.Fatalf("status %s pid %d, want running 777", got.Status, got.PID)
 	}
 }
+
+// An unreadable process.json is rebuilt from what Salvage knows, with the
+// bad file kept aside; without Salvage it is left out, as before.
+func TestFilesystemStore_SalvagesUnreadableRecords(t *testing.T) {
+	for _, withSalvage := range []bool{true, false} {
+		root := t.TempDir()
+		store := process.NewFilesystemStore(root)
+		rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", Status: process.StatusRunning, StartedAt: time.Now()}
+		if err := store.Create(context.Background(), rec); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(root, "env", "processes", rec.ID, "process.json")
+		if err := os.WriteFile(path, []byte(`{"id":"0123456789abcdef","sta`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if withSalvage {
+			store.Salvage = func(envID, id string) (process.Process, bool) {
+				return process.Process{Command: "sh", Terminal: true, Status: process.StatusRunning, ForPane: "p1"}, true
+			}
+		}
+		got, err := store.List(context.Background(), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !withSalvage {
+			if len(got) != 0 {
+				t.Fatalf("without Salvage: %+v", got)
+			}
+			continue
+		}
+		if len(got) != 1 || got[0].ID != rec.ID || got[0].EnvironmentID != "env" || got[0].ForPane != "p1" || !got[0].Terminal {
+			t.Fatalf("salvaged %+v", got)
+		}
+		if again, _ := store.Get(context.Background(), rec.ID); again.Command != "sh" {
+			t.Fatalf("the rebuilt record was not written: %+v", again)
+		}
+		if m, _ := filepath.Glob(path + ".corrupt-*"); len(m) != 1 {
+			t.Fatalf("bad record not kept aside: %v", m)
+		}
+	}
+}
