@@ -141,8 +141,8 @@ func NewModule(cfg Config) *Module {
 	}
 	server.Go(func(ctx context.Context) {
 		list := func(ctx context.Context) ([]process.Process, error) { return procs.List(ctx, "") }
-		if _, err := panes.StopUnshown(ctx, list); err != nil && ctx.Err() == nil {
-			log.Warn("stop processes of unsaved panes", "err", err)
+		if _, err := panes.ShowUnshown(ctx, list); err != nil && ctx.Err() == nil {
+			log.Warn("show programs whose pane was lost", "err", err)
 		}
 	})
 	server.Go(keep.run)
