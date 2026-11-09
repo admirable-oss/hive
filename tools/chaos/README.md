@@ -10,6 +10,7 @@ fault.
 tools/chaos/chaos.sh list          # the tests
 tools/chaos/chaos.sh run 01 07     # some, in order
 tools/chaos/chaos.sh all           # every test, in order
+make chaos-scenarios [ONLY="01 07"]
 ```
 
 Requires Linux, `bash`, `jq` and Go (the binary is built from this checkout
@@ -35,6 +36,12 @@ into `$CHAOS_ROOT/bin`, or set `HIVE_BIN`).
 | 14 | the disk under `HIVE_HOME` fills (a `DISK_SIZE` tmpfs, 32m; root) | keeps serving, survives a crash, records intact, recovers when freed |
 | 15 | SIGHUP to the daemon and every shim | ignored |
 | 16 | daemon SIGKILL with `SCALE_AGENTS` (24) agents | every agent adopted; recovery time recorded |
+| 17 | the daemon runs out of file descriptors (`prlimit` on it alone) | the same daemon serves again once descriptors are free |
+| 18 | one shim frozen under a live daemon | other agents' commands stay fast; the frozen one's give up, not hang |
+| 19 | daemon crash + one `process.json` and the `layout.json` truncated | no agent lost: records rebuilt from shims, lost panes shown in a "recovered" tab |
+| 20 | `FROZEN` (3) shims frozen across a restart | the daemon serves within `STARTUP_LIMIT_MS` (5000) and keeps them |
+| 21 | daemon SIGKILL during `hive stop` | records match what is still running; no orphans |
+| 22 | a shim's socket deleted (a /tmp cleaner), then a restart | the agent is re-attached and readable |
 
 ## "Came back clean"
 
@@ -83,9 +90,12 @@ sandbox for inspection, `CHAOS_REBUILD=1` to rebuild the binary.
 
 ## Records
 
+A test that cannot run on this host (14 needs root for its tmpfs, 17
+needs `prlimit`) is recorded as `SKIPPED`, not failed.
+
 Each test writes `$CHAOS_ROOT/records/<time>-<test>.json` and `.md`, and
 prints the Markdown before the next test starts: verdict (`PASS`, `FAIL`,
-`ABORTED`), every check with its detail, and metrics (recovery time, daemon
+`SKIPPED`, `ABORTED`), every check with its detail, and metrics (recovery time, daemon
 PIDs, goroutines, open files, heap, host load and memory).
 
 ## Adding a test

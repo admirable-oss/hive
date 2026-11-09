@@ -38,10 +38,13 @@ declare -a CHECKS=()   # "PASS|FAIL|INFO<TAB>name<TAB>detail"
 declare -A METRICS=()
 FAILED=0
 ABORTED=""
+SKIPPED=""
 
 # ------------------------------------------------------------------ output
 log()  { printf '[chaos %s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 die()  { log "FATAL: $*"; ABORTED="$*"; exit 3; }
+# skip REASON: this test cannot run here (not a failure); recorded as SKIPPED.
+skip() { log "SKIP: $*"; SKIPPED="$*"; CHECKS+=("INFO"$'\t'"skipped"$'\t'"$*"); exit 0; }
 
 check() { # check PASS|FAIL|INFO name detail
 	CHECKS+=("$1"$'\t'"$2"$'\t'"${3:-}")
@@ -49,7 +52,7 @@ check() { # check PASS|FAIL|INFO name detail
 	log "$1  $2${3:+ ($3)}"
 	return 0
 }
-metric() { METRICS[$1]=$2; }
+metric() { METRICS[${1//[^A-Za-z0-9_]/_}]=$2; } # keys are safe words: the record splits on spaces
 
 # ------------------------------------------------------------ hive wrapper
 hive() {
@@ -89,6 +92,14 @@ safe_kill() { # safe_kill SIG PID
 	local sig=$1 pid=$2
 	owned "$pid" || die "refusing to send SIG$sig to PID $pid: not owned by sandbox $SB"
 	kill -s "$sig" "$pid"
+}
+
+# safe_prlimit PID ARGS...: change a resource limit of a sandbox process only.
+safe_prlimit() {
+	local pid=$1; shift
+	command -v prlimit >/dev/null || skip "no prlimit command"
+	owned "$pid" || die "refusing to change limits of PID $pid: not owned by sandbox $SB"
+	prlimit --pid "$pid" "$@"
 }
 
 sandbox_pids() {
@@ -218,9 +229,10 @@ begin() {
 # mount_sandbox_tmpfs SIZE: put the sandbox on a size-capped tmpfs, so a
 # disk-full test can only ever fill that, never the real disk.
 mount_sandbox_tmpfs() {
-	[[ $(id -u) == 0 ]] || die "a tmpfs sandbox needs root"
+	[[ $(id -u) == 0 ]] || skip "a size-capped tmpfs sandbox needs root"
+	command -v mount >/dev/null || skip "no mount command"
 	mountpoint -q "$SB" && die "$SB is already a mountpoint"
-	mount -t tmpfs -o "size=$1,mode=0700" tmpfs "$SB" || die "cannot mount a tmpfs on $SB"
+	mount -t tmpfs -o "size=$1,mode=0700" tmpfs "$SB" 2>/dev/null || skip "cannot mount a tmpfs here (container without the capability?)"
 	SB_MOUNTED=1
 	touch "$SB/.chaos-sandbox"
 }
@@ -450,6 +462,7 @@ write_record() {
 	ts=$(date -u +%Y%m%dT%H%M%SZ)
 	base="$CHAOS_RECORDS/$ts-$TEST_NAME"
 	if [[ -n $ABORTED ]]; then verdict=ABORTED
+	elif [[ -n $SKIPPED ]]; then verdict=SKIPPED
 	elif ((FAILED || rc != 0)); then verdict=FAIL
 	else verdict=PASS; fi
 	checks_json=$(for c in "${CHECKS[@]}"; do
@@ -461,8 +474,10 @@ write_record() {
 		--arg started "$(date -u -d "@$TEST_START" +%FT%TZ)" --argjson secs "$(($(date +%s) - TEST_START))" \
 		--arg bin "$HIVE_BIN" --arg version "$("$HIVE_BIN" version 2>/dev/null | head -1)" \
 		--argjson checks "$checks_json" --argjson metrics "$metrics_json" \
-		'{test:$test,verdict:$verdict,aborted:($aborted|select(.!="")),started:$started,seconds:$secs,
+		'{test:$test,verdict:$verdict,aborted:(if $aborted == "" then null else $aborted end),started:$started,seconds:$secs,
 		  hive:{bin:$bin,version:$version},metrics:$metrics,checks:$checks}' >"$base.json"
+	# A record that does not parse is worse than none: say so.
+	jq -e '.test' "$base.json" >/dev/null 2>&1 || log "WARNING: JSON record $base.json is empty or invalid"
 	{
 		echo "## $TEST_NAME: $verdict"
 		echo
