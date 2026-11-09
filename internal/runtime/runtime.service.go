@@ -300,8 +300,16 @@ func (s *Server) markDone() { s.doneOnce.Do(func() { close(s.done) }) }
 
 func (s *Server) accept(ctx context.Context, ln net.Listener) {
 	defer s.wg.Done()
+	var retry platform.AcceptRetry // out of descriptors is temporary
 	for {
 		conn, err := ln.Accept()
+		if err != nil && retry.Retry(err) {
+			if retry.First() {
+				s.log.Warn("accept failing for now; retrying", "err", err)
+			}
+			continue
+		}
+		retry.Reset()
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
 				s.log.Error("accept failed; no longer accepting connections", "err", err)
