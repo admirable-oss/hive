@@ -4,6 +4,7 @@ package runtime
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -85,5 +86,34 @@ func TestServer_LeavesAReplacedSocketPathAlone(t *testing.T) {
 	data, err := os.ReadFile(path)
 	if err != nil || string(data) != "someone else's" {
 		t.Fatalf("the daemon touched a file it does not own: %q %v", data, err)
+	}
+}
+
+// The member and observer sockets come back the same way.
+func TestServer_RecreatesRemovedAuxSockets(t *testing.T) {
+	path, _ := startWatched(t)
+	root := filepath.Dir(path)
+	for _, sock := range []string{MemberSocketPath(root), ObserverSocketPath(root)} {
+		waitServed(t, sock, "before removal")
+		if err := os.Remove(sock); err != nil {
+			t.Fatal(err)
+		}
+		waitServed(t, sock, "after removal")
+	}
+}
+
+func waitServed(t *testing.T, sock, when string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		conn, err := net.DialTimeout("unix", sock, time.Second)
+		if err == nil {
+			_ = conn.Close()
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s not served %s: %v", filepath.Base(sock), when, err)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

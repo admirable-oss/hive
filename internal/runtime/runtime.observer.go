@@ -114,6 +114,7 @@ func (o *observers) run(ctx context.Context) {
 		_ = ln.Close()
 		return
 	}
+	ln = keepListening(ln, o.path, o.cfg.listener(), o.log)
 	stop := context.AfterFunc(ctx, func() {
 		_ = ln.Close()
 		o.server.Close() // observers do not hold the daemon up

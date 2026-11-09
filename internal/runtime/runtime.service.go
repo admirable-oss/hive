@@ -145,6 +145,7 @@ func (s *Server) Start(ctx context.Context) error {
 		_ = ln.Close()
 		return fmt.Errorf("secure socket: %w", err)
 	}
+	ln = keepListening(ln, s.cfg.SocketPath, s.cfg.listener(), s.log)
 
 	// Connections outlive Start's ctx (often a request or signal context), so
 	// they get their own, cancelled by Stop.
@@ -163,10 +164,6 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.wg.Add(1)
 	go s.accept(serveCtx, ln)
-	if fi, err := os.Lstat(s.cfg.SocketPath); err == nil {
-		s.wg.Add(1)
-		go s.watchSocket(serveCtx, fi)
-	}
 	for _, w := range s.workers {
 		s.workerWG.Add(1)
 		go func() {

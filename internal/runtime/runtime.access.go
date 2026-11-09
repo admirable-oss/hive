@@ -215,6 +215,7 @@ func (m *members) run(ctx context.Context) {
 		_ = ln.Close()
 		return
 	}
+	ln = keepListening(ln, m.path, m.cfg.listener(), m.log)
 	stop := context.AfterFunc(ctx, func() {
 		_ = ln.Close()
 		m.server.Close() // members do not hold the daemon up
