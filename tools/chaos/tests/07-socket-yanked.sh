@@ -6,7 +6,7 @@ source "$(dirname "$0")/../lib.sh"
 # over the same agents.
 begin socket-yanked
 fixture
-rm -f "$SB/hive.sock"
+rm -f "$(sock_path "$SB" hive.sock)"
 t0=$(date +%s)
 out=$(hive pane list 2>&1) && rc=0 || rc=$?
 metric first_cmd_exit "$rc"; metric first_cmd_secs "$(($(date +%s) - t0))"

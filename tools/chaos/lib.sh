@@ -77,7 +77,11 @@ owned() {
 	local pid=$1
 	[[ $pid =~ ^[0-9]+$ ]] && ((pid > 1 && pid != $$ && pid != BASHPID)) || return 1
 	[[ -r /proc/$pid/environ ]] || return 1
-	{ tr '\0' '\n' <"/proc/$pid/environ"; } 2>/dev/null | grep -qxF "HIVE_HOME=$SB"
+	# Not "| grep -q": it exits at the first match, tr dies of SIGPIPE, and
+	# pipefail turns the match into a failure (with a large environment).
+	local env
+	env=$({ tr '\0' '\n' <"/proc/$pid/environ"; } 2>/dev/null) || return 1
+	grep -qxF "HIVE_HOME=$SB" <<<"$env"
 }
 
 # The only way this harness sends a signal.
@@ -178,6 +182,11 @@ teardown() {
 		ABORTED="teardown could not clear sandbox processes: $(echo $pids)"
 		log "FATAL: $ABORTED"
 	fi
+	[[ -z $(sandbox_pids) ]] && clean_hashed_sockets
+	if [[ -n ${SB_MOUNTED:-} && -z $(sandbox_pids) ]]; then
+		umount -- "$SB" 2>/dev/null || umount -l -- "$SB" 2>/dev/null || log "could not unmount $SB"
+		touch "$SB/.chaos-sandbox"
+	fi
 	write_record "$rc"
 	if [[ -f $SB/.chaos-sandbox && -z ${CHAOS_KEEP:-} && -z $(sandbox_pids) ]]; then
 		rm -rf -- "$SB"
@@ -206,14 +215,59 @@ begin() {
 	log "test $TEST_NAME in sandbox $SB"
 }
 
+# mount_sandbox_tmpfs SIZE: put the sandbox on a size-capped tmpfs, so a
+# disk-full test can only ever fill that, never the real disk.
+mount_sandbox_tmpfs() {
+	[[ $(id -u) == 0 ]] || die "a tmpfs sandbox needs root"
+	mountpoint -q "$SB" && die "$SB is already a mountpoint"
+	mount -t tmpfs -o "size=$1,mode=0700" tmpfs "$SB" || die "cannot mount a tmpfs on $SB"
+	SB_MOUNTED=1
+	touch "$SB/.chaos-sandbox"
+}
+
+# sock_path DIR NAME: where hive puts socket NAME for DIR (platform.SocketPath):
+# DIR/NAME when it fits in 100 bytes, else a hashed name in /tmp/hive-<uid>.
+sock_path() {
+	python3 - "$1" "$2" <<'PY'
+import hashlib, os, sys
+p = os.path.join(sys.argv[1], sys.argv[2])
+if len(p) > 100:
+    p = "/tmp/hive-%d/%s.sock" % (os.getuid(), hashlib.sha256(os.path.abspath(p).encode()).hexdigest()[:24])
+print(p)
+PY
+}
+
+# Hashed sockets of this sandbox (daemon's and shims') that nothing serves:
+# hive cannot clean those once the sandbox is gone.
+clean_hashed_sockets() {
+	local d n sp
+	for d in "$SB" "$SB"/run/*/; do
+		d=${d%/}
+		for n in hive.sock member.sock observer.sock shim.sock; do
+			sp=$(sock_path "$d" "$n")
+			[[ $sp == /tmp/hive-"$(id -u)"/* && -S $sp ]] || continue
+			served "$sp" || rm -f -- "$sp"
+		done
+	done
+}
+
+# served SOCKET: something accepts connections on it.
+served() {
+	python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect(sys.argv[1])' "$1" 2>/dev/null
+}
+
 # fixture: one environment, $AGENTS PTY agents printing "tick N".
 TICK='i=0; while :; do i=$((i+1)); echo "tick $i"; sleep 0.2; done'
 fixture() {
 	local pane
 	hive_ok env create dev --managed || die "fixture: env create failed"
-	pane=$(hive --json tab create dev -- sh -c "$TICK" | jq -r .pane.id) || die "fixture: tab create failed"
-	for ((i = 1; i < AGENTS; i++)); do
-		hive_ok pane split "$pane" --no-focus -- sh -c "$TICK" || die "fixture: pane split failed"
+	local per=${PANES_PER_TAB:-4}
+	for ((i = 0; i < AGENTS; i++)); do
+		if ((i % per == 0)); then
+			pane=$(hive --json tab create dev -- sh -c "$TICK" | jq -r .pane.id) || die "fixture: tab create failed"
+		else
+			hive_ok pane split "$pane" --no-focus -- sh -c "$TICK" || die "fixture: pane split failed"
+		fi
 	done
 	wait_serving "fixture" || die "fixture never served"
 	sleep 1
@@ -246,7 +300,7 @@ wait_dead() { # wait_dead pid [seconds]
 }
 
 last_tick() { # last_tick process_id -> highest tick on the screen
-	hive terminal snapshot "$1" 2>/dev/null | grep -oE 'tick [0-9]+' | awk '{print $2}' | sort -n | tail -1
+	{ hive terminal snapshot "$1" 2>/dev/null | grep -oE 'tick [0-9]+' | awk '{print $2}' | sort -n | tail -1; } || true
 }
 
 # verify_clean LABEL EXPECT_NEW_PID(yes|no|any) [EXPECT_LIVE_AGENTS]
@@ -271,16 +325,24 @@ verify_clean() {
 	elif [[ $newpid == no && $pid != "$BASE_PID" ]]; then check FAIL "same daemon" "pid $BASE_PID -> $pid"
 	else check PASS "daemon pid" "$BASE_PID -> $pid"; fi
 
-	# Exactly one daemon in the sandbox.
-	local daemons=0 p
-	for p in $(sandbox_pids); do
-		{ tr '\0' ' ' <"/proc/$p/cmdline"; } 2>/dev/null | grep -qE '^[^ ]+ daemon( |$)' && daemons=$((daemons + 1))
+	# Exactly one daemon in the sandbox (one retry: a process mid-exit or
+	# mid-exec reads empty in /proc for a moment).
+	local daemons=0 p try
+	for try in 1 2; do
+		daemons=0
+		for p in $(sandbox_pids); do
+			grep -qE '^[^ ]+ daemon( |$)' <<<"$({ tr '\0' ' ' <"/proc/$p/cmdline"; } 2>/dev/null)" && daemons=$((daemons + 1))
+		done
+		((daemons == 1)) && break
+		sleep 0.5
 	done
 	((daemons == 1)) && check PASS "single daemon" "" || check FAIL "single daemon" "$daemons running"
 
 	panes=$(hive --json pane list)
-	local n; n=$(jq length <<<"$panes")
-	((n == AGENTS)) && check PASS "panes kept" "$n/$AGENTS" || check FAIL "panes kept" "$n/$AGENTS"
+	local n want_panes=${EXPECT_PANES:-$AGENTS}; n=$(jq length <<<"$panes")
+	if [[ $want_panes == any ]]; then check INFO "panes" "$n"
+	elif ((n == want_panes)); then check PASS "panes kept" "$n/$want_panes"
+	else check FAIL "panes kept" "$n/$want_panes"; fi
 	stuck=$(jq '[.[] | select(.process.status == "starting")] | length' <<<"$panes")
 	((stuck == 0)) && check PASS "no pane stuck starting" "" || check FAIL "no pane stuck starting" "$stuck stuck"
 
@@ -292,7 +354,9 @@ verify_clean() {
 		[[ -n $a && -n $b && $b -gt $a ]] && ticking=$((ticking + 1))
 	done
 	metric agents_running "$live"; metric agents_ticking "$ticking"
-	((live == want_live)) && check PASS "agents running" "$live/$want_live" || check FAIL "agents running" "$live, want $want_live"
+	if [[ $want_live == any ]]; then check INFO "agents running" "$live"
+	elif ((live == want_live)); then check PASS "agents running" "$live/$want_live"
+	else check FAIL "agents running" "$live, want $want_live"; fi
 	((ticking == live)) && check PASS "agents still ticking" "$ticking/$live" || check FAIL "agents still ticking" "$ticking/$live"
 
 	# Every running record's shim and agent are alive and ours; nothing else is.
@@ -301,8 +365,17 @@ verify_clean() {
 	running_ids=$(jq -r '.[] | select(.process.status == "running") | .process_id' <<<"$panes")
 	while read -r id shim agent st; do
 		if ! grep -qxF "$id" <<<"$running_ids"; then stale=$((stale + 1)); continue; fi
-		owned "$shim" || check FAIL "shim alive" "$id shim $shim"
-		owned "$agent" || check FAIL "agent alive" "$id agent $agent"
+		if ! owned "$shim"; then
+			sleep 0.5 # an exiting shim may still be its agent's parent for a moment
+			owned "$shim" || check FAIL "shim alive" "$id: shim $shim $(grep -h '^State' "/proc/$shim/status" 2>/dev/null || echo gone); agent $agent parent now $(awk '{sub(/^.*\) /,""); print $2}' "/proc/$agent/stat" 2>/dev/null || echo gone); log: $(grep -F "$id" "$SB/logs/daemon.log" | sed -E 's/^time=[^ ]+ //' | cut -c1-140 | tr '\n' '|')"
+		fi
+		if ! owned "$agent"; then
+			sleep 0.5
+			local dpid dst
+			dpid=$(hive --json pane list | jq -r --arg id "$id" '.[]|select(.process_id==$id)|.process.pid')
+			dst=$(hive --json pane list | jq -r --arg id "$id" '.[]|select(.process_id==$id)|.process.status')
+			owned "$agent" || check FAIL "agent alive" "$id: state.json agent $agent $(grep -h '^State' "/proc/$agent/status" 2>/dev/null || echo gone); daemon now says ${dst:-<no pane>} pid ${dpid:-?} ($(owned "${dpid:-0}" && echo alive || echo dead)); log: $(grep -F "$id" "$SB/logs/daemon.log" | sed -E 's/^time=[^ ]+ //' | cut -c1-140 | tr '\n' '|')"
+		fi
 	done < <(run_records)
 	metric stale_shim_dirs "$stale"
 	((stale == 0)) || check INFO "stale shim dirs" "$stale run/ dirs for agents the daemon no longer runs"
@@ -326,8 +399,21 @@ verify_clean() {
 		alive "$p" && orphan_list+="$p($({ tr '\0' ' ' <"/proc/$p/cmdline"; } 2>/dev/null | cut -c1-40)) "
 	done
 	metric orphans "${orphan_list:-none}"
+	# For an orphaned shim, what the daemon logged about its agent.
+	local oid
+	for oid in $(grep -oE '__shim [^ )]*' <<<"$(for p in $(sandbox_pids); do { tr '\0' ' ' <"/proc/$p/cmdline"; } 2>/dev/null; echo; done)" | awk '{print $2}' | xargs -rn1 basename); do
+		grep -qxF "$oid" <<<"$running_ids" && continue
+		check INFO "untracked shim $oid" "$(grep -F "$oid" "$SB/logs/daemon.log" 2>/dev/null | sed -E 's/^time=[^ ]+ //' | cut -c1-200 | tr '\n' '|' )"
+	done
 	[[ -z $orphan_list ]] && check PASS "no orphans" "daemon + $live shims + $live agent groups only" ||
 		check FAIL "no orphans" "$orphan_list"
+
+	# The daemon that served at the start of these checks still does: a
+	# different one means it died while being checked.
+	local endpid; endpid=$(daemon_pid)
+	if [[ $endpid != "$pid" ]]; then
+		check FAIL "daemon stable during checks" "$pid -> $endpid; log: $(tail -n 5 "$SB/logs/daemon.log" | sed -E 's/^time=[^ ]+ //' | cut -c1-140 | tr '\n' '|')"
+	fi
 
 	# No panics or fatal errors in the daemon log since the fixture.
 	newlog=$(tail -n +"$((LOG_MARK + 1))" "$SB/logs/daemon.log" 2>/dev/null || true)

@@ -28,6 +28,13 @@ into `$CHAOS_ROOT/bin`, or set `HIVE_BIN`).
 | 07 | control socket deleted | daemon recreates it and is reachable (and stoppable) again |
 | 08 | stale pidfile pointing at an unrelated live process | new daemon starts; the unrelated process is left alone |
 | 09 | daemon crash + one agent's `state.json` truncated | daemon starts; that agent is re-adopted, not killed |
+| 10 | member and observer sockets deleted | both are recreated and served again |
+| 11 | one shim frozen (SIGSTOP) across a daemon restart | its agent is kept and re-adopted once the shim answers, not killed |
+| 12 | `STORM_CLIENTS` (200) concurrent clients | every call succeeds; no goroutines or files kept |
+| 13 | daemon SIGKILL during `tab create`, `ROUNDS` (6) times | no agent left without a pane, none stuck `starting`, no orphans |
+| 14 | the disk under `HIVE_HOME` fills (a `DISK_SIZE` tmpfs, 32m; root) | keeps serving, survives a crash, records intact, recovers when freed |
+| 15 | SIGHUP to the daemon and every shim | ignored |
+| 16 | daemon SIGKILL with `SCALE_AGENTS` (24) agents | every agent adopted; recovery time recorded |
 
 ## "Came back clean"
 
@@ -47,6 +54,10 @@ Nothing outside the sandbox is ever signalled:
   `~/.hive` is refused.
 - Every signal goes through `safe_kill`, which requires the PID's
   `/proc/<pid>/environ` to carry `HIVE_HOME=<sandbox>`; anything else aborts.
+- Sockets whose path is too long live in `/tmp/hive-<uid>` (as hive puts
+  them); teardown removes the sandbox's ones there that nothing serves.
+- Test 14 mounts a size-capped tmpfs on the sandbox, so filling it can never
+  reach the real disk; teardown unmounts it.
 - Teardown always runs (EXIT trap): `hive stop`, then repeated SIGKILL passes
   over sandbox-owned PIDs until none are left. A sandbox still holding a
   live process is never deleted, and the run is marked aborted.
@@ -66,7 +77,7 @@ and stop `chaos.sh` from moving on:
 | `MAX_LOG_MB` | 64 | sandbox logs |
 | `TEST_TIMEOUT` | 300 | seconds per test |
 
-Other knobs: `AGENTS` (4), `RECOVERY_TIMEOUT` (30), `LEAK_GOROUTINES` (10),
+Other knobs: `AGENTS` (4), `PANES_PER_TAB` (4), `RECOVERY_TIMEOUT` (30), `LEAK_GOROUTINES` (10),
 `LEAK_FDS` (5), `STORM` (10), `FREEZE_SECS` (5), `CHAOS_KEEP=1` to keep the
 sandbox for inspection, `CHAOS_REBUILD=1` to rebuild the binary.
 
