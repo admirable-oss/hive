@@ -124,8 +124,19 @@ func (l *Launcher) Connect(ctx context.Context, id string) (*Remote, error) {
 	return r, nil
 }
 
+// shimAlive reports whether the shim that wrote st still runs: its PID is
+// live and the kernel started it when the shim recorded (not a reused PID).
+func shimAlive(st State) bool {
+	info, err := platform.LookupProcess(st.ShimPID)
+	if err != nil || st.StartedAt.IsZero() {
+		return false
+	}
+	d := st.StartedAt.Sub(info.StartTime)
+	return d > -2*time.Second && d < 30*time.Second
+}
+
 // Discard removes the directory of a shim whose result was recorded.
-func (l *Launcher) Discard(id string) error { return os.RemoveAll(l.Dir(id)) }
+func (l *Launcher) Discard(id string) error { return removeDir(l.Dir(id)) }
 
 // List returns the IDs of every shim directory.
 func (l *Launcher) List() ([]string, error) {

@@ -16,6 +16,7 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/admirable-oss/hive/internal/jsonfile"
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/shim"
 	"github.com/admirable-oss/hive/internal/terminal"
 	"github.com/admirable-oss/hive/internal/vt"
@@ -446,3 +447,37 @@ func TestShim_ForegroundCrossesTheShim(t *testing.T) {
 	}
 	stop(t, l, r)
 }
+
+// A deep run directory puts shim sockets in the shared short directory;
+// discarding a killed shim must remove its socket there too, or every
+// crashed shim leaves a file behind for good.
+func TestShim_DiscardRemovesADeepShimsSocket(t *testing.T) {
+	l := newLauncher(t)
+	l.RunDir = filepath.Join(l.RunDir, strings.Repeat("d", 90))
+	r := openAgent(t, l, "a7", `echo up; while :; do sleep 1; done`)
+	waitScreen(t, r, "up")
+	sock := platform.SocketPath(l.Dir("a7"), "shim.sock")
+	if filepath.Dir(sock) == l.Dir("a7") {
+		t.Fatalf("socket %s is not outside the run directory; make it deeper", sock)
+	}
+	var st shim.State
+	if err := jsonfile.Read(filepath.Join(l.Dir("a7"), "state.json"), &st); err != nil {
+		t.Fatal(err)
+	}
+	agent := r.Pid()
+	t.Cleanup(func() { _ = syscall.Kill(-agent, syscall.SIGKILL) })
+	if err := syscall.Kill(st.ShimPID, syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Wait(); !errors.Is(err, shim.ErrShimGone) {
+		t.Fatalf("Wait = %v, want ErrShimGone", err)
+	}
+	r.Release()
+	if err := l.Discard("a7"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(sock); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the killed shim's socket %s is left behind: %v", sock, err)
+	}
+}
+

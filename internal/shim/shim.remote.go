@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -307,7 +306,7 @@ func (r *Remote) Release() {
 	}
 	_ = r.call("shim.release", nil, nil)
 	_ = r.mux.Close()
-	_ = os.RemoveAll(r.dir)
+	_ = removeDir(r.dir)
 }
 
 // Detach lets go of the shim without stopping its agent: the daemon is
