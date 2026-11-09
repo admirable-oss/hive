@@ -229,3 +229,64 @@ func TestService_RemoveOnlyEndedProcesses(t *testing.T) {
 		t.Fatalf("its directory is still there: %v", err)
 	}
 }
+
+// TestService_ShimDeathReapsItsAgent covers a shim dying under a live
+// daemon: supervision ends without an exit status while the agent may still
+// run. Its group is stopped only when it provably is the recorded agent.
+func TestService_ShimDeathReapsItsAgent(t *testing.T) {
+	started := time.Now()
+	tests := []struct {
+		name       string
+		info       *platform.ProcessInfo
+		wantStatus process.Status
+		wantKilled bool
+	}{
+		{"agent outlived its shim", &platform.ProcessInfo{PID: 4242, PGID: 4242, StartTime: started}, process.StatusKilled, true},
+		{"agent died with its shim", nil, process.StatusFailed, false},
+		{"pid reused by another process", &platform.ProcessInfo{PID: 4242, PGID: 1, StartTime: started}, process.StatusFailed, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			envs := newEnv(t, root, "env")
+			store := process.NewFilesystemStore(root)
+			rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", PID: 4242, Status: process.StatusRunning, StartedAt: started}
+			if err := store.Create(context.Background(), rec); err != nil {
+				t.Fatal(err)
+			}
+			fake := &orphanFake{info: map[int]platform.ProcessInfo{}}
+			if tt.info != nil {
+				fake.info[4242] = *tt.info
+			}
+			// Adopted, then the shim's connection breaks with no exit status.
+			shimDied := make(chan struct{})
+			handle := &fakeHandle{pid: 4242, wait: func() error { <-shimDied; return errors.New("shim gone") }}
+			svc := process.NewService(store, envs, &fakeRunner{}, nil,
+				process.WithAdopter(fakeAdopter{adopt: func(process.Process) (process.Handle, error) { return handle, nil }}),
+				process.WithOrphanControl(fake.lookup, fake.terminate),
+				process.WithBootTime(func() (time.Time, error) { return started.Add(-time.Hour), nil }))
+			if err := svc.Recover(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			close(shimDied)
+
+			var got process.Process
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				got, _ = svc.Get(context.Background(), rec.ID)
+				if !got.Active() || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if got.Status != tt.wantStatus {
+				t.Fatalf("status %s, want %s", got.Status, tt.wantStatus)
+			}
+			fake.mu.Lock()
+			defer fake.mu.Unlock()
+			if killed := len(fake.terminated) == 1 && fake.terminated[0] == 4242; killed != tt.wantKilled {
+				t.Fatalf("terminated %v, want killed=%v", fake.terminated, tt.wantKilled)
+			}
+		})
+	}
+}

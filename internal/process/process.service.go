@@ -401,6 +401,13 @@ func (s *service) monitor(p Process, lp *liveProcess) {
 	if stopping {
 		status = StatusKilled
 	}
+	// Supervision ended without an exit status: the shim holding the agent
+	// died (killed, OOM) while the agent may still run, now unsupervised and
+	// invisible. Stop its group the way recovery does, only when it provably
+	// is ours (it leads its group and started when the record says).
+	if status == StatusFailed && s.reapOrphan(p) {
+		status, p.Lost = StatusKilled, true
+	}
 
 	now := time.Now()
 	p.Status, p.ExitCode, p.EndedAt = status, &code, &now
