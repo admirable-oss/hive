@@ -481,3 +481,43 @@ func TestShim_DiscardRemovesADeepShimsSocket(t *testing.T) {
 	}
 }
 
+// A frozen shim is reported unresponsive (its agent is running), not gone,
+// and keeps its directory; once it thaws it is adopted as usual.
+func TestShim_FrozenShimIsUnresponsiveNotGone(t *testing.T) {
+	l := newLauncher(t)
+	r := openAgent(t, l, "a8", `echo "pid $$"; while :; do sleep 1; done`)
+	waitScreen(t, r, "pid")
+	pid := r.Pid()
+	var st shim.State
+	if err := jsonfile.Read(filepath.Join(l.Dir("a8"), "state.json"), &st); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = syscall.Kill(st.ShimPID, syscall.SIGCONT)
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+		_ = syscall.Kill(st.ShimPID, syscall.SIGKILL)
+	})
+	r.Detach()
+	_ = r.Wait()
+	if err := syscall.Kill(st.ShimPID, syscall.SIGSTOP); err != nil {
+		t.Fatal(err)
+	}
+	_, err := l.Adopt(context.Background(), "a8")
+	if !errors.Is(err, terminal.ErrUnresponsive) || errors.Is(err, shim.ErrShimGone) {
+		t.Fatalf("Adopt of a frozen shim = %v, want ErrUnresponsive", err)
+	}
+	if _, err := os.Stat(l.Dir("a8")); err != nil {
+		t.Fatalf("an unresponsive shim's directory was removed: %v", err)
+	}
+	if err := syscall.Kill(st.ShimPID, syscall.SIGCONT); err != nil {
+		t.Fatal(err)
+	}
+	adopted, err := l.Connect(context.Background(), "a8")
+	if err != nil {
+		t.Fatalf("Connect after thaw: %v", err)
+	}
+	if adopted.Pid() != pid {
+		t.Fatalf("adopted PID %d, want %d", adopted.Pid(), pid)
+	}
+	stop(t, l, adopted)
+}

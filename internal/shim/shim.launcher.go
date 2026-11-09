@@ -77,7 +77,9 @@ func (l *Launcher) StartPlain(ctx context.Context, spec Spec) (*Remote, error) {
 func (l *Launcher) Adopt(ctx context.Context, id string) (terminal.Session, error) {
 	r, err := l.Connect(ctx, id)
 	if err != nil {
-		if !errors.Is(err, ErrNoShim) {
+		// A shim that does not answer yet keeps its directory: the
+		// caller tries again.
+		if !errors.Is(err, ErrNoShim) && !errors.Is(err, terminal.ErrUnresponsive) {
 			_ = l.Discard(id)
 		}
 		return nil, err
@@ -119,6 +121,9 @@ func (l *Launcher) Connect(ctx context.Context, id string) (*Remote, error) {
 	}
 	r, err := l.dial(ctx, dir, id)
 	if err != nil {
+		if shimAlive(st) {
+			return nil, fmt.Errorf("%w: shim %d: %w", terminal.ErrUnresponsive, st.ShimPID, err)
+		}
 		return nil, fmt.Errorf("%w: %w", ErrShimGone, err)
 	}
 	return r, nil

@@ -5,6 +5,7 @@ package process_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/admirable-oss/hive/internal/pgroup"
 	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/process"
+	"github.com/admirable-oss/hive/internal/terminal"
 )
 
 // orphanFake records which process groups the service tried to stop.
@@ -290,3 +292,107 @@ func TestService_ShimDeathReapsItsAgent(t *testing.T) {
 		})
 	}
 }
+
+// A recovered agent whose shim is alive but slow to answer (a frozen or
+// overloaded machine) is kept and re-attached once it answers: never killed.
+func TestService_UnresponsiveShimIsRetriedNotReaped(t *testing.T) {
+	t.Cleanup(process.SetAdoptRetry(10*time.Millisecond, 20*time.Millisecond))
+	started := time.Now()
+	root := t.TempDir()
+	envs := newEnv(t, root, "env")
+	store := process.NewFilesystemStore(root)
+	rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", PID: 4242, Status: process.StatusRunning, StartedAt: started}
+	if err := store.Create(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+	fake := &orphanFake{info: map[int]platform.ProcessInfo{4242: {PID: 4242, PGID: 4242, StartTime: started}}}
+	var mu sync.Mutex
+	attempts := 0
+	exit := make(chan struct{})
+	handle := &fakeHandle{pid: 4242, wait: func() error { <-exit; return nil }}
+	svc := process.NewService(store, envs, &fakeRunner{}, nil,
+		process.WithAdopter(fakeAdopter{adopt: func(process.Process) (process.Handle, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			attempts++
+			if attempts < 4 {
+				return nil, fmt.Errorf("%w: frozen", terminal.ErrUnresponsive)
+			}
+			return handle, nil
+		}}),
+		process.WithOrphanControl(fake.lookup, fake.terminate),
+		process.WithBootTime(func() (time.Time, error) { return started.Add(-time.Hour), nil }))
+	if err := svc.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := svc.Get(context.Background(), rec.ID); got.Status != process.StatusRunning {
+		t.Fatalf("status %s while its shim does not answer, want running", got.Status)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		n := attempts
+		mu.Unlock()
+		if n >= 4 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d adoption attempts", n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	// Re-attached: it is supervised again, and its exit is recorded.
+	close(exit)
+	for {
+		got, _ := svc.Get(context.Background(), rec.ID)
+		if got.Status == process.StatusExited {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status %s, want exited once supervised again", got.Status)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.terminated) != 0 {
+		t.Fatalf("signalled %v: a live agent was killed", fake.terminated)
+	}
+}
+
+// `hive stop` while a shim never answered stops its agent the provable way,
+// and the retry ends.
+func TestService_StopAllEndsUnresponsiveRetries(t *testing.T) {
+	t.Cleanup(process.SetAdoptRetry(10*time.Millisecond, 20*time.Millisecond))
+	started := time.Now()
+	root := t.TempDir()
+	envs := newEnv(t, root, "env")
+	store := process.NewFilesystemStore(root)
+	rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", PID: 4242, Status: process.StatusRunning, StartedAt: started}
+	if err := store.Create(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+	fake := &orphanFake{info: map[int]platform.ProcessInfo{4242: {PID: 4242, PGID: 4242, StartTime: started}}}
+	svc := process.NewService(store, envs, &fakeRunner{}, nil,
+		process.WithAdopter(fakeAdopter{adopt: func(process.Process) (process.Handle, error) {
+			return nil, terminal.ErrUnresponsive
+		}}),
+		process.WithOrphanControl(fake.lookup, fake.terminate),
+		process.WithBootTime(func() (time.Time, error) { return started.Add(-time.Hour), nil }))
+	if err := svc.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := svc.StopAll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := svc.Get(context.Background(), rec.ID); got.Status != process.StatusKilled {
+		t.Fatalf("status %s, want killed", got.Status)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.terminated) != 1 || fake.terminated[0] != 4242 {
+		t.Fatalf("terminated %v, want [4242]", fake.terminated)
+	}
+}
+

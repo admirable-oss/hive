@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -153,7 +154,23 @@ type service struct {
 	// finishing holds processes that exited and whose final state is being
 	// written, so stopping waits for those too.
 	finishing map[string]*liveProcess
+	// pending holds recovered processes whose shim is alive but does not
+	// answer yet; retryAdopt keeps trying to re-attach them.
+	pending   map[string]pendingAdopt
+	pendingWG sync.WaitGroup
 }
+
+type pendingAdopt struct {
+	p      Process
+	cancel context.CancelFunc
+}
+
+// adoptRetryInterval is the first wait before retrying an unresponsive
+// shim; it doubles up to adoptRetryMax.
+var (
+	adoptRetryInterval = 2 * time.Second
+	adoptRetryMax      = 30 * time.Second
+)
 
 // liveProcess is a process this daemon launched and is still supervising.
 type liveProcess struct {
@@ -178,6 +195,7 @@ func NewService(store Store, envs Environments, runner Runner, terms Terminals, 
 		bootTime:  platform.BootTime,
 		live:      make(map[string]*liveProcess),
 		finishing: make(map[string]*liveProcess),
+		pending:   make(map[string]pendingAdopt),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -440,6 +458,7 @@ func (s *service) Stop(ctx context.Context, id string) error {
 		return nil
 	}
 
+	s.takePending(id)
 	s.mu.Lock()
 	lp, ok := s.live[id]
 	if ok {
@@ -534,7 +553,13 @@ func (s *service) StopEnvironment(ctx context.Context, envID string) error {
 }
 
 func (s *service) StopAll(ctx context.Context) error {
-	return s.stopLive(ctx, func(*liveProcess) bool { return true })
+	var errs []error
+	// Agents whose shim never answered are stopped the provable way.
+	for _, p := range s.takePending() {
+		s.reapOrphan(p)
+		errs = append(errs, s.closeOut(ctx, p, StatusKilled))
+	}
+	return errors.Join(append(errs, s.stopLive(ctx, func(*liveProcess) bool { return true }))...)
 }
 
 // stopLive kills every matching live process, then waits until each one's
@@ -605,8 +630,9 @@ func (s *service) Recover(ctx context.Context) error {
 	for _, p := range procs {
 		s.mu.Lock()
 		_, live := s.live[p.ID]
+		_, waiting := s.pending[p.ID]
 		s.mu.Unlock()
-		if !p.Active() || live {
+		if !p.Active() || live || waiting {
 			continue
 		}
 		errs = append(errs, s.recoverOne(ctx, p, p.StartedAt.Before(boot)))
@@ -626,6 +652,20 @@ func (s *service) recoverOne(ctx context.Context, p Process, rebooted bool) erro
 		s.events.Publish(EventRecovered, p)
 		return nil
 	}
+	if errors.Is(err, terminal.ErrUnresponsive) && !rebooted {
+		// Its shim is alive (a frozen or overloaded machine) but slow to
+		// answer: the agent is running. Keep it and try again, rather than
+		// kill a live agent and leave its shim behind.
+		log.Warn("agent's shim does not answer yet; keeping the agent and retrying", "reason", err)
+		s.retryAdopt(p)
+		return nil
+	}
+	return s.settleRecovery(ctx, p, err, rebooted)
+}
+
+// settleRecovery records how a process that could not be re-attached ended.
+func (s *service) settleRecovery(ctx context.Context, p Process, err error, rebooted bool) error {
+	log := s.log.With("process", p.ID, "env", p.EnvironmentID, "pid", p.PID)
 	if ec, ok := errors.AsType[interface {
 		error
 		ExitCode() int
@@ -648,6 +688,85 @@ func (s *service) recoverOne(ctx context.Context, p Process, rebooted bool) erro
 	log.Warn("closed out process left by a previous daemon", "status", status, "reason", err, "rebooted", rebooted)
 	p.Lost = true
 	return s.closeOut(ctx, p, status)
+}
+
+// retryAdopt keeps trying to re-attach p in the background until its shim
+// answers, it turns out gone, or the retry is cancelled (Stop, StopAll,
+// Detach).
+func (s *service) retryAdopt(p Process) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.mu.Lock()
+	s.pending[p.ID] = pendingAdopt{p: p, cancel: cancel}
+	s.mu.Unlock()
+	log := s.log.With("process", p.ID, "env", p.EnvironmentID, "pid", p.PID)
+	s.pendingWG.Go(func() {
+		defer func() {
+			cancel()
+			s.mu.Lock()
+			if pa, ok := s.pending[p.ID]; ok && pa.p.StartedAt.Equal(p.StartedAt) {
+				delete(s.pending, p.ID)
+			}
+			s.mu.Unlock()
+		}()
+		wait := adoptRetryInterval
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(wait):
+			}
+			handle, err := s.adopt(ctx, p)
+			switch {
+			case err == nil:
+				lp := &liveProcess{envID: p.EnvironmentID, owner: p.Owner, handle: handle, done: make(chan struct{})}
+				s.mu.Lock()
+				if ctx.Err() != nil { // stopped or detached meanwhile
+					s.mu.Unlock()
+					if d, ok := detachable(handle); ok {
+						d.Detach()
+					}
+					return
+				}
+				delete(s.pending, p.ID)
+				s.live[p.ID] = lp
+				s.mu.Unlock()
+				go s.monitor(p, lp)
+				log.Info("re-attached to a process whose shim answers again")
+				s.events.Publish(EventRecovered, p)
+				return
+			case errors.Is(err, terminal.ErrUnresponsive):
+				wait = min(wait*2, adoptRetryMax)
+			default:
+				if ctx.Err() != nil {
+					return
+				}
+				if err := s.settleRecovery(context.Background(), p, err, false); err != nil {
+					log.Error("record process left by a previous daemon", "err", err)
+				}
+				return
+			}
+		}
+	})
+}
+
+// takePending cancels the retries matching ids (all when ids is nil),
+// waits for them to finish, and returns their processes.
+func (s *service) takePending(ids ...string) []Process {
+	s.mu.Lock()
+	var out []Process
+	for id, pa := range s.pending {
+		if ids != nil && !slices.Contains(ids, id) {
+			continue
+		}
+		pa.cancel()
+		delete(s.pending, id)
+		out = append(out, pa.p)
+	}
+	s.mu.Unlock()
+	if ids == nil {
+		s.pendingWG.Wait()
+	}
+	return out
 }
 
 func (s *service) Remove(ctx context.Context, id string) error {
@@ -684,6 +803,7 @@ func (s *service) adopt(ctx context.Context, p Process) (Handle, error) {
 }
 
 func (s *service) Detach(ctx context.Context) (bool, error) {
+	s.takePending() // their agents keep running; the next daemon retries
 	s.mu.Lock()
 	var targets []*liveProcess
 	canDetach := true
