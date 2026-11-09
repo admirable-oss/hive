@@ -460,3 +460,28 @@ func TestFilesystemStore_SalvagesUnreadableRecords(t *testing.T) {
 		}
 	}
 }
+
+// Recovery re-attaches processes concurrently: slow shims (each costing a
+// dial timeout) must not add up before the daemon can serve.
+func TestService_RecoverIsConcurrent(t *testing.T) {
+	root := t.TempDir()
+	envs := newEnv(t, root, "env")
+	store := process.NewFilesystemStore(root)
+	for _, id := range []string{"00000000000000a1", "00000000000000a2", "00000000000000a3", "00000000000000a4"} {
+		if err := store.Create(context.Background(), process.Process{ID: id, EnvironmentID: "env", Status: process.StatusRunning, StartedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	slow := func(process.Process) (process.Handle, error) {
+		time.Sleep(300 * time.Millisecond)
+		return nil, exitCode(0)
+	}
+	svc := process.NewService(store, envs, &fakeRunner{}, nil, process.WithAdopter(fakeAdopter{adopt: slow}))
+	start := time.Now()
+	if err := svc.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > 900*time.Millisecond {
+		t.Fatalf("recovering 4 slow processes took %v; one after another", d)
+	}
+}

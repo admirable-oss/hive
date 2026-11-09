@@ -627,7 +627,14 @@ func (s *service) Recover(ctx context.Context) error {
 		s.log.Debug("host boot time unknown; agents are only counted lost when their shim is gone", "err", err)
 		boot = time.Time{}
 	}
-	var errs []error
+	// Concurrently: a shim that does not answer costs a dial timeout, and
+	// the daemon serves no one until recovery is done.
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+		sem  = make(chan struct{}, recoverParallel)
+	)
 	for _, p := range procs {
 		s.mu.Lock()
 		_, live := s.live[p.ID]
@@ -636,10 +643,21 @@ func (s *service) Recover(ctx context.Context) error {
 		if !p.Active() || live || waiting {
 			continue
 		}
-		errs = append(errs, s.recoverOne(ctx, p, p.StartedAt.Before(boot)))
+		sem <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-sem }()
+			err := s.recoverOne(ctx, p, p.StartedAt.Before(boot))
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		})
 	}
+	wg.Wait()
 	return errors.Join(errs...)
 }
+
+// recoverParallel bounds how many processes Recover re-attaches at once.
+const recoverParallel = 8
 
 // recoverOne re-attaches to p if it survived, records how it ended if it
 // finished meanwhile, and otherwise closes it out. rebooted says the host
