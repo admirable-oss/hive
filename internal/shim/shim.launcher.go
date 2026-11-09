@@ -133,8 +133,8 @@ func (l *Launcher) Connect(ctx context.Context, id string) (*Remote, error) {
 // live and the kernel started it when the shim recorded (not a reused PID).
 func shimAlive(st State) bool {
 	info, err := platform.LookupProcess(st.ShimPID)
-	if err != nil || st.StartedAt.IsZero() {
-		return false
+	if err != nil || info.Zombie || st.StartedAt.IsZero() {
+		return false // a zombie exited: it only waits to be reaped
 	}
 	d := st.StartedAt.Sub(info.StartTime)
 	return d > -2*time.Second && d < 30*time.Second

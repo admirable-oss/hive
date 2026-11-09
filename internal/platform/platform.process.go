@@ -19,6 +19,10 @@ type ProcessInfo struct {
 	// StartTime is when the kernel created the process. Together with the
 	// PID it identifies a process even across PID reuse.
 	StartTime time.Time
+	// Zombie is set for a process that has exited but not been reaped by
+	// its parent yet: its PID and start time still look alive, but it is
+	// gone. (Not detected on Windows.)
+	Zombie bool
 }
 
 // LookupProcess returns information about the live process pid.

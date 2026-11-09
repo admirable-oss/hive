@@ -9,6 +9,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// sZomb is <sys/proc.h>'s SZOMB: exited, awaiting collection by its parent.
+const sZomb = 5
+
 func lookupProcess(pid int) (ProcessInfo, error) {
 	kp, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
 	if err != nil {
@@ -27,6 +30,7 @@ func lookupProcess(pid int) (ProcessInfo, error) {
 		PID:       pid,
 		PGID:      int(kp.Eproc.Pgid),
 		StartTime: time.Unix(tv.Sec, int64(tv.Usec)*int64(time.Microsecond)),
+		Zombie:    kp.Proc.P_stat == sZomb,
 	}, nil
 }
 
