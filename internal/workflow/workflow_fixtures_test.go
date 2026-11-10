@@ -378,6 +378,9 @@ func (r *recorder) count(typ string) int {
 
 // env is a running service over fakes, in a temporary directory.
 type env struct {
+	// wrap, when set, wraps the store the service uses (a slow disk).
+	wrap func(workflow.Store) workflow.Store
+
 	t      *testing.T
 	dir    string // the service's state
 	own    string // the person's workflows
@@ -396,11 +399,17 @@ type env struct {
 
 func newEnv(t *testing.T, cfg workflow.Config) *env {
 	t.Helper()
+	return newEnvWith(t, cfg, nil)
+}
+
+// newEnvWith is newEnv with the service's store wrapped by wrap.
+func newEnvWith(t *testing.T, cfg workflow.Config, wrap func(workflow.Store) workflow.Store) *env {
+	t.Helper()
 	root := t.TempDir()
 	e := &env{
 		t: t, dir: filepath.Join(root, "state"), own: filepath.Join(root, "own"), shared: filepath.Join(root, "repo", ".hive", "workflows"),
 		tasks: newFakeTasks(), cmds: newFakeCommands(), acts: &fakeActions{}, steps: &fakeSteps{}, ws: newFakeWorkspace(),
-		events: &recorder{}, agents: fakeAgents{"codex", "claude"},
+		events: &recorder{}, agents: fakeAgents{"codex", "claude"}, wrap: wrap,
 	}
 	for _, d := range []string{e.own, e.shared} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
@@ -422,7 +431,11 @@ func newEnv(t *testing.T, cfg workflow.Config) *env {
 // start builds the service over the state directory and runs it.
 func (e *env) start() {
 	e.t.Helper()
-	e.svc = workflow.NewService(e.cfg, workflow.NewFilesystemStore(e.dir), workflow.Ports{
+	var store workflow.Store = workflow.NewFilesystemStore(e.dir)
+	if e.wrap != nil {
+		store = e.wrap(store)
+	}
+	e.svc = workflow.NewService(e.cfg, store, workflow.Ports{
 		Tasks: e.tasks, Commands: e.cmds, Actions: e.acts, Steps: e.steps, Workspace: e.ws, Agents: &e.agents, Events: e.events,
 	})
 	ctx, cancel := context.WithCancel(context.Background())

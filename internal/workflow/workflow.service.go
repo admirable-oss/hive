@@ -71,6 +71,12 @@ type Service struct {
 	loadOnce sync.Once
 	loadErr  error
 
+	// storeMu orders writes and deletes of run files. A flush copies runs
+	// and writes them after letting go of mu; without it, the write of a
+	// run forgotten meanwhile could land after its file was deleted and
+	// bring it back for the next daemon. Taken before mu, never inside it.
+	storeMu sync.Mutex
+
 	mu      sync.Mutex
 	ctx     context.Context // the daemon's, once Run starts
 	runs    map[string]*Run
@@ -299,15 +305,30 @@ func (s *Service) flush(ctx context.Context) {
 	clear(s.dirty)
 	s.mu.Unlock()
 	for _, r := range runs {
-		if err := s.store.PutRun(ctx, r); err != nil {
+		if err := s.putLive(ctx, r); err != nil {
 			s.log.Error("saving a workflow run", "run", r.ID, "err", err)
 		}
 	}
 }
 
+// putLive writes r unless it was forgotten since it was copied.
+func (s *Service) putLive(ctx context.Context, r *Run) error {
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
+	s.mu.Lock()
+	_, live := s.runs[r.ID]
+	s.mu.Unlock()
+	if !live {
+		return nil
+	}
+	return s.store.PutRun(ctx, r)
+}
+
 // saveRun writes r before the caller goes on: a run (or a plan ID)
 // the caller was told about survives a crash right after.
 func (s *Service) saveRun(ctx context.Context, r *Run) error {
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
 	return s.store.PutRun(ctx, r)
 }
 
@@ -667,11 +688,13 @@ func (s *Service) forget(ctx context.Context, ids []string) {
 	if len(ids) == 0 {
 		return
 	}
+	s.storeMu.Lock()
 	for _, id := range ids {
 		if err := s.store.DeleteRun(ctx, id); err != nil {
 			s.log.Warn("forgetting a workflow run", "run", id, "err", err)
 		}
 	}
+	s.storeMu.Unlock()
 	s.ports.Events.Publish(EventRemoved, map[string][]string{"ids": ids})
 }
 
