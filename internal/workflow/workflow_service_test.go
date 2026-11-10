@@ -596,3 +596,33 @@ run = ["echo", "at ${{ steps.deploy.outputs.url }}"]
 		t.Fatalf("a workflow's problem with a plugin step: %+v", ws)
 	}
 }
+
+// slowWrites delays every run write, as a slow disk (Windows CI) does.
+type slowWrites struct{ workflow.Store }
+
+func (s slowWrites) PutRun(ctx context.Context, r *workflow.Run) error {
+	time.Sleep(150 * time.Millisecond)
+	return s.Store.PutRun(ctx, r)
+}
+
+// A run forgotten while a write of it was on its way stays forgotten: the
+// write must not land after the delete and bring it back for the next
+// daemon (seen as TestStoreKeepsAndForgets failing on Windows).
+func TestForgottenRunsStayForgottenOnASlowDisk(t *testing.T) {
+	e := newEnvWith(t, workflow.Config{Keep: 1}, func(s workflow.Store) workflow.Store { return slowWrites{s} })
+	var ids []string
+	for range 3 {
+		ids = append(ids, e.run("version = 1\n[[step]]\nid = \"s\"\nrun = [\"ok\"]\n", nil).ID)
+	}
+	ctx := context.Background()
+	waitFor(t, "the older runs forgotten", func() bool {
+		_, err0 := e.svc.Get(ctx, ids[0])
+		_, err1 := e.svc.Get(ctx, ids[1])
+		return errors.Is(err0, workflow.ErrNotFound) && errors.Is(err1, workflow.ErrNotFound)
+	})
+	time.Sleep(600 * time.Millisecond) // let any write still on its way land
+	e.restart()
+	if list := e.svc.List(ctx, "", 0); len(list) != 1 || list[0].ID != ids[2] {
+		t.Fatalf("what the next daemon reads: %+v", list)
+	}
+}

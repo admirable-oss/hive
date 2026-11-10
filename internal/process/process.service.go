@@ -677,7 +677,7 @@ func (s *service) recoverOne(ctx context.Context, p Process, rebooted bool) erro
 		// answer: the agent is running. Keep it and try again, rather than
 		// kill a live agent and leave its shim behind.
 		log.Warn("agent's shim does not answer yet; keeping the agent and retrying", "reason", err)
-		s.retryAdopt(p)
+		s.retryAdopt(ctx, p)
 		return nil
 	}
 	return s.settleRecovery(ctx, p, err, rebooted)
@@ -713,8 +713,9 @@ func (s *service) settleRecovery(ctx context.Context, p Process, err error, rebo
 // retryAdopt keeps trying to re-attach p in the background until its shim
 // answers, it turns out gone, or the retry is cancelled (Stop, StopAll,
 // Detach).
-func (s *service) retryAdopt(p Process) {
-	ctx, cancel := context.WithCancel(context.Background())
+func (s *service) retryAdopt(parent context.Context, p Process) {
+	// It outlives recovery (parent): only Stop, StopAll and Detach end it.
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
 	s.mu.Lock()
 	s.pending[p.ID] = pendingAdopt{p: p, cancel: cancel}
 	s.mu.Unlock()
@@ -751,7 +752,7 @@ func (s *service) retryAdopt(p Process) {
 				s.live[p.ID] = lp
 				s.mu.Unlock()
 				p = s.settleAdopted(ctx, p, handle)
-				go s.monitor(p, lp)
+				go s.monitor(p, lp) //nolint:contextcheck // supervision outlives the retry by design
 				log.Info("re-attached to a process whose shim answers again")
 				s.events.Publish(EventRecovered, p)
 				return
@@ -761,7 +762,7 @@ func (s *service) retryAdopt(p Process) {
 				if ctx.Err() != nil {
 					return
 				}
-				if err := s.settleRecovery(context.Background(), p, err, false); err != nil {
+				if err := s.settleRecovery(context.WithoutCancel(ctx), p, err, false); err != nil {
 					log.Error("record process left by a previous daemon", "err", err)
 				}
 				return
