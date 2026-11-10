@@ -7,8 +7,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/admirable-oss/hive/internal/logging"
 )
 
 // SocketCheckInterval is how often a kept socket is checked on disk.
@@ -27,7 +25,10 @@ func KeepListening(ln net.Listener, path string, listen func() (net.Listener, er
 	if err != nil {
 		return ln
 	}
-	k := &keptListener{path: path, listen: listen, log: logging.OrDiscard(log), cur: ln, served: fi, done: make(chan struct{})}
+	if log == nil { // platform is a leaf: no logging package here
+		log = slog.New(slog.DiscardHandler)
+	}
+	k := &keptListener{path: path, listen: listen, log: log, cur: ln, served: fi, done: make(chan struct{})}
 	go k.watch()
 	return k
 }
