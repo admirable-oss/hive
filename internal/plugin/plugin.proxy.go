@@ -24,6 +24,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/admirable-oss/hive/internal/platform"
 )
 
 // proxyUser is the user name in the proxy's credentials.
@@ -122,8 +124,13 @@ func ProxyEnv(url string) []string {
 
 func (p *netProxy) serve(l net.Listener) {
 	p.wg.Go(func() {
+		var retry platform.AcceptRetry // out of descriptors is temporary
 		for {
 			c, err := l.Accept()
+			if err != nil && retry.Retry(err) {
+				continue
+			}
+			retry.Reset()
 			if err != nil {
 				return
 			}

@@ -326,8 +326,107 @@ func (s *Service) startLocked(ctx context.Context, env environment.Environment, 
 	return s.procs.Start(ctx, process.StartRequest{
 		EnvironmentID: env.ID, Command: argv[0], Args: argv[1:], Cwd: spec.Cwd, Env: vars,
 		Terminal: true, Width: uint16(max(r.W, 1)), Height: uint16(max(r.H, 1)),
-		Replay: spec.Replay,
+		Replay: spec.Replay, ForPane: paneID,
 	})
+}
+
+// RecoveredTabName names the tabs ShowUnshown puts unshown programs in.
+const RecoveredTabName = "recovered"
+
+// recoveredPerTab keeps recovered panes wide enough to read.
+const recoveredPerTab = 4
+
+// ShowUnshown puts back in panes the running programs started for a pane
+// that no longer exists: the daemon died between starting a new pane's
+// program and saving the pane, or an environment's layout was lost (an
+// unreadable layout.json with no snapshot). Such programs still run but no
+// one could see, use or stop them. They go into "recovered" tabs, each pane
+// with the ID it was started for. It holds the pane lock, so no pane is
+// half-created meanwhile. list returns every process. It returns the panes
+// it added.
+func (s *Service) ShowUnshown(ctx context.Context, list func(context.Context) ([]process.Process, error)) ([]Pane, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.loadAllLocked(ctx); err != nil {
+		return nil, err
+	}
+	panes, shown := map[string]bool{}, map[string]bool{}
+	for _, st := range s.states {
+		for _, p := range st.Panes {
+			panes[p.ID] = true
+			if p.ProcessID != "" {
+				shown[p.ProcessID] = true
+			}
+		}
+	}
+	procs, err := list(ctx)
+	if err != nil {
+		return nil, err
+	}
+	byEnv := map[string][]process.Process{}
+	for _, p := range procs {
+		if p.Active() && p.Terminal && p.ForPane != "" && !panes[p.ForPane] && !shown[p.ID] {
+			byEnv[p.EnvironmentID] = append(byEnv[p.EnvironmentID], p)
+		}
+	}
+	var added []Pane
+	var errs []error
+	for _, envID := range slices.Sorted(maps.Keys(byEnv)) {
+		got, err := s.showLocked(ctx, envID, byEnv[envID])
+		added = append(added, got...)
+		errs = append(errs, err)
+	}
+	return added, errors.Join(errs...)
+}
+
+// showLocked adds tabs of panes showing procs, which run in envID.
+func (s *Service) showLocked(ctx context.Context, envID string, procs []process.Process) ([]Pane, error) {
+	st, _, err := s.stateLocked(ctx, envID)
+	if err != nil {
+		return nil, err
+	}
+	var added []Pane
+	var tabs []Tab // built here, then added: pointers into st.Tabs would not survive an append
+	for i, p := range procs {
+		if i%recoveredPerTab == 0 {
+			tabs = append(tabs, Tab{
+				ID: s.idSource("t"), EnvironmentID: envID, Name: RecoveredTabName,
+				Width: int(s.cfg.Size.Width), Height: int(s.cfg.Size.Height), CreatedAt: s.nowFn(),
+			})
+		}
+		t := &tabs[len(tabs)-1]
+		pane := Pane{ID: p.ForPane, TabID: t.ID, EnvironmentID: envID, ProcessID: p.ID, CreatedAt: s.nowFn()}
+		if t.Layout == nil {
+			t.Layout, t.Focused = layout.Leaf(pane.ID), pane.ID
+		} else {
+			d := layout.Right
+			if i%2 == 0 {
+				d = layout.Down
+			}
+			next, err := layout.Split(t.Layout, t.Focused, d, 0, pane.ID)
+			if err != nil {
+				return nil, err
+			}
+			t.Layout = next
+		}
+		added = append(added, pane)
+		s.log.Warn("showing a running program whose pane was lost", "process", p.ID, "pane", pane.ID, "tab", t.ID)
+	}
+	first := len(st.Tabs)
+	st.Tabs = append(st.Tabs, tabs...)
+	st.Panes = append(st.Panes, added...)
+	if err := s.saveLocked(ctx, envID); err != nil {
+		st.Tabs, st.Panes = st.Tabs[:first], st.Panes[:len(st.Panes)-len(added)]
+		return nil, err
+	}
+	for i := first; i < len(st.Tabs); i++ {
+		s.resizeTabLocked(st, &st.Tabs[i])
+		event.PublishContext(ctx, s.events, EventTabCreated, st.Tabs[i])
+	}
+	for _, p := range added {
+		event.PublishContext(ctx, s.events, EventPaneCreated, p)
+	}
+	return added, nil
 }
 
 // --- tabs ---

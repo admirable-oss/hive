@@ -116,6 +116,10 @@ perf: ## Check the performance budgets (frame time, idle CPU, input latency)
 chaos: ## Run the chaos soak for HIVE_CHAOS (default 20s)
 	$(GO) test -count=1 -timeout 80h -run '^TestChaos$$' -v ./cmd/hive
 
+.PHONY: chaos-scenarios
+chaos-scenarios: ## Run the named daemon chaos scenarios (tools/chaos; Linux): make chaos-scenarios [ONLY="01 07"]
+	tools/chaos/chaos.sh $(if $(ONLY),run $(ONLY),all)
+
 .PHONY: upgrade
 upgrade: ## Upgrade from earlier releases and back: make upgrade FROM="v1.0.0-rc.1" (tags or binaries)
 	HIVE_UPGRADE_FROM="$(or $(FROM),$(shell git tag -l 'v1.*'))" $(GO) test -count=1 -timeout 30m -run '^TestM19UpgradeFromEarlierReleases$$' -v ./cmd/hive

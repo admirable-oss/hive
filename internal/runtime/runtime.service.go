@@ -145,6 +145,7 @@ func (s *Server) Start(ctx context.Context) error {
 		_ = ln.Close()
 		return fmt.Errorf("secure socket: %w", err)
 	}
+	ln = keepListening(ln, s.cfg.SocketPath, s.cfg.listener(), s.log)
 
 	// Connections outlive Start's ctx (often a request or signal context), so
 	// they get their own, cancelled by Stop.
@@ -299,8 +300,16 @@ func (s *Server) markDone() { s.doneOnce.Do(func() { close(s.done) }) }
 
 func (s *Server) accept(ctx context.Context, ln net.Listener) {
 	defer s.wg.Done()
+	var retry platform.AcceptRetry // out of descriptors is temporary
 	for {
 		conn, err := ln.Accept()
+		if err != nil && retry.Retry(err) {
+			if retry.First() {
+				s.log.Warn("accept failing for now; retrying", "err", err)
+			}
+			continue
+		}
+		retry.Reset()
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
 				s.log.Error("accept failed; no longer accepting connections", "err", err)

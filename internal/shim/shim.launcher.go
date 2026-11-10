@@ -77,7 +77,9 @@ func (l *Launcher) StartPlain(ctx context.Context, spec Spec) (*Remote, error) {
 func (l *Launcher) Adopt(ctx context.Context, id string) (terminal.Session, error) {
 	r, err := l.Connect(ctx, id)
 	if err != nil {
-		if !errors.Is(err, ErrNoShim) {
+		// A shim that does not answer yet keeps its directory: the
+		// caller tries again.
+		if !errors.Is(err, ErrNoShim) && !errors.Is(err, terminal.ErrUnresponsive) {
 			_ = l.Discard(id)
 		}
 		return nil, err
@@ -96,6 +98,12 @@ func (l *Launcher) Connect(ctx context.Context, id string) (*Remote, error) {
 	}
 	st, err := readState(dir)
 	if err != nil {
+		// A torn or corrupt state file (a crash mid-write, a full disk) does
+		// not mean the shim is gone: it answers for itself when it is alive.
+		// Declaring it gone would kill its agent and leave the shim behind.
+		if r, derr := l.dial(ctx, dir, id); derr == nil {
+			return r, nil
+		}
 		return nil, fmt.Errorf("%w: no state (%w)", ErrShimGone, err)
 	}
 	switch st.Status {
@@ -113,13 +121,39 @@ func (l *Launcher) Connect(ctx context.Context, id string) (*Remote, error) {
 	}
 	r, err := l.dial(ctx, dir, id)
 	if err != nil {
+		if shimAlive(st) {
+			return nil, fmt.Errorf("%w: shim %d: %w", terminal.ErrUnresponsive, st.ShimPID, err)
+		}
 		return nil, fmt.Errorf("%w: %w", ErrShimGone, err)
 	}
 	return r, nil
 }
 
+// shimAlive reports whether the shim that wrote st still runs: its PID is
+// live and the kernel started it when the shim recorded (not a reused PID).
+func shimAlive(st State) bool {
+	info, err := platform.LookupProcess(st.ShimPID)
+	if err != nil || info.Zombie || st.StartedAt.IsZero() {
+		return false // a zombie exited: it only waits to be reaped
+	}
+	d := st.StartedAt.Sub(info.StartTime)
+	return d > -2*time.Second && d < 30*time.Second
+}
+
+// Describe returns what the shim of agent id was started with and its last
+// recorded state, for rebuilding a lost record of the agent.
+func (l *Launcher) Describe(id string) (Spec, State, error) {
+	dir := l.Dir(id)
+	var spec Spec
+	if err := jsonfile.Read(specPath(dir), &spec); err != nil {
+		return Spec{}, State{}, err
+	}
+	st, err := readState(dir)
+	return spec, st, err
+}
+
 // Discard removes the directory of a shim whose result was recorded.
-func (l *Launcher) Discard(id string) error { return os.RemoveAll(l.Dir(id)) }
+func (l *Launcher) Discard(id string) error { return removeDir(l.Dir(id)) }
 
 // List returns the IDs of every shim directory.
 func (l *Launcher) List() ([]string, error) {

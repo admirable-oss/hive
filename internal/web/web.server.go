@@ -471,8 +471,16 @@ func (s *Server) listenAdmin(ctx context.Context) (net.Listener, error) {
 	s.registerAdmin(router)
 	info := protocol.ServerInfo{Version: s.cfg.Version}
 	go func() {
+		var retry platform.AcceptRetry // out of descriptors is temporary
 		for {
 			c, err := ln.Accept()
+			if err != nil && retry.Retry(err) {
+				if retry.First() {
+					s.log.Warn("web admin socket: accept failing for now; retrying", "err", err)
+				}
+				continue
+			}
+			retry.Reset()
 			if err != nil {
 				return
 			}

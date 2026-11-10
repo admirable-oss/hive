@@ -5,6 +5,7 @@ package process_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/admirable-oss/hive/internal/pgroup"
 	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/process"
+	"github.com/admirable-oss/hive/internal/terminal"
 )
 
 // orphanFake records which process groups the service tried to stop.
@@ -227,5 +229,259 @@ func TestService_RemoveOnlyEndedProcesses(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "env", "processes", ended.ID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("its directory is still there: %v", err)
+	}
+}
+
+// TestService_ShimDeathReapsItsAgent covers a shim dying under a live
+// daemon: supervision ends without an exit status while the agent may still
+// run. Its group is stopped only when it provably is the recorded agent.
+func TestService_ShimDeathReapsItsAgent(t *testing.T) {
+	started := time.Now()
+	tests := []struct {
+		name       string
+		info       *platform.ProcessInfo
+		wantStatus process.Status
+		wantKilled bool
+	}{
+		{"agent outlived its shim", &platform.ProcessInfo{PID: 4242, PGID: 4242, StartTime: started}, process.StatusKilled, true},
+		{"agent died with its shim", nil, process.StatusFailed, false},
+		{"pid reused by another process", &platform.ProcessInfo{PID: 4242, PGID: 1, StartTime: started}, process.StatusFailed, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			envs := newEnv(t, root, "env")
+			store := process.NewFilesystemStore(root)
+			rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", PID: 4242, Status: process.StatusRunning, StartedAt: started}
+			if err := store.Create(context.Background(), rec); err != nil {
+				t.Fatal(err)
+			}
+			fake := &orphanFake{info: map[int]platform.ProcessInfo{}}
+			if tt.info != nil {
+				fake.info[4242] = *tt.info
+			}
+			// Adopted, then the shim's connection breaks with no exit status.
+			shimDied := make(chan struct{})
+			handle := &fakeHandle{pid: 4242, wait: func() error { <-shimDied; return errors.New("shim gone") }}
+			svc := process.NewService(store, envs, &fakeRunner{}, nil,
+				process.WithAdopter(fakeAdopter{adopt: func(process.Process) (process.Handle, error) { return handle, nil }}),
+				process.WithOrphanControl(fake.lookup, fake.terminate),
+				process.WithBootTime(func() (time.Time, error) { return started.Add(-time.Hour), nil }))
+			if err := svc.Recover(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			close(shimDied)
+
+			var got process.Process
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				got, _ = svc.Get(context.Background(), rec.ID)
+				if !got.Active() || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if got.Status != tt.wantStatus {
+				t.Fatalf("status %s, want %s", got.Status, tt.wantStatus)
+			}
+			fake.mu.Lock()
+			defer fake.mu.Unlock()
+			if killed := len(fake.terminated) == 1 && fake.terminated[0] == 4242; killed != tt.wantKilled {
+				t.Fatalf("terminated %v, want killed=%v", fake.terminated, tt.wantKilled)
+			}
+		})
+	}
+}
+
+// A recovered agent whose shim is alive but slow to answer (a frozen or
+// overloaded machine) is kept and re-attached once it answers: never killed.
+func TestService_UnresponsiveShimIsRetriedNotReaped(t *testing.T) {
+	t.Cleanup(process.SetAdoptRetry(10*time.Millisecond, 20*time.Millisecond))
+	started := time.Now()
+	root := t.TempDir()
+	envs := newEnv(t, root, "env")
+	store := process.NewFilesystemStore(root)
+	rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", PID: 4242, Status: process.StatusRunning, StartedAt: started}
+	if err := store.Create(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+	fake := &orphanFake{info: map[int]platform.ProcessInfo{4242: {PID: 4242, PGID: 4242, StartTime: started}}}
+	var mu sync.Mutex
+	attempts := 0
+	exit := make(chan struct{})
+	handle := &fakeHandle{pid: 4242, wait: func() error { <-exit; return nil }}
+	svc := process.NewService(store, envs, &fakeRunner{}, nil,
+		process.WithAdopter(fakeAdopter{adopt: func(process.Process) (process.Handle, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			attempts++
+			if attempts < 4 {
+				return nil, fmt.Errorf("%w: frozen", terminal.ErrUnresponsive)
+			}
+			return handle, nil
+		}}),
+		process.WithOrphanControl(fake.lookup, fake.terminate),
+		process.WithBootTime(func() (time.Time, error) { return started.Add(-time.Hour), nil }))
+	if err := svc.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := svc.Get(context.Background(), rec.ID); got.Status != process.StatusRunning {
+		t.Fatalf("status %s while its shim does not answer, want running", got.Status)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		n := attempts
+		mu.Unlock()
+		if n >= 4 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d adoption attempts", n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	// Re-attached: it is supervised again, and its exit is recorded.
+	close(exit)
+	for {
+		got, _ := svc.Get(context.Background(), rec.ID)
+		if got.Status == process.StatusExited {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status %s, want exited once supervised again", got.Status)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.terminated) != 0 {
+		t.Fatalf("signalled %v: a live agent was killed", fake.terminated)
+	}
+}
+
+// `hive stop` while a shim never answered stops its agent the provable way,
+// and the retry ends.
+func TestService_StopAllEndsUnresponsiveRetries(t *testing.T) {
+	t.Cleanup(process.SetAdoptRetry(10*time.Millisecond, 20*time.Millisecond))
+	started := time.Now()
+	root := t.TempDir()
+	envs := newEnv(t, root, "env")
+	store := process.NewFilesystemStore(root)
+	rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", PID: 4242, Status: process.StatusRunning, StartedAt: started}
+	if err := store.Create(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+	fake := &orphanFake{info: map[int]platform.ProcessInfo{4242: {PID: 4242, PGID: 4242, StartTime: started}}}
+	svc := process.NewService(store, envs, &fakeRunner{}, nil,
+		process.WithAdopter(fakeAdopter{adopt: func(process.Process) (process.Handle, error) {
+			return nil, terminal.ErrUnresponsive
+		}}),
+		process.WithOrphanControl(fake.lookup, fake.terminate),
+		process.WithBootTime(func() (time.Time, error) { return started.Add(-time.Hour), nil }))
+	if err := svc.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := svc.StopAll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := svc.Get(context.Background(), rec.ID); got.Status != process.StatusKilled {
+		t.Fatalf("status %s, want killed", got.Status)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.terminated) != 1 || fake.terminated[0] != 4242 {
+		t.Fatalf("terminated %v, want [4242]", fake.terminated)
+	}
+}
+
+// A daemon that died between launching a process and recording it leaves
+// it "starting" with no PID; re-attaching it completes the record.
+func TestService_AdoptCompletesAnUnrecordedStart(t *testing.T) {
+	root := t.TempDir()
+	envs := newEnv(t, root, "env")
+	store := process.NewFilesystemStore(root)
+	rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", Status: process.StatusStarting, StartedAt: time.Now()}
+	if err := store.Create(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+	exit := make(chan struct{})
+	defer close(exit)
+	handle := &fakeHandle{pid: 777, wait: func() error { <-exit; return nil }}
+	svc := process.NewService(store, envs, &fakeRunner{}, nil,
+		process.WithAdopter(fakeAdopter{adopt: func(process.Process) (process.Handle, error) { return handle, nil }}))
+	if err := svc.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := svc.Get(context.Background(), rec.ID)
+	if got.Status != process.StatusRunning || got.PID != 777 {
+		t.Fatalf("status %s pid %d, want running 777", got.Status, got.PID)
+	}
+}
+
+// An unreadable process.json is rebuilt from what Salvage knows, with the
+// bad file kept aside; without Salvage it is left out, as before.
+func TestFilesystemStore_SalvagesUnreadableRecords(t *testing.T) {
+	for _, withSalvage := range []bool{true, false} {
+		root := t.TempDir()
+		store := process.NewFilesystemStore(root)
+		rec := process.Process{ID: "0123456789abcdef", EnvironmentID: "env", Status: process.StatusRunning, StartedAt: time.Now()}
+		if err := store.Create(context.Background(), rec); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(root, "env", "processes", rec.ID, "process.json")
+		if err := os.WriteFile(path, []byte(`{"id":"0123456789abcdef","sta`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if withSalvage {
+			store.Salvage = func(envID, id string) (process.Process, bool) {
+				return process.Process{Command: "sh", Terminal: true, Status: process.StatusRunning, ForPane: "p1"}, true
+			}
+		}
+		got, err := store.List(context.Background(), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !withSalvage {
+			if len(got) != 0 {
+				t.Fatalf("without Salvage: %+v", got)
+			}
+			continue
+		}
+		if len(got) != 1 || got[0].ID != rec.ID || got[0].EnvironmentID != "env" || got[0].ForPane != "p1" || !got[0].Terminal {
+			t.Fatalf("salvaged %+v", got)
+		}
+		if again, _ := store.Get(context.Background(), rec.ID); again.Command != "sh" {
+			t.Fatalf("the rebuilt record was not written: %+v", again)
+		}
+		if m, _ := filepath.Glob(path + ".corrupt-*"); len(m) != 1 {
+			t.Fatalf("bad record not kept aside: %v", m)
+		}
+	}
+}
+
+// Recovery re-attaches processes concurrently: slow shims (each costing a
+// dial timeout) must not add up before the daemon can serve.
+func TestService_RecoverIsConcurrent(t *testing.T) {
+	root := t.TempDir()
+	envs := newEnv(t, root, "env")
+	store := process.NewFilesystemStore(root)
+	for _, id := range []string{"00000000000000a1", "00000000000000a2", "00000000000000a3", "00000000000000a4"} {
+		if err := store.Create(context.Background(), process.Process{ID: id, EnvironmentID: "env", Status: process.StatusRunning, StartedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	slow := func(process.Process) (process.Handle, error) {
+		time.Sleep(300 * time.Millisecond)
+		return nil, exitCode(0)
+	}
+	svc := process.NewService(store, envs, &fakeRunner{}, nil, process.WithAdopter(fakeAdopter{adopt: slow}))
+	start := time.Now()
+	if err := svc.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > 900*time.Millisecond {
+		t.Fatalf("recovering 4 slow processes took %v; one after another", d)
 	}
 }

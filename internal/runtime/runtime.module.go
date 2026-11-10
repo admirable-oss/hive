@@ -95,6 +95,7 @@ func NewModule(cfg Config) *Module {
 		termCfg.Factory = launcher
 		procCfg.Runner = shimRunner{launcher}
 		procCfg.Adopter = shimRunner{launcher}
+		procCfg.Salvage = shimRunner{launcher}.salvage
 	}
 	envs := environment.NewModule(environment.Config{BaseDir: root}).Service
 	terms := terminal.NewModule(termCfg).Service
@@ -139,6 +140,12 @@ func NewModule(cfg Config) *Module {
 			}
 		})
 	}
+	server.Go(func(ctx context.Context) {
+		list := func(ctx context.Context) ([]process.Process, error) { return procs.List(ctx, "") }
+		if _, err := panes.ShowUnshown(ctx, list); err != nil && ctx.Err() == nil {
+			log.Warn("show programs whose pane was lost", "err", err)
+		}
+	})
 	server.Go(keep.run)
 	server.Go(keep.runGC)
 	server.OnShutdown(keep.save)

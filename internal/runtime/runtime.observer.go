@@ -114,6 +114,7 @@ func (o *observers) run(ctx context.Context) {
 		_ = ln.Close()
 		return
 	}
+	ln = keepListening(ln, o.path, o.cfg.listener(), o.log)
 	stop := context.AfterFunc(ctx, func() {
 		_ = ln.Close()
 		o.server.Close() // observers do not hold the daemon up
@@ -121,8 +122,16 @@ func (o *observers) run(ctx context.Context) {
 	defer stop()
 	defer os.Remove(o.path)
 	info := protocol.ServerInfo{Version: buildinfo.Get().Version}
+	var retry platform.AcceptRetry // out of descriptors is temporary
 	for {
 		conn, err := ln.Accept()
+		if err != nil && retry.Retry(err) {
+			if retry.First() {
+				o.log.Warn("observer socket: accept failing for now; retrying", "err", err)
+			}
+			continue
+		}
+		retry.Reset()
 		if err != nil {
 			return
 		}

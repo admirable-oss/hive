@@ -215,6 +215,7 @@ func (m *members) run(ctx context.Context) {
 		_ = ln.Close()
 		return
 	}
+	ln = keepListening(ln, m.path, m.cfg.listener(), m.log)
 	stop := context.AfterFunc(ctx, func() {
 		_ = ln.Close()
 		m.server.Close() // members do not hold the daemon up
@@ -222,8 +223,16 @@ func (m *members) run(ctx context.Context) {
 	defer stop()
 	defer os.Remove(m.path)
 	info := protocol.ServerInfo{Version: buildinfo.Get().Version}
+	var retry platform.AcceptRetry // out of descriptors is temporary
 	for {
 		conn, err := ln.Accept()
+		if err != nil && retry.Retry(err) {
+			if retry.First() {
+				m.log.Warn("member socket: accept failing for now; retrying", "err", err)
+			}
+			continue
+		}
+		retry.Reset()
 		if err != nil {
 			return
 		}

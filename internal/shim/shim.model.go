@@ -3,6 +3,7 @@ package shim
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -97,5 +98,15 @@ var (
 func specPath(dir string) string   { return filepath.Join(dir, "spec.json") }
 func statePath(dir string) string  { return filepath.Join(dir, "state.json") }
 func socketPath(dir string) string { return platform.SocketPath(dir, "shim.sock") }
+
+// removeDir removes a shim's directory and its socket. A deep directory's
+// socket lives elsewhere (platform.SocketPath), where removing the
+// directory would leave it behind for good.
+func removeDir(dir string) error {
+	if sock := socketPath(dir); filepath.Dir(sock) != dir {
+		_ = os.Remove(sock)
+	}
+	return os.RemoveAll(dir)
+}
 func logPath(dir string) string    { return filepath.Join(dir, "shim.log") }
 func stderrPath(dir string) string { return filepath.Join(dir, "shim.stderr") }

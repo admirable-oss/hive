@@ -16,6 +16,7 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/admirable-oss/hive/internal/jsonfile"
+	"github.com/admirable-oss/hive/internal/platform"
 	"github.com/admirable-oss/hive/internal/shim"
 	"github.com/admirable-oss/hive/internal/terminal"
 	"github.com/admirable-oss/hive/internal/vt"
@@ -260,6 +261,38 @@ func TestShim_AgentSurvivesTheDaemonAndIsAdopted(t *testing.T) {
 	stop(t, l, adopted)
 }
 
+// A corrupt state file must not make a live shim count as gone: the next
+// daemon would kill its agent and leave the shim running untracked.
+func TestShim_LiveShimIsAdoptedDespiteCorruptState(t *testing.T) {
+	l := newLauncher(t)
+	r := openAgent(t, l, "a6", `echo "pid $$"; while :; do sleep 1; done`)
+	waitScreen(t, r, "pid")
+	pid := r.Pid()
+	var st shim.State
+	if err := jsonfile.Read(filepath.Join(l.Dir("a6"), "state.json"), &st); err != nil {
+		t.Fatal(err)
+	}
+	// Leave nothing running if adoption fails.
+	t.Cleanup(func() { _ = syscall.Kill(-pid, syscall.SIGKILL); _ = syscall.Kill(st.ShimPID, syscall.SIGKILL) })
+	r.Detach()
+	if err := r.Wait(); !errors.Is(err, shim.ErrDetached) {
+		t.Fatalf("Wait after Detach = %v, want ErrDetached", err)
+	}
+	if err := os.WriteFile(filepath.Join(l.Dir("a6"), "state.json"), []byte(`{"schema":1,"stat`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	adopted, err := l.Connect(context.Background(), "a6")
+	if err != nil {
+		t.Fatalf("Connect over a corrupt state file: %v", err)
+	}
+	if adopted.Pid() != pid {
+		t.Fatalf("adopted PID %d, want %d", adopted.Pid(), pid)
+	}
+	checkShimStderr(t, l, "a6")
+	stop(t, l, adopted)
+}
+
 func TestShim_ExitWhileNoDaemonIsWatching(t *testing.T) {
 	l := newLauncher(t)
 	r := openAgent(t, l, "a3", `sleep 0.3; exit 3`)
@@ -413,4 +446,114 @@ func TestShim_ForegroundCrossesTheShim(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	stop(t, l, r)
+}
+
+// A deep run directory puts shim sockets in the shared short directory;
+// discarding a killed shim must remove its socket there too, or every
+// crashed shim leaves a file behind for good.
+func TestShim_DiscardRemovesADeepShimsSocket(t *testing.T) {
+	l := newLauncher(t)
+	l.RunDir = filepath.Join(l.RunDir, strings.Repeat("d", 90))
+	r := openAgent(t, l, "a7", `echo up; while :; do sleep 1; done`)
+	waitScreen(t, r, "up")
+	sock := platform.SocketPath(l.Dir("a7"), "shim.sock")
+	if filepath.Dir(sock) == l.Dir("a7") {
+		t.Fatalf("socket %s is not outside the run directory; make it deeper", sock)
+	}
+	var st shim.State
+	if err := jsonfile.Read(filepath.Join(l.Dir("a7"), "state.json"), &st); err != nil {
+		t.Fatal(err)
+	}
+	agent := r.Pid()
+	t.Cleanup(func() { _ = syscall.Kill(-agent, syscall.SIGKILL) })
+	if err := syscall.Kill(st.ShimPID, syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Wait(); !errors.Is(err, shim.ErrShimGone) {
+		t.Fatalf("Wait = %v, want ErrShimGone", err)
+	}
+	r.Release()
+	if err := l.Discard("a7"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(sock); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the killed shim's socket %s is left behind: %v", sock, err)
+	}
+}
+
+// A frozen shim is reported unresponsive (its agent is running), not gone,
+// and keeps its directory; once it thaws it is adopted as usual.
+func TestShim_FrozenShimIsUnresponsiveNotGone(t *testing.T) {
+	l := newLauncher(t)
+	r := openAgent(t, l, "a8", `echo "pid $$"; while :; do sleep 1; done`)
+	waitScreen(t, r, "pid")
+	pid := r.Pid()
+	var st shim.State
+	if err := jsonfile.Read(filepath.Join(l.Dir("a8"), "state.json"), &st); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = syscall.Kill(st.ShimPID, syscall.SIGCONT)
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+		_ = syscall.Kill(st.ShimPID, syscall.SIGKILL)
+	})
+	r.Detach()
+	_ = r.Wait()
+	if err := syscall.Kill(st.ShimPID, syscall.SIGSTOP); err != nil {
+		t.Fatal(err)
+	}
+	_, err := l.Adopt(context.Background(), "a8")
+	if !errors.Is(err, terminal.ErrUnresponsive) || errors.Is(err, shim.ErrShimGone) {
+		t.Fatalf("Adopt of a frozen shim = %v, want ErrUnresponsive", err)
+	}
+	if _, err := os.Stat(l.Dir("a8")); err != nil {
+		t.Fatalf("an unresponsive shim's directory was removed: %v", err)
+	}
+	if err := syscall.Kill(st.ShimPID, syscall.SIGCONT); err != nil {
+		t.Fatal(err)
+	}
+	adopted, err := l.Connect(context.Background(), "a8")
+	if err != nil {
+		t.Fatalf("Connect after thaw: %v", err)
+	}
+	if adopted.Pid() != pid {
+		t.Fatalf("adopted PID %d, want %d", adopted.Pid(), pid)
+	}
+	stop(t, l, adopted)
+}
+
+// A shim whose socket is deleted (a /tmp cleaner, while its agent runs for
+// weeks) puts it back, so the next daemon can still re-attach.
+func TestShim_RecreatesItsRemovedSocket(t *testing.T) {
+	l := newLauncher(t)
+	r := openAgent(t, l, "a9", `echo "pid $$"; while :; do sleep 1; done`)
+	waitScreen(t, r, "pid")
+	pid := r.Pid()
+	var st shim.State
+	if err := jsonfile.Read(filepath.Join(l.Dir("a9"), "state.json"), &st); err != nil {
+		t.Fatal(err)
+	}
+	// Leave nothing running if it fails.
+	t.Cleanup(func() { _ = syscall.Kill(-pid, syscall.SIGKILL); _ = syscall.Kill(st.ShimPID, syscall.SIGKILL) })
+	r.Detach()
+	_ = r.Wait()
+	sock := platform.SocketPath(l.Dir("a9"), "shim.sock")
+	if err := os.Remove(sock); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(8 * time.Second)
+	for {
+		adopted, err := l.Connect(context.Background(), "a9")
+		if err == nil {
+			if adopted.Pid() != pid {
+				t.Fatalf("adopted PID %d, want %d", adopted.Pid(), pid)
+			}
+			stop(t, l, adopted)
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("shim unreachable after its socket was removed: %v", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }

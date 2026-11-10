@@ -3408,6 +3408,7 @@ Result: [protocol.Empty](#protocolempty)
 | `env` | `map[string]string` |  |
 | `environment_id` | `string` |  |
 | `exit_code` | `integer` |  |
+| `for_pane` | `string` |  |
 | `id` | `string` |  |
 | `log_dir` | `string` |  |
 | `lost` | `boolean` |  |

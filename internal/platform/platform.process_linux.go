@@ -33,7 +33,17 @@ func lookupProcess(pid int) (ProcessInfo, error) {
 		return ProcessInfo{}, err
 	}
 	start := boot.Add(time.Duration(ticks) * time.Second / userHZ)
-	return ProcessInfo{PID: pid, PGID: pgid, StartTime: start}, nil
+	return ProcessInfo{PID: pid, PGID: pgid, StartTime: start, Zombie: statZombie(data)}, nil
+}
+
+// statZombie reports whether stat's state (field 3) is zombie or dead.
+func statZombie(data []byte) bool {
+	end := bytes.LastIndexByte(data, ')')
+	if end < 0 {
+		return false
+	}
+	f := bytes.Fields(data[end+1:])
+	return len(f) > 0 && (string(f[0]) == "Z" || string(f[0]) == "X")
 }
 
 // parseStat extracts the process group (field 5) and start time in clock

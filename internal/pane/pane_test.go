@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -676,5 +677,69 @@ func TestRespawnStartsAnEndedPaneInPlace(t *testing.T) {
 	st, err := w.store.Load(ctx, "dev")
 	if err != nil || len(st.Panes) != 2 || st.Panes[1].ProcessID != got.ProcessID || !st.Tabs[0].Layout.Contains(second.ID) {
 		t.Fatalf("stored state = %+v, %v", st, err)
+	}
+}
+
+// A program started for a pane that no longer exists (the daemon died
+// before saving it, or the layout was lost) is shown again, in a
+// "recovered" tab under the pane ID it was started for, and keeps running.
+// Panes' own programs and commands that only name a pane (key commands)
+// are left alone.
+func TestShowUnshownShowsProgramsOfLostPanes(t *testing.T) {
+	w := newWorld(t, t.TempDir())
+	w.env(t, "dev")
+	ctx := context.Background()
+	_, shownPane, err := w.panes.CreateTab(ctx, pane.CreateTabRequest{EnvironmentID: "dev", Pane: pane.Spec{Command: []string{"sh", "-c", "sleep 60"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := w.procs.Get(ctx, shownPane.ProcessID); p.ForPane != shownPane.ID {
+		t.Fatalf("a pane's program records ForPane %q, want %q", p.ForPane, shownPane.ID)
+	}
+	start := func(req process.StartRequest) process.Process {
+		t.Helper()
+		req.EnvironmentID, req.Command, req.Args, req.Terminal, req.Width, req.Height = "dev", "sh", []string{"-c", "sleep 60"}, true, 80, 24
+		p, err := w.procs.Start(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	var lost []process.Process
+	for _, id := range []string{"plost1", "plost2", "plost3", "plost4", "plost5"} {
+		lost = append(lost, start(process.StartRequest{ForPane: id, Env: map[string]string{"HIVE_PANE_ID": id}}))
+	}
+	keyCommand := start(process.StartRequest{Env: map[string]string{"HIVE_PANE_ID": "pgone"}})
+
+	list := func(ctx context.Context) ([]process.Process, error) { return w.procs.List(ctx, "") }
+	added, err := w.panes.ShowUnshown(ctx, list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(added) != len(lost) {
+		t.Fatalf("added %d panes, want %d", len(added), len(lost))
+	}
+	for _, p := range lost {
+		got, err := w.panes.Pane(ctx, p.ForPane)
+		if err != nil || got.ProcessID != p.ID {
+			t.Fatalf("pane %s: %+v %v, want it to show %s", p.ForPane, got, err, p.ID)
+		}
+		tab, _ := w.panes.Tab(ctx, got.TabID)
+		if tab.Name != pane.RecoveredTabName || !tab.Layout.Contains(got.ID) {
+			t.Fatalf("pane %s is in tab %q (%v)", got.ID, tab.Name, tab.Layout.Panes())
+		}
+		if pr, _ := w.procs.Get(ctx, p.ID); pr.Status != process.StatusRunning {
+			t.Fatalf("process %s is %s, want running", p.ID, pr.Status)
+		}
+	}
+	if tabs, _ := w.panes.Tabs(ctx, "dev"); len(tabs) != 3 { // the first, and 5 recovered at 4 a tab
+		t.Fatalf("%d tabs, want 3", len(tabs))
+	}
+	if panes, _ := w.panes.Panes(ctx, "dev", ""); slices.ContainsFunc(panes, func(p pane.Pane) bool { return p.ProcessID == keyCommand.ID }) {
+		t.Fatal("a key command was given a pane")
+	}
+	// Nothing more to show the second time.
+	if again, err := w.panes.ShowUnshown(ctx, list); err != nil || len(again) != 0 {
+		t.Fatalf("second pass added %d (%v)", len(again), err)
 	}
 }

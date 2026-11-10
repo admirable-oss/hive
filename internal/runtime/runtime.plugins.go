@@ -127,8 +127,16 @@ func (s *pluginSockets) serve(id string, _ []string) (string, func(), error) {
 	)
 	h := scopedHandler{id: id, router: s.router, granted: s.granted}
 	wg.Go(func() {
+		var retry platform.AcceptRetry // out of descriptors is temporary
 		for {
 			conn, err := ln.Accept()
+			if err != nil && retry.Retry(err) {
+				if retry.First() {
+					s.log.Warn("plugin socket: accept failing for now; retrying", "plugin", id, "err", err)
+				}
+				continue
+			}
+			retry.Reset()
 			if err != nil {
 				return
 			}

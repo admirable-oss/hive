@@ -18,3 +18,17 @@ func TestParseStatHandlesHostileCommandNames(t *testing.T) {
 		t.Fatal("expected an error for malformed input")
 	}
 }
+
+func TestStatZombie(t *testing.T) {
+	for stat, want := range map[string]bool{
+		"42 (sh) S 1 42 42 0 -1": false,
+		"42 (sh) Z 1 42 42 0 -1": true,
+		"42 (a) Z (b) R 1 42":    false, // the state follows the last ')'
+		"42 (sh) X 1 42 42 0 -1": true,
+		"garbage":                false,
+	} {
+		if got := statZombie([]byte(stat)); got != want {
+			t.Errorf("statZombie(%q) = %v, want %v", stat, got, want)
+		}
+	}
+}

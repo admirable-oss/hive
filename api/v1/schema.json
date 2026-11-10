@@ -4914,6 +4914,9 @@
         "exit_code": {
           "type": "integer"
         },
+        "for_pane": {
+          "type": "string"
+        },
         "id": {
           "type": "string"
         },

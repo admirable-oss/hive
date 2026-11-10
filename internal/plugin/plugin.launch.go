@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"net"
+
+	"github.com/admirable-oss/hive/internal/platform"
 )
 
 // SandboxCommand is the hidden hive command the sandbox runs first.
@@ -28,8 +30,13 @@ type launchSpec struct {
 // forwardProxy joins each connection on l to the proxy socket.
 func forwardProxy(ctx context.Context, l net.Listener, socket string) {
 	var d net.Dialer
+	var retry platform.AcceptRetry // out of descriptors is temporary
 	for {
 		c, err := l.Accept()
+		if err != nil && retry.Retry(err) {
+			continue
+		}
+		retry.Reset()
 		if err != nil {
 			return
 		}

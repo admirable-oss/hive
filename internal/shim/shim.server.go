@@ -78,6 +78,11 @@ func Run(ctx context.Context, dir string) error {
 		_ = ln.Close()
 		return s.fail(err)
 	}
+	// Agents run for weeks; a /tmp cleaner may delete the socket meanwhile,
+	// and the next daemon could then never re-attach.
+	ln = platform.KeepListening(ln, sock, func() (net.Listener, error) {
+		return lc.Listen(context.WithoutCancel(ctx), "unix", sock)
+	}, log)
 
 	if err := s.start(ctx); err != nil {
 		_ = ln.Close()
@@ -293,8 +298,16 @@ func (s *server) snapshotState() State {
 func (s *server) accept(ctx context.Context, ln net.Listener, conns *connSet) {
 	router := s.router()
 	info := protocol.ServerInfo{Version: buildinfo.Get().Version, Capabilities: []string{vt.FrameCapability, vt.FrameLinksCapability, vt.FrameClipboardCapability}}
+	var retry platform.AcceptRetry // out of descriptors is temporary
 	for {
 		conn, err := ln.Accept()
+		if err != nil && retry.Retry(err) {
+			if retry.First() {
+				s.log.Warn("accept failing for now; retrying", "err", err)
+			}
+			continue
+		}
+		retry.Reset()
 		if err != nil {
 			return
 		}

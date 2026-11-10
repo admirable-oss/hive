@@ -44,6 +44,10 @@ type Process struct {
 	// Owner is the member it belongs to: who started it, or who it was
 	// handed to. Absent, it is the runtime's own user's.
 	Owner *presence.Person `json:"owner,omitempty"`
+	// ForPane is the pane it was started to show (set by the daemon when a
+	// pane starts its own program). A daemon that died before saving that
+	// pane leaves a process no pane shows; the next daemon stops it.
+	ForPane string `json:"for_pane,omitempty"`
 }
 
 // Active reports whether the process is (or is about to be) running.
@@ -81,6 +85,9 @@ type StartRequest struct {
 	// Replay is shown on a terminal's screen before the program's output
 	// (a restored pane's earlier text). Only the daemon sets it.
 	Replay []byte `json:"-"`
+	// ForPane is the pane this process is for (Process.ForPane). Only the
+	// daemon sets it.
+	ForPane string `json:"-"`
 }
 
 // Stream names one of a process's output logs.
